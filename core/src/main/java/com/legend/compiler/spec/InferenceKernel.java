@@ -770,7 +770,7 @@ public final class InferenceKernel {
             if (typeScore < 0 || multScore < 0) {
                 return -1;
             }
-            total += typeScore * 10L + multScore;
+            total += typeScore * 20L + multScore;
         }
         return total;
     }
@@ -788,7 +788,7 @@ public final class InferenceKernel {
             if (multScore < 0) {
                 return -1;
             }
-            total += typeScore * 10L + multScore;
+            total += typeScore * 20L + multScore;
         }
         return total;
     }
@@ -910,13 +910,17 @@ public final class InferenceKernel {
         return a.equals(f) ? 2 : (ctx.isSubtype(a, f) ? 1 : -1);
     }
 
-    /** Multiplicity specificity: exact=5, then tightness 4/3/2/1, var=0; {@code -1} rejects {@code [*]->[1]}. */
+    /** Multiplicity specificity: exact=10, mult-VAR=9 (a var BINDS the
+     * argument's multiplicity exactly, so it beats every SUBSUMING
+     * concrete overload and loses only to an exact concrete match — real
+     * pure picks map's {T[m]->V[m]} over {T[0..1]->V[0..1]} for a [1]
+     * source), then tightness 8/6/4/2; {@code -1} rejects {@code [*]->[1]}. */
     private int paramMultScore(Multiplicity formal, Multiplicity actual, Type actualType) {
         return switch (formal) {
-            case Multiplicity.Var ignored -> 0;
+            case Multiplicity.Var ignored -> 9;
             case Multiplicity.Bounded fb -> {
                 if (fb.equals(actual)) {
-                    yield 5;
+                    yield 10;
                 }
                 if (fb.isToOne() && actual.isMany() && relationRow(actualType) == null) {
                     yield -1;   // [*] cannot satisfy a to-one slot (unless a relation source, §3.2)
@@ -940,16 +944,16 @@ public final class InferenceKernel {
         Integer up = m.upper();
         int lo = m.lower();
         if (lo == 1 && up != null && up == 1) {
-            return 4;   // [1]
+            return 8;   // [1]
         }
         if (lo == 0 && up != null && up == 1) {
-            return 3;   // [0..1]
+            return 6;   // [0..1]
         }
         if (lo == 1 && up == null) {
-            return 2;   // [1..*]
+            return 4;   // [1..*]
         }
         if (lo == 0 && up == null) {
-            return 1;   // [*]
+            return 2;   // [*]
         }
         return 0;
     }
