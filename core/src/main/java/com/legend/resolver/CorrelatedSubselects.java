@@ -392,6 +392,33 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
      * row joins back on those keys only — no mid join outside (engine:
      * `... group by "firmextension_2".firmId) ... on (root.firmId =
      * sub.firmId)`, testUnion.pure golden). */
+    /** UNION-split key expansion: a key absent from the row but present
+     * as per-member variants (k_0, k_1, …) expands to ALL of them — the
+     * grouped subselect groups by every split column and joins back on
+     * OR of pairs (task #27 U4). Keys found verbatim pass through. */
+    static List<String> expandSplitKeys(List<String> keys,
+            Type.RelationType row) {
+        List<String> out = new ArrayList<>();
+        for (String k : keys) {
+            if (row.columns().stream().anyMatch(
+                    c -> c.name().equals(k))) {
+                out.add(k);
+                continue;
+            }
+            List<String> split = row.columns().stream()
+                    .map(Type.Column::name)
+                    .filter(n -> n.matches(
+                            java.util.regex.Pattern.quote(k) + "_\\d+"))
+                    .toList();
+            if (split.isEmpty()) {
+                out.add(k);
+            } else {
+                out.addAll(split);
+            }
+        }
+        return out;
+    }
+
     private CorrAggSub chainedAggSubSource(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj) {
         TypedLambda cond = aj.condition();

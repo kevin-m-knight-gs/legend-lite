@@ -740,13 +740,24 @@ final class AssociationJoins {
      * keys under collision-proof aliases. */
     TypedLambda pkEqualityCond(List<String> keys, List<String> subKeys,
             Type.RelationType srcRow, Type.RelationType subRow) {
+        return pkEqualityCond(keys, subKeys, srcRow, subRow, false);
+    }
+
+    /** {@code orCombine}: UNION-split key pairs (ID_0/ID_1 — each NULL
+     * off-member) join back on OR of same-name equalities; NULL=NULL is
+     * not true in SQL, so exactly the member's own pair matches (the
+     * engine's unionBase join-back — task #27 U4). */
+    TypedLambda pkEqualityCond(List<String> keys, List<String> subKeys,
+            Type.RelationType srcRow, Type.RelationType subRow,
+            boolean orCombine) {
         var eqFns = ctx.findFunction("meta::pure::functions::boolean::equal")
                 .stream().filter(f -> f.parameters().size() == 2).toList();
-        var andFns = ctx.findFunction("meta::pure::functions::boolean::and")
+        var andFns = ctx.findFunction("meta::pure::functions::boolean::"
+                + (orCombine ? "or" : "and"))
                 .stream().filter(f -> f.parameters().size() == 2).toList();
         if (eqFns.size() != 1 || andFns.size() != 1) {
             throw new IllegalStateException("resolver bug: expected one 2-arg"
-                    + " boolean::equal and boolean::and");
+                    + " boolean::equal and boolean::and/or");
         }
         var boolOne = new ExprType(Type.Primitive.BOOLEAN,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);

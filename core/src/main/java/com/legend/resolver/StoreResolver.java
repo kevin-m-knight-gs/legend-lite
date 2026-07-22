@@ -1854,6 +1854,13 @@ public final class StoreResolver {
             TypedSpec subSource = cas.subSource();
             List<String> keyCols = cas.keyCols();
             Type.RelationType keyRow = cas.keyRow();
+            // UNION-mapped parent: equi-keys split per member (ID ->
+            // ID_0/ID_1) — group by ALL split columns, join back on OR
+            // of same-name pairs (engine unionBase model, task #27 U4)
+            List<String> keyCols2 = CorrelatedSubselects
+                    .expandSplitKeys(keyCols, keyRow);
+            boolean splitKeys = !keyCols2.equals(keyCols);
+            keyCols = keyCols2;
             CorrelatedSubselects.ParentCopy pc = cas.pc();
             List<TypedGroupBy.GroupKey>
                     keys = new ArrayList<>();
@@ -1915,9 +1922,10 @@ public final class StoreResolver {
             // targetPrefix set) already carries the association condition
             // INSIDE — the outer joins back on parent-key equality only.
             TypedLambda backCond = cas.targetPrefix() == null ? aj.condition()
-                    : assocMaterial.pkEqualityCond(keyCols,
+                    : assocMaterial.pkEqualityCond(keyCols, keyCols,
                             (Type.RelationType)
-                                    withJoins.info().type(), subRow);
+                                    withJoins.info().type(), subRow,
+                            splitKeys);
             withJoins = new TypedJoin(withJoins,
                     sub, leftKind(), backCond,
                     Optional.of(prefix),
