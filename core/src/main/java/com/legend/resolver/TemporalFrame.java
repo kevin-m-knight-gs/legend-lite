@@ -776,6 +776,17 @@ final class TemporalFrame {
             throw new MappingResolutionException("%latest is not a valid"
                     + " parameter for allVersionsInRange", classFqn);
         }
+        // RELATION-kind (~func) pipes project class properties only — the
+        // milestone columns live on the TABLE row, so the range filter
+        // pushes down to the internal scan (same rule as the fetch-date
+        // path: the engine filters every table alias)
+        if (!pipeRowHasMilestoneCols(pipe, fromCol, thruCol, snapCol)
+                && root != null
+                && pipeRowHasMilestoneCols(root, fromCol, thruCol, snapCol)) {
+            return replaceScan(pipe, sc -> tableHasBlock(sc, strategy)
+                    ? rangeScanPipe(sc, start, end, strategy, classFqn)
+                    : sc);
+        }
         Type.RelationType row =
                 (Type.RelationType) pipe.info().type();
         String v = "ms_row";
