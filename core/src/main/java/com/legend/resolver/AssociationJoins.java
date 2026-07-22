@@ -51,7 +51,8 @@ final class AssociationJoins {
         // association route, which errors when the property is PM-mapped
         TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(head));
         if (binding == null) {
-            return associationJoin(temporal, cs, head, context, false, leaves);
+            return associationJoin(temporal, cs, head, context, false, leaves,
+                    head, tgtNavPaths);
         }
         var navSteps = Pipelines.navSteps(cs.pipeline());
         String alias = StoreResolver.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
@@ -265,6 +266,18 @@ final class AssociationJoins {
     AssocJoin associationJoin(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
                                       boolean forExists, Set<String> demandedLeaves,
                                       String chainKey) {
+        return associationJoin(temporal, cs, head, context, forExists,
+                demandedLeaves, chainKey, Set.of());
+    }
+
+    /** {@code navTails}: TARGET-side nav paths past this head
+     * (placeOfInterest.name on Location for
+     * $e.locations.placeOfInterest.name) — each tail's first segment
+     * demands the target's navigate slot and exposes a SubNav so the
+     * multi-hop walk resolves through it (task #70/#78). */
+    AssocJoin associationJoin(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
+                                      boolean forExists, Set<String> demandedLeaves,
+                                      String chainKey, Set<List<String>> navTails) {
         // A SYNTHETIC head resolves by its underlying property; its parked
         // predicate joins the leaf demand (the pred's own reads pull the
         // target's slots) and wraps the finished target pipeline below.
@@ -313,8 +326,29 @@ final class AssociationJoins {
             }
         }
         targetDemand = Pipelines.closeOverConditions(target.pipeline(), targetDemand);
-        Pipelines.Materialized tMat0 = Pipelines.materialize(
-                target.pipeline(), targetDemand, target.classFqn());
+        var tNavSteps3 = Pipelines.navSteps(target.pipeline());
+        Set<String> tNavDemand3 = new LinkedHashSet<>();
+        Map<String, String> tailNavAliases = new java.util.LinkedHashMap<>();
+        for (List<String> tail : navTails) {
+            String seg0 = tail.get(0);
+            TypedSpec b3 = target.bindings().get(SyntheticHeads.realHead(seg0));
+            String al3 = b3 == null ? null
+                    : StoreResolver.navSlotAlias(b3, target.rowVar(),
+                            tNavSteps3.keySet());
+            if (al3 != null) {
+                tNavDemand3.add(al3);
+                tailNavAliases.put(seg0, al3);
+            }
+        }
+        Pipelines.Materialized tMat0 = tNavDemand3.isEmpty()
+                ? Pipelines.materialize(
+                        target.pipeline(), targetDemand, target.classFqn())
+                : Pipelines.materialize(
+                        target.pipeline(), targetDemand, tNavDemand3,
+                        target.classFqn(),
+                        (aln, tcn) -> Pipelines.materialize(
+                                sources.get(cs.mappingFqn(), tcn).pipeline(),
+                                java.util.Set.of(), tcn).pipeline());
         Pipelines.Materialized tMat = new Pipelines.Materialized(
                 temporal.temporalTargetPipe(cs, target, chainKey,
                         temporal.applyJoinTemporalFilters(tMat0.pipeline(), target,
@@ -430,10 +464,22 @@ final class AssociationJoins {
         tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
                 CorrelatedSubselects.predFilteredPipe(p, target, tMat.slotPrefixes(),
                         pred, cs.mappingFqn()));
+        Map<String, Substitution.SubNav> tailSubNavs =
+                new java.util.LinkedHashMap<>();
+        for (var tne : tailNavAliases.entrySet()) {
+            String pfx3 = tMat.slotPrefixes().get(tne.getValue());
+            var stepT3 = tNavSteps3.get(tne.getValue()).target();
+            if (pfx3 == null || !(stepT3 instanceof TypedGetAll stg3)) {
+                continue;
+            }
+            ClassSource sub3 = sources.get(cs.mappingFqn(), stg3.classFqn());
+            tailSubNavs.put(tne.getKey(), new Substitution.SubNav(
+                    pfx3, sub3.rowVar(), sub3.bindings()));
+        }
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (Type.RelationType)
                         tPipe.info().type(),
-                oriented, tMat.slotPrefixes(), Map.of(), corrSub);
+                oriented, tMat.slotPrefixes(), tailSubNavs, corrSub);
     }
 
     /** The correlation pass: two sequential substitutions over the lifted

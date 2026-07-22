@@ -3269,6 +3269,7 @@ public final class StoreResolver {
             return new NestedScope(none, targetPipe, row);
         }
         Set<List<String>> innerPaths = new LinkedHashSet<>();
+        Set<List<String>> innerFullPaths = new LinkedHashSet<>();
         List<TypedSpec> innerOps = new ArrayList<>();
         for (TypedLambda lam : inner) {
             if (lam.parameters().isEmpty()) {
@@ -3277,6 +3278,12 @@ public final class StoreResolver {
             Set<String> heads = new LinkedHashSet<>();
             collectParamPathHeads(lam, lam.parameters().get(0), heads);
             heads.forEach(h -> innerPaths.add(List.of(h)));
+            // FULL paths feed depth-2+ leaf/nav demand below (heads-only
+            // collection lost the tails — the multi-hop exists family:
+            // $e.locations.placeOfInterest.name, task #70/#78)
+            for (TypedSpec b : lam.body()) {
+                consumedPaths(b, lam.parameters().get(0), innerFullPaths);
+            }
             innerOps.add(new TypedFilter(targetPipe, lam, targetPipe.info()));
         }
         if (innerPaths.isEmpty()) {
@@ -3285,62 +3292,16 @@ public final class StoreResolver {
         // nested EXISTS materials (emptiness consumption)
         Map<String, Substitution.ExistsSub> nested =
                 registerExistsSubs(t, innerPaths, Set.of(), innerOps, context, Map.of());
-        // nested ASSOC materials (leaf reads): widen the exists relation
-        // with each demanded association's LEFT join, prefix-renamed —
-        // the same descriptor->emission fold the root pipeline uses
-        Map<String, Substitution.AssocSub> nestedAssocs = new LinkedHashMap<>();
-        TypedSpec pipe = targetPipe;
-        var tNavSteps = Pipelines.navSteps(t.pipeline());
-        for (List<String> path : innerPaths) {
-            String h = path.get(0);
-            // an exists material and an assoc material COEXIST for one
-            // head: emptiness consumption reads existsSubs, leaf reads
-            // read assocs — different arms of rewritePath/rewriteCallArms
-            if (nestedAssocs.containsKey(h)) {
-                continue;
-            }
-            // association heads AND nav-slot-backed heads both resolve
-            // through associationJoin (its binding!=null arm is the
-            // navigate-slot route — $e.address.name where address is a
-            // Join-PM property)
-            TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
-            boolean slotBacked = hb != null
-                    && navSlotAlias(hb, t.rowVar(), tNavSteps.keySet()) != null;
-            if (!slotBacked && (hb != null
-                    || ctx.findAssociationOf(t.classFqn(),
-                            SyntheticHeads.realHead(h)).isEmpty())) {
-                continue;
-            }
-            Set<String> hLeaves = new LinkedHashSet<>();
-            for (List<String> p2 : innerPaths) {
-                if (p2.size() >= 2 && p2.get(0).equals(h)) {
-                    hLeaves.add(p2.get(1));
-                }
-            }
-            // aggJoinMaterial is the nav-slot-aware entry (binding-backed
-            // heads route through the navigate slot; associations fall
-            // through to the assoc route)
-            AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
-                    temporal, t, h, context, hLeaves, Set.of());
-            List<Type.Column> cols = new ArrayList<>(
-                    ((Type.RelationType) pipe.info().type()).columns());
-            for (Type.Column c : aj2.targetRow().columns()) {
-                cols.add(new Type.Column(aj2.prefix() + c.name(),
-                        c.type(), c.multiplicity()));
-            }
-            Type.RelationType widened = new Type.RelationType(cols);
-            pipe = new TypedJoin(pipe, aj2.targetPipeline(), leftKind(),
-                    aj2.condition(), Optional.of(aj2.prefix()),
-                    new ExprType(widened,
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-            nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
-                    aj2.target().rowVar(), aj2.target().bindings(),
-                    aj2.target().classFqn(),
-                    Pipelines.slotAliases(aj2.target().pipeline()),
-                    aj2.targetSlotPrefixes(),
-                    /*readVar*/ null, /*readRowType*/ null,
-                    Map.of(), Map.of()));
-        }
+        // nested ASSOC materials (leaf reads) + deep chain keys — the
+        // material construction lives with the other correlated-scope
+        // machinery (guardrail extraction)
+        CorrelatedSubselects.NestedMaterials nm = corrSubs
+                .nestedAssocMaterials(temporal, context, t, targetPipe,
+                        innerPaths, innerFullPaths,
+                        (cls, prop) -> !ctx.findAssociationOf(cls, prop)
+                                .isEmpty());
+        Map<String, Substitution.AssocSub> nestedAssocs = nm.assocs();
+        TypedSpec pipe = nm.pipe();
         if (nested.isEmpty() && nestedAssocs.isEmpty()) {
             return new NestedScope(none, targetPipe, row);
         }

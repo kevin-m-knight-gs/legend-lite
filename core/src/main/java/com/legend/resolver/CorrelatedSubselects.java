@@ -788,6 +788,185 @@ private static boolean referencesVar(TypedSpec n, String var) {
         }
     }
 
+    /** Nested-scope association materials: one AssocSub per demanded
+     * head (assoc or navigate-slot backed), the exists relation widened
+     * with each head's LEFT join, then deep chain keys folded on top.
+     * Extracted from StoreResolver.nestedScope (guardrail). */
+    record NestedMaterials(TypedSpec pipe,
+            Map<String, Substitution.AssocSub> assocs) {}
+
+    NestedMaterials nestedAssocMaterials(TemporalFrame temporal,
+            StoreResolver.Context context, ClassSource t,
+            TypedSpec targetPipe,
+            java.util.Set<List<String>> innerPaths,
+            java.util.Set<List<String>> innerFullPaths,
+            java.util.function.BiPredicate<String, String> hasAssoc) {
+        // nested ASSOC materials (leaf reads): widen the exists relation
+        // with each demanded association's LEFT join, prefix-renamed —
+        // the same descriptor->emission fold the root pipeline uses
+        Map<String, Substitution.AssocSub> nestedAssocs = new LinkedHashMap<>();
+        Map<String, AssociationJoins.AssocJoin> nestedByHead =
+                new LinkedHashMap<>();
+        TypedSpec pipe = targetPipe;
+        var tNavSteps = Pipelines.navSteps(t.pipeline());
+        for (List<String> path : innerPaths) {
+            String h = path.get(0);
+            // an exists material and an assoc material COEXIST for one
+            // head: emptiness consumption reads existsSubs, leaf reads
+            // read assocs — different arms of rewritePath/rewriteCallArms
+            if (nestedAssocs.containsKey(h)) {
+                continue;
+            }
+            // association heads AND nav-slot-backed heads both resolve
+            // through associationJoin (its binding!=null arm is the
+            // navigate-slot route — $e.address.name where address is a
+            // Join-PM property)
+            TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
+            boolean slotBacked = hb != null
+                    && StoreResolver.navSlotAlias(hb, t.rowVar(), tNavSteps.keySet()) != null;
+            if (!slotBacked && (hb != null
+                    || !hasAssoc.test(t.classFqn(),
+                            SyntheticHeads.realHead(h)))) {
+                continue;
+            }
+            Set<String> hLeaves = new LinkedHashSet<>();
+            for (List<String> p2 : innerPaths) {
+                if (p2.size() >= 2 && p2.get(0).equals(h)) {
+                    hLeaves.add(p2.get(1));
+                }
+            }
+            Set<List<String>> hNavTails = new LinkedHashSet<>();
+            for (List<String> p2 : innerFullPaths) {
+                if (p2.size() >= 2 && p2.get(0).equals(h)) {
+                    hLeaves.add(p2.get(1));
+                    if (p2.size() >= 3) {
+                        // the tail past the head is the TARGET-side nav
+                        // path (placeOfInterest.name on Location) —
+                        // aggJoinMaterial's predPaths mechanism demands
+                        // the nav slot and builds the SubNav
+                        hNavTails.add(p2.subList(1, p2.size()));
+                    }
+                }
+            }
+            // aggJoinMaterial is the nav-slot-aware entry (binding-backed
+            // heads route through the navigate slot; associations fall
+            // through to the assoc route)
+            AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
+                    temporal, t, h, context, hLeaves, hNavTails);
+            List<Type.Column> cols = new ArrayList<>(
+                    ((Type.RelationType) pipe.info().type()).columns());
+            for (Type.Column c : aj2.targetRow().columns()) {
+                cols.add(new Type.Column(aj2.prefix() + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+            Type.RelationType widened = new Type.RelationType(cols);
+            pipe = new TypedJoin(pipe, aj2.targetPipeline(), StoreResolver.leftKind(),
+                    aj2.condition(), Optional.of(aj2.prefix()),
+                    new ExprType(widened,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+            nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
+                    aj2.target().rowVar(), aj2.target().bindings(),
+                    aj2.target().classFqn(),
+                    Pipelines.slotAliases(aj2.target().pipeline()),
+                    aj2.targetSlotPrefixes(),
+                    /*readVar*/ null, /*readRowType*/ null,
+                    Map.of(), aj2.targetSubNavs()));
+            nestedByHead.put(h, aj2);
+        }
+        // deep paths whose mid hop is ITSELF an association (locations.
+        // placeOfInterest.name) register CHAIN keys, mirroring the root
+        // chain-walk (task #70/#78)
+        pipe = foldNestedChains(temporal, context, t, pipe,
+                innerFullPaths, nestedByHead, nestedAssocs);
+        return new NestedMaterials(pipe, nestedAssocs);
+    }
+
+    /** Nested-scope CHAIN registration (task #70/#78 multi-hop exists:
+     * $e.locations.placeOfInterest.name): deep inner paths walk hop-by-hop
+     * exactly like the root chain-walk — each mid hop joins its target
+     * with a COMPOSED prefix, the condition's left reads re-pointed onto
+     * the accumulated prefixed row; the chain key (locations.placeOfInterest)
+     * lands in {@code nestedAssocs} so rewriteMultiHop's chainKey arm
+     * resolves the leaf. Returns the widened pipe. */
+    TypedSpec foldNestedChains(TemporalFrame temporal,
+            StoreResolver.Context context, ClassSource t, TypedSpec pipe,
+            java.util.Set<List<String>> fullPaths,
+            Map<String, AssociationJoins.AssocJoin> byHead,
+            Map<String, Substitution.AssocSub> nestedAssocs) {
+        Map<String, AssociationJoins.AssocJoin> byChain =
+                new LinkedHashMap<>();
+        for (List<String> p3 : fullPaths) {
+            if (p3.size() < 3) {
+                continue;
+            }
+            AssociationJoins.AssocJoin baseAj = byHead.get(p3.get(0));
+            if (baseAj == null) {
+                continue;
+            }
+            ClassSource parent = baseAj.target();
+            String parentPrefix = baseAj.prefix();
+            String chainKey = p3.get(0);
+            for (int hop = 1; hop + 1 < p3.size(); hop++) {
+                String seg = p3.get(hop);
+                chainKey = chainKey + "." + seg;
+                AssociationJoins.AssocJoin known = byChain.get(chainKey);
+                if (known != null) {
+                    parent = known.target();
+                    parentPrefix = known.prefix();
+                    continue;
+                }
+                AssociationJoins.AssocJoin aj3 = assocMaterial.aggJoinMaterial(
+                        temporal, parent, seg, context,
+                        java.util.Set.of(p3.get(hop + 1)), java.util.Set.of());
+                String chainPrefix = AssociationJoins.chainedPrefix(
+                        parentPrefix + seg, t, byChain);
+                TypedLambda cond3 = aj3.condition();
+                List<Type.Column> leftCols3 = new ArrayList<>();
+                for (Type.Column c : parent.rowType().columns()) {
+                    leftCols3.add(new Type.Column(parentPrefix + c.name(),
+                            c.type(), c.multiplicity()));
+                }
+                Type.RelationType leftRow3 = new Type.RelationType(leftCols3);
+                String lp3 = cond3.parameters().get(0);
+                final String ppf = parentPrefix;
+                TypedSpec body3 = Pipelines.prefixColumns(
+                        cond3.body().get(cond3.body().size() - 1), lp3, ppf,
+                        v -> new TypedVariable(lp3, new ExprType(leftRow3,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE)));
+                cond3 = new TypedLambda(cond3.parameters(), List.of(body3),
+                        cond3.info());
+                List<Type.Column> cols3 = new ArrayList<>(
+                        ((Type.RelationType) pipe.info().type()).columns());
+                for (Type.Column c : aj3.targetRow().columns()) {
+                    cols3.add(new Type.Column(chainPrefix + c.name(),
+                            c.type(), c.multiplicity()));
+                }
+                pipe = new TypedJoin(pipe, aj3.targetPipeline(),
+                        StoreResolver.leftKind(), cond3,
+                        Optional.of(chainPrefix),
+                        new ExprType(new Type.RelationType(cols3),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE));
+                AssociationJoins.AssocJoin stored =
+                        new AssociationJoins.AssocJoin(chainPrefix,
+                                aj3.target(), aj3.targetPipeline(),
+                                aj3.targetRow(), cond3,
+                                aj3.targetSlotPrefixes());
+                byChain.put(chainKey, stored);
+                nestedAssocs.put(chainKey, new Substitution.AssocSub(
+                        chainPrefix, aj3.target().rowVar(),
+                        aj3.target().bindings(), aj3.target().classFqn(),
+                        Pipelines.slotAliases(aj3.target().pipeline()),
+                        aj3.targetSlotPrefixes(), null, null,
+                        Map.of(), aj3.targetSubNavs()));
+                parent = aj3.target();
+                parentPrefix = chainPrefix;
+            }
+        }
+        return pipe;
+    }
+
 record CompositeChain(TypedSpec pipeline,
             TypedLambda orientedCond) {}
 
