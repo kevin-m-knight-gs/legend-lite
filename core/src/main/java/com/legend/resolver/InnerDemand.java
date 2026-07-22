@@ -177,12 +177,62 @@ final class InnerDemand {
                                     .TypedDistinct(rel0, java.util.List.of(),
                                     rel0.info());
                 }
+                // trailing ->limit(n)/->take(n) (native-call spelling
+                // pre-substitution, like distinct above) wraps the
+                // resolved relation as a relation-level LIMIT (the
+                // tdsContains TDS chains — task #78)
+                if (chain instanceof com.legend.compiler.spec.typed
+                        .TypedNativeCall lc
+                        && lc.args().size() == 2
+                        && (com.legend.builtin.Pure.nativeNamed("limit",
+                                lc.callee().signatureKey())
+                            || com.legend.builtin.Pure.nativeNamed("take",
+                                lc.callee().signatureKey()))) {
+                    com.legend.compiler.spec.typed.TypedSpec rel0 =
+                            rawResolver.apply(lc.args().get(0));
+                    return rel0 == null ? null
+                            : new com.legend.compiler.spec.typed
+                                    .TypedLimit(rel0, lc.args().get(1),
+                                    rel0.info());
+                }
                 return rawResolver.apply(chain);
             } catch (RuntimeException e) {
                 return null;
             }
         };
         return inQueryReadsOver(roots, resolver);
+    }
+
+    /** tdsContains fn lambdas bind the OUTER object: hand each lambda
+     * body + its own param to the caller's scanner (the shadow stop in
+     * both path walkers would otherwise drop them — task #78). */
+    static void scanTdsContainsFns(com.legend.compiler.spec.typed.TypedSpec n,
+            String userVar,
+            java.util.function.BiConsumer<com.legend.compiler.spec.typed
+                    .TypedSpec, String> each) {
+        if (!(n instanceof com.legend.compiler.spec.typed.TypedNativeCall tdc)
+                || !com.legend.builtin.Pure.nativeNamed("tdsContains",
+                        tdc.callee().signatureKey())
+                || tdc.args().size() < 2
+                || !(tdc.args().get(0) instanceof
+                        com.legend.compiler.spec.typed.TypedVariable ov)
+                || !ov.name().equals(userVar)) {
+            return;
+        }
+        com.legend.compiler.spec.typed.TypedSpec fns = tdc.args().get(1);
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> fl =
+                fns instanceof com.legend.compiler.spec.typed
+                        .TypedCollection tcl
+                ? tcl.elements() : java.util.List.of(fns);
+        for (com.legend.compiler.spec.typed.TypedSpec f : fl) {
+            if (f instanceof com.legend.compiler.spec.typed.TypedLambda lam2
+                    && lam2.parameters().size() == 1) {
+                for (com.legend.compiler.spec.typed.TypedSpec b
+                        : lam2.body()) {
+                    each.accept(b, lam2.parameters().get(0));
+                }
+            }
+        }
     }
 
     private static java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
@@ -204,6 +254,22 @@ final class InnerDemand {
                     com.legend.compiler.spec.typed.TypedSpec> resolver,
             java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
                     Substitution.InQueryRead> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
+                && com.legend.builtin.Pure.nativeNamed("tdsContains",
+                        tc.callee().signatureKey())
+                && tc.args().size() >= 3) {
+            // tdsContains: the TDS arg is a relation CHAIN (project over
+            // a class extent) — resolve it like the in-subquery colls;
+            // the substitution arm pairs functions to columns (task #78)
+            com.legend.compiler.spec.typed.TypedSpec tdsArg =
+                    tc.args().get(tc.args().size() == 3 ? 2 : 3);
+            com.legend.compiler.spec.typed.TypedSpec rel =
+                    resolver.apply(tdsArg);
+            if (rel != null && rel.info().type() instanceof
+                    com.legend.compiler.element.type.Type.RelationType) {
+                out.put(tc, new Substitution.InQueryRead(rel, null));
+            }
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 2) {
             String key = c.callee().signatureKey();

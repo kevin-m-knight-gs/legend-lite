@@ -3029,6 +3029,8 @@ public final class StoreResolver {
         if (path != null) {
             out.add(path);
         }
+        InnerDemand.scanTdsContainsFns(n, userVar,
+                (b, pv) -> consumedPaths(b, pv, out));
         if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
             return;   // shadowing: the substitution stops here too (one funnel)
         }
@@ -3134,6 +3136,8 @@ public final class StoreResolver {
                 }
             }
         }
+        InnerDemand.scanTdsContainsFns(n, userVar,
+                (b, pv) -> memberScan(b, pv, cs, out));
         // LOUD (audit 9): an aggregate over a to-many crossing in FILTER
         // position would join-explode and the reducer's to-one identity
         // silently eats the aggregate (max() > 30 becoming any-match).

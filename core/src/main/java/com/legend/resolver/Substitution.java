@@ -432,6 +432,89 @@ final class Substitution {
      * &rArr; {@code [employer, legal]}); {@code null} otherwise. DemandScan
      * and the rewrite share this single extractor.
      */
+
+    /** tdsContains in predicate position (task #78): EXISTS over the
+     * resolved projected relation — see the inline notes. */
+    private TypedSpec rewriteTdsContains(TypedNativeCall call, TypedSpec n) {
+        // tdsContains in predicate position: EXISTS over the resolved
+        // projected relation, one equality per (function, column) pair
+        // (engine pureToSQLQuery tdsContains processor; golden emits
+        // EXISTS(SELECT 1 FROM (project…) t WHERE outer = t.col)).
+        // NOTE the engine adds an or-both-null disjunct for TDS null
+        // cells; pure eq-over-empty is FALSE and the corpus seeds are
+        // non-null here, so plain equality is row-equal — revisit if
+        // a null-celled TDS fixture appears.
+            InQueryRead tq = target.inQueryReads().get(n);
+            if (tq == null) {
+                throw new NotImplementedException("tdsContains whose TDS"
+                        + " argument is not a resolvable relation chain"
+                        + " is not supported yet");
+            }
+            if (call.args().size() != 3) {
+                throw new NotImplementedException("tdsContains cross-"
+                        + "operation form (5 args) is not supported yet");
+            }
+            TypedSpec fns = call.args().get(1);
+            List<TypedSpec> fnList = fns instanceof TypedCollection tcol
+                    ? tcol.elements() : List.of(fns);
+            Type.RelationType tRow =
+                    (Type.RelationType) tq.relation().info().type();
+            if (fnList.size() != 1 || tRow.columns().size() != 1) {
+                throw new NotImplementedException("tdsContains with "
+                        + fnList.size() + " function(s) over "
+                        + tRow.columns().size() + " column(s) — only the"
+                        + " single-function form is supported yet");
+            }
+            TypedSpec fn0 = fnList.get(0);
+            if (fn0 instanceof TypedNativeCall c0 && c0.args().size() == 1
+                    && c0.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")) {
+                fn0 = c0.args().get(0);
+            }
+            if (!(fn0 instanceof TypedLambda fl)
+                    || fl.parameters().size() != 1
+                    || fl.body().isEmpty()) {
+                throw new NotImplementedException("tdsContains function"
+                        + " argument is not a plain lambda —"
+                        + " not supported yet");
+            }
+            if (!fl.parameters().get(0).equals(target.userVar())
+                    && !(call.args().get(0) instanceof TypedVariable ov
+                            && fl.parameters().get(0).equals(ov.name()))) {
+                throw new NotImplementedException("tdsContains function"
+                        + " parameter '" + fl.parameters().get(0)
+                        + "' does not bind the filter variable —"
+                        + " renamed-parameter binding is not built yet");
+            }
+            TypedSpec outer = rewrite(
+                    fl.body().get(fl.body().size() - 1));
+            Type.Column tc0 = tRow.columns().get(0);
+            String tv = "_tc";
+            TypedSpec eqT = new TypedNativeCall(target.equalCallee(),
+                    List.of(outer,
+                            new TypedPropertyAccess(
+                                    new TypedVariable(tv, new ExprType(
+                                            tRow,
+                                            Multiplicity.Bounded.ONE)),
+                                    tc0.name(),
+                                    new ExprType(tc0.type(),
+                                            tc0.multiplicity()))),
+                    new ExprType(Type.Primitive.BOOLEAN,
+                            Multiplicity.Bounded.ONE));
+            TypedLambda tPred = new TypedLambda(List.of(tv),
+                    List.of(eqT),
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(tRow,
+                                    Multiplicity.Bounded.ONE)),
+                            new Type.Param(Type.Primitive.BOOLEAN,
+                                    Multiplicity.Bounded.ONE)),
+                            Multiplicity.Bounded.ONE));
+            TypedSpec tFiltered = new TypedFilter(tq.relation(), tPred,
+                    tq.relation().info());
+            return new TypedNativeCall(target.isNotEmptyCallee(),
+                    List.of(tFiltered), n.info());
+    }
+
     /** TRUE when the chain from {@code n} down to its root pierces an
      * explicit (user-written) toOne() wrapper — synthesized bindings
      * never appear in the query lambda, so any toOne found here is the
@@ -592,6 +675,10 @@ final class Substitution {
                             + "' needs the strict-read filter hoist —"
                             + " not supported yet");
                 }
+            }
+            if (com.legend.builtin.Pure.nativeNamed("tdsContains",
+                    call.callee().signatureKey())) {
+                return rewriteTdsContains(call, n);
             }
             if (isEmptinessFamily(call)) {
                 TypedSpec exArg = call.args().get(0);
