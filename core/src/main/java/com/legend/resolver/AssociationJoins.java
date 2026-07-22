@@ -358,36 +358,13 @@ final class AssociationJoins {
         // slot, and the stock slot machinery materializes it (user rule:
         // both are just navigate()). Target-side param ONLY — demanding
         // an unread to-many step would explode target rows.
-        var bindE = associationBindingInClosure(cs.mappingFqn(),
-                assoc.qualifiedName()).orElse(null);
-        if (bindE != null) {
-            var fnsE = ctx.findFunction(bindE.predicateFunctionFqn());
-            var cfE = fnsE.size() == 1 ? specs.compile(fnsE.get(0)) : null;
-            TypedSpec lastE = cfE == null ? null
-                    : cfE.body().get(cfE.body().size() - 1);
-            if (lastE instanceof TypedNativeCall callE
-                    && callE.args().size() == 5
-                    && callE.args().get(4) instanceof TypedLambda condE
-                    && condE.parameters().size() == 2) {
-                String classAFqnE = ((Type.ClassType)
-                        fnsE.get(0).parameters().get(0).type()).fqn();
-                boolean parentIsAE = ctx.isSubtype(cs.classFqn(), classAFqnE);
-                boolean reverseE = cs.classFqn().equals(targetClass)
-                        ? !assoc.property1().propertyName().equals(real)
-                        : !parentIsAE;
-                String tgtVarE = condE.parameters().get(reverseE ? 0 : 1);
-                for (TypedSpec b : condE.body()) {
-                    // JOINSLOT reads (the ColSpec-join emission) and
-                    // navigate-step reads both count
-                    CorrelatedSubselects.collectAliasReads(b, tgtVarE,
-                            targetSlots, targetDemand);
-                    CorrelatedSubselects.collectAliasReads(b, tgtVarE,
-                            tNavSteps3.keySet(), tNavDemand3);
-                }
-                targetDemand = Pipelines.closeOverConditions(
-                        target.pipeline(), targetDemand);
-            }
-        }
+        Map<String, Set<String>> nestedAssocReads =
+                new java.util.LinkedHashMap<>();
+        String condTgtVar = scanCondTargetReads(cs, assoc, real, targetClass,
+                target, targetSlots, targetDemand, tNavSteps3.keySet(),
+                tNavDemand3, nestedAssocReads);
+        targetDemand = Pipelines.closeOverConditions(
+                target.pipeline(), targetDemand);
         Pipelines.Materialized tMat0 = tNavDemand3.isEmpty()
                 ? Pipelines.materialize(
                         target.pipeline(), targetDemand, target.classFqn())
@@ -397,11 +374,38 @@ final class AssociationJoins {
                         (aln, tcn) -> Pipelines.materialize(
                                 sources.get(cs.mappingFqn(), tcn).pipeline(),
                                 java.util.Set.of(), tcn).pipeline());
-        Pipelines.Materialized tMat = new Pipelines.Materialized(
-                temporal.temporalTargetPipe(cs, target, chainKey,
-                        temporal.applyJoinTemporalFilters(tMat0.pipeline(), target,
-                                Map.of())),
-                tMat0.slotPrefixes(), tMat0.stripped());
+        TypedSpec basePipe = temporal.temporalTargetPipe(cs, target, chainKey,
+                temporal.applyJoinTemporalFilters(tMat0.pipeline(), target,
+                        Map.of()));
+        // NESTED-ASSOCIATION widening (the navigate() rule): a condition
+        // reading $tgt.<assocProp>.<col> joins the nested association's
+        // target into the materialized pipe, prefixed — the recursive
+        // navigate, exactly the chain-walk precedent (task #78)
+        Map<String, String> nestedPrefixByProp =
+                new java.util.LinkedHashMap<>();
+        for (var ne : nestedAssocReads.entrySet()) {
+            AssocJoin aj2 = aggJoinMaterial(temporal, target, ne.getKey(),
+                    context, ne.getValue(), java.util.Set.of());
+            String pfx = ne.getKey() + "_";
+            Type.RelationType curRow = (Type.RelationType)
+                    basePipe.info().type();
+            java.util.List<Type.Column> wcols =
+                    new java.util.ArrayList<>(curRow.columns());
+            for (Type.Column c : aj2.targetRow().columns()) {
+                wcols.add(new Type.Column(pfx + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+            basePipe = new com.legend.compiler.spec.typed.TypedJoin(
+                    basePipe, aj2.targetPipeline(),
+                    StoreResolver.leftKind(), aj2.condition(),
+                    java.util.Optional.of(pfx),
+                    new ExprType(new Type.RelationType(wcols),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE));
+            nestedPrefixByProp.put(ne.getKey(), pfx);
+        }
+        final Pipelines.Materialized tMat = new Pipelines.Materialized(
+                basePipe, tMat0.slotPrefixes(), tMat0.stripped());
 
         // The predicate function: the AssociationBinding for the assoc,
         // searched across the INCLUDE CLOSURE (own mapping wins; audit V3:
@@ -460,7 +464,9 @@ final class AssociationJoins {
         boolean reverse = cs.classFqn().equals(targetClass)
                 ? !assoc.property1().propertyName().equals(real)
                 : !parentIsA;
-        TypedLambda oriented = cond;
+        TypedLambda oriented = rewriteNestedAssocCondReads(cond, condTgtVar,
+                nestedPrefixByProp,
+                (Type.RelationType) tMat.pipeline().info().type());
         if (reverse) {
             var ft = (Type.FunctionType)
                     cond.info().type();
@@ -763,6 +769,128 @@ final class AssociationJoins {
                                 res),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE));
+    }
+
+
+    /** The association CONDITION's target-side reads: slot/navigate
+     * demand plus NESTED-association reads (the navigate() rule) —
+     * returns the condition's target param name (null when the
+     * predicate shape is unrecognized). Extracted seam (guardrail). */
+    private String scanCondTargetReads(ClassSource cs,
+            com.legend.model.AssociationDefinition assoc, String real,
+            String targetClass, ClassSource target, Set<String> targetSlots,
+            Set<String> targetDemand, Set<String> navStepKeys,
+            Set<String> tNavDemand3,
+            Map<String, Set<String>> nestedAssocReads) {
+        String result = null;
+        var bindE = associationBindingInClosure(cs.mappingFqn(),
+                assoc.qualifiedName()).orElse(null);
+        if (bindE != null) {
+            var fnsE = ctx.findFunction(bindE.predicateFunctionFqn());
+            var cfE = fnsE.size() == 1 ? specs.compile(fnsE.get(0)) : null;
+            TypedSpec lastE = cfE == null ? null
+                    : cfE.body().get(cfE.body().size() - 1);
+            if (lastE instanceof TypedNativeCall callE
+                    && callE.args().size() == 5
+                    && callE.args().get(4) instanceof TypedLambda condE
+                    && condE.parameters().size() == 2) {
+                String classAFqnE = ((Type.ClassType)
+                        fnsE.get(0).parameters().get(0).type()).fqn();
+                boolean parentIsAE = ctx.isSubtype(cs.classFqn(), classAFqnE);
+                boolean reverseE = cs.classFqn().equals(targetClass)
+                        ? !assoc.property1().propertyName().equals(real)
+                        : !parentIsAE;
+                String tgtVarE = condE.parameters().get(reverseE ? 0 : 1);
+                result = tgtVarE;
+                for (TypedSpec b : condE.body()) {
+                    // JOINSLOT reads (the ColSpec-join emission) and
+                    // navigate-step reads both count
+                    CorrelatedSubselects.collectAliasReads(b, tgtVarE,
+                            targetSlots, targetDemand);
+                    CorrelatedSubselects.collectAliasReads(b, tgtVarE,
+                            navStepKeys, tNavDemand3);
+                    // NESTED-ASSOCIATION reads ($tgt.address.city where
+                    // address is an association of the target class):
+                    // the navigate() rule — the nested association joins
+                    // into the target after materialization (below)
+                    collectNestedAssocReads(b, tgtVarE, targetClass,
+                            nestedAssocReads);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Nested-association reads in an association condition:
+     * {@code $tgt.<assocProp>.<col>} where assocProp is an association
+     * of the target class (the navigate() rule — task #78). */
+    private void collectNestedAssocReads(TypedSpec n, String tgtVar,
+            String targetClass, Map<String, Set<String>> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof
+                        com.legend.compiler.spec.typed.TypedPropertyAccess mid
+                && mid.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(tgtVar)
+                && ctx.findAssociationOf(targetClass, mid.property())
+                        .isPresent()) {
+            out.computeIfAbsent(mid.property(),
+                    k -> new LinkedHashSet<>()).add(pa.property());
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectNestedAssocReads(c, tgtVar, targetClass, out);
+        }
+    }
+
+    /** The condition with nested-association reads re-pointed at the
+     * WIDENED target row's prefixed columns. */
+    private static TypedLambda rewriteNestedAssocCondReads(TypedLambda cond,
+            String tgtVar, Map<String, String> prefixByProp,
+            Type.RelationType row) {
+        if (tgtVar == null || prefixByProp.isEmpty()) {
+            return cond;
+        }
+        java.util.List<TypedSpec> nb =
+                new java.util.ArrayList<>(cond.body().size());
+        for (TypedSpec b : cond.body()) {
+            nb.add(nestedCondRead(b, tgtVar, prefixByProp, row));
+        }
+        return new TypedLambda(cond.parameters(), nb, cond.info());
+    }
+
+    private static TypedSpec nestedCondRead(TypedSpec n, String tgtVar,
+            Map<String, String> pfx, Type.RelationType row) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.source() instanceof
+                        com.legend.compiler.spec.typed.TypedPropertyAccess mid
+                && mid.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(tgtVar)
+                && pfx.containsKey(mid.property())) {
+            String col = pfx.get(mid.property()) + pa.property();
+            Type.Column c = row.columns().stream()
+                    .filter(x -> x.name().equals(col)).findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "resolver bug: nested-association read column '"
+                                    + col + "' missing from the widened"
+                                    + " target row"));
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    new com.legend.compiler.spec.typed.TypedVariable(tgtVar,
+                            new ExprType(row,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE)),
+                    col, new ExprType(c.type(), c.multiplicity()));
+        }
+        if (n instanceof TypedNativeCall c2) {
+            java.util.List<TypedSpec> args =
+                    new java.util.ArrayList<>(c2.args().size());
+            for (TypedSpec a : c2.args()) {
+                args.add(nestedCondRead(a, tgtVar, pfx, row));
+            }
+            return new TypedNativeCall(c2.callee(), args, c2.info());
+        }
+        return n;
     }
 
     /** {@code λ(s,t). AND_k s.k == t.k} — the parent-key join-back of the
