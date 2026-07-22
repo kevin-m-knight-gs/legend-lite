@@ -1265,6 +1265,12 @@ public final class Pure {
     public static final NativeFunctionDefinition PLUS__T_MANY = signature("native function meta::pure::functions::math::plus<T>(values:T[*]):T[1];");
     public static final NativeFunctionDefinition POW__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::pow(base:meta::pure::metamodel::type::Number[1], exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition PROJECT__C_MANY__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::project<C,T>(cl:C[*], x:meta::pure::metamodel::relation::FuncColSpecArray<{C[1]->meta::pure::metamodel::type::Any[*]},T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    // real tds.pure spells getString as a TDSRow qualified property
+    // ({$this.get($colName)->cast(@String)}:String[1]) — registered as the
+    // 2-arg native the dot-call dispatch resolves; the tdsContains
+    // cross-operation rewrite substitutes it to a column/outer read
+    public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS
     // carrier is Relation (same divergence as project<K> above) — the
     // relational route rewrites the call to EXISTS over the projected

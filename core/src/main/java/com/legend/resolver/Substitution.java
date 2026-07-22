@@ -450,9 +450,13 @@ final class Substitution {
                         + " argument is not a resolvable relation chain"
                         + " is not supported yet");
             }
+            if (call.args().size() == 5) {
+                return rewriteTdsContainsCross(call, n);
+            }
             if (call.args().size() != 3) {
-                throw new NotImplementedException("tdsContains cross-"
-                        + "operation form (5 args) is not supported yet");
+                throw new NotImplementedException("tdsContains with "
+                        + call.args().size()
+                        + " args is not supported yet");
             }
             TypedSpec fns = call.args().get(1);
             List<TypedSpec> fnList = fns instanceof TypedCollection tcol
@@ -513,6 +517,126 @@ final class Substitution {
                     tq.relation().info());
             return new TypedNativeCall(target.isNotEmptyCallee(),
                     List.of(tFiltered), n.info());
+    }
+
+    /** tdsContains CROSS-OPERATION form (task #78): the cross lambda's
+     * first param reads the PROJECTED outer row ($a.getString(id_i) =
+     * the i-th function evaluated over the object), the second reads the
+     * TDS relation row ($b.getString(col) = column read) — the body
+     * rewrites into the EXISTS filter predicate over the tds relation. */
+    private TypedSpec rewriteTdsContainsCross(TypedNativeCall call,
+            TypedSpec n) {
+        InQueryRead tq = target.inQueryReads().get(n);
+        if (tq == null) {
+            throw new NotImplementedException("tdsContains whose TDS"
+                    + " argument is not a resolvable relation chain"
+                    + " is not supported yet");
+        }
+        TypedSpec fns = call.args().get(1);
+        List<TypedSpec> fnList = fns instanceof TypedCollection tcol
+                ? tcol.elements() : List.of(fns);
+        TypedSpec idsA = call.args().get(2);
+        List<TypedSpec> idList = idsA instanceof TypedCollection icol
+                ? icol.elements() : List.of(idsA);
+        if (fnList.size() != idList.size()) {
+            throw new NotImplementedException("tdsContains cross form:"
+                    + " functions/ids arity mismatch");
+        }
+        Map<String, TypedSpec> outerById = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < fnList.size(); i++) {
+            if (!(idList.get(i) instanceof
+                    com.legend.compiler.spec.typed.TypedCString idc)) {
+                throw new NotImplementedException("tdsContains cross form:"
+                        + " non-literal id");
+            }
+            TypedSpec f = fnList.get(i);
+            if (!(f instanceof TypedLambda fl)
+                    || fl.parameters().size() != 1 || fl.body().isEmpty()
+                    || (!fl.parameters().get(0).equals(target.userVar())
+                            && !(call.args().get(0) instanceof TypedVariable ov
+                                && fl.parameters().get(0).equals(ov.name())))) {
+                throw new NotImplementedException("tdsContains cross form:"
+                        + " function is not a plain lambda over the filter"
+                        + " variable");
+            }
+            outerById.put(idc.value(),
+                    rewrite(fl.body().get(fl.body().size() - 1)));
+        }
+        if (!(call.args().get(4) instanceof TypedLambda cross)
+                || cross.parameters().size() != 2 || cross.body().isEmpty()) {
+            throw new NotImplementedException("tdsContains cross form:"
+                    + " crossOperation is not a 2-param lambda");
+        }
+        Type.RelationType tRow =
+                (Type.RelationType) tq.relation().info().type();
+        String tv = "_tc";
+        TypedSpec pred = crossCellSubst(
+                cross.body().get(cross.body().size() - 1),
+                cross.parameters().get(0), cross.parameters().get(1),
+                outerById, tRow, tv);
+        TypedLambda tPred = new TypedLambda(List.of(tv), List.of(pred),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(tRow,
+                                Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN,
+                                Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        TypedSpec tFiltered = new TypedFilter(tq.relation(), tPred,
+                tq.relation().info());
+        return new TypedNativeCall(target.isNotEmptyCallee(),
+                List.of(tFiltered), n.info());
+    }
+
+    /** Substitute cross-lambda cell reads: getString($a, id) &rarr; the
+     * outer expression; getString($b, col) &rarr; the relation column
+     * read. Unhandled nodes still referencing either param throw loud. */
+    private TypedSpec crossCellSubst(TypedSpec e, String aVar, String bVar,
+            Map<String, TypedSpec> outerById, Type.RelationType tRow,
+            String tv) {
+        if (e instanceof TypedNativeCall g && g.args().size() == 2
+                && g.callee().qualifiedName().equals(
+                        "meta::pure::tds::getString")
+                && g.args().get(0) instanceof TypedVariable rv
+                && g.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCString col) {
+            if (rv.name().equals(aVar)) {
+                TypedSpec o = outerById.get(col.value());
+                if (o == null) {
+                    throw new NotImplementedException("tdsContains cross"
+                            + " form: id '" + col.value() + "' is not in"
+                            + " the ids list");
+                }
+                return o;
+            }
+            if (rv.name().equals(bVar)) {
+                Type.Column c = tRow.columns().stream()
+                        .filter(cc -> cc.name().equals(col.value()))
+                        .findFirst().orElseThrow(() ->
+                                new NotImplementedException("tdsContains"
+                                        + " cross form: column '"
+                                        + col.value() + "' is not on the"
+                                        + " TDS relation"));
+                return new TypedPropertyAccess(
+                        new TypedVariable(tv, new ExprType(tRow,
+                                Multiplicity.Bounded.ONE)),
+                        c.name(), new ExprType(c.type(), c.multiplicity()));
+            }
+        }
+        if (e instanceof TypedNativeCall c2) {
+            List<TypedSpec> args = new java.util.ArrayList<>(
+                    c2.args().size());
+            for (TypedSpec a : c2.args()) {
+                args.add(crossCellSubst(a, aVar, bVar, outerById, tRow, tv));
+            }
+            return new TypedNativeCall(c2.callee(), args, c2.info());
+        }
+        if (e instanceof TypedVariable v
+                && (v.name().equals(aVar) || v.name().equals(bVar))) {
+            throw new NotImplementedException("tdsContains cross form:"
+                    + " row param '$" + v.name() + "' used outside a"
+                    + " getString cell read — not supported yet");
+        }
+        return e;
     }
 
     /** TRUE when the chain from {@code n} down to its root pierces an
