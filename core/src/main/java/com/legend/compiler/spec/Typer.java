@@ -1304,6 +1304,13 @@ final class Typer {
         return cut < 0 ? qn : qn.substring(cut + 2);
     }
 
+    /** Surrounding double quotes are SPELLING, not identity, for the
+     * quote-fallback column match (both sides normalize). */
+    private static String stripColQuotes(String n) {
+        return n.length() >= 2 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
+    }
+
     private TypedSpec accessProperty(AppliedProperty ap, Env env) {
         // TDS COLUMN METADATA — engine TabularDataSet.columns.name/.type.
         // Column names and pure type names are STATIC FACTS of the typed
@@ -1443,6 +1450,7 @@ final class Typer {
             }
         }
         // The member is either a class property ($obj.prop) or a relation column ($row.col).
+        String relColName = null;
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
                 Property prop = ctx.findProperty(ct.fqn(), ap.property()).orElse(null);
@@ -1514,18 +1522,32 @@ final class Typer {
                 yield new ExprType(kernel.resolve(prop.type(), b), prop.multiplicity());
             }
             case Type.RelationType rel -> {
+                // QUOTE-BEARING column identity (the pivot rule's sibling):
+                // a store-declared "FIRST NAME" column carries its quotes
+                // as identity; getString('FIRST NAME') reads it unquoted —
+                // exact match wins, then the quote-stripped fallback, and
+                // the ACCESS adopts the column's own spelling so every
+                // downstream lookup matches (task #78).
                 Type.Column col = rel.columns().stream()
                         .filter(c -> c.name().equals(ap.property()))
                         .findFirst()
-                        .orElseThrow(() -> new TypeInferenceException(
-                                "relation has no column '" + ap.property() + "'"));
+                        .orElseGet(() -> rel.columns().stream()
+                                .filter(c -> stripColQuotes(c.name()).equals(
+                                        stripColQuotes(ap.property())))
+                                .findFirst()
+                                .orElseThrow(() -> new TypeInferenceException(
+                                        "relation has no column '"
+                                                + ap.property() + "'")));
+                relColName = col.name();
                 yield new ExprType(col.type(), col.multiplicity());
             }
             default -> throw new TypeInferenceException("cannot access '" + ap.property()
                     + "' on " + source.info().type().typeName());
         };
         Multiplicity mult = compose(source.info().multiplicity(), member.multiplicity());
-        return new TypedPropertyAccess(source, ap.property(), new ExprType(member.type(), mult));
+        return new TypedPropertyAccess(source,
+                relColName != null ? relColName : ap.property(),
+                new ExprType(member.type(), mult));
     }
 
     /**
