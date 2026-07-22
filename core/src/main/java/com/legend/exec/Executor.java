@@ -347,7 +347,22 @@ public final class Executor {
         while (rs.next()) {
             List<Object> cells = new ArrayList<>(n);
             for (int i = 1; i <= n; i++) {
-                cells.add(unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)), sqlTypeOf(plan, i - 1), dialect));
+                Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
+                        sqlTypeOf(plan, i - 1), dialect);
+                if ((cell instanceof List<?> || cell instanceof java.sql.Array)
+                        && schema.columns().get(i - 1).type()
+                                instanceof Type.Primitive) {
+                    // TDS cells are SCALAR — a many-valued primitive
+                    // projection column (scalar-stream concatenate) explodes
+                    // ROWS in the engine (union subselect per element);
+                    // loud until that resolver-side construction lands
+                    throw new com.legend.error.NotImplementedException(
+                            "many-valued TDS cell in column '"
+                                    + columns.get(i - 1).name() + "' — row"
+                                    + " explosion (engine union subselect)"
+                                    + " is not built yet");
+                }
+                cells.add(cell);
             }
             rows.add(new Row(cells));
         }

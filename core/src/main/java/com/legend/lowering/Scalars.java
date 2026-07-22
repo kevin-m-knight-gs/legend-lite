@@ -47,6 +47,7 @@ import java.util.regex.Pattern;
  */
 final class Scalars {
 
+
     /** A rule receives the ALREADY-LOWERED argument expressions. */
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
     }
@@ -835,7 +836,14 @@ final class Scalars {
                                 null, null, List.of());
                         return new SqlExpr.ScalarSubquery(outer);
                     }
-                    return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(args.get(0)));
+                    // wrap scalar-ENCODED args as singletons — stamps
+                    // are unreliable here (many-stamped reads stay scalar
+                    // after substitution; values readers return lists from
+                    // to-one-stamped subqueries): decide by SQL shape
+                    SqlExpr sa = args.get(0);
+                    return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(
+                            ListShapes.listShaped(sa) ? sa
+                                    : new SqlExpr.ArrayLit(List.of(sa))));
                 }
                 Boolean asc = comparatorDirection(
                         n.args().get(n.args().size() - 1));
@@ -1514,6 +1522,12 @@ final class Scalars {
         // concatenates JSON[] to JSON[].
         for (String f : Pure.nativeKeysAt("concatenate")) {
             RULES.put(f, (n, args) -> {
+                // scalar-encoded sides wrap null-guarded (concatSide)
+                List<SqlExpr> args2 = new ArrayList<>(args.size());
+                for (int i = 0; i < args.size(); i++) {
+                    args2.add(ListShapes.concatSide(n.args().get(i), args.get(i)));
+                }
+                args = args2;
                 if (!PlatformTypes.isAny(n.info().type())) {
                     return new SqlExpr.Call(SqlFn.LIST_CONCAT, args);
                 }
@@ -1732,6 +1746,12 @@ final class Scalars {
                                             new SqlExpr.Lambda(
                                                     List.of(comp.params().get(0)), body))),
                             new SqlExpr.IntLit(0)));
+                }
+                // a TO-ONE singleton-literal needle (['ISIN2']) unwraps
+                if (args.get(1) instanceof SqlExpr.ArrayLit al
+                        && al.elements().size() == 1
+                        && isToOne(n.args().get(1))) {
+                    args = List.of(args.get(0), al.elements().get(0));
                 }
                 Type elem = n.args().get(0).info().type();
                 Type val = n.args().get(1).info().type();
@@ -3302,6 +3322,7 @@ final class Scalars {
         return arg.info().multiplicity() instanceof Multiplicity.Bounded b
                 && b.isToOne();
     }
+
 
     /** A literal boolean argument; LOUD otherwise (never a silent default). */
     private static boolean boolLiteral(TypedSpec arg,
