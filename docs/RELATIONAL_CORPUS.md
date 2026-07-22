@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 75 | 3 | 35 | 11 |
+| tests/mapping/union | 124 | 77 | 1 | 35 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1281** | 65 | 565 | 627 |
+| **total** | 2538 | **1283** | 63 | 565 | 627 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6201,7 +6201,7 @@ in-process Alloy-shaped path).
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x relation has no column 'activities' in scalar read
@@ -6749,7 +6749,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6802,13 +6802,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -7213,7 +7213,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
@@ -7355,7 +7355,6 @@ in-process Alloy-shaped path).
 - ERROR testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::unionMappingWithSelfJoin$class$meta::relational::tests::model::simple::Person': relation has no column 'lastName_s2'
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: Binder Error: Values list "t10" does not have a column named "ID" |  | LINE 29: ) AS t10 ON t2.FirmID_0 = t10.ID OR t2.FirmID_1 = t10.ID |                                    ^
-- FAIL testChainedUnionsWithMapAggregation [tests/mapping/union]: assertEquals: expected Anand,Scott,Taylor,Wright, got [Anand,Scott,Taylor,Wright, null]
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
@@ -7384,7 +7383,6 @@ in-process Alloy-shaped path).
 - ERROR testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::extend::unionMappingWithSelfJoin$class$meta::relational::tests::mapping::union::extend::Person': relation has no column 'lastName_s2'
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: Binder Error: Values list "t10" does not have a column named "ID" |  | LINE 29: ) AS t10 ON t2.FirmID_0 = t10.ID OR t2.FirmID_1 = t10.ID |                                    ^
-- FAIL testChainedUnionsWithMapAggregation [tests/mapping/union]: assertEquals: expected Anand,Scott,Taylor,Wright, got [null, Anand,Scott,Taylor,Wright]
 - ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
 - ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
 - ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
@@ -7423,7 +7421,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call
 - ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'query' of 'meta::relational::tests::functions::sqlstring::TestCase': expected FunctionDefinition<{ -> meta::pure::metamodel::type::Any[*]}>, got { -> (firstName:String[1], new:Integer[1])[1]} (value: La
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

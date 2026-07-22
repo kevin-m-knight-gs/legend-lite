@@ -636,11 +636,17 @@ final class StatementExecutor {
         String runtimeFqn = env.runtimeFqn();
         java.sql.Connection connection = env.connection();
         TypedSpec root = body.get(body.size() - 1);
-        // from() is context-only: shape AND root type come from the same
-        // looked-through node — a resolved source may be relation-shaped
-        // (scalar map lowers to a one-column project) while the from
-        // wrapper still carries the pre-resolution scalar info.
+        // from() is context-only, but its info is the PRE-RESOLUTION
+        // declared type — kept: a primitive-many declared root whose
+        // resolved source became relation-shaped (scalar ->map lowers to
+        // a one-column project) still executes as a VALUE COLLECTION, so
+        // the Executor's null-drop applies (pure collections hold no
+        // empties — the no-match parent contributes nothing, task #78).
+        com.legend.compiler.element.type.ExprType declaredInfo = null;
         while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            if (declaredInfo == null) {
+                declaredInfo = fr.info();
+            }
             root = fr.source();
         }
         // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
@@ -810,9 +816,19 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
+        boolean collectionDeclared = declaredInfo != null
+                && declaredInfo.type()
+                        instanceof com.legend.compiler.element.type.Type.Primitive
+                && declaredInfo.multiplicity()
+                        .requireBounded("result shape").isMany()
+                && root.info().type()
+                        instanceof com.legend.compiler.element.type.Type.RelationType;
         ExecutionResult res = Executor.execute(
-                dialect.render(plan), plan, root.info(),
-                com.legend.exec.ResultShape.of(root), connection, dialect);
+                dialect.render(plan), plan,
+                collectionDeclared ? declaredInfo : root.info(),
+                collectionDeclared ? com.legend.exec.ResultShape.COLLECTION
+                        : com.legend.exec.ResultShape.of(root),
+                connection, dialect);
         // rows->toOne() READER enforcement (audit 22b F1): the lowering is
         // row-identical to the relation (engine toOne throws at the READER,
         // never in SQL) — so THE reader enforces exactly-one here for a
