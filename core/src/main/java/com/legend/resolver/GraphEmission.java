@@ -648,6 +648,27 @@ final class GraphEmission {
         for (TypedGraphTree c : want) {
             TypedSpec e = ctor.properties().get(c.property());
             if (e == null) {
+                // DERIVED property of the EMBEDDED class: the lifted body
+                // inlines against the ctor's bindings — parent-row exprs,
+                // same machinery as top-level qualifier leaves (task #78)
+                TypedSpec dv = derivedLeaf(ctor.properties(), childClass, c);
+                if (dv != null) {
+                    var dFn2 = new Type.FunctionType(
+                            List.of(new Type.Param(rowT,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE)),
+                            new Type.Param(dv.info().type(),
+                                    dv.info().multiplicity()));
+                    leaves.add(new TypedFuncCol(c.alias() != null
+                            ? c.alias() : callKey(c),
+                            new TypedLambda(List.of(cs.rowVar()),
+                                    List.of(dv),
+                                    new ExprType(dFn2,
+                                            com.legend.compiler.element.type
+                                                    .Multiplicity.Bounded
+                                                    .ONE))));
+                    continue;
+                }
                 throw new MappingResolutionException("property '"
                         + c.property() + "' of embedded '" + node.property()
                         + "' on class '" + cs.classFqn()
@@ -691,8 +712,13 @@ final class GraphEmission {
      * {@code $this} reads substituted to the class's row bindings —
      * null when the name is not a parameterless derived property. */
     private TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node) {
+        return derivedLeaf(cs.bindings(), cs.classFqn(), node);
+    }
+
+    private TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
+            String classFqn, TypedGraphTree node) {
         String prop = node.property();
-        var p = ctx.findProperty(cs.classFqn(), prop).orElse(null);
+        var p = ctx.findProperty(classFqn, prop).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
                 || d.parameters().size() != node.args().size()) {
             return null;
@@ -710,7 +736,8 @@ final class GraphEmission {
             binds.put(cf.signature().parameters().get(i + 1).name(),
                     node.args().get(i));
         }
-        return inlineThis(cf.body().get(0), thisVar, binds, cs, prop);
+        return inlineThis(cf.body().get(0), thisVar, binds, bindings,
+                classFqn, prop);
     }
 
     /** Substitute {@code $this.<stored>} reads with the row bindings.
@@ -719,20 +746,21 @@ final class GraphEmission {
      * never silent (an unreplaced var would only error later at the
      * lowering, far from its cause). */
     private TypedSpec inlineThis(TypedSpec n, String thisVar,
-            Map<String, TypedSpec> binds, ClassSource cs, String prop) {
+            Map<String, TypedSpec> binds, Map<String, TypedSpec> bindings,
+            String classFqn, String prop) {
         if (n instanceof TypedVariable bv && binds.containsKey(bv.name())) {
             return binds.get(bv.name());
         }
         if (n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(thisVar)) {
-            TypedSpec b = cs.bindings().get(pa.property());
+            TypedSpec b = bindings.get(pa.property());
             if (b == null || b.info().type() instanceof Type.ClassType) {
                 throw new NotImplementedException("derived graph leaf '"
                         + prop + "' reads '" + pa.property() + "' which is "
                         + (b == null ? "not a stored binding"
                                 : "class-typed (navigation)")
-                        + " on '" + cs.classFqn() + "' — only same-class"
+                        + " on '" + classFqn + "' — only same-class"
                         + " stored reads inline yet");
             }
             return b;
@@ -745,22 +773,22 @@ final class GraphEmission {
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = new ArrayList<>(c.args().size());
             for (TypedSpec a : c.args()) {
-                args.add(inlineThis(a, thisVar, binds, cs, prop));
+                args.add(inlineThis(a, thisVar, binds, bindings, classFqn, prop));
             }
             return new TypedNativeCall(c.callee(), args, c.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedIf i) {
             return new com.legend.compiler.spec.typed.TypedIf(
-                    inlineThis(i.condition(), thisVar, binds, cs, prop),
-                    inlineThis(i.thenBranch(), thisVar, binds, cs, prop),
+                    inlineThis(i.condition(), thisVar, binds, bindings, classFqn, prop),
+                    inlineThis(i.thenBranch(), thisVar, binds, bindings, classFqn, prop),
                     i.elseBranch().map(e ->
-                            inlineThis(e, thisVar, binds, cs, prop)),
+                            inlineThis(e, thisVar, binds, bindings, classFqn, prop)),
                     n.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedCollection tc) {
             List<TypedSpec> els = new ArrayList<>(tc.elements().size());
             for (TypedSpec e : tc.elements()) {
-                els.add(inlineThis(e, thisVar, binds, cs, prop));
+                els.add(inlineThis(e, thisVar, binds, bindings, classFqn, prop));
             }
             return new com.legend.compiler.spec.typed.TypedCollection(
                     els, tc.info());
