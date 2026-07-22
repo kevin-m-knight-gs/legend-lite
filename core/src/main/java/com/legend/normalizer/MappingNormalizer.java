@@ -1164,46 +1164,30 @@ public final class MappingNormalizer {
         Variable p1 = mj.lambda().parameters().get(1);
         String t0 = p0.type() instanceof TypeExpression.NameRef nr0 ? nr0.name() : null;
         String t1 = p1.type() instanceof TypeExpression.NameRef nr1 ? nr1.name() : null;
-        String aVar;
-        String bVar;
-        // pairing: by EXACT type FQN when the ends differ; a SELF-association
-        // is type-ambiguous, so the engine mandates NAME pairing (params
-        // named after the association properties — HelperMappingBuilder
-        // resolveLambdaParamNames) and errors otherwise. No suffix matching.
-        if (!classA.equals(classB) && classA.equals(t0) && classB.equals(t1)) {
-            aVar = p0.name();
-            bVar = p1.name();
-        } else if (!classA.equals(classB) && classA.equals(t1) && classB.equals(t0)) {
-            aVar = p1.name();
-            bVar = p0.name();
-        } else if (p0.name().equals(ad2.property1().propertyName())
-                && p1.name().equals(ad2.property2().propertyName())) {
-            aVar = p0.name();
-            bVar = p1.name();
-        } else if (p1.name().equals(ad2.property1().propertyName())
-                && p0.name().equals(ad2.property2().propertyName())) {
-            aVar = p1.name();
-            bVar = p0.name();
-        } else {
-            throw new NotImplementedException(
-                    "ModelJoin for '" + mj.associationName() + "': lambda params ["
-                    + p0.name() + ": " + t0 + ", " + p1.name() + ": " + t1
-                    + "] pair with the association ends neither by exact type"
-                    + " nor by the engine's property-name rule");
-        }
+        String[] pair = ModelJoinNesting.pairEndVars(mj.associationName(), ad2,
+                classA, classB, p0, p1, t0, t1);
+        String aVar = pair[0];
+        String bVar = pair[1];
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
         Map<String, Variable> rowByVar = Map.of(aVar, srcRow, bVar, tgtRow);
         Map<String, ClassMapping.RelationFunction> rfByVar = Map.of(aVar, rfA, bVar, rfB);
+        ModelJoinNesting.Composed nh = ModelJoinNesting.compose(md, model,
+                mj, ad2, classA, classB, aVar, bVar, rfByVar,
+                endA.pipeline(), endB.pipeline());
+        ValueSpecification pipeA = nh.pipeA();
+        ValueSpecification pipeB = nh.pipeB();
+        Map<String, Map<String, Map<String, String>>> nestedCols =
+                nh.nestedCols();
         ValueSpecification cond = rewriteRelationReads(
                 mj.lambda().body().get(mj.lambda().body().size() - 1),
-                rowByVar, rfByVar, mj.associationName(), md);
+                rowByVar, rfByVar, mj.associationName(), md, nestedCols);
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
                 a, b,
-                endA.pipeline(),
-                endB.pipeline(),
+                pipeA,
+                pipeB,
                 new LambdaFunction(List.of(srcRow, tgtRow), List.of(cond))));
         FunctionDefinition.ParameterDefinition pA = new FunctionDefinition.ParameterDefinition(
                 "a", new TypeExpression.NameRef(classA), Multiplicity.Concrete.PURE_ONE);
@@ -1249,10 +1233,10 @@ public final class MappingNormalizer {
      * a Relation(~func) set directly, or a RELATIONAL set converted
      * (Column/local PMs -> cols, ~mainTable -> pipeline): MIXED-kind
      * mappings bridge the two (relation-family MixedMapping). */
-    private record XEnd(ValueSpecification pipeline,
+    record XEnd(ValueSpecification pipeline,
                         ClassMapping.RelationFunction colsView) {}
 
-    private static XEnd xstoreEndOf(LegacyMappingDefinition md,
+    static XEnd xstoreEndOf(LegacyMappingDefinition md,
             String classFqn, String setId, ModelBuilder model) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.RelationFunction rf
@@ -1304,6 +1288,34 @@ public final class MappingNormalizer {
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
             String assocName, LegacyMappingDefinition md) {
+        return rewriteRelationReads(v, rowByVar, rfByVar, assocName, md,
+                Map.of());
+    }
+
+    static ValueSpecification rewriteRelationReads(ValueSpecification v,
+            Map<String, Variable> rowByVar,
+            Map<String, ClassMapping.RelationFunction> rfByVar,
+            String assocName, LegacyMappingDefinition md,
+            Map<String, Map<String, Map<String, String>>> nestedCols) {
+        // NESTED hop read: $end.assocProp.leaf resolves to the nested
+        // target's column on the END's composite row
+        if (v instanceof AppliedProperty ap0
+                && ap0.receiver() instanceof AppliedProperty mid0
+                && mid0.receiver() instanceof Variable var0
+                && nestedCols.getOrDefault(var0.name(), Map.of())
+                        .containsKey(mid0.property())) {
+            Map<String, String> leafCols = nestedCols.get(var0.name())
+                    .get(mid0.property());
+            String col = leafCols.get(ap0.property());
+            if (col == null) {
+                throw new NotImplementedException(
+                        "association '" + assocName + "': $" + var0.name()
+                        + "." + mid0.property() + "." + ap0.property()
+                        + " has no column binding on the nested Relation"
+                        + " mapping (mapping=" + md.qualifiedName() + ")");
+            }
+            return new AppliedProperty(rowByVar.get(var0.name()), col);
+        }
         if (v instanceof AppliedProperty ap
                 && ap.receiver() instanceof Variable var
                 && rowByVar.containsKey(var.name())) {
@@ -1322,16 +1334,16 @@ public final class MappingNormalizer {
         return switch (v) {
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     af.parameters().stream().map(x -> rewriteRelationReads(x,
-                            rowByVar, rfByVar, assocName, md)).toList());
+                            rowByVar, rfByVar, assocName, md, nestedCols)).toList());
             case AppliedProperty ap2 -> new AppliedProperty(
                     rewriteRelationReads(ap2.receiver(), rowByVar, rfByVar,
-                            assocName, md), ap2.property());
+                            assocName, md, nestedCols), ap2.property());
             case PureCollection pc -> new PureCollection(
                     pc.values().stream().map(x -> rewriteRelationReads(x,
-                            rowByVar, rfByVar, assocName, md)).toList());
+                            rowByVar, rfByVar, assocName, md, nestedCols)).toList());
             case LambdaFunction lf2 -> new LambdaFunction(lf2.parameters(),
                     lf2.body().stream().map(x -> rewriteRelationReads(x,
-                            rowByVar, rfByVar, assocName, md)).toList());
+                            rowByVar, rfByVar, assocName, md, nestedCols)).toList());
             default -> v;
         };
     }
@@ -1394,7 +1406,6 @@ public final class MappingNormalizer {
             cycleStack.remove(pcm.className());
         }
     }
-
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, ClassDefinition tgt,
@@ -2940,14 +2951,6 @@ public final class MappingNormalizer {
     // ====================================================================
     // ~groupBy with aggregate fn1/fn2 decomposition  —  doc §5.3.5
     // ====================================================================
-
-
-
-
-
-
-
-
 
     // ====================================================================
     // AssociationMapping → predicate function  —  doc §5.6.1
