@@ -821,6 +821,61 @@ final class AssociationJoins {
         return result;
     }
 
+    /** SOURCE-SIDE nested reads (the navigate() rule, parent side): the
+     * condition reads {@code $s.<assocProp>.<col>} where assocProp is an
+     * association of the PARENT class — register the parent's own assoc
+     * join FIRST (its prefixed columns land on the accumulated root row,
+     * exactly like a query-demanded navigation) and re-point the
+     * condition reads at them. Root-level (hop 0) only. */
+    AssocJoin withSourceNestedAssocs(TemporalFrame temporal, ClassSource cs,
+            AssocJoin aj, StoreResolver.Context context,
+            java.util.List<AssocJoin> assocJoins,
+            Map<String, AssocJoin> joinsByChain,
+            Map<String, Substitution.AssocSub> assocs) {
+        TypedLambda cond = aj.condition();
+        if (cond.parameters().size() != 2) {
+            return aj;
+        }
+        String srcVar = cond.parameters().get(0);
+        Map<String, Set<String>> reads = new java.util.LinkedHashMap<>();
+        for (TypedSpec b : cond.body()) {
+            collectNestedAssocReads(b, srcVar, cs.classFqn(), reads);
+        }
+        if (reads.isEmpty()) {
+            return aj;
+        }
+        Map<String, String> prefixByProp = new java.util.LinkedHashMap<>();
+        java.util.List<Type.Column> lookupCols = new java.util.ArrayList<>();
+        for (var re : reads.entrySet()) {
+            String prop = re.getKey();
+            AssocJoin aj0 = joinsByChain.get(prop);
+            if (aj0 == null) {
+                aj0 = associationJoin(temporal, cs, prop, context, false,
+                        re.getValue(), prop);
+                assocJoins.add(aj0);
+                joinsByChain.put(prop, aj0);
+                assocs.put(prop, new Substitution.AssocSub(aj0.prefix(),
+                        aj0.target().rowVar(), aj0.target().bindings(),
+                        aj0.target().classFqn(),
+                        Pipelines.slotAliases(aj0.target().pipeline()),
+                        aj0.targetSlotPrefixes(), null, null,
+                        temporal.milestoneColumnsOf(
+                                aj0.target().pipeline(),
+                                aj0.target().classFqn())));
+            }
+            prefixByProp.put(prop, aj0.prefix());
+            for (Type.Column c : aj0.targetRow().columns()) {
+                lookupCols.add(new Type.Column(aj0.prefix() + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+        }
+        TypedLambda cond2 = rewriteNestedAssocCondReads(cond, srcVar,
+                prefixByProp, new Type.RelationType(lookupCols));
+        return new AssocJoin(aj.prefix(), aj.target(), aj.targetPipeline(),
+                aj.targetRow(), cond2, aj.targetSlotPrefixes(),
+                aj.targetSubNavs(), aj.corrSubPred());
+    }
+
     /** Nested-association reads in an association condition:
      * {@code $tgt.<assocProp>.<col>} where assocProp is an association
      * of the target class (the navigate() rule — task #78). */
@@ -845,7 +900,7 @@ final class AssociationJoins {
 
     /** The condition with nested-association reads re-pointed at the
      * WIDENED target row's prefixed columns. */
-    private static TypedLambda rewriteNestedAssocCondReads(TypedLambda cond,
+    static TypedLambda rewriteNestedAssocCondReads(TypedLambda cond,
             String tgtVar, Map<String, String> prefixByProp,
             Type.RelationType row) {
         if (tgtVar == null || prefixByProp.isEmpty()) {

@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 174 | 8 | 60 | 16 |
+| functions/tests | 258 | 175 | 7 | 60 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 99 | 6 | 31 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -64,7 +64,7 @@ in-process Alloy-shaped path).
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 24 | 2 | 2 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/modelJoin | 47 | 26 | 1 | 20 | 0 |
+| tests/mapping/modelJoin | 47 | 38 | 1 | 8 | 0 |
 | tests/mapping/multigrain | 5 | 3 | 0 | 2 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 |
 | tests/mapping/relation | 93 | 42 | 3 | 5 | 43 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1306** | 64 | 537 | 631 |
+| **total** | 2538 | **1319** | 63 | 525 | 631 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6375,9 +6375,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT t0.NAME AS a, list_concat(CASE WHEN starts_with(t0.NAME, 'Firm X') THEN..
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6747,7 +6746,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -7194,7 +7193,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
@@ -7223,25 +7222,13 @@ in-process Alloy-shaped path).
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
 - FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - SHAPE testDynafunctionMerge [tests/mapping/merge]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testDoubleNestedBothSides [tests/mapping/modelJoin]: Binder Error: Table "t0" does not have a column named "headquarters_CITY" |  | Candidate bindings: : "CITY" |  | LINE 10: ) AS t4 ON t4.address_CITY = t0.headquarters_CITY |                                       ^
 - FAIL testChainedTwoHops [tests/mapping/modelJoin]: assertEquals: expected [Apple, null, Apple, ProjectY, Apple, ProjectX, Google, ProjectZ], got [Apple, ProjectY, Apple, ProjectX, Apple, null, Google, ProjectZ]
-- ERROR testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: Binder Error: Table "t0" does not have a column named "headquarters_CITY" |  | Candidate bindings: : "CITY" |  | LINE 7: ) AS t3 ON t3.address_CITY = t0.headquarters_CITY |                                      ^
 - ERROR testFilterWithInnerJoinOnTarget [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::FilterWithInnerJoinOnTargetMapping' (ColumnRef references table 'personTable' not in scope; available=[default.personTable, default.profileTable])
-- ERROR testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: Binder Error: Table "t0" does not have a column named "address_CITY" |  | Candidate bindings: : "AGE" |  | LINE 6: ) AS t2 ON t0.address_CITY = t2.CITY |                    ^
-- ERROR testColumnCollisionInSubselect [tests/mapping/modelJoin]: Binder Error: Table "t0" does not have a column named "address_CITY" |  | Candidate bindings: : "AGE" |  | LINE 7: ) AS t3 ON t0.address_CITY = t3.CITY AND t0.address_COUNTRY = t3.headq... |                    ^
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testSubAggregation [tests/mapping/modelJoin]: association property '$x.employees' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testSubAggregationRelational [tests/mapping/modelJoin]: association property '$x.employees' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
-- ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: Binder Error: Table "t0" does not have a column named "section_ZONE" |  | Candidate bindings: : "SECTIONID" |  | LINE 14: ) AS t5 ON t5.product_CATEGORY = t0.section_ZONE |                                           ^
-- ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: Binder Error: Values list "t1" does not have a column named "product_CATEGORY" |  | LINE 14: ) AS t5 ON t1.product_CATEGORY = t5.section_ZONE |                     ^
-- ERROR testMilestoningSameScheme [tests/mapping/modelJoin]: Binder Error: Values list "t1" does not have a column named "product_CODE" |  | LINE 18: ) AS t6 ON t1.product_CODE = t6.trackingRef_PREFIX |                     ^
-- ERROR testMilestoningDiffScheme [tests/mapping/modelJoin]: Binder Error: Values list "t1" does not have a column named "product_CODE" |  | LINE 11: ) AS t3 ON t1.product_CODE = t3.ENTITYREF |                     ^
-- ERROR testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: Binder Error: Table "t0" does not have a column named "section_ZONE" |  | Candidate bindings: : "SECTIONID" |  | LINE 11: ) AS t4 ON t4.product_CATEGORY = t0.section_ZONE |                                           ^
-- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: Binder Error: Values list "t1" does not have a column named "product_CATEGORY" |  | LINE 11: ) AS t4 ON t1.product_CATEGORY = t4.section_ZONE |                     ^
-- ERROR testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: Binder Error: Values list "t1" does not have a column named "product_CODE" |  | LINE 15: ) AS t5 ON t1.product_CODE = t5.trackingRef_PREFIX |                     ^
-- ERROR testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: Binder Error: Values list "t1" does not have a column named "product_CODE" |  | LINE 11: ) AS t3 ON t1.product_CODE = t3.ENTITYREF |                     ^
 - ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.fullName has no c
 - ERROR testRelationalUnionSubAggregation [tests/mapping/modelJoin]: association property '$x.employees' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testToManyWithQualifierWithFilterOnDataType [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St

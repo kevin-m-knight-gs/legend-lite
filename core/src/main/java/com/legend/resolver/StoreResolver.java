@@ -2251,6 +2251,12 @@ public final class StoreResolver {
                 }
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, path.get(hop), context, false,
                         leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
+                if (hop == 0) {
+                    // SOURCE-SIDE nested condition reads register the
+                    // parent's own assoc join first (navigate() rule)
+                    aj = assocMaterial.withSourceNestedAssocs(temporal, cs,
+                            aj, context, assocJoins, joinsByChain, assocs);
+                }
                 if (hop > 0 && containsConcatenate(aj.targetPipeline())) {
                     // a CHAINED hop into a UNION-mapped target needs
                     // per-member routed conditions (V4's z[y0,z0]/z[y1,z1]
