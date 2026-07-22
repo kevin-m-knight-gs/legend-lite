@@ -1461,7 +1461,7 @@ public final class StoreResolver {
                     Pipelines.slotAliases(target.pipeline()),
                     navMats.get(alias).slotPrefixes(), null, null,
                     temporal.milestoneColumnsOf(target.pipeline(), target.classFqn()),
-                    subNavs));
+                    subNavs, containsFilter(target.pipeline())));
         }
 
         return new NavPlan(demanded, demandedNavs, assocs, navMats, navTails,

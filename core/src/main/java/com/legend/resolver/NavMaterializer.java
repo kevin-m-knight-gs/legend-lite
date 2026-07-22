@@ -90,12 +90,16 @@ final class NavMaterializer {
         // StockProductTable by the hop's date); without one they stay loud.
         TemporalContext hopCtx =
                 temporal.contextAt(chainPrefix, targetClassFqn, inherited);
-        if (StoreResolver.containsFilter(t.pipeline())) {
-            Pipelines.Materialized raw = Pipelines.materialize(
-                    t.pipeline(), Set.of(), targetClassFqn);
-            return new NavMat(raw.pipeline(), raw.slotPrefixes(),
-                    raw.stripped(), Map.of());
-        }
+        // A target ~filter rides INSIDE the joined pipeline (filtered
+        // subselect = the engine's filter-in-ON emission — real golden
+        // testFilterAfterFilter: left join firmTable on (ID = FIRMID and
+        // LEGALNAME = 'Firm X')). Row-equivalent to the engine's saved-
+        // filter WHERE conjunction for value comparisons (NULL read
+        // fails the comparison) and MATCHES isolation semantics for
+        // isEmpty (filtered-out target reads as empty). The toOne()-
+        // pierced strict read (engine hoists the filter to the outer
+        // WHERE, dropping filter-failing rows) keeps its loud wall at
+        // the substitution site (task #72).
         Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
         var tNavSteps = Pipelines.navSteps(t.pipeline());
         Set<String> tDemand = new LinkedHashSet<>();

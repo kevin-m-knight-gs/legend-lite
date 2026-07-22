@@ -308,7 +308,20 @@ final class Substitution {
                     Map<String, String> targetSlotPrefixes,
                     String readVar, Type.RelationType readRowType,
                     Map<String, String> targetMilestoneColumns,
-                    Map<String, SubNav> subNavs) {
+                    Map<String, SubNav> subNavs,
+                    boolean filteredTarget) {
+
+        AssocSub(String prefix, String targetRowVar,
+                 Map<String, TypedSpec> targetBindings, String targetClassFqn,
+                 Set<String> targetSlotAliases,
+                 Map<String, String> targetSlotPrefixes,
+                 String readVar, Type.RelationType readRowType,
+                 Map<String, String> targetMilestoneColumns,
+                 Map<String, SubNav> subNavs) {
+            this(prefix, targetRowVar, targetBindings, targetClassFqn,
+                    targetSlotAliases, targetSlotPrefixes, readVar,
+                    readRowType, targetMilestoneColumns, subNavs, false);
+        }
 
         AssocSub(String prefix, String targetRowVar,
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
@@ -419,6 +432,30 @@ final class Substitution {
      * &rArr; {@code [employer, legal]}); {@code null} otherwise. DemandScan
      * and the rewrite share this single extractor.
      */
+    /** TRUE when the chain from {@code n} down to its root pierces an
+     * explicit (user-written) toOne() wrapper — synthesized bindings
+     * never appear in the query lambda, so any toOne found here is the
+     * user's strict-multiplicity assertion (task #72). */
+    private static boolean piercesToOne(TypedSpec n) {
+        while (true) {
+            if (n instanceof TypedNativeCall c && c.args().size() == 1) {
+                if (c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+                    return true;
+                }
+                n = c.args().get(0);
+            } else if (n instanceof TypedPropertyAccess pa) {
+                n = pa.source();
+            } else if (n instanceof TypedMap m) {
+                n = m.source();
+            } else if (n instanceof TypedFilter f) {
+                n = f.source();
+            } else {
+                return false;
+            }
+        }
+    }
+
     static List<String> pathOf(TypedSpec n, String userVar) {
         // toOne() look-through: $p.employer->toOne().legal is the idiomatic
         // spelling after an optional navigation — the coercion is
@@ -537,6 +574,25 @@ final class Substitution {
             // [->filter(g)...], pred?) — the filters merge into the
             // correlated set (engine: filter-in-chain parks on the
             // navigation target)
+            // STRICT-READ wall (task #72): an emptiness check whose input
+            // pierces an EXPLICIT user toOne() through a ~filter-mapped
+            // set is NOT isolation-eligible — the engine hoists the
+            // mapping filter into the outer WHERE (golden testInputNot-
+            // IsolatedWhenPropertyPathIsToOne expects 0 rows), so the
+            // filter-in-ON emission would return wrong rows. Loud until
+            // the strict-read hoist is built.
+            if (isEmptinessFamily(call) && headPath != null
+                    && !headPath.isEmpty()
+                    && piercesToOne(call.args().get(0))) {
+                AssocSub fh = target.assocs().get(headPath.get(0));
+                if (fh != null && fh.filteredTarget()) {
+                    throw new NotImplementedException("emptiness check over"
+                            + " a toOne()-pierced navigation through the"
+                            + " ~filter-mapped set of '" + headPath.get(0)
+                            + "' needs the strict-read filter hoist —"
+                            + " not supported yet");
+                }
+            }
             if (isEmptinessFamily(call)) {
                 TypedSpec exArg = call.args().get(0);
                 List<TypedLambda> chainPreds = new ArrayList<>();
