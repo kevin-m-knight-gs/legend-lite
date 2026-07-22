@@ -78,9 +78,8 @@ public final class StoreResolver {
     private final ClassSources sources;
     private final SpecCompiler specs;
     private int freshVarCounter;
-    /** Synthetic head registry (filter-lifted '#f' + date-split '#d'
-     * identities) — append-only across nested resolutions. */
-    private final SyntheticHeads synthetics = new SyntheticHeads();
+    /** Synthetic head registry ('#f'/'#d'/'#c') — append-only. */
+    private final SyntheticHeads synthetics;
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
     /** Association-route join material (stateless service). */
@@ -98,6 +97,7 @@ public final class StoreResolver {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
+        this.synthetics = new SyntheticHeads(ctx);
         // an EMPTY frame until the op-chain phase constructs the real one —
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
         // see NO context, exactly the old fields' initial values

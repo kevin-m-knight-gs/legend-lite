@@ -46,6 +46,14 @@ import java.util.function.UnaryOperator;
  */
 final class SyntheticHeads {
 
+    /** Function catalog — the AND-merge of stacked filter predicates
+     * needs the one 2-arg {@code boolean::and} overload. */
+    private final com.legend.compiler.element.ModelContext ctx;
+
+    SyntheticHeads(com.legend.compiler.element.ModelContext ctx) {
+        this.ctx = java.util.Objects.requireNonNull(ctx, "ctx");
+    }
+
     /**
      * A join identity parsed from a head name. IDENTIFIER property names
      * cannot contain {@code '#'}; QUOTED property names (M3
@@ -330,6 +338,27 @@ final class SyntheticHeads {
             return new TypedSortBy(renamed0,
                     (TypedLambda) liftFilteredHeads(sb0.key(), enabled),
                     sb0.ascending(), sb0.info());
+        }
+        // WRAPPED filtered-nav value reads canonicalize to the DIRECT
+        // spelling ($f->map(f|$f.qual(...))->filter(p2)->toOne().leaf =>
+        // toOne(filter(nav, p1 && p2)).leaf) and re-enter the walk — the
+        // demand scan, the lift arms below, and the correlated-scalar arm
+        // then all see the one spelling they already handle. The TOP
+        // toOne wrapper is preserved (it marks the scalar first-row read).
+        if (enabled && n instanceof TypedPropertyAccess paw
+                && !(filterBehindToOne(paw.source())
+                        instanceof TypedFilter fw
+                        && isLiftableNav(fw.source()))) {
+            TypedSpec un = filterBehindToOne(paw.source());
+            TypedSpec canon = canonNavChain(un);
+            if (canon != un && canon instanceof TypedFilter) {
+                TypedSpec rewrapped = un == paw.source() ? canon
+                        : new TypedNativeCall(
+                                ((TypedNativeCall) paw.source()).callee(),
+                                List.of(canon), paw.source().info());
+                return liftFilteredHeads(new TypedPropertyAccess(rewrapped,
+                        paw.property(), paw.info()), enabled);
+            }
         }
         if (enabled
                 && n instanceof TypedPropertyAccess pa
@@ -730,6 +759,71 @@ final class SyntheticHeads {
             return c.args().get(0);
         }
         return n;
+    }
+
+    /**
+     * Canonicalize a WRAPPED filtered-navigation chain to the direct
+     * spelling every downstream consumer (demand scan, this lift, the
+     * correlated-scalar arm) already recognizes: β-reduce a map over ONE
+     * instance ({@code $f->map(f|...)} — identity plumbing over a [1]
+     * receiver), look through multiplicity-only {@code toOne} coercions,
+     * and collapse stacked filters into ONE AND-merged predicate —
+     * {@code filter(filter(nav,p1),p2) ≡ filter(nav, p1 && p2)}, and two
+     * parks would mint two synthetic heads and cross-join the target.
+     * Non-lift shapes return unchanged (identity — callers compare).
+     */
+    private TypedSpec canonNavChain(TypedSpec s) {
+        TypedSpec u = filterBehindToOne(s);
+        if (u != s) {
+            return canonNavChain(u);
+        }
+        if (s instanceof TypedMap m && m.source() instanceof TypedVariable v
+                && m.source().info().type() instanceof Type.ClassType
+                && m.source().info().multiplicity()
+                        instanceof Multiplicity.Bounded mb
+                && Integer.valueOf(1).equals(mb.upper())
+                && m.mapper().parameters().size() == 1
+                && m.mapper().body().size() == 1) {
+            String p = m.mapper().parameters().get(0);
+            TypedSpec b = m.mapper().body().get(0);
+            return canonNavChain(p.equals(v.name()) ? b
+                    : Pipelines.rewriteRowReads(b, p, Map.of(), Set.of(),
+                            vv -> new TypedVariable(v.name(), vv.info())));
+        }
+        if (s instanceof TypedFilter f
+                && f.predicate().parameters().size() == 1
+                && f.predicate().body().size() == 1) {
+            TypedSpec src = canonNavChain(f.source());
+            if (src instanceof TypedFilter inner
+                    && inner.predicate().parameters().size() == 1
+                    && inner.predicate().body().size() == 1) {
+                return new TypedFilter(inner.source(),
+                        andMerge(inner.predicate(), f.predicate()), f.info());
+            }
+            return src == f.source() ? s
+                    : new TypedFilter(src, f.predicate(), f.info());
+        }
+        return s;
+    }
+
+    /** {@code λv. p1(v) && p2(v)} — alpha-aligned to p1's binder; the
+     * merged predicate parks as ONE synthetic-head identity. */
+    private TypedLambda andMerge(TypedLambda p1, TypedLambda p2) {
+        var fns = ctx.findFunction("meta::pure::functions::boolean::and")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (fns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected exactly"
+                    + " one 2-arg boolean::and, found " + fns.size());
+        }
+        String v = p1.parameters().get(0);
+        TypedSpec b1 = p1.body().get(0);
+        TypedSpec b2 = p2.parameters().get(0).equals(v) ? p2.body().get(0)
+                : Pipelines.rewriteRowReads(p2.body().get(0),
+                        p2.parameters().get(0), Map.of(), Set.of(),
+                        vv -> new TypedVariable(v, vv.info()));
+        return new TypedLambda(p1.parameters(),
+                List.of(new TypedNativeCall(fns.get(0), List.of(b1, b2),
+                        b1.info())), p1.info());
     }
 
     /** The navigation's receiver IS the lambda variable (depth-1 head). */
