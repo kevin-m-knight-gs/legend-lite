@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 175 | 7 | 60 | 16 |
+| functions/tests | 258 | 174 | 8 | 60 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 99 | 6 | 31 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -41,7 +41,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 182 | 2 | 53 | 29 |
+| tds/tests | 266 | 189 | 2 | 46 | 29 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 38 | 1 | 13 | 16 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1295** | 63 | 553 | 627 |
+| **total** | 2538 | **1301** | 64 | 546 | 627 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6202,7 +6202,6 @@ in-process Alloy-shaped path).
 - 7x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x relation has no column 'activities' in scalar read
 - 6x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -6225,6 +6224,7 @@ in-process Alloy-shaped path).
 - 4x in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - 4x relation has no column '"FIRST NAME"'
 - 4x store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
+- 4x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no source column (unrecognized binding shape))
 
 ### per-test outcomes (non-passing)
 
@@ -6377,6 +6377,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT t0.NAME AS a, list_concat(CASE WHEN starts_with(t0.NAME, 'Firm X') THEN..
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6907,8 +6908,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- ERROR simpleGroupCount [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - ERROR groupByAfterConcatenate [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT list_so
@@ -6921,7 +6921,6 @@ in-process Alloy-shaped path).
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
 - SHAPE testFunctionOnVariable [tds/tests]: no execute(|...) call
-- ERROR testFunctionOnStringColumn [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - SHAPE testParseDate [tds/tests]: no execute(|...) call
 - SHAPE testDecimal [tds/tests]: no execute(|...) call
 - ERROR testStringConcatSQLGeneration [tds/tests]: ~exprString3: mapped/aggregate column specifications need an enclosing call to type against
@@ -6932,8 +6931,6 @@ in-process Alloy-shaped path).
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - ERROR testFilterOnQuotedColumnFromTableToTds [tds/tests]: relation has no column '"FIRST NAME"'
 - ERROR testChainPostFilter [tds/tests]: unknown class 'meta::external::store::model::ModelChainConnection' in ^meta::external::store::model::ModelChainConnection(…)
-- ERROR testRightOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- ERROR testFullOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testJoinBySingleColumnNameRightOuter [tds/tests]: Conversion Error: Could not convert string 'TDSNull' to INT32 |  | LINE 1: ... fID FROM firmTable AS t2 ) AS t3 ON t1.eID = t3.fID ) AS t4), 'TDSNull'), FALSE) AS value |                                                                           ^
 - ERROR testJoinByCommonColumnName [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
@@ -6949,14 +6946,12 @@ in-process Alloy-shaped path).
 - SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testTwoJoinsWithinConcatenate [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
-- ERROR testProjectFunctionOnStringColumn [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
 - ERROR testOptionalLimit_WithValue [tds/tests]: dynamic slicing bounds are not lowered yet (literal expected), got TypedNativeCall
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: no overload of 'projectWithColumnSubset' matches 4 argument(s) of these shapes
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: relation has no column '"FIRST NAME"'
-- ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testRestrictWithPostProcessor [tds/tests]: unbound variable '$connectionStore'
 - ERROR testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coales
 - ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coales
@@ -6975,7 +6970,6 @@ in-process Alloy-shaped path).
 - ERROR testPercentileWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
 - ERROR testDistinctBeforeWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
 - ERROR testDistinctAfterWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
-- ERROR simpleGroupCount [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call
 - ERROR columnValueDifferenceTest [tds/tests]: ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
@@ -7215,13 +7209,13 @@ in-process Alloy-shaped path).
 - SHAPE testJoinWithPrefixInClauseContainingStringLiterals [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterMappingWithPrefixInClause [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
-- ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
+- ERROR testGetAll [tests/mapping/inheritance]: unknown function 'genericType'
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::milestoned::Vehicle' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::milestoned::Vehicle' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - FAIL testForcedSubTypeProjectDirect [tests/mapping/inheritance]: assertSameElements: expected [1, MBK, 2, David Scott, 1, Peugeot, 4, TDSNull, 2, BMX, 3, Atul Anand, 2, Renault, 4, TDSNull, 3, Nissan, 4, TDSNull], got [1, MBK, 2, David Scott, 2, BMX, 3, Atul Anand, 1, Peugeot, 4, David Scott, 2, Renault, 4, David Scott, 3, Nissan, 4, Atul Anand]
-- ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
+- ERROR testGetAll [tests/mapping/inheritance]: unknown function 'genericType'
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testProjectSubtype [tests/mapping/inheritance]: multi-hop navigation product.stc_meta__relational__tests__mapping__subType__MyProduct___rating.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'

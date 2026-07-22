@@ -2231,6 +2231,11 @@ public final class Lowerer {
         };
     }
 
+    private static String simpleName(String qn) {
+        int cut = qn.lastIndexOf("::");
+        return cut < 0 ? qn : qn.substring(cut + 2);
+    }
+
     /** Scalar lowering, arm group (sequential order preserved:
      * guarded patterns depend on it) — the 523-line dispatch split
      * at arm boundaries; each group defaults to the next. */
@@ -2409,6 +2414,19 @@ public final class Lowerer {
             // equality arm below — silently-true 'NYC'=='NYC' across types
             // was an audit finding.
             case TypedEnumValue e -> new SqlExpr.StringLit(e.value());
+
+            // A bare TYPE REFERENCE in value position ([String, Integer]
+            // vs columns.type asserts): type VALUES travel as canonical
+            // simple names — the same wire convention as the type() fold
+            // and the columnsMeta strings they compare against.
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr
+                    when pr.info().type() instanceof
+                            com.legend.compiler.element.type.Type.GenericType g
+                    && g.rawFqn().equals(
+                            com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)
+                    && g.arguments().size() == 1 ->
+                    new SqlExpr.StringLit(simpleName(
+                            g.arguments().get(0).typeName()));
 
             default -> scalarRelationalArms(spec, columns);
         };

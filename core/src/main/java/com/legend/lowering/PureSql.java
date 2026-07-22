@@ -107,6 +107,13 @@ final class PureSql {
                     yield new SqlType.Map(type(g.arguments().get(0)),
                             type(g.arguments().get(1)));
                 }
+                // Class<X> VALUES travel as canonical simple-name strings
+                // (the type() fold / columnsMeta convention) — the scalar
+                // arm renders them as StringLit, so the wire type is text
+                if (g.rawFqn().equals(
+                        com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS)) {
+                    yield SqlType.Scalar.VARCHAR;
+                }
                 throw new IllegalStateException(
                         "no SQL type for generic " + g.typeName() + " at the lowering boundary");
             }

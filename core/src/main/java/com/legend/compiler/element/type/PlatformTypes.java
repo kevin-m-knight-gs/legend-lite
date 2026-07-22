@@ -21,6 +21,11 @@ public final class PlatformTypes {
      * (StoreResolver erasure floor, Lowerer defensive floor) — audit 23 A6.
      */
     public static final String ROWS_MARKER = "rows";
+    /** The Class metaclass FQN — type VALUES at the lowering boundary
+     * travel as canonical simple-name strings (task #78). */
+    public static final String CLASS_METACLASS =
+            "meta::pure::metamodel::type::Class";
+
 
     /**
      * The TDS null-cell SENTINEL spelling — real pure's {@code ^TDSNull()}
