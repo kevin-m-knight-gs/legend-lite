@@ -45,11 +45,22 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
                                   boolean arrayWrap, boolean bareValue,
                                   String classFqn,
-                                  ExprType info) implements TypedSpec {
+                                  ExprType info,
+                                  boolean inlineChild) implements TypedSpec {
 
     public TypedSerializeGraph {
         leaves = List.copyOf(leaves);
         nested = List.copyOf(nested);
+    }
+
+    /** Correlated node (the common case — an inline child reads the
+     * PARENT row directly: embedded ctor bindings, no join/subquery). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested,
+            boolean arrayWrap, boolean bareValue, String classFqn,
+            ExprType info) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue,
+                classFqn, info, false);
     }
 
     /** Provenance-free compat (nested children, tests). */

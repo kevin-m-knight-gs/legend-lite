@@ -435,6 +435,20 @@ final class GraphEmission {
                             context, parentRowVar, parentRowType);
                 }
             }
+            // EMBEDDED child: the ^Inner ctor's bindings read the PARENT
+            // row — an INLINE json object, no join, no subquery (V1 §D.4
+            // semantics at the graph envelope; task #78 H4b slice 1).
+            // otherwise() takes the embedded partial: per-leaf FK dispatch
+            // at graph depth is its own rung, the partial serves the
+            // mapped leaves and missing ones stay loud below.
+            TypedSpec emb = inner;
+            var ow2 = com.legend.resolver.Substitution.otherwiseOf(b0);
+            if (ow2 != null) {
+                emb = ow2.args().get(0);
+            }
+            if (emb instanceof TypedNewInstance ctor2) {
+                return embeddedChild(cs, node, ctor2, context);
+            }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' is mapped as an"
                     + " embedded/join-slot/otherwise/M2M binding — only"
@@ -607,6 +621,72 @@ final class GraphEmission {
         return new TypedSerializeGraph.Child(keyOf(node), child);
     }
 
+    /** An EMBEDDED graph child: leaves come straight from the ^Inner
+     * ctor (parent-row expressions), nested embedded ctors recurse as
+     * further inline children. Non-ctor leaves (slot/assoc reads inside
+     * the embedded) stay loud — their join machinery is a later rung. */
+    private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
+            TypedGraphTree node, TypedNewInstance ctor,
+            StoreResolver.Context context) {
+        var prop = ctx.findProperty(cs.classFqn(), node.property())
+                .orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: graph child '" + node.property()
+                        + "' is not a property of '" + cs.classFqn() + "'"));
+        String childClass = prop.type() instanceof Type.ClassType cc
+                ? cc.fqn() : cs.classFqn();
+        List<TypedGraphTree> want = node.children().isEmpty()
+                ? ctor.properties().keySet().stream()
+                        .map(k -> new TypedGraphTree(k, List.of()))
+                        .toList()
+                : node.children();
+        Type.RelationType rowT = (Type.RelationType)
+                cs.pipeline().info().type();
+        var rowInfo = new ExprType(rowT,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        List<TypedFuncCol> leaves = new ArrayList<>();
+        List<TypedSerializeGraph.Child> nested = new ArrayList<>();
+        for (TypedGraphTree c : want) {
+            TypedSpec e = ctor.properties().get(c.property());
+            if (e == null) {
+                throw new MappingResolutionException("property '"
+                        + c.property() + "' of embedded '" + node.property()
+                        + "' on class '" + cs.classFqn()
+                        + "' is not mapped in mapping '" + cs.mappingFqn()
+                        + "'", cs.classFqn());
+            }
+            TypedSpec ei = e;
+            if (ei instanceof TypedNativeCall tc1 && tc1.args().size() == 1
+                    && tc1.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")) {
+                ei = tc1.args().get(0);
+            }
+            if (ei instanceof TypedNewInstance subCtor) {
+                nested.add(embeddedChild(cs, c, subCtor, context));
+                continue;
+            }
+            if (ei.info().type() instanceof Type.ClassType) {
+                throw new NotImplementedException("embedded graph child '"
+                        + node.property() + "." + c.property()
+                        + "' is class-typed through a non-ctor binding —"
+                        + " not supported yet");
+            }
+            var lFn = new Type.FunctionType(
+                    List.of(new Type.Param(rowT,
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE)),
+                    new Type.Param(e.info().type(), e.info().multiplicity()));
+            leaves.add(new TypedFuncCol(keyOf(c),
+                    new TypedLambda(List.of(cs.rowVar()), List.of(e),
+                            new ExprType(lFn,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE))));
+        }
+        TypedSerializeGraph nodeG = new TypedSerializeGraph(cs.pipeline(),
+                cs.rowVar(), leaves, nested, false, false, childClass,
+                rowInfo, true);
+        return new TypedSerializeGraph.Child(keyOf(node), nodeG);
+    }
+
     /** The INLINED typed body of a parameterless derived property, its
      * {@code $this} reads substituted to the class's row bindings —
      * null when the name is not a parameterless derived property. */
@@ -713,6 +793,12 @@ final class GraphEmission {
             } else if (a instanceof
                     com.legend.compiler.spec.typed.TypedCString cstr) {
                 k.append('\'').append(cstr.value()).append('\'');
+            } else if (a instanceof
+                    com.legend.compiler.spec.typed.TypedCDate cd) {
+                // engine prints the date VALUE with an explicit +0000
+                // zone when it carries a time component
+                String d = cd.value().toEngineString();
+                k.append(d).append(d.indexOf('T') >= 0 ? "+0000" : "");
             } else {
                 throw new NotImplementedException("parameterized qualifier"
                         + " tree leaf '" + node.property() + "' with a"
@@ -726,7 +812,10 @@ final class GraphEmission {
     /** The serialized key: the tree alias when given, else the
      * property name. */
     private static String keyOf(TypedGraphTree node) {
-        return node.alias() != null ? node.alias() : node.property();
+        if (node.alias() != null) {
+            return node.alias();
+        }
+        return node.args().isEmpty() ? node.property() : callKey(node);
     }
 
     private static boolean containsVar(TypedSpec n, String var) {

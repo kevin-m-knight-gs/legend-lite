@@ -86,7 +86,11 @@ final class GraphFetchChecker {
             // parenthesized args (milestoning dates) keep the historical
             // checker-drop — their feature owns its own threading
             List<TypedSpec> targs = List.of();
-            if (prop instanceof Property.Derived && !cs.args().isEmpty()) {
+            if (!cs.args().isEmpty()) {
+                // typed for the ENVELOPE KEY (the engine serializes the
+                // source call spelling — firm(2022-10-20T23:59:59+0000))
+                // and for derived-body binding; milestoning CONTEXT still
+                // flows through the temporal frame, not these args
                 List<TypedSpec> ta = new ArrayList<>(cs.args().size());
                 for (var a : cs.args()) {
                     ta.add(t.synth(a, env));

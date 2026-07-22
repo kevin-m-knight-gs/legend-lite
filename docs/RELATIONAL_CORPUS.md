@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 99 | 6 | 31 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 23 | 12 | 106 | 2 |
+| graphFetch/tests | 143 | 25 | 12 | 104 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
@@ -52,7 +52,7 @@ in-process Alloy-shaped path).
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 17 | 0 | 15 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 |
-| tests/mapping/embedded | 63 | 46 | 1 | 13 | 3 |
+| tests/mapping/embedded | 63 | 49 | 1 | 10 | 3 |
 | tests/mapping/enumeration | 26 | 15 | 5 | 3 | 3 |
 | tests/mapping/extends | 23 | 15 | 2 | 0 | 6 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1283** | 63 | 565 | 627 |
+| **total** | 2538 | **1288** | 63 | 560 | 627 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6198,8 +6198,8 @@ in-process Alloy-shaped path).
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x unbound variable '$dbRuntime'
 - 15x serialize expects (classCollection, #{Class{…}}#)
-- 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- 7x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -6213,9 +6213,7 @@ in-process Alloy-shaped path).
 - 5x unbound variable '$modelChainConnection'
 - 5x unknown function 'generateObjectReferences'
 - 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 5x graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 5x only single-expression lambdas are supported yet
-- 4x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
 - 4x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
@@ -6225,6 +6223,8 @@ in-process Alloy-shaped path).
 - 4x no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - 4x filter predicate references column 'orderDate', unresolvable even after isolation
 - 4x in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
+- 4x no overload of 'tdsContains' matches 3 argument(s) of these shapes
+- 4x relation has no column '"FIRST NAME"'
 
 ### per-test outcomes (non-passing)
 
@@ -6540,23 +6540,21 @@ in-process Alloy-shaped path).
 - FAIL testNestedGraphFetch [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, f..., got [{firstName=Anthony, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, fir
 - FAIL testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, nameWithTitle=Mr Peter Firm X}, {firstName=John, lastName=Firm X, nameWithTitle=Mr John Firm X}, {firstName=John, lastNam..., got [{firstName=Anthony, lastName=Firm X, nameWithTitle=Mr Anthony Firm X}, {firstName=John, lastName=Fir
 - ERROR testInnerJoinFilterClassMappingAsTarget [graphFetch/tests]: graph leaf 'lastName' of class 'meta::relational::tests::model::simple::Person' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
-- ERROR testSimpleEmbeddedMapping [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testEmbeddedMappingForPropertyHavingEnumAttribute [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testMultiLevelEmbeddedMapping [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testEmbeddedToRootMapping [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testEmbeddedMappingQualifiedPropertyAccess [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testInlineEmbeddedMapping [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testInlineEmbeddedMappingForPropertyHavingEnumAttribute [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testQualifierWithArgs [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testWithAssociationFromRootMappingWithFilter [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testOtherwiseEmbeddedMapping [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testOtherwiseEmbeddedMappingBothOtherwiseAndJoinProperty [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testOtherwiseGetterDeepTraversal [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
+- ERROR testSimpleEmbeddedMapping [graphFetch/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
+- ERROR testEmbeddedMappingForPropertyHavingEnumAttribute [graphFetch/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
+- ERROR testMultiLevelEmbeddedMapping [graphFetch/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
+- ERROR testEmbeddedToRootMapping [graphFetch/tests]: embedded graph child 'firm.employees' is class-typed through a non-ctor binding — not supported yet
+- ERROR testEmbeddedMappingQualifiedPropertyAccess [graphFetch/tests]: property 'nameAndAddress' of embedded 'firm' on class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
+- ERROR testQualifierWithArgs [graphFetch/tests]: property 'durationStartsWith' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbedded'
+- ERROR testWithAssociationFromRootMappingWithFilter [graphFetch/tests]: property 'bondClassification' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedParent'
+- ERROR testOtherwiseEmbeddedMapping [graphFetch/tests]: store resolution left getAll(meta::relational::tests::mapping::embedded::advanced::model::BondDetail) unresolved — the query shape around it is not supported by the resolver yet
+- ERROR testOtherwiseEmbeddedMappingBothOtherwiseAndJoinProperty [graphFetch/tests]: property 'type' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
+- ERROR testOtherwiseGetterDeepTraversal [graphFetch/tests]: property 'type' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR testComplexPropertyOtherwiseGetterDeepTraversal [graphFetch/tests]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- ERROR testOtherwiseEmbeddedToEmbedded [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testQualifierJoinProperty [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testQualifierPropertyWithArgs [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testQualifierPropertyExpressionWithEmbeddedPropertyandJoinProperty [graphFetch/tests]: graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
+- ERROR testOtherwiseEmbeddedToEmbedded [graphFetch/tests]: property 'issuer' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
+- ERROR testQualifierJoinProperty [graphFetch/tests]: property 'duration' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
+- ERROR testQualifierPropertyWithArgs [graphFetch/tests]: property 'prefixedDescription' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
+- ERROR testQualifierPropertyExpressionWithEmbeddedPropertyandJoinProperty [graphFetch/tests]: property 'fullName' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
 - ERROR testMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Order has no property 'productAllVersions'
 - ERROR testMilestonedRootWithMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Product has no property 'synonymsAllVersions'
 - ERROR testMilestonedRootAndMilestonedProperty [graphFetch/tests]: class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' not found in db 'db'; PM='synonyms', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
@@ -6573,7 +6571,7 @@ in-process Alloy-shaped path).
 - ERROR testDateTimeInQuery [graphFetch/tests]: serialize tree: class meta::relational::tests::milestoning::Product has no property 'businessDate'
 - ERROR testBiTemporalRoot [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
 - ERROR testBiTemporalProperty [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
-- ERROR testSnapshotMilestoning [graphFetch/tests]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
+- ERROR testSnapshotMilestoning [graphFetch/tests]: parameterized qualifier tree leaf 'classification' with a non-literal argument needs an alias — the rendered-key form only covers literals
 - FAIL testInnerJoinIsolationAtRoot [graphFetch/tests]: assertJsonStringsEqual: expected [{cancelProductActivityCreatedBy=null, id=2}, {cancelProductActivityCreatedBy=null, id=3}], got [{id=3, cancelProductActivityCreatedBy=null}, {id=2, cancelProductActivityCreatedBy=null}]
 - ERROR testInnerJoinIsolationAtChild [graphFetch/tests]: graph leaf 'cancelProductActivityCreatedBy' of class 'meta::relational::tests::milestoning::Product' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
@@ -6757,7 +6755,7 @@ in-process Alloy-shaped path).
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFilterOnView [milestoning/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: class 'meta::relational::tests::milestoning::inheritance::Book' is not mapped in mapping 'meta::relational::tests::milestoning::bookCatalogMap' (join chain [Book_Authorship] was never emitted on this pipeline — the expression navigates a join that was not hoisted as a slot)
+- ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: unbound variable '$businessDate'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -6910,7 +6908,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
 - ERROR simpleGroupCount [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - ERROR groupByAfterConcatenate [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT list_so
@@ -7190,11 +7188,8 @@ in-process Alloy-shaped path).
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[]; head subNavs=-; head binding=TypedNewInstance]
 - SHAPE testInlineInEmbedded [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'issuer' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'firm' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: graph child 'genderInfo' of class 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
+- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'address' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail'
+- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'unit' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::Person'
 - ERROR testSubType [tests/mapping/embedded]: property 'stc_meta__relational__tests__mapping__embedded__advanced__model__Party___name' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbedde
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - ERROR testMapping [tests/mapping/enumeration]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 3 candidates); class-query dispatch needs exactly one
@@ -7213,7 +7208,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending

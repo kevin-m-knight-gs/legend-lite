@@ -645,6 +645,12 @@ public final class Lowerer {
         }
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
+            if (child.node().inlineChild()) {
+                // EMBEDDED child: same-row json object, leaves resolve
+                // against the PARENT select — no subquery (task #78 H4b)
+                kv.add(inlineChildObject(base, child.node()));
+                continue;
+            }
             enclosing.push(own);
             try {
                 kv.add(new SqlExpr.ScalarSubquery(serializeGraph(child.node())));
@@ -659,6 +665,41 @@ public final class Lowerer {
         return base.withProjections(
                 List.of(new SqlSelect.Projection(result, "result")),
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
+    }
+
+    /** An INLINE (embedded) child's json object over the parent select:
+     * leaves resolve strictly against the SAME base; nested inline
+     * children recurse; a correlated child inside an embedded one keeps
+     * the subquery emission. */
+    private SqlExpr inlineChildObject(SqlSelect base, TypedSerializeGraph g) {
+        List<SqlExpr> kv = new ArrayList<>(
+                2 * (g.leaves().size() + g.nested().size()));
+        for (TypedFuncCol leaf : g.leaves()) {
+            kv.add(new SqlExpr.StringLit(leaf.name()));
+            switch (attempt(() -> scalar(last(leaf.fn()),
+                    (v, name) -> resolveOrThrow(base, name)))) {
+                case Resolution.Resolved r -> kv.add(r.expr());
+                case Resolution.Unfoldable u -> throw new IllegalStateException(
+                        "embedded serialize leaf '" + leaf.name()
+                                + "' references column '" + u.column()
+                                + "', unresolvable in the parent envelope");
+            }
+        }
+        for (var child : g.nested()) {
+            kv.add(new SqlExpr.StringLit(child.property()));
+            if (child.node().inlineChild()) {
+                kv.add(inlineChildObject(base, child.node()));
+            } else {
+                enclosing.push(scopedResolver(base, g.rowVar()));
+                try {
+                    kv.add(new SqlExpr.ScalarSubquery(
+                            serializeGraph(child.node())));
+                } finally {
+                    enclosing.pop();
+                }
+            }
+        }
+        return new SqlExpr.JsonObject(kv);
     }
 
     /** aggregate: whole-relation reduction — aggregates only, no GROUP BY clause. */
