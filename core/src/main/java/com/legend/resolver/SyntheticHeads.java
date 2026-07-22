@@ -306,7 +306,7 @@ final class SyntheticHeads {
                 && mb.source() instanceof com.legend.compiler.spec.typed
                         .TypedVariable mv
                 && mv.name().equals(tm.mapper().parameters().get(0))
-                && tm.source() instanceof TypedFilter
+                && filterBehindToOne(tm.source()) instanceof TypedFilter
                 && tm.source().info().type() instanceof Type.ClassType) {
             return liftFilteredHeads(new TypedPropertyAccess(
                     tm.source(), mb.property(), tm.info()), enabled);
@@ -339,25 +339,13 @@ final class SyntheticHeads {
                     (TypedLambda) liftFilteredHeads(sb0.key(), enabled),
                     sb0.ascending(), sb0.info());
         }
-        // WRAPPED filtered-nav value reads canonicalize to the DIRECT
-        // spelling ($f->map(f|$f.qual(...))->filter(p2)->toOne().leaf =>
-        // toOne(filter(nav, p1 && p2)).leaf) and re-enter the walk — the
-        // demand scan, the lift arms below, and the correlated-scalar arm
-        // then all see the one spelling they already handle. The TOP
-        // toOne wrapper is preserved (it marks the scalar first-row read).
-        if (enabled && n instanceof TypedPropertyAccess paw
-                && !(filterBehindToOne(paw.source())
-                        instanceof TypedFilter fw
-                        && isLiftableNav(fw.source()))) {
-            TypedSpec un = filterBehindToOne(paw.source());
-            TypedSpec canon = canonNavChain(un);
-            if (canon != un && canon instanceof TypedFilter) {
-                TypedSpec rewrapped = un == paw.source() ? canon
-                        : new TypedNativeCall(
-                                ((TypedNativeCall) paw.source()).callee(),
-                                List.of(canon), paw.source().info());
-                return liftFilteredHeads(new TypedPropertyAccess(rewrapped,
-                        paw.property(), paw.info()), enabled);
+        // WRAPPED filtered-nav spellings (exists-over-filter, map-wrapped
+        // or stacked-filter value reads) canonicalize to the DIRECT one
+        // and re-enter the walk — foldWrappedSpelling.
+        if (enabled) {
+            TypedSpec folded = foldWrappedSpelling(n);
+            if (folded != null) {
+                return liftFilteredHeads(folded, enabled);
             }
         }
         if (enabled
@@ -521,6 +509,21 @@ final class SyntheticHeads {
                     new TypedCast(
                             liftFilteredHeads(c.source(), enabled),
                             c.target(), c.info());
+            case TypedGroupBy gb ->
+                    new TypedGroupBy(
+                            liftFilteredHeads(gb.source(), enabled),
+                            gb.keys().stream().map(k ->
+                                    new TypedGroupBy.GroupKey(k.column(),
+                                            k.fn().map(fn -> (TypedLambda)
+                                                    liftFilteredHeads(fn,
+                                                            enabled))))
+                                    .toList(),
+                            gb.aggs().stream().map(a ->
+                                    new TypedAggCol(a.name(), (TypedLambda)
+                                            liftFilteredHeads(a.map(), enabled),
+                                            a.reduce()))
+                                    .toList(),
+                            gb.info());
             default -> n;
         };
     }
@@ -759,6 +762,56 @@ final class SyntheticHeads {
             return c.args().get(0);
         }
         return n;
+    }
+
+    /**
+     * ONE-STEP canonicalization of a WRAPPED filtered-nav spelling to the
+     * direct one the walk re-enters on — or {@code null} (no arm fires).
+     * <ul>
+     *   <li>exists over a FILTERED navigation folds the filter into the
+     *       exists predicate — {@code exists(filter(X,p1),p2) ≡
+     *       exists(X, p1 && p2)} (the qualifier-inlined spelling
+     *       {@code $p.firm->toOne().emplByAge(30)->exists(pred)});</li>
+     *   <li>WRAPPED value reads ({@code $f->map(f|$f.qual(...))
+     *       ->filter(p2)->toOne().leaf}) canonicalize via
+     *       {@link #canonNavChain} — the demand scan, the lift arms and
+     *       the correlated-scalar arm then all see the one spelling they
+     *       already handle; the TOP toOne wrapper is preserved (it marks
+     *       the scalar first-row read).</li>
+     * </ul>
+     */
+    private TypedSpec foldWrappedSpelling(TypedSpec n) {
+        if (n instanceof TypedNativeCall ex
+                && ex.callee().qualifiedName()
+                        .equals("meta::pure::functions::collection::exists")
+                && ex.args().size() == 2
+                && filterBehindToOne(ex.args().get(0)) instanceof TypedFilter fx
+                && fx.predicate().parameters().size() == 1
+                && fx.predicate().body().size() == 1
+                && fx.info().type() instanceof Type.ClassType
+                && ex.args().get(1) instanceof TypedLambda exp
+                && exp.parameters().size() == 1
+                && exp.body().size() == 1) {
+            return new TypedNativeCall(ex.callee(),
+                    List.of(fx.source(), andMerge(fx.predicate(), exp)),
+                    ex.info());
+        }
+        if (n instanceof TypedPropertyAccess paw
+                && !(filterBehindToOne(paw.source())
+                        instanceof TypedFilter fw
+                        && isLiftableNav(fw.source()))) {
+            TypedSpec un = filterBehindToOne(paw.source());
+            TypedSpec canon = canonNavChain(un);
+            if (canon != un && canon instanceof TypedFilter) {
+                TypedSpec rewrapped = un == paw.source() ? canon
+                        : new TypedNativeCall(
+                                ((TypedNativeCall) paw.source()).callee(),
+                                List.of(canon), paw.source().info());
+                return new TypedPropertyAccess(rewrapped,
+                        paw.property(), paw.info());
+            }
+        }
+        return null;
     }
 
     /**
