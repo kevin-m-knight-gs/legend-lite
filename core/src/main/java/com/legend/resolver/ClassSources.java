@@ -67,6 +67,19 @@ public final class ClassSources {
         this.specs = Objects.requireNonNull(specs, "specs");
     }
 
+    /** The compiled body of a SYNTHESIZED function (unique FQN — derived
+     * property bodies for graph-leaf inlining, task #78). */
+    CompiledFunction compileSynthFn(String fqn) {
+        List<TypedFunction> fns = ctx.findFunction(fqn);
+        if (fns.size() != 1) {
+            throw new IllegalStateException("resolver bug: synthesized"
+                    + " function '" + fqn + "' has " + fns.size()
+                    + " overloads; synthesized FQNs are unique");
+        }
+        return specs.compile(fns.get(0));
+    }
+
+
     /** The memoized extraction for {@code classFqn} under {@code mappingFqn}. */
     public ClassSource get(String mappingFqn, String classFqn) {
         return get(mappingFqn, classFqn, null, "");

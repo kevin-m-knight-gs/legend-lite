@@ -55,19 +55,25 @@ import java.util.Objects;
 public record ColSpec(
         String name,
         LambdaFunction function1,
-        LambdaFunction function2) implements ColumnInstance {
+        LambdaFunction function2,
+        String alias) implements ColumnInstance {
 
     public ColSpec {
         Objects.requireNonNull(name, "name");
     }
 
+    /** Un-aliased canonical arity (every non-graph colspec). */
+    public ColSpec(String name, LambdaFunction function1, LambdaFunction function2) {
+        this(name, function1, function2, null);
+    }
+
     /** Bare-reference convenience: {@code ~name}. */
     public ColSpec(String name) {
-        this(name, null, null);
+        this(name, null, null, null);
     }
 
     /** Mapped-only convenience: {@code ~name:fn}. */
     public ColSpec(String name, LambdaFunction function1) {
-        this(name, function1, null);
+        this(name, function1, null, null);
     }
 }

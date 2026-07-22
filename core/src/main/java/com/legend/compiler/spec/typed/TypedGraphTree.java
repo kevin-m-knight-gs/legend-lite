@@ -11,9 +11,15 @@ import java.util.Objects;
  * @param property the property name at this level
  * @param children the nested sub-tree, empty for a leaf
  */
-public record TypedGraphTree(String property, List<TypedGraphTree> children) {
+public record TypedGraphTree(String property, List<TypedGraphTree> children,
+        String alias) {
     public TypedGraphTree {
         Objects.requireNonNull(property, "property");
         children = List.copyOf(children);
+    }
+
+    /** Un-aliased node (the common spelling). */
+    public TypedGraphTree(String property, List<TypedGraphTree> children) {
+        this(property, children, null);
     }
 }

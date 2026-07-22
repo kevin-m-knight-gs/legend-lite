@@ -82,14 +82,15 @@ final class GraphFetchChecker {
                             + " has no property '" + cs.name() + "'"));
             ColSpecArray nested = nestedTree(cs);
             if (nested == null) {
-                out.add(new TypedGraphTree(cs.name(), List.of()));
+                out.add(new TypedGraphTree(cs.name(), List.of(), cs.alias()));
                 continue;
             }
             if (!(prop.type() instanceof Type.ClassType nestedClass)) {
                 throw new TypeInferenceException(fn + " tree: property '" + cs.name()
                         + "' is not class-typed and cannot carry a sub-tree");
             }
-            out.add(new TypedGraphTree(cs.name(), validate(t, nestedClass.fqn(), nested, fn)));
+            out.add(new TypedGraphTree(cs.name(),
+                    validate(t, nestedClass.fqn(), nested, fn), cs.alias()));
         }
         return out;
     }

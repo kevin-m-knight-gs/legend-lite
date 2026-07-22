@@ -2490,11 +2490,17 @@ public final class SpecParser implements TokenStreamCursor {
      * preserves AST compatibility.
      */
     private ColSpec parseGraphPath(int depth) {
-        // Optional alias: 'aliasName': property
+        // Optional alias: 'aliasName': property — the engine serializes
+        // the node under the ALIAS (task #78; the discard was engine-lite
+        // behaviour our envelope emission has outgrown)
+        String alias = null;
         if (pos + 1 < tokens.count()
                 && peek() == TokenType.STRING
                 && tokens.type(pos + 1) == TokenType.COLON) {
-            pos += 2; // skip alias and colon
+            String raw = text();
+            alias = raw.length() >= 2 ? raw.substring(1, raw.length() - 1)
+                    : raw;
+            pos += 2;
         }
         if (!isFqnSegmentToken(peek())) {
             throw error("expected property name in graph-fetch path");
@@ -2532,10 +2538,10 @@ public final class SpecParser implements TokenStreamCursor {
             // so the two ColSpec slots are uniformly typed (LambdaFunction).
             LambdaFunction fn2 = new LambdaFunction(
                     List.of(), List.of(nested));
-            return new ColSpec(propName, fn1, fn2);
+            return new ColSpec(propName, fn1, fn2, alias);
         }
 
-        return new ColSpec(propName, fn1, null);
+        return new ColSpec(propName, fn1, null, alias);
     }
 
     // -----------------------------------------------------------------

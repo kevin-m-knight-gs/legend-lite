@@ -181,6 +181,31 @@ final class GraphEmission {
             }
             TypedSpec binding = cs.bindings().get(node.property());
             if (binding == null) {
+                // DERIVED (qualified) leaf: the class's parameterless
+                // derived property inlines through its lifted body
+                // function ($this reads substitute to the row bindings) —
+                // the QUERY position gets this at the Typer front door;
+                // tree leaves are bare names and inline here (task #78)
+                TypedSpec derived = derivedLeaf(cs, node.property());
+                if (derived != null) {
+                    var dFn = new Type.FunctionType(
+                            List.of(new Type.Param(rowType,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE)),
+                            new Type.Param(derived.info().type(),
+                                    derived.info().multiplicity()));
+                    // the engine serializes qualifier leaves under the
+                    // ALIAS when given, else the CALL spelling {"name()"}
+                    leaves.add(new TypedFuncCol(node.alias() != null
+                            ? node.alias() : node.property() + "()",
+                            new TypedLambda(List.of(rowVar),
+                                    List.of(derived),
+                                    new ExprType(dFn,
+                                            com.legend.compiler.element.type
+                                                    .Multiplicity.Bounded
+                                                    .ONE))));
+                    continue;
+                }
                 // GENERATED temporal-context property on the envelope:
                 // point fetch = the context date constant; VERSION SWEEP =
                 // each row's own validity-start column (engine: the
@@ -200,7 +225,7 @@ final class GraphEmission {
                                         .Bounded.ONE)),
                         new Type.Param(
                                 gen.info().type(), gen.info().multiplicity()));
-                leaves.add(new TypedFuncCol(node.property(),
+                leaves.add(new TypedFuncCol(keyOf(node),
                         new TypedLambda(List.of(rowVar), List.of(gen),
                                 new ExprType(genFn,
                                         com.legend.compiler.element.type
@@ -230,14 +255,14 @@ final class GraphEmission {
                             && Integer.valueOf(1).equals(b1.upper()))) {
                 var navPrim = Pipelines.navSteps(cs.pipeline()).get(slotPa.property());
                 if (navPrim != null) {
-                    children.add(primitiveArrayChild(node.property(),
+                    children.add(primitiveArrayChild(keyOf(node),
                             navPrim.target(), navPrim.predicate(),
                             colPa, rowVar, rowType));
                     continue;
                 }
                 var slotPrim = Pipelines.joinSlots(cs.pipeline()).get(slotPa.property());
                 if (slotPrim != null) {
-                    children.add(primitiveArrayChild(node.property(),
+                    children.add(primitiveArrayChild(keyOf(node),
                             slotPrim.target(), slotPrim.condition(),
                             colPa, rowVar, rowType));
                     continue;
@@ -286,7 +311,7 @@ final class GraphEmission {
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                     new Type.Param(
                             body.info().type(), body.info().multiplicity()));
-            leaves.add(new TypedFuncCol(node.property(),
+            leaves.add(new TypedFuncCol(keyOf(node),
                     new TypedLambda(List.of(rowVar), List.of(body),
                             new ExprType(fnType,
                                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE))));
@@ -579,6 +604,100 @@ final class GraphEmission {
         TypedSerializeGraph child = buildGraphNode(target, childRel, Map.of(),
                 Pipelines.slotAliases(target.pipeline()), childVar,
                 node.children(), context, toMany, childInfo);
-        return new TypedSerializeGraph.Child(node.property(), child);
+        return new TypedSerializeGraph.Child(keyOf(node), child);
+    }
+
+    /** The INLINED typed body of a parameterless derived property, its
+     * {@code $this} reads substituted to the class's row bindings —
+     * null when the name is not a parameterless derived property. */
+    private TypedSpec derivedLeaf(ClassSource cs, String prop) {
+        var p = ctx.findProperty(cs.classFqn(), prop).orElse(null);
+        if (!(p instanceof com.legend.compiler.element.Property.Derived d)
+                || !d.parameters().isEmpty()) {
+            return null;
+        }
+        var cf = sources.compileSynthFn(d.bodyFunctionFqn());
+        if (cf.body().size() != 1) {
+            throw new NotImplementedException("derived graph leaf '" + prop
+                    + "' has a multi-statement body — not supported yet");
+        }
+        String thisVar = cf.signature().parameters().get(0).name();
+        return inlineThis(cf.body().get(0), thisVar, cs, prop);
+    }
+
+    /** Substitute {@code $this.<stored>} reads with the row bindings.
+     * Rebuild arms cover the expression shapes derived bodies produce;
+     * an UNHANDLED node still CONTAINING {@code $this} throws loud —
+     * never silent (an unreplaced var would only error later at the
+     * lowering, far from its cause). */
+    private TypedSpec inlineThis(TypedSpec n, String thisVar,
+            ClassSource cs, String prop) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(thisVar)) {
+            TypedSpec b = cs.bindings().get(pa.property());
+            if (b == null || b.info().type() instanceof Type.ClassType) {
+                throw new NotImplementedException("derived graph leaf '"
+                        + prop + "' reads '" + pa.property() + "' which is "
+                        + (b == null ? "not a stored binding"
+                                : "class-typed (navigation)")
+                        + " on '" + cs.classFqn() + "' — only same-class"
+                        + " stored reads inline yet");
+            }
+            return b;
+        }
+        if (n instanceof TypedVariable v && v.name().equals(thisVar)) {
+            throw new NotImplementedException("derived graph leaf '" + prop
+                    + "' uses $" + thisVar + " as a whole value —"
+                    + " not supported yet");
+        }
+        if (n instanceof TypedNativeCall c) {
+            List<TypedSpec> args = new ArrayList<>(c.args().size());
+            for (TypedSpec a : c.args()) {
+                args.add(inlineThis(a, thisVar, cs, prop));
+            }
+            return new TypedNativeCall(c.callee(), args, c.info());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedIf i) {
+            return new com.legend.compiler.spec.typed.TypedIf(
+                    inlineThis(i.condition(), thisVar, cs, prop),
+                    inlineThis(i.thenBranch(), thisVar, cs, prop),
+                    i.elseBranch().map(e ->
+                            inlineThis(e, thisVar, cs, prop)),
+                    n.info());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedCollection tc) {
+            List<TypedSpec> els = new ArrayList<>(tc.elements().size());
+            for (TypedSpec e : tc.elements()) {
+                els.add(inlineThis(e, thisVar, cs, prop));
+            }
+            return new com.legend.compiler.spec.typed.TypedCollection(
+                    els, tc.info());
+        }
+        if (containsVar(n, thisVar)) {
+            throw new NotImplementedException("derived graph leaf '" + prop
+                    + "' body node " + n.getClass().getSimpleName()
+                    + " referencing $" + thisVar
+                    + " is not inlinable yet");
+        }
+        return n;
+    }
+
+    /** The serialized key: the tree alias when given, else the
+     * property name. */
+    private static String keyOf(TypedGraphTree node) {
+        return node.alias() != null ? node.alias() : node.property();
+    }
+
+    private static boolean containsVar(TypedSpec n, String var) {
+        if (n instanceof TypedVariable v && v.name().equals(var)) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsVar(c, var)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

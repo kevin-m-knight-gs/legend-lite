@@ -2759,17 +2759,17 @@ final class SpecParserTest {
 
     @Test
     void graphFetchTreeWithAlias() {
-        // '#{Person {\\'alias\\': name}}#' \u2014 the leading
-        // quoted-string + colon is a graph alias that engine-lite
-        // parses-and-discards. We match; the ColSpec carries just
-        // the raw property name.
+        // '#{Person {\'alias\': name}}# — the leading quoted-string +
+        // colon is a graph alias; the engine serializes the node under
+        // it, so the ColSpec CARRIES it (task #78; the parse-and-discard
+        // was engine-lite behaviour our envelope emission outgrew).
         ColSpecArray expected = new ColSpecArray(List.of(
                 new ColSpec("name",
                         new LambdaFunction(
                                 List.of(new Variable("_gf0")),
                                 List.of(new AppliedProperty(
                                         new Variable("_gf0"), "name"))),
-                        null)));
+                        null, "alias")));
         assertEquals(expected,
                 SpecParser.parse("#{Person {'alias': name}}#"));
     }

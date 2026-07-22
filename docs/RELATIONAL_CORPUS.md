@@ -18,11 +18,11 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 175 | 7 | 60 | 16 |
+| functions/tests | 258 | 174 | 8 | 60 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 99 | 6 | 31 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 18 | 11 | 112 | 2 |
+| graphFetch/tests | 143 | 20 | 11 | 110 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 68 | 0 | 45 | 11 |
+| tests/mapping/union | 124 | 67 | 1 | 45 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1269** | 61 | 581 | 627 |
+| **total** | 2538 | **1269** | 63 | 579 | 627 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6202,7 +6202,7 @@ in-process Alloy-shaped path).
 - 10x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 10x navigation through class-typed slot property 'address' is not supported yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x relation has no column 'activities' in scalar read
@@ -6377,6 +6377,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT t0.NAME AS a, list_concat(CASE WHEN starts_with(t0.NAME, 'Firm X') THEN..
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6562,10 +6563,10 @@ in-process Alloy-shaped path).
 - ERROR testMilestonedRootAndMilestonedProperty [graphFetch/tests]: class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' not found in db 'db'; PM='synonyms', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - ERROR testMultiLevelMilestoning [graphFetch/tests]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - ERROR testMilestonedClassAtRootWithQualifierBD [graphFetch/tests]: class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' not found in db 'db'; PM='synonyms', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
-- ERROR testMilestonedClassAtRootWithQualifierNormal [graphFetch/tests]: property 'classificationTypeStr' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
-- ERROR testMilestonedClassAtRoot [graphFetch/tests]: property 'classificationTypeStr' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
-- ERROR testMilestonedClassAtRootQualifierWithBD [graphFetch/tests]: property 'classificationExchangeName1' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
-- ERROR testMilestonedProperty [graphFetch/tests]: property 'classificationTypeStr' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
+- ERROR testMilestonedClassAtRootWithQualifierNormal [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
+- ERROR testMilestonedClassAtRoot [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
+- ERROR testMilestonedClassAtRootQualifierWithBD [graphFetch/tests]: derived graph leaf 'classificationExchangeName1' body node TypedPropertyAccess referencing $this is not inlinable yet
+- ERROR testMilestonedProperty [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Order has no property 'productAllVersions'
 - ERROR testMilestonedRootWithMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Product has no property 'synonymsAllVersions'
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -6600,18 +6601,16 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm 
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: property 'accountCategory' of class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- ERROR testSimpleGraphFetchWithQualifier [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleGraphFetchWithQualifierWithParameter [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testSimpleGraphFetchAliasing [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testSimpleGraphFetchAliasing [graphFetch/tests]: property 'nameWithTitle' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testNestedQualifier [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testFilteringQualifier [graphFetch/tests]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testFilteringQualifierMulti [graphFetch/tests]: property 'cusip' of class 'meta::relational::tests::model::simple::Product' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testFilteringQualifier [graphFetch/tests]: derived graph leaf 'cusip' body node TypedPropertyAccess referencing $this is not inlinable yet
+- ERROR testFilteringQualifierMulti [graphFetch/tests]: derived graph leaf 'cusip' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testEnumParameter [graphFetch/tests]: property 'synonymByType' of class 'meta::relational::tests::model::simple::Product' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testSubAggregationInQualifier [graphFetch/tests]: property 'averageEmployeesAge' of class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testIsEmptyInQualifier [graphFetch/tests]: property 'productDescription' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testIsNotEmptyInQualifier [graphFetch/tests]: property 'accountDescription' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
+- ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
+- ERROR testIsEmptyInQualifier [graphFetch/tests]: derived graph leaf 'productDescription' reads 'product' which is class-typed (navigation) on 'meta::relational::tests::model::simple::Trade' — only same-class stored reads inline yet
+- ERROR testIsNotEmptyInQualifier [graphFetch/tests]: derived graph leaf 'accountDescription' reads 'account' which is class-typed (navigation) on 'meta::relational::tests::model::simple::Trade' — only same-class stored reads inline yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testInScopeVariable [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testInScopeVariableBoolean [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -6807,13 +6806,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -7366,6 +7365,7 @@ in-process Alloy-shaped path).
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
