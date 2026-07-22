@@ -2776,16 +2776,19 @@ final class SpecParserTest {
 
     @Test
     void graphFetchTreeWithPropertyParameters() {
-        // '#{Person {name(%2024-01-01)}}#' \u2014 property milestoning
-        // args. Engine-lite skips the '(...)' contents; we do the
-        // same. ColSpec is unchanged from the no-args form.
+        // '#{Person {name(%2024-01-01)}}# — property call args parse as
+        // REAL expressions and ride the ColSpec (qualifier args inline
+        // derived bodies, task #78); the CHECKER still drops them for
+        // non-derived properties (milestoning threading is its own
+        // feature).
         ColSpecArray expected = new ColSpecArray(List.of(
                 new ColSpec("name",
                         new LambdaFunction(
                                 List.of(new Variable("_gf0")),
                                 List.of(new AppliedProperty(
                                         new Variable("_gf0"), "name"))),
-                        null)));
+                        null, null,
+                        List.of(new CDate(new PureDateLiteral.StrictDate(2024, 1, 1))))));
         assertEquals(expected,
                 SpecParser.parse("#{Person {name(%2024-01-01)}}#"));
     }

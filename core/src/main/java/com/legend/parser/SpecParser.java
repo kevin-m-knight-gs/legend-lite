@@ -2515,20 +2515,12 @@ public final class SpecParser implements TokenStreamCursor {
         LambdaFunction fn1 = new LambdaFunction(
                 List.of(param), List.of(propAccess));
 
-        // Optional propertyParameters (milestoning args): consume to close.
+        // Optional propertyParameters: parsed as REAL expressions —
+        // qualifier call args ('Mr') inline the derived body (task #78);
+        // milestoning args stay checker-dropped for non-derived props.
+        List<ValueSpecification> args = List.of();
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
-            int depthParens = 1;
-            pos++;
-            while (!atEnd() && depthParens > 0) {
-                TokenType t = peek();
-                if (t == TokenType.PAREN_OPEN) depthParens++;
-                else if (t == TokenType.PAREN_CLOSE) depthParens--;
-                if (depthParens > 0) pos++;
-            }
-            if (atEnd()) {
-                throw error("unterminated graph-fetch property parameters");
-            }
-            pos++; // consume matching ')'
+            args = parseArgList();
         }
 
         // Optional nested graph definition: { subpaths }
@@ -2538,10 +2530,10 @@ public final class SpecParser implements TokenStreamCursor {
             // so the two ColSpec slots are uniformly typed (LambdaFunction).
             LambdaFunction fn2 = new LambdaFunction(
                     List.of(), List.of(nested));
-            return new ColSpec(propName, fn1, fn2, alias);
+            return new ColSpec(propName, fn1, fn2, alias, args);
         }
 
-        return new ColSpec(propName, fn1, null, alias);
+        return new ColSpec(propName, fn1, null, alias, args);
     }
 
     // -----------------------------------------------------------------

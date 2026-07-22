@@ -1,5 +1,6 @@
 package com.legend.model.spec;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -56,15 +57,23 @@ public record ColSpec(
         String name,
         LambdaFunction function1,
         LambdaFunction function2,
-        String alias) implements ColumnInstance {
+        String alias,
+        List<ValueSpecification> args) implements ColumnInstance {
 
     public ColSpec {
         Objects.requireNonNull(name, "name");
+        args = args == null ? List.of() : List.copyOf(args);
+    }
+
+    /** Graph-path arity without call args. */
+    public ColSpec(String name, LambdaFunction function1,
+            LambdaFunction function2, String alias) {
+        this(name, function1, function2, alias, List.of());
     }
 
     /** Un-aliased canonical arity (every non-graph colspec). */
     public ColSpec(String name, LambdaFunction function1, LambdaFunction function2) {
-        this(name, function1, function2, null);
+        this(name, function1, function2, null, List.of());
     }
 
     /** Bare-reference convenience: {@code ~name}. */

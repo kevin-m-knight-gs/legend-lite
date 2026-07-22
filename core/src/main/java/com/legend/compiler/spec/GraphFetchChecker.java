@@ -70,19 +70,33 @@ final class GraphFetchChecker {
             throw new TypeInferenceException(fn + " requires a class-typed source, got "
                     + source.info().type().typeName());
         }
-        return new Checked(source, validate(t, ct.fqn(), tree, fn));
+        return new Checked(source, validate(t, ct.fqn(), tree, fn, env));
     }
 
     /** Validate one tree level against its owner class; recurse into class-typed sub-trees. */
-    private static List<TypedGraphTree> validate(Typer t, String classFqn, ColSpecArray tree, String fn) {
+    private static List<TypedGraphTree> validate(Typer t, String classFqn,
+            ColSpecArray tree, String fn, Env env) {
         List<TypedGraphTree> out = new ArrayList<>(tree.colSpecs().size());
         for (ColSpec cs : tree.colSpecs()) {
             Property prop = t.model().findProperty(classFqn, cs.name()).orElseThrow(() ->
                     new TypeInferenceException(fn + " tree: class " + classFqn
                             + " has no property '" + cs.name() + "'"));
+            // qualifier CALL args type here and ride the tree (the
+            // resolver inlines the derived body with them); non-derived
+            // parenthesized args (milestoning dates) keep the historical
+            // checker-drop — their feature owns its own threading
+            List<TypedSpec> targs = List.of();
+            if (prop instanceof Property.Derived && !cs.args().isEmpty()) {
+                List<TypedSpec> ta = new ArrayList<>(cs.args().size());
+                for (var a : cs.args()) {
+                    ta.add(t.synth(a, env));
+                }
+                targs = ta;
+            }
             ColSpecArray nested = nestedTree(cs);
             if (nested == null) {
-                out.add(new TypedGraphTree(cs.name(), List.of(), cs.alias()));
+                out.add(new TypedGraphTree(cs.name(), List.of(), cs.alias(),
+                        targs));
                 continue;
             }
             if (!(prop.type() instanceof Type.ClassType nestedClass)) {
@@ -90,7 +104,8 @@ final class GraphFetchChecker {
                         + "' is not class-typed and cannot carry a sub-tree");
             }
             out.add(new TypedGraphTree(cs.name(),
-                    validate(t, nestedClass.fqn(), nested, fn), cs.alias()));
+                    validate(t, nestedClass.fqn(), nested, fn, env),
+                    cs.alias(), targs));
         }
         return out;
     }

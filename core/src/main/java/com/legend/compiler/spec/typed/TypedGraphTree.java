@@ -12,14 +12,21 @@ import java.util.Objects;
  * @param children the nested sub-tree, empty for a leaf
  */
 public record TypedGraphTree(String property, List<TypedGraphTree> children,
-        String alias) {
+        String alias, List<TypedSpec> args) {
     public TypedGraphTree {
         Objects.requireNonNull(property, "property");
         children = List.copyOf(children);
+        args = args == null ? List.of() : List.copyOf(args);
+    }
+
+    /** Aliased node without call args. */
+    public TypedGraphTree(String property, List<TypedGraphTree> children,
+            String alias) {
+        this(property, children, alias, List.of());
     }
 
     /** Un-aliased node (the common spelling). */
     public TypedGraphTree(String property, List<TypedGraphTree> children) {
-        this(property, children, null);
+        this(property, children, null, List.of());
     }
 }

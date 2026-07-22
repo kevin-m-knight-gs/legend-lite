@@ -186,7 +186,7 @@ final class GraphEmission {
                 // function ($this reads substitute to the row bindings) —
                 // the QUERY position gets this at the Typer front door;
                 // tree leaves are bare names and inline here (task #78)
-                TypedSpec derived = derivedLeaf(cs, node.property());
+                TypedSpec derived = derivedLeaf(cs, node);
                 if (derived != null) {
                     var dFn = new Type.FunctionType(
                             List.of(new Type.Param(rowType,
@@ -197,7 +197,7 @@ final class GraphEmission {
                     // the engine serializes qualifier leaves under the
                     // ALIAS when given, else the CALL spelling {"name()"}
                     leaves.add(new TypedFuncCol(node.alias() != null
-                            ? node.alias() : node.property() + "()",
+                            ? node.alias() : callKey(node),
                             new TypedLambda(List.of(rowVar),
                                     List.of(derived),
                                     new ExprType(dFn,
@@ -610,10 +610,11 @@ final class GraphEmission {
     /** The INLINED typed body of a parameterless derived property, its
      * {@code $this} reads substituted to the class's row bindings —
      * null when the name is not a parameterless derived property. */
-    private TypedSpec derivedLeaf(ClassSource cs, String prop) {
+    private TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node) {
+        String prop = node.property();
         var p = ctx.findProperty(cs.classFqn(), prop).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
-                || !d.parameters().isEmpty()) {
+                || d.parameters().size() != node.args().size()) {
             return null;
         }
         var cf = sources.compileSynthFn(d.bodyFunctionFqn());
@@ -621,8 +622,15 @@ final class GraphEmission {
             throw new NotImplementedException("derived graph leaf '" + prop
                     + "' has a multi-statement body — not supported yet");
         }
+        // lifted signature = (this, <declared params>...) — call args
+        // bind positionally after $this (tree args are typed literals)
         String thisVar = cf.signature().parameters().get(0).name();
-        return inlineThis(cf.body().get(0), thisVar, cs, prop);
+        Map<String, TypedSpec> binds = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < node.args().size(); i++) {
+            binds.put(cf.signature().parameters().get(i + 1).name(),
+                    node.args().get(i));
+        }
+        return inlineThis(cf.body().get(0), thisVar, binds, cs, prop);
     }
 
     /** Substitute {@code $this.<stored>} reads with the row bindings.
@@ -631,7 +639,10 @@ final class GraphEmission {
      * never silent (an unreplaced var would only error later at the
      * lowering, far from its cause). */
     private TypedSpec inlineThis(TypedSpec n, String thisVar,
-            ClassSource cs, String prop) {
+            Map<String, TypedSpec> binds, ClassSource cs, String prop) {
+        if (n instanceof TypedVariable bv && binds.containsKey(bv.name())) {
+            return binds.get(bv.name());
+        }
         if (n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(thisVar)) {
@@ -654,22 +665,22 @@ final class GraphEmission {
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = new ArrayList<>(c.args().size());
             for (TypedSpec a : c.args()) {
-                args.add(inlineThis(a, thisVar, cs, prop));
+                args.add(inlineThis(a, thisVar, binds, cs, prop));
             }
             return new TypedNativeCall(c.callee(), args, c.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedIf i) {
             return new com.legend.compiler.spec.typed.TypedIf(
-                    inlineThis(i.condition(), thisVar, cs, prop),
-                    inlineThis(i.thenBranch(), thisVar, cs, prop),
+                    inlineThis(i.condition(), thisVar, binds, cs, prop),
+                    inlineThis(i.thenBranch(), thisVar, binds, cs, prop),
                     i.elseBranch().map(e ->
-                            inlineThis(e, thisVar, cs, prop)),
+                            inlineThis(e, thisVar, binds, cs, prop)),
                     n.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedCollection tc) {
             List<TypedSpec> els = new ArrayList<>(tc.elements().size());
             for (TypedSpec e : tc.elements()) {
-                els.add(inlineThis(e, thisVar, cs, prop));
+                els.add(inlineThis(e, thisVar, binds, cs, prop));
             }
             return new com.legend.compiler.spec.typed.TypedCollection(
                     els, tc.info());
@@ -681,6 +692,35 @@ final class GraphEmission {
                     + " is not inlinable yet");
         }
         return n;
+    }
+
+    /** The engine's key for a non-aliased qualifier leaf: the SOURCE
+     * call spelling — {@code fullName(false)}, {@code name()}. Literal
+     * args render in pure form; non-literal args require an alias
+     * (loud). */
+    private static String callKey(TypedGraphTree node) {
+        StringBuilder k = new StringBuilder(node.property()).append('(');
+        for (int i = 0; i < node.args().size(); i++) {
+            if (i > 0) {
+                k.append(", ");
+            }
+            TypedSpec a = node.args().get(i);
+            if (a instanceof com.legend.compiler.spec.typed.TypedCBoolean b) {
+                k.append(b.value());
+            } else if (a instanceof
+                    com.legend.compiler.spec.typed.TypedCInteger ci) {
+                k.append(ci.value());
+            } else if (a instanceof
+                    com.legend.compiler.spec.typed.TypedCString cstr) {
+                k.append('\'').append(cstr.value()).append('\'');
+            } else {
+                throw new NotImplementedException("parameterized qualifier"
+                        + " tree leaf '" + node.property() + "' with a"
+                        + " non-literal argument needs an alias — the"
+                        + " rendered-key form only covers literals");
+            }
+        }
+        return k.append(')').toString();
     }
 
     /** The serialized key: the tree alias when given, else the
