@@ -172,6 +172,123 @@ final class TemporalFrame {
      * (strategy from the QUERY's temporal context: the engine filters
      * EVERY milestoned table alias in the generated query).
      */
+    /** The PARENT COLUMN a spec's single date reads ({@code
+     * $o.orderDate->toOne()} &rarr; {@code orderDate}'s physical column
+     * via the parent binding) — null when the spec is absent, multi-date,
+     * sweep, or not an outer-row read. */
+    private String outerColumnDate(TemporalSpec spec, ClassSource cs) {
+        if (spec == null || spec.sweep() || spec.dates().size() != 1) {
+            return null;
+        }
+        TypedSpec d = spec.dates().get(0);
+        if (d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            d = c.args().get(0);
+        }
+        if (!(d instanceof TypedPropertyAccess pa)
+                || !(pa.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable)) {
+            return null;
+        }
+        TypedSpec b = cs.bindings().get(pa.property());
+        if (b == null) {
+            return null;
+        }
+        if (b instanceof com.legend.compiler.spec.typed.TypedNativeCall c2
+                && c2.args().size() == 1
+                && c2.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            b = c2.args().get(0);
+        }
+        return b instanceof TypedPropertyAccess pb
+                && pb.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable
+                ? pb.property() : null;
+    }
+
+    /** The join condition AND'd with the target's temporal window read
+     * against the SOURCE row's date column (the outer-dated channel).
+     * Plain single-date business/processing only — snapshot and
+     * bi-temporal outer dates keep their walls. */
+    private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
+            TypedSpec right, String navClass, String outerCol) {
+        String strat = temporalStrategy(navClass);
+        TypedTableReference rt = rootTable(right);
+        var ms = rt == null ? null
+                : ctx.findTableMilestoning(rt.store(), rt.table()).orElse(null);
+        String fromCol;
+        String thruCol;
+        boolean inclusive;
+        if ("businesstemporal".equals(strat) && ms != null
+                && ms.business() != null
+                && ms.business().snapshotDate() == null) {
+            fromCol = ms.business().from();
+            thruCol = ms.business().thru();
+            inclusive = ms.business().thruIsInclusive();
+        } else if ("processingtemporal".equals(strat) && ms != null
+                && ms.processing() != null
+                && ms.processing().snapshotDate() == null) {
+            fromCol = ms.processing().in();
+            thruCol = ms.processing().out();
+            inclusive = ms.processing().outIsInclusive();
+        } else {
+            throw new com.legend.error.NotImplementedException(
+                    "outer-row milestoning date over a "
+                    + (strat == null ? "non-temporal" : strat)
+                    + " target ('" + navClass + "') — only plain business/"
+                    + "processing windows compose into the join yet");
+        }
+        if (fromCol == null || thruCol == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "outer-row milestoning date: target table '"
+                    + rt.table() + "' has no FROM/THRU pair");
+        }
+        String sv = cond.parameters().get(0);
+        String tv = cond.parameters().get(1);
+        Type.RelationType lRow = (Type.RelationType) left.info().type();
+        Type.RelationType rRow = (Type.RelationType) right.info().type();
+        Function<String, TypedSpec> rcol = name -> {
+            Type.Column c = rRow.columns().stream()
+                    .filter(x -> x.name().equalsIgnoreCase(name)).findFirst()
+                    .orElseThrow(() -> new MappingResolutionException(
+                            "milestoning column '" + name + "' is not on"
+                            + " the join target row", navClass));
+            return new TypedPropertyAccess(new TypedVariable(tv,
+                    new ExprType(rRow, Multiplicity.Bounded.ONE)),
+                    c.name(), new ExprType(c.type(), c.multiplicity()));
+        };
+        Type.Column lc = lRow.columns().stream()
+                .filter(x -> x.name().equalsIgnoreCase(outerCol)).findFirst()
+                .orElseThrow(() -> new MappingResolutionException(
+                        "outer milestoning date column '" + outerCol
+                        + "' is not on the join source row", navClass));
+        TypedSpec dExpr = new TypedPropertyAccess(new TypedVariable(sv,
+                new ExprType(lRow, Multiplicity.Bounded.ONE)),
+                lc.name(), new ExprType(lc.type(), lc.multiplicity()));
+        ExprType boolT = new ExprType(Type.Primitive.BOOLEAN,
+                Multiplicity.Bounded.ONE);
+        TypedSpec win = inclusive
+                ? cmpCall("meta::pure::functions::boolean::and",
+                        dateCmpCall("meta::pure::functions::boolean::lessThan",
+                                rcol.apply(fromCol), dExpr, boolT),
+                        dateCmpCall("meta::pure::functions::boolean::"
+                                + "greaterThanEqual",
+                                rcol.apply(thruCol), dExpr, boolT), boolT)
+                : cmpCall("meta::pure::functions::boolean::and",
+                        dateCmpCall("meta::pure::functions::boolean::"
+                                + "lessThanEqual",
+                                rcol.apply(fromCol), dExpr, boolT),
+                        dateCmpCall("meta::pure::functions::boolean::"
+                                + "greaterThan",
+                                rcol.apply(thruCol), dExpr, boolT), boolT);
+        TypedSpec merged = cmpCall("meta::pure::functions::boolean::and",
+                cond.body().get(cond.body().size() - 1), win, boolT);
+        return new TypedLambda(cond.parameters(), List.of(merged),
+                cond.info());
+    }
+
     TypedSpec milestonedPipeByStrategy(TypedSpec pipe, TypedSpec date,
             String strategy, String classFqn) {
         TypedTableReference root = rootTable(pipe);
@@ -471,6 +588,23 @@ final class TemporalFrame {
                     // explicitly-dated drilled chains)
                     String chainHead = navPrefixToChain
                             .getOrDefault(j.prefix().get(), bare);
+                    // OUTER-ROW date ($o.product($o.orderDate)): the
+                    // temporal predicate composes into the JOIN ON — both
+                    // rows in scope (engine golden: on (fk=id and from_z
+                    // <= root.orderDate and thru_z > root.orderDate));
+                    // filtering the target pipe would read the outer var
+                    // out of scope (task #32)
+                    String outerCol = outerColumnDate(specs.get(chainHead), cs);
+                    if (outerCol != null) {
+                        yield new TypedJoin(
+                                applyJoinTemporalFilters(j.left(), cs,
+                                        navPrefixToClass, navPrefixToChain,
+                                        midPrefixToChain, midPrefixToDim),
+                                right, j.kind(),
+                                outerDatedCond(j.condition(), j.left(),
+                                        right, navClass, outerCol),
+                                j.prefix(), j.info());
+                    }
                     filtered = temporalTargetPipe(cs,
                             sources.get(cs.mappingFqn(), navClass), chainHead, right);
                 } else {
