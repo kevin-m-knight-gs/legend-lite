@@ -84,6 +84,17 @@ final class AssociationJoins {
                         corrN.parameters().get(0), predPaths);
             }
         }
+        // CLOSED parked preds contribute nav demand too — the applyToPipe
+        // application below rewrites them against this target, and a pred
+        // hopping a class-typed nav step ($e.address.name == 'New York',
+        // the chained-unions agg family) needs its SubNav registered
+        // exactly like a correlated pred's reads (task #78)
+        for (TypedLambda sp : synthetics.allPreds(head)) {
+            for (TypedSpec b : sp.body()) {
+                StoreResolver.consumedPaths(b,
+                        sp.parameters().get(0), predPaths);
+            }
+        }
         var tNavSteps = Pipelines.navSteps(t.pipeline());
         Map<String, String> predNavAliases = new java.util.LinkedHashMap<>();
         Set<String> tNavDemand = new LinkedHashSet<>();
@@ -130,7 +141,7 @@ final class AssociationJoins {
         // unchanged, never silently filtering).
         tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
                 CorrelatedSubselects.predFilteredPipe(p, t, tMat.slotPrefixes(),
-                        pred, cs.mappingFqn()));
+                        tSubNavs, pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 (Type.RelationType)
                         tPipe0.info().type(),

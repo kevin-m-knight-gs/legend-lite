@@ -1862,7 +1862,16 @@ public final class StoreResolver {
             for (String k : keyCols) {
                 var col = keyRow.columns().stream()
                         .filter(c -> c.name().equals(k)).findFirst()
-                        .orElseThrow(() -> new IllegalStateException(
+                        .orElseThrow(() -> keyRow.columns().stream()
+                                .anyMatch(c -> c.name().equals(k + "_0"))
+                        ? new com.legend.error.NotImplementedException(
+                                "aggregate over navigation into a UNION-"
+                                + "mapped target: the equi-key '" + k
+                                + "' splits into per-member columns ("
+                                + k + "_0…) — the grouped subselect needs"
+                                + " per-member key pairs + OR join-back"
+                                + " (U4 rung, not built yet)")
+                        : new IllegalStateException(
                                 "resolver bug: equi-key column '" + k
                                         + "' missing from the "
                                         + "grouping row"));

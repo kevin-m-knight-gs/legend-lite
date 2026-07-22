@@ -1207,7 +1207,10 @@ final class Substitution {
                         + " cast binding — not supported yet (H5c)");
             }
             throw new NotImplementedException("navigation through class-typed"
-                    + " slot property '" + head + "' is not supported yet");
+                    + " slot property '" + head + "' is not supported yet"
+                    + " [assocs=" + target.assocs().keySet() + "; inner="
+                    + inner.getClass().getSimpleName() + "; leaf="
+                    + leaf + "]");
         }
         return assocLeaf(head, leaf);
     }
