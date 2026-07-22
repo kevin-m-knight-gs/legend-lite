@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 175 | 7 | 60 | 16 |
+| functions/tests | 258 | 179 | 7 | 56 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 99 | 6 | 31 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1319** | 63 | 525 | 631 |
+| **total** | 2538 | **1323** | 63 | 521 | 631 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6211,7 +6211,6 @@ in-process Alloy-shaped path).
 - 5x Binder Error: subqueries in lambda expressions are not supported
 - 5x unbound variable '$modelChainConnection'
 - 5x unknown function 'generateObjectReferences'
-- 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 5x only single-expression lambdas are supported yet
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
@@ -6225,6 +6224,7 @@ in-process Alloy-shaped path).
 - 4x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no source column (unrecognized binding shape))
 - 3x no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - 3x Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSchema... |                                      ^
+- 3x unbound variable '$connectionStore'
 
 ### per-test outcomes (non-passing)
 
@@ -6447,11 +6447,7 @@ in-process Alloy-shaped path).
 - SHAPE testFilterLimitInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: no execute(|...) call
-- ERROR testSortByLambdaColumnAddition [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSortByLambdaWithIfElseValue [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSortByLambdaWIthIfElseColumn [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSortByLambdaWithComplexExpr [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testSortByLambdaDeepOptional [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New 
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
@@ -6746,7 +6742,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes

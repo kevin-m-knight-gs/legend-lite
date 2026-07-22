@@ -392,6 +392,83 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
      * row joins back on those keys only — no mid join outside (engine:
      * `... group by "firmextension_2".firmId) ... on (root.firmId =
      * sub.firmId)`, testUnion.pure golden). */
+    /** zip's two inputs as (source, scalar mapper) — the auto-map
+     * spelling {@code $vals.prop} (TypedMap) or a bare property access;
+     * null when either input has no such shape or the sources differ
+     * (value equality — the spliced result chain appears twice). */
+    static TypedSpec zipPairMap(TypedMap zm, TypedNativeCall zc,
+            java.util.function.UnaryOperator<TypedSpec> resolver) {
+        TypedSpec zp = zipPairProject(zc, resolver);
+        if (zp == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "zip over inputs that are not two scalar projections"
+                    + " of the SAME class chain has no relational shape");
+        }
+        return new TypedMap(zp, zm.mapper(), zm.info());
+    }
+
+    private static TypedSpec zipPairProject(TypedNativeCall zc,
+            java.util.function.UnaryOperator<TypedSpec> resolver) {
+        Object[] a = zipSide(zc.args().get(0));
+        Object[] b = zipSide(zc.args().get(1));
+        if (a == null || b == null || !a[0].equals(b[0])) {
+            return null;
+        }
+        TypedLambda fa = (TypedLambda) a[1];
+        TypedLambda fb = (TypedLambda) b[1];
+        Type.RelationType row = new Type.RelationType(List.of(
+                new Type.Column("first",
+                        ((Type.FunctionType) fa.info().type()).result().type(),
+                        ((Type.FunctionType) fa.info().type()).result()
+                                .multiplicity()),
+                new Type.Column("second",
+                        ((Type.FunctionType) fb.info().type()).result().type(),
+                        ((Type.FunctionType) fb.info().type()).result()
+                                .multiplicity())));
+        TypedProject proj = new TypedProject((TypedSpec) a[0],
+                List.of(new TypedFuncCol("first", fa),
+                        new TypedFuncCol("second", fb)),
+                com.legend.compiler.element.type.ExprType.one(row));
+        return resolver.apply(proj);
+    }
+
+    private static Object[] zipSide(TypedSpec n) {
+        if (n instanceof TypedMap m && m.mapper().parameters().size() == 1
+                && !(((Type.FunctionType) m.mapper().info().type()).result()
+                        .type() instanceof Type.ClassType)) {
+            return new Object[] {m.source(), m.mapper()};
+        }
+        // bare $vals.prop spelling (scalar read over a class collection)
+        if (n instanceof TypedPropertyAccess pa
+                && !(pa.info().type() instanceof Type.ClassType)
+                && pa.source().info().type() instanceof Type.ClassType ec) {
+            var elemOne = new com.legend.compiler.element.type.ExprType(
+                    ec, com.legend.compiler.element.type.Multiplicity
+                            .Bounded.ONE);
+            var readInfo = new com.legend.compiler.element.type.ExprType(
+                    pa.info().type(),
+                    com.legend.compiler.element.type.Multiplicity
+                            .Bounded.ZERO_ONE);
+            var fnT = new Type.FunctionType(
+                    List.of(new Type.Param(ec,
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE)),
+                    new Type.Param(pa.info().type(),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ZERO_ONE));
+            return new Object[] {pa.source(), new TypedLambda(
+                    List.of("_zp"),
+                    List.of(new TypedPropertyAccess(
+                            new TypedVariable("_zp", elemOne),
+                            pa.property(), readInfo)),
+                    new com.legend.compiler.element.type.ExprType(fnT,
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE))};
+        }
+        return null;
+    }
+
+
     /** UNION-split key expansion: a key absent from the row but present
      * as per-member variants (k_0, k_1, …) expands to ALL of them — the
      * grouped subselect groups by every split column and joins back on

@@ -221,6 +221,14 @@ public final class StoreResolver {
                     && ((Type.FunctionType) m.mapper().info().type()).result()
                             .type() instanceof Type.ClassType ->
                     resolveNode(substituteParam(m.mapper(), m.source()), context);
+            // zip over two projections of ONE source -> two-column project
+            case TypedMap zm
+                    when zm.source() instanceof TypedNativeCall zc
+                    && "meta::pure::functions::collection::zip".equals(
+                            zc.callee().qualifiedName())
+                    && zc.args().size() == 2 ->
+                    CorrelatedSubselects.zipPairMap(zm, zc,
+                            n2 -> resolveNode(n2, context));
             // a BARE object-space chain HEADED by toOne/first/at/distinct
             // (the eager run of a class-typed let: filter(...)->toOne()):
             // the chain resolver owns these in-pipeline (toOne = the
@@ -266,9 +274,8 @@ public final class StoreResolver {
                                     "meta::pure::functions::collection::count")) ->
                     classExtentCount(nc, context);
             // ->map(p|$p.scalarExpr) over instances IS the single-column
-            // projection (the map-terminal invariant); Person.all().prop is
-            // its property-access spelling (to-many paths explode via the
-            // projection funnel's positional rules).
+            // projection (map-terminal invariant; to-many paths explode
+            // via the projection funnel's positional rules).
             case TypedMap m
                     when isObjectSpace(m.source())
                     && !(((Type.FunctionType) m.mapper().info().type()).result().type()
@@ -398,9 +405,8 @@ public final class StoreResolver {
                     new TypedNativeCall(nc.callee(),
                             nc.args().stream().map(a2 -> resolveNode(a2, context))
                                     .toList(), nc.info());
-            // collection literal whose ELEMENTS carry class chains
-            // (assert args, 3-arg groupBy key/agg arrays): each element
-            // resolves independently, structurally
+            // collection literal whose ELEMENTS carry class chains:
+            // each element resolves independently, structurally
             case com.legend.compiler.spec.typed.TypedCollection col
                     when containsGetAll(col) ->
                     new com.legend.compiler.spec.typed.TypedCollection(
@@ -1094,6 +1100,8 @@ public final class StoreResolver {
     private static final String FIRST_FQN = "meta::pure::functions::collection::first";
     private static final String HEAD_FQN = "meta::pure::functions::collection::head";
     private static final String SORT_FQN = "meta::pure::functions::collection::sort";
+    private static final String SORT_BY_FQN = "meta::pure::functions::collection::sortBy";
+    private static final String SORT_BY_REV_FQN = "meta::pure::functions::collection::sortByReversed";
     private static final String CONCAT_FQN =
             "meta::pure::functions::collection::concatenate";
     private static final String COMPARE_FQN = "meta::pure::functions::lang::compare";
@@ -1114,6 +1122,16 @@ public final class StoreResolver {
      * descending). Anything richer has no relation sort shape.
      */
     private static TypedSortBy classSortOf(TypedSpec n) {
+        // class-space sortBy(coll, key)/sortByReversed — the 2-arg native
+        // spelling of the relation sort (computed keys substitute like any)
+        if (n instanceof TypedNativeCall sb && sb.args().size() == 2
+                && (SORT_BY_FQN.equals(sb.callee().qualifiedName())
+                        || SORT_BY_REV_FQN.equals(sb.callee().qualifiedName()))
+                && sb.args().get(1) instanceof TypedLambda key2) {
+            return new TypedSortBy(sb.args().get(0), key2,
+                    SORT_BY_FQN.equals(sb.callee().qualifiedName()),
+                    sb.info());
+        }
         if (!(n instanceof TypedNativeCall c) || c.args().size() != 3
                 || !SORT_FQN.equals(c.callee().qualifiedName())
                 || !(c.args().get(1) instanceof TypedLambda key)
@@ -1469,8 +1487,6 @@ public final class StoreResolver {
                 corrNavHeads);
     }
 
-
-
     /** #70 composite chain-backed exists/scalar target: the pipeline with
      * the sibling slot's table joined IN, and hop-1's condition oriented
      * onto the composite row. Null when the shape does not apply. */
@@ -1763,7 +1779,6 @@ public final class StoreResolver {
 
         return new RootPipe(m, materializedPipe);
     }
-
 
     /** scalar-subquery IN (#78): class-query membership collections
      * resolve up front, identity-keyed for the substitution arm. */
@@ -3209,8 +3224,6 @@ public final class StoreResolver {
      * swapped vs {@link #targetEquiKeys}) — the group/join-back keys of
      * the correlated aggregated subselect (#69 parent-copy emission). */
 
-
-
     /** Aggregated-navigation materials: per head, the target join material
      * with the demands' leaf + computed-mapper nav paths (#69). */
         /** #69 correlated-aggregate sub SOURCE (fold 2c): uncorrelated heads
@@ -3400,7 +3413,6 @@ public final class StoreResolver {
         }
         return false;
     }
-
 
     private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
                                       Map<String, Substitution.AssocSub> assocs,
