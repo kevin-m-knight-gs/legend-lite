@@ -351,6 +351,43 @@ final class AssociationJoins {
                 tailNavAliases.put(seg0, al3);
             }
         }
+        // EARLY predicate scan (before materialization): the association
+        // CONDITION's target-side slot reads demand the target's navigate
+        // steps — a ModelJoin/XStore condition navigating another
+        // association ($employees.address.city) reads the nested nav
+        // slot, and the stock slot machinery materializes it (user rule:
+        // both are just navigate()). Target-side param ONLY — demanding
+        // an unread to-many step would explode target rows.
+        var bindE = associationBindingInClosure(cs.mappingFqn(),
+                assoc.qualifiedName()).orElse(null);
+        if (bindE != null) {
+            var fnsE = ctx.findFunction(bindE.predicateFunctionFqn());
+            var cfE = fnsE.size() == 1 ? specs.compile(fnsE.get(0)) : null;
+            TypedSpec lastE = cfE == null ? null
+                    : cfE.body().get(cfE.body().size() - 1);
+            if (lastE instanceof TypedNativeCall callE
+                    && callE.args().size() == 5
+                    && callE.args().get(4) instanceof TypedLambda condE
+                    && condE.parameters().size() == 2) {
+                String classAFqnE = ((Type.ClassType)
+                        fnsE.get(0).parameters().get(0).type()).fqn();
+                boolean parentIsAE = ctx.isSubtype(cs.classFqn(), classAFqnE);
+                boolean reverseE = cs.classFqn().equals(targetClass)
+                        ? !assoc.property1().propertyName().equals(real)
+                        : !parentIsAE;
+                String tgtVarE = condE.parameters().get(reverseE ? 0 : 1);
+                for (TypedSpec b : condE.body()) {
+                    // JOINSLOT reads (the ColSpec-join emission) and
+                    // navigate-step reads both count
+                    CorrelatedSubselects.collectAliasReads(b, tgtVarE,
+                            targetSlots, targetDemand);
+                    CorrelatedSubselects.collectAliasReads(b, tgtVarE,
+                            tNavSteps3.keySet(), tNavDemand3);
+                }
+                targetDemand = Pipelines.closeOverConditions(
+                        target.pipeline(), targetDemand);
+            }
+        }
         Pipelines.Materialized tMat0 = tNavDemand3.isEmpty()
                 ? Pipelines.materialize(
                         target.pipeline(), targetDemand, target.classFqn())

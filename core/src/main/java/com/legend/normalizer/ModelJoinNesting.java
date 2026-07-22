@@ -96,11 +96,11 @@ final class ModelJoinNesting {
             }
             MappingNormalizer.XEnd nEnd = MappingNormalizer.xstoreEndOf(md, nestedCls, null, model);
             ClassMapping.RelationFunction nRf = nEnd.colsView();
-            // the nested side joins PREFIXED (the raw relations share
-            // physical column names — both tables carry ID); the cond
-            // lambda still speaks the UNPREFIXED right row (the prefix
-            // applies to the join OUTPUT, the TypedJoin contract)
-            String njPrefix = "_nj_" + prop + "_";
+            // the nested end is the stock NAVIGATE step (user call:
+            // "both XStore and ModelJoin are just navigate()") — the
+            // ColSpec-join spelling every @Join property emission uses,
+            // so demand/materialization/prefixing are the ONE slot
+            // machinery, no bespoke composition
             if (nmj.lambda().parameters().size() != 2) {
                 throw new NotImplementedException("nested ModelJoin '"
                         + nmj.associationName() + "' needs a 2-param lambda");
@@ -122,12 +122,11 @@ final class ModelJoinNesting {
                     nmj.associationName(), md, Map.of());
             ValueSpecification composite = new AppliedFunction("join", List.of(
                     var.equals(aVar) ? pipeA : pipeB,
-                    nEnd.pipeline(),
-                    new com.legend.model.spec.EnumValue(
-                            "meta::pure::functions::relation::JoinKind",
-                            "LEFT"),
-                    new LambdaFunction(List.of(j0, j1), List.of(nCond)),
-                    new CString(njPrefix)));
+                    new com.legend.model.spec.ColSpec(prop,
+                            new LambdaFunction(List.of(),
+                                    List.of(nEnd.pipeline())),
+                            null),
+                    new LambdaFunction(List.of(j0, j1), List.of(nCond))));
             if (var.equals(aVar)) {
                 pipeA = composite;
             } else {
@@ -136,7 +135,7 @@ final class ModelJoinNesting {
             Map<String, String> leafCols = new LinkedHashMap<>();
             for (ClassMapping.RelationFunction.Col nc : nRf.columns()) {
                 if (nc.column() != null) {
-                    leafCols.put(nc.property(), njPrefix + nc.column());
+                    leafCols.put(nc.property(), nc.column());
                 }
             }
             nestedCols.computeIfAbsent(var, k -> new LinkedHashMap<>())

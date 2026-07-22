@@ -1314,7 +1314,10 @@ public final class MappingNormalizer {
                         + " has no column binding on the nested Relation"
                         + " mapping (mapping=" + md.qualifiedName() + ")");
             }
-            return new AppliedProperty(rowByVar.get(var0.name()), col);
+            // the SLOT-READ spelling ($row.<navSlot>.<COL>) — typed and
+            // demanded by the stock navigate-step machinery
+            return new AppliedProperty(new AppliedProperty(
+                    rowByVar.get(var0.name()), mid0.property()), col);
         }
         if (v instanceof AppliedProperty ap
                 && ap.receiver() instanceof Variable var
