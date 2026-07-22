@@ -1049,4 +1049,42 @@ final class Pipelines {
         }
         return false;
     }
+
+    /**
+     * BARE property read over a CLASS chain in value position — the
+     * auto-map sugar: {@code chain.p1.p2 ≡ chain->map(v|$v.p1.p2)}.
+     * Returns the map spelling for the resolver to RE-ENTER (one value
+     * funnel), or null when the shape is not the plain sugar (milestoned
+     * hops and class/relation-typed results keep their walls).
+     */
+    static TypedSpec autoMapRead(TypedPropertyAccess pa) {
+        if (pa.info().type() instanceof Type.ClassType
+                || pa.info().type() instanceof Type.RelationType) {
+            return null;
+        }
+        List<TypedPropertyAccess> hops = new ArrayList<>();
+        TypedSpec base = pa;
+        while (base instanceof TypedPropertyAccess p
+                && p.source().info().type() instanceof Type.ClassType) {
+            hops.add(0, p);
+            base = p.source();
+        }
+        if (hops.isEmpty() || base instanceof TypedPropertyAccess
+                || !(base.info().type() instanceof Type.ClassType ct)) {
+            return null;
+        }
+        String v = "v_amr";
+        TypedSpec body = new TypedVariable(v,
+                new ExprType(ct, Multiplicity.Bounded.ONE));
+        for (TypedPropertyAccess h : hops) {
+            body = new TypedPropertyAccess(body, h.property(), h.info());
+        }
+        ExprType lamInfo = new ExprType(new Type.FunctionType(
+                List.of(new Type.Param(ct, Multiplicity.Bounded.ONE)),
+                new Type.Param(pa.info().type(), pa.info().multiplicity())),
+                Multiplicity.Bounded.ONE);
+        return new com.legend.compiler.spec.typed.TypedMap(base,
+                new TypedLambda(List.of(v), List.of(body), lamInfo),
+                pa.info());
+    }
 }

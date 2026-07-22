@@ -429,6 +429,22 @@ final class StatementExecutor {
                             w.callee(), args, w.info());
                 }
             }
+            // $r.activities: the engine's execution-activity trail (routing/
+            // aggregationAware rewrite records). We record NONE — the read
+            // is the EMPTY collection, so absence asserts (assertEmpty over
+            // an activity filter) hold and presence asserts fail honestly.
+            // A filter DIRECTLY over the read folds here (hook is top-down;
+            // filter([]) ≡ [] — its predicate never evaluates, so activity-
+            // class vocabulary like instanceOf needs no scalar lowering).
+            if (n instanceof com.legend.compiler.spec.typed.TypedFilter tf
+                    && activitiesRead(tf.source(), execFrames)) {
+                return new com.legend.compiler.spec.typed.TypedCollection(
+                        java.util.List.of(), tf.info());
+            }
+            if (activitiesRead(n, execFrames)) {
+                return new com.legend.compiler.spec.typed.TypedCollection(
+                        java.util.List.of(), n.info());
+            }
             // $r.values / execute(...).values → the spliced chain
             TypedSpec direct = spliceValuesRead(n, execFrames, letPrefix,
                     specs, env);
@@ -442,6 +458,17 @@ final class StatementExecutor {
             }
             return n;
         };
+    }
+
+    /** A {@code <frameVar>.activities} read (the Result envelope's
+     * execution-activity trail). */
+    private static boolean activitiesRead(TypedSpec n,
+            java.util.Map<String, ExecFrame> execFrames) {
+        return n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess ap
+                && ap.property().equals("activities")
+                && ap.source()
+                        instanceof com.legend.compiler.spec.typed.TypedVariable av
+                && execFrames.containsKey(av.name());
     }
 
     /** The frame behind a {@code <frameVar>.values} read; null otherwise. */

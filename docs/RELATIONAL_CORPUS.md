@@ -13,8 +13,8 @@ in-process Alloy-shaped path).
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
-| aggregationAware/test/rewrite | 13 | 0 | 0 | 6 | 7 |
-| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 13 | 2 |
+| aggregationAware/test/rewrite | 13 | 1 | 0 | 5 | 7 |
+| aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 6 | 2 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 78 | 0 | 35 | 11 |
+| tests/mapping/union | 124 | 77 | 1 | 35 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1332** | 63 | 508 | 635 |
+| **total** | 2538 | **1339** | 64 | 500 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6203,9 +6203,8 @@ in-process Alloy-shaped path).
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- 6x relation has no column 'activities' in scalar read
-- 6x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x Binder Error: subqueries in lambda expressions are not supported
@@ -6225,6 +6224,7 @@ in-process Alloy-shaped path).
 - 3x no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - 3x unbound variable '$connectionStore'
 - 3x a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- 3x a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 
 ### per-test outcomes (non-passing)
 
@@ -6237,25 +6237,17 @@ in-process Alloy-shaped path).
 - ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[productLine]; head binding=TypedPropertyAccess]
 - ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet [assocs=[person, product]; head subNavs=[productLine]; head binding=TypedPropertyAccess]
 - ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[]; head binding=TypedPropertyAccess]
-- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: relation has no column 'activities' in scalar read
 - ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[person]; head binding=TypedPropertyAccess]
 - ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[person]; head binding=TypedPropertyAccess]
 - SHAPE testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: embedded class hop 'activities' in CHAIN position without a scalar consumer is not supported yet
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
-- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
-- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
-- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
 - ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: ~Product ID Added 2: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
-- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(C
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(C
+- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(C
 - SHAPE testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(C
 - SHAPE testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(C
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
 - SHAPE testDifferentCalendar [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDifferentEndDates [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -6372,7 +6364,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -6738,7 +6730,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6898,7 +6890,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
@@ -7308,6 +7300,7 @@ in-process Alloy-shaped path).
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: Binder Error: Values list "t10" does not have a column named "ID" |  | LINE 29: ) AS t10 ON t2.FirmID_0 = t10.ID OR t2.FirmID_1 = t10.ID |                                    ^
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum

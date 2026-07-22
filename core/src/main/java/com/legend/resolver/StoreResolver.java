@@ -313,14 +313,9 @@ public final class StoreResolver {
             // serialize's tree governs the envelope.
             case TypedSerialize sz when containsGetAll(sz.source()) ->
                     resolveChain(sz, context);
-            // Relation-space wrappers over a chain that bottoms at a getAll:
-            // rebuild with the resolved source. (Each wrapper keeps its own
-            // info — relation-space types are stable across resolution.)
-            // the Typer's `.rows` MARKER (identity over a relation value):
-            // it exists so the K-side result frame can tell row-index reads
-            // from Result-envelope reads; EVERY lowering path passes through
-            // this resolver, so erasure here reaches all of them (audit 20c
-            // H1 — the K-hook-only erasure leaked on the plain compile path)
+            // Relation-space wrappers over a getAll-bottomed chain rebuild
+            // with the resolved source (infos stable). `.rows` MARKER
+            // erases HERE so every lowering path sees it (audit 20c H1).
             case TypedPropertyAccess pa
                     when pa.property().equals(com.legend.compiler
                             .element.type.PlatformTypes.ROWS_MARKER)
@@ -421,6 +416,17 @@ public final class StoreResolver {
                     new com.legend.compiler.spec.typed.TypedCast(
                             resolveNode(tc.source(), context),
                             tc.target(), tc.info());
+            // BARE value read over a class chain — auto-map sugar: rebuild
+            // as ->map(v|$v.path) and re-enter (one value funnel)
+            case TypedPropertyAccess vpa when containsGetAll(vpa.source()) -> {
+                TypedSpec am = Pipelines.autoMapRead(vpa);
+                if (am == null) {
+                    throw new NotImplementedException("class query under"
+                            + " TypedPropertyAccess is not resolvable yet"
+                            + " (H2 vocabulary)");
+                }
+                yield resolveNode(am, context);
+            }
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "
@@ -442,14 +448,9 @@ public final class StoreResolver {
                                 "meta::pure::functions::collection::removeDuplicates"));
     }
 
-    /**
-     * INTERIM temporal-propagation wall (audit S1): the engine applies the
-     * fetch date to EVERY milestoned table in the query
-     * ({@code getAppliedJoinMilestoningFilters}); lite filters only the
-     * root — joining a temporal class's UNFILTERED extent would silently
-     * multiply rows across its versions, so navigation to one stays loud
-     * until propagation lands.
-     */
+    /** INTERIM temporal-propagation wall (audit S1): engine dates EVERY
+     * milestoned table; lite only the root — navigation to an UNFILTERED
+     * temporal extent would multiply rows, so it stays loud. */
 
     /**
      * Any colspec body reading its row parameter? A constant-only project
@@ -872,11 +873,6 @@ public final class StoreResolver {
         return t;
     }
 
-    /**
-     * {@code map(chain, λp.scalar)} as the equivalent single-column
-     * projection. The column takes the leaf property's name when the body
-     * is a straight property read, else {@code value}.
-     */
     /** The synthetic single-column projection for a scalar map/property
      * read over instances. {@code valueMult} is the ORIGINAL expression's
      * multiplicity — a to-many read is a VALUE COLLECTION and the scalar
