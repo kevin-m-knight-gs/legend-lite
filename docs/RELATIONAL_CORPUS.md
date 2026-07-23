@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 45 | 14 | 82 | 2 |
-| graphFetch/tests/union | 15 | 9 | 2 | 4 | 0 |
+| graphFetch/tests/union | 15 | 10 | 1 | 4 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
@@ -72,7 +72,7 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 62 | 3 | 9 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 96 | 0 | 11 | 17 |
+| tests/mapping/union | 124 | 95 | 1 | 11 | 17 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 65 | 1 | 16 | 1 |
@@ -6331,7 +6331,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6556,7 +6556,6 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithMultiLevelUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=S
-- FAIL testNestedUnion_SameStore [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[2].product expected null, got {productId=40, productName=Prod_3, description=Product 3 description} | expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, quantity=100, traderKerb=abc, tradeId=1}, {product={productId=31, de
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
 - SHAPE createDropTableStatement [helperFunctions/tests]: no execute(|...) call
@@ -6661,7 +6660,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6819,7 +6818,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
@@ -7192,6 +7191,7 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::unionOfViews2$class$meta::relational::tests::model::simple::PersonExtension': unknown table 'midTableView1' in database 'meta::relational::tests::mapping::union::unionOfViewsDb'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
