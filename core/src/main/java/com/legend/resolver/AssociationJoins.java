@@ -10,6 +10,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
@@ -149,6 +150,131 @@ final class AssociationJoins {
                 tMat.slotPrefixes(), tSubNavs);
     }
 
+    /** UNION-to-union chained hop: rewrite a raw equality condition into
+     * the member-paired OR form — {@code (a_0=b_0 AND c_0=d_0) OR
+     * (a_1=b_1 AND c_1=d_1)} — when BOTH rows expose the {@code _i}
+     * NULL-crossed variants of every read column and the raw column is
+     * absent (engine sqlQueryMerging/V-family goldens; off-member NULLs
+     * make same-member pairing exact). Null when not applicable — the
+     * caller keeps its wall. */
+    /** The chained-hop union arm: paired condition or the loud wall. */
+    AssocJoin pairChainedUnionHop(AssocJoin aj, ClassSource parent,
+            String chainKey) {
+        TypedLambda paired = memberPairedCondition(aj.condition(),
+                (Type.RelationType) parent.pipeline().info().type(),
+                aj.targetRow());
+        if (paired == null) {
+            throw new NotImplementedException("chained association hop '"
+                    + chainKey + "' navigates INTO a union-mapped class —"
+                    + " per-member route dispatch is not built yet");
+        }
+        return aj.withCondition(paired);
+    }
+
+    TypedLambda memberPairedCondition(TypedLambda cond,
+            Type.RelationType srcRow, Type.RelationType tgtRow) {
+        List<TypedSpec[]> eqs = new ArrayList<>();
+        if (!collectEqualities(cond.body().get(cond.body().size() - 1), eqs)) {
+            return null;
+        }
+        String sv = cond.parameters().get(0);
+        String tv = cond.parameters().get(1);
+        int n = -1;
+        for (TypedSpec[] eq : eqs) {
+            for (TypedSpec side : eq) {
+                if (!(side instanceof TypedPropertyAccess pa
+                        && pa.source() instanceof
+                                com.legend.compiler.spec.typed.TypedVariable v)) {
+                    return null;
+                }
+                Type.RelationType row = v.name().equals(sv) ? srcRow
+                        : v.name().equals(tv) ? tgtRow : null;
+                if (row == null) {
+                    return null;
+                }
+                int k = suffixCount(row, pa.property());
+                if (k < 2 || (n >= 0 && k != n)) {
+                    return null;
+                }
+                n = k;
+            }
+        }
+        var boolT = new ExprType(Type.Primitive.BOOLEAN,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSpec or = null;
+        for (int i = 0; i < n; i++) {
+            TypedSpec grp = null;
+            for (TypedSpec[] eq : eqs) {
+                TypedSpec e = new TypedNativeCall(
+                        ((TypedNativeCall) eq[2]).callee(),
+                        List.of(suffixRead(eq[0], i, srcRow, tgtRow, sv),
+                                suffixRead(eq[1], i, srcRow, tgtRow, sv)),
+                        boolT);
+                grp = grp == null ? e : boolCall("and", e, grp, boolT);
+            }
+            or = or == null ? grp : boolCall("or", grp, or, boolT);
+        }
+        return new TypedLambda(cond.parameters(), List.of(or), cond.info());
+    }
+
+    private TypedSpec boolCall(String op, TypedSpec a, TypedSpec b,
+            ExprType boolT) {
+        var fns = ctx.findFunction("meta::pure::functions::boolean::" + op)
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (fns.size() != 1) {
+            throw new IllegalStateException(
+                    "resolver bug: expected one 2-arg boolean::" + op);
+        }
+        return new TypedNativeCall(fns.get(0), List.of(a, b), boolT);
+    }
+
+    private static int suffixCount(Type.RelationType row, String col) {
+        boolean raw = row.columns().stream()
+                .anyMatch(c -> c.name().equals(col));
+        if (raw) {
+            return -1;
+        }
+        int k = 0;
+        while (true) {
+            final int i = k;
+            if (row.columns().stream()
+                    .noneMatch(c -> c.name().equals(col + "_" + i))) {
+                return k;
+            }
+            k++;
+        }
+    }
+
+    private static TypedSpec suffixRead(TypedSpec side, int i,
+            Type.RelationType srcRow, Type.RelationType tgtRow, String sv) {
+        TypedPropertyAccess pa = (TypedPropertyAccess) side;
+        var v = (com.legend.compiler.spec.typed.TypedVariable) pa.source();
+        Type.RelationType row = v.name().equals(sv) ? srcRow : tgtRow;
+        String name = pa.property() + "_" + i;
+        Type.Column c = row.columns().stream()
+                .filter(x -> x.name().equals(name)).findFirst().orElseThrow();
+        return new TypedPropertyAccess(v, name,
+                new ExprType(c.type(), c.multiplicity()));
+    }
+
+    /** Extract {@code equal(a,b)} leaves from an AND-chain; each entry is
+     * [left, right, theEqualNode]. False when any non-and/equal appears. */
+    private static boolean collectEqualities(TypedSpec n,
+            List<TypedSpec[]> out) {
+        if (n instanceof TypedNativeCall c && c.args().size() == 2) {
+            String q = c.callee().qualifiedName();
+            if (q.endsWith("::equal")) {
+                out.add(new TypedSpec[]{c.args().get(0), c.args().get(1), c});
+                return true;
+            }
+            if (q.endsWith("::and")) {
+                return collectEqualities(c.args().get(0), out)
+                        && collectEqualities(c.args().get(1), out);
+            }
+        }
+        return false;
+    }
+
     /** OUTER-ROW date ($o.product($o.orderDate)): the temporal window
      * composes into the NAV/ASSOC CONDITION — both rows in scope (engine:
      * window in the join ON against "root".orderDate; temporalTargetPipe
@@ -191,6 +317,11 @@ final class AssociationJoins {
                   Map<String, Substitution.SubNav> targetSubNavs) {
             this(prefix, target, targetPipeline, targetRow, condition,
                     targetSlotPrefixes, targetSubNavs, null);
+        }
+
+        AssocJoin withCondition(TypedLambda cond) {
+            return new AssocJoin(prefix, target, targetPipeline, targetRow,
+                    cond, targetSlotPrefixes, targetSubNavs, corrSubPred);
         }
     }
 

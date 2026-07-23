@@ -2280,14 +2280,9 @@ public final class StoreResolver {
                             aj, context, assocJoins, joinsByChain, assocs);
                 }
                 if (hop > 0 && containsConcatenate(aj.targetPipeline())) {
-                    // a CHAINED hop into a UNION-mapped target needs
-                    // per-member routed conditions (V4's z[y0,z0]/z[y1,z1]
-                    // pairs) — the single predicate returns PARTIAL rows;
-                    // stays loud until that rung is built
-                    throw new com.legend.error.NotImplementedException(
-                            "chained association hop '" + chainKey
-                            + "' navigates INTO a union-mapped class — "
-                            + "per-member route dispatch is not built yet");
+                    // member-paired OR over NULL-crossed suffixed keys —
+                    // engine V-family; non-pairable keeps the loud wall
+                    aj = assocMaterial.pairChainedUnionHop(aj, parent, chainKey);
                 }
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
