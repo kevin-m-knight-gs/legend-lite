@@ -545,10 +545,15 @@ final class GraphEmission {
         }
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), Set.of(), childClass);
+        // GRAPH children pair STRICTLY per union member (the engine's
+        // graph executor runs per-member serial child queries) — a merged
+        // union navigate carries the paired variant for exactly this
+        // consumer (TypedNavigate.pairedPredicate)
         return correlatedGraphChild(child, cMat.pipeline(),
                 (Type.RelationType)
                         cMat.pipeline().info().type(),
-                nav.predicate(), toMany, node, parentRowVar, parentRowType, context);
+                nav.pairedPredicate().orElse(nav.predicate()),
+                toMany, node, parentRowVar, parentRowType, context);
     }
 
     /**
@@ -931,7 +936,7 @@ final class GraphEmission {
             targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
                     cMat.pipeline());
             targetRow = (Type.RelationType) targetPipeline.info().type();
-            cond = nav.predicate();
+            cond = nav.pairedPredicate().orElse(nav.predicate());
         }
         TypedSpec leafBind = target.bindings().get(leaf.property());
         if (leafBind == null

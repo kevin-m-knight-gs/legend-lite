@@ -920,12 +920,15 @@ final class UnionSynthesis {
         // the lifted navigations sit ABOVE the concatenate — one slot per
         // property, exactly the standard nav-slot pipeline shape
         for (NavLift lf : lifts) {
-            union = new AppliedFunction("legacyNavigate", List.of(union,
-                    new ColSpec(lf.property(), new LambdaFunction(List.of(),
-                            List.of(new AppliedFunction("getAll", List.of(
-                                    new PackageableElementPtr(lf.targetClassFqn()))))),
-                            null),
-                    lf.targetRows(), lf.condition()));
+            ColSpec slot = new ColSpec(lf.property(), new LambdaFunction(List.of(),
+                    List.of(new AppliedFunction("getAll", List.of(
+                            new PackageableElementPtr(lf.targetClassFqn()))))),
+                    null);
+            union = new AppliedFunction("legacyNavigate",
+                    lf.pairedCondition() == null
+                            ? List.of(union, slot, lf.targetRows(), lf.condition())
+                            : List.of(union, slot, lf.targetRows(), lf.condition(),
+                                    lf.pairedCondition()));
         }
         Variable row = new Variable("u_row");
         Map<String, KeyExpression> ctor = new LinkedHashMap<>();
@@ -1180,6 +1183,7 @@ final class UnionSynthesis {
      */
     record NavLift(String property, String targetClassFqn,
             ValueSpecification targetRows, LambdaFunction condition,
+            LambdaFunction pairedCondition,
             Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<Integer, List<LiftChain>> chainsByOrdinal) {
     }
@@ -1609,6 +1613,8 @@ final class UnionSynthesis {
             Variable s = new Variable("s");
             Variable t = new Variable("t");
             ValueSpecification orCond = null;
+            ValueSpecification orPaired = null;
+            Map<String, String[]> pairedTgtKeyCols = new LinkedHashMap<>();
             // suffixed -> [base column, its route's db, its route's landing
             // table] (heterogeneous target key typing needs the provenance)
             Map<String, String[]> tgtKeyCols = new LinkedHashMap<>();
@@ -1676,20 +1682,48 @@ final class UnionSynthesis {
                                     prevTable, srcOut));
                 }
                 Integer tgtOrd = j.targetSetId() != null && targetUnion != null
-                        && !liftTargetMerged
                         ? memberOrdinalOf(targetUnion.memberSetIds(), md,
                                 model, j.targetSetId())
                         : null;
+                // the PAIRED (member-suffixed target) variant builds
+                // ALWAYS; the emitted predicate is the MERGED (raw-target)
+                // form only when liftTargetMerged — the paired variant
+                // then rides alongside for GRAPH children, whose engine
+                // subsystem pairs strictly (TypedNavigate.pairedPredicate)
+                ValueSpecification pairedEntry = cond;
                 if (tgtOrd != null && tgtOrd >= 0) {
                     Map<String, String> tgtOut = new LinkedHashMap<>();
-                    cond = suffixTargetReads(cond, t, tgtOrd, tgtOut);
+                    pairedEntry = suffixTargetReads(cond, t, tgtOrd, tgtOut);
+                    // merged lifts park their suffixed keys aside — they
+                    // join the typing keySpecs ONLY if the paired lambda
+                    // actually rides (the merged emission itself must stay
+                    // byte-identical to the pre-paired form)
                     for (var en2 : tgtOut.entrySet()) {
-                        tgtKeyCols.put(en2.getValue(),
-                                new String[]{en2.getKey(), hopDb, tgtTable});
+                        (liftTargetMerged ? pairedTgtKeyCols : tgtKeyCols)
+                                .put(en2.getValue(),
+                                        new String[]{en2.getKey(), hopDb, tgtTable});
                     }
+                }
+                if (!liftTargetMerged) {
+                    cond = pairedEntry;
                 }
                 orCond = orCond == null ? cond
                         : new AppliedFunction("or", List.of(orCond, cond));
+                orPaired = orPaired == null ? pairedEntry
+                        : new AppliedFunction("or", List.of(orPaired, pairedEntry));
+            }
+            LambdaFunction pairedLam = liftTargetMerged && orPaired != null
+                    && orPaired != orCond
+                    ? new LambdaFunction(List.of(s, t), List.of(orPaired))
+                    : null;
+            if (pairedLam != null) {
+                tgtKeyCols.putAll(pairedTgtKeyCols);
+                // the MERGED predicate still reads the RAW final-hop
+                // columns — the keySpecs projection must pass them through
+                // alongside the suffixed pairs
+                for (String[] v : pairedTgtKeyCols.values()) {
+                    tgtKeyCols.putIfAbsent(v[0], new String[]{v[0], v[1], v[2]});
+                }
             }
             ValueSpecification targetRows = new AppliedFunction("tableReference",
                     List.of(new PackageableElementPtr(landingDb),
@@ -1701,8 +1735,8 @@ final class UnionSynthesis {
                         List.of(targetRows, new ColSpecArray(keySpecs)));
             }
             lifts.add(new NavLift(prop, targetClassFqn, targetRows,
-                    new LambdaFunction(List.of(s, t), List.of(orCond)), srcKeys,
-                    chains));
+                    new LambdaFunction(List.of(s, t), List.of(orCond)),
+                    pairedLam, srcKeys, chains));
         }
         return lifts;
     }

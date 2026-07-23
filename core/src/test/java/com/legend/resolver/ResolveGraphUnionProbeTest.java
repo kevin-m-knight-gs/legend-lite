@@ -199,10 +199,6 @@ class ResolveGraphUnionProbeTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Disabled("graph-STRICT member pairing needs the dual-condition"
-            + " navigate (task #84): the engine's relational path MERGES this shape"
-            + " (partiallyMilestoning golden, rows [2,2]) while its graph executor"
-            + " pairs strictly (product=null) — one lift condition cannot serve both")
     @DisplayName("DIAGONAL union routes: member pairing yields NULL, never a cross-member match")
     void diagonalUnionPairing() throws SQLException {
         try (Statement st = conn.createStatement()) {

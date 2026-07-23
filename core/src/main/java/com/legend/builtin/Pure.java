@@ -969,6 +969,12 @@ public final class Pure {
     public static final NativeFunctionDefinition NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1 = signature("native function meta::legend::lite::navigate<C,T,Z>(cl:C[*], target:meta::pure::metamodel::relation::FuncColSpec<{->T[*]},Z>[1], pred:meta::pure::metamodel::function::Function<{C[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):C[*];");
     public static final NativeFunctionDefinition NAVIGATE__T_MANY__FUNCTION_1 = signature("native function meta::legend::lite::navigate<T>(target:T[*], pred:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
     public static final NativeFunctionDefinition LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyNavigate<S,C,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], target:meta::pure::metamodel::relation::FuncColSpec<{->C[*]},Z>[1], tgtRows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
+
+    // 5-arg overload: the STRICT member-PAIRED variant of a MERGED union
+    // navigate condition rides as a fifth lambda (internal plumbing — the
+    // engine's relational path merges diagonal union routes while its
+    // graph executor pairs strictly; TypedNavigate.pairedPredicate).
+    public static final NativeFunctionDefinition LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyNavigate<S,C,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], target:meta::pure::metamodel::relation::FuncColSpec<{->C[*]},Z>[1], tgtRows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1], pairedCond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<S+Z>[1];");
     // legacyAssocPredicate: row-extraction adapter for AssociationMapping
     // predicate function bodies. The outer function signature is
     // (A[1], B[1]) -> Boolean[1] (matching a clean AssociationMapping

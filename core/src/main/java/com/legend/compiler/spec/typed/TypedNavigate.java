@@ -28,11 +28,31 @@ import java.util.Optional;
  * @param target    the navigated class extent (the colspec thunk's body); for
  *                  the inline form this IS {@link #source}
  * @param predicate the checked navigation predicate
+ * @param pairedPredicate the STRICT member-paired variant of a MERGED union
+ *                  navigate condition. The engine's two subsystems disagree
+ *                  on diagonal union routes: its relational path MERGES
+ *                  (partiallyMilestoning golden cross-matches by key value)
+ *                  while its graph executor pairs strictly per member
+ *                  (rootLevel SameStore golden serializes null). The merged
+ *                  form is {@link #predicate}; graph children consult this
+ *                  variant when present. Traversable via
+ *                  {@link #children()} (callee collection and walks see it);
+ *                  never lowered — GraphEmission reads it at the same
+ *                  raw-pipeline point it reads the predicate, and its
+ *                  suffixed reads reference frame columns both unions
+ *                  always project.
  * @param form      which of the three positions this navigate occupies
  * @param info      the result per the form's rule above
  */
 public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
-                            TypedLambda predicate, Form form, ExprType info) implements TypedSpec {
+                            TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
+                            Form form, ExprType info) implements TypedSpec {
+
+    /** The common form: no paired variant. */
+    public TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
+                         TypedLambda predicate, Form form, ExprType info) {
+        this(source, alias, target, predicate, Optional.empty(), form, info);
+    }
 
     /** The three syntactic positions of §3 — one conceptual primitive. */
     public enum Form {
@@ -41,8 +61,14 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
 
     @Override
     public List<TypedSpec> children() {
-        return form == Form.INLINE
+        List<TypedSpec> base = form == Form.INLINE
                 ? List.of(source, predicate)
                 : List.of(source, target, predicate);
+        if (pairedPredicate.isEmpty()) {
+            return base;
+        }
+        List<TypedSpec> out = new java.util.ArrayList<>(base);
+        out.add(pairedPredicate.get());
+        return out;
     }
 }

@@ -41,17 +41,21 @@ final class NavigateChecker {
      * (the class-typed sub-row column) is bespoke.
      */
     static TypedSpec legacy(Typer t, AppliedFunction af, Env env) {
+        int arity = af.parameters().size();
         TypedFunction sig = t.model().findFunction(af.function()).stream()
-                .filter(c -> c.parameters().size() == 4)
+                .filter(c -> c.parameters().size() == arity)
                 .findFirst()
                 .orElseThrow(() -> new TypeInferenceException(
-                        "no 4-argument legacyNavigate overload is registered"));
-        if (af.parameters().size() != 4
+                        "no " + arity + "-argument legacyNavigate overload is registered"));
+        if ((arity != 4 && arity != 5)
                 || !(af.parameters().get(1) instanceof ColSpec cs)
                 || cs.function1() == null || !cs.function1().parameters().isEmpty()
-                || !(af.parameters().get(3) instanceof LambdaFunction condLam)) {
+                || !(af.parameters().get(3) instanceof LambdaFunction condLam)
+                || (arity == 5 && !(af.parameters().get(4)
+                        instanceof LambdaFunction))) {
             throw new TypeInferenceException("legacyNavigate expects"
-                    + " (rel, ~alias: Target.all(), <target rows>, {s,t|cond})");
+                    + " (rel, ~alias: Target.all(), <target rows>, {s,t|cond}"
+                    + "[, {s,t|pairedCond}])");
         }
         Bindings b = new Bindings();
         TypedSpec source = t.synth(af.parameters().get(0), env);
@@ -76,10 +80,17 @@ final class NavigateChecker {
                 new Type.Column(cs.name(), target, Multiplicity.Bounded.ONE))));
         TypedLambda pred = (TypedLambda) t.typeLambda(condLam,
                 sig.parameters().get(3).type(), b, env);
+        // the STRICT member-paired variant of a MERGED union condition
+        // (TypedNavigate.pairedPredicate — graph children consult it)
+        Optional<TypedLambda> paired = arity == 5
+                ? Optional.of((TypedLambda) t.typeLambda(
+                        (LambdaFunction) af.parameters().get(4),
+                        sig.parameters().get(4).type(), b, env))
+                : Optional.empty();
 
         ExprType out = t.kernel().resolveOutput(sig.returnType(), sig.returnMultiplicity(), b);
         return new TypedNavigate(source, Optional.of(cs.name()), thunk.body().get(0),
-                pred, TypedNavigate.Form.PRE_MAP, out);
+                pred, paired, TypedNavigate.Form.PRE_MAP, out);
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
