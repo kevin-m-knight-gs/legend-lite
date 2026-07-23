@@ -261,7 +261,7 @@ final class GraphEmission {
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded b1
                             && Integer.valueOf(1).equals(b1.upper()))) {
-                var navPrim = Pipelines.navSteps(cs.pipeline()).get(slotPa.property());
+                var navPrim = Pipelines.outerNavSteps(cs.pipeline()).get(slotPa.property());
                 if (navPrim != null) {
                     children.add(primitiveArrayChild(keyOf(node),
                             navPrim.target(), navPrim.predicate(),
@@ -284,7 +284,7 @@ final class GraphEmission {
                             .Multiplicity.Bounded bW
                     && Integer.valueOf(1).equals(bW.upper()))) {
                 java.util.Set<String> slotish = new java.util.LinkedHashSet<>(
-                        Pipelines.navSteps(cs.pipeline()).keySet());
+                        Pipelines.outerNavSteps(cs.pipeline()).keySet());
                 slotish.addAll(Pipelines.joinSlots(cs.pipeline()).keySet());
                 if (Pipelines.referencesAliasOn(inner, cs.rowVar(), slotish)) {
                     throw new NotImplementedException("graph leaf '"
@@ -460,7 +460,7 @@ final class GraphEmission {
             if (inner instanceof TypedPropertyAccess pa2
                     && pa2.source() instanceof TypedVariable v2
                     && v2.name().equals(cs.rowVar())) {
-                var navSteps = Pipelines.navSteps(cs.pipeline());
+                var navSteps = Pipelines.outerNavSteps(cs.pipeline());
                 var nav = navSteps.get(pa2.property());
                 if (nav != null) {
                     return navSlotChild(cs, node, nav,
@@ -908,7 +908,7 @@ final class GraphEmission {
             if (bindingRead instanceof TypedPropertyAccess bpa
                     && bpa.source() instanceof TypedVariable bvv
                     && bvv.name().equals(cs.rowVar())) {
-                nav = Pipelines.navSteps(cs.pipeline()).get(bpa.property());
+                nav = Pipelines.outerNavSteps(cs.pipeline()).get(bpa.property());
             }
             if (nav == null) {
                 return null;

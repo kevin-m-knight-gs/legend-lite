@@ -94,17 +94,37 @@ final class Pipelines {
         return out;
     }
 
+    /** Navigate steps with the OUTERMOST same-named step winning: a union
+     * pipeline carries the LIFTED navigate above the concatenate AND the
+     * member threads' own same-named navigates inside — only the lifted
+     * one is addressable from the union frame's row (its condition reads
+     * the member-suffixed keys; a thread-internal navigate's raw reads are
+     * meaningless outside its thread). GRAPH children correlate through
+     * this view; the deep last-wins {@link #navSteps} stays the resolver's
+     * per-thread addressing. */
+    static Map<String, TypedNavigate> outerNavSteps(TypedSpec pipeline) {
+        Map<String, TypedNavigate> out = new LinkedHashMap<>();
+        collectOuterNavSteps(pipeline, out);
+        return out;
+    }
+
+    private static void collectOuterNavSteps(TypedSpec n,
+            Map<String, TypedNavigate> out) {
+        if (n instanceof TypedNavigate nav && nav.alias().isPresent()) {
+            out.putIfAbsent(nav.alias().get(), nav);
+        }
+        for (TypedSpec c : n.children()) {
+            if (!(n instanceof TypedNavigate nav) || c == nav.source()) {
+                collectOuterNavSteps(c, out);
+            }
+        }
+    }
+
     private static void collectNavSteps(TypedSpec n,
             Map<String, TypedNavigate> out) {
         if (n instanceof TypedNavigate nav
                 && nav.alias().isPresent()) {
-            // OUTERMOST wins (top-down walk, first-seen): a union pipeline
-            // carries the LIFTED navigate above the concatenate AND the
-            // member threads' own same-named navigates inside — only the
-            // lifted one is addressable from the union frame's row (its
-            // condition reads the member-suffixed keys; a thread-internal
-            // navigate's raw reads are meaningless outside its thread).
-            out.putIfAbsent(nav.alias().get(), nav);
+            out.put(nav.alias().get(), nav);
         }
         for (TypedSpec c : n.children()) {
             if (!(n instanceof TypedNavigate nav)

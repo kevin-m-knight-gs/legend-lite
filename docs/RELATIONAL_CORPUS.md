@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 42 | 12 | 87 | 2 |
-| graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
+| graphFetch/tests/union | 15 | 5 | 6 | 4 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 62 | 3 | 9 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 96 | 0 | 11 | 17 |
+| tests/mapping/union | 124 | 86 | 10 | 11 | 17 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 65 | 1 | 16 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1433** | 61 | 399 | 645 |
+| **total** | 2538 | **1426** | 77 | 390 | 645 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6178,7 +6178,6 @@ in-process Alloy-shaped path).
 - 5x unbound variable '$modelChainConnection'
 - 5x unknown function 'generateObjectReferences'
 - 5x resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- 5x filter predicate references column 'ID', unresolvable even after isolation
 - 5x No value present
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
@@ -6195,6 +6194,7 @@ in-process Alloy-shaped path).
 - 3x class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' references multiple non-source tables [productSchema.synonymTable, productSchema.productTable]; multi-table joins not supported. owner=synonyms, hop 1, mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - 3x filter predicate references column 'businessDate', unresolvable even after isolation
 - 3x unknown function 'meta::legend::compileLegendGrammar'
+- 3x unknown enumeration 'ProductSynonymType'
 
 ### per-test outcomes (non-passing)
 
@@ -6331,7 +6331,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6558,15 +6558,12 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithMultiLevelUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
-- ERROR test1 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
-- ERROR test2 [graphFetch/tests/union]: filter predicate references column 'ADDRESSID', unresolvable even after isolation
-- ERROR test3 [graphFetch/tests/union]: filter predicate references column 'ADDRESSID', unresolvable even after isolation
-- ERROR test4 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
-- ERROR test5 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
-- ERROR test6 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
-- ERROR testUnionWithQualifiedProperty [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
-- ERROR testNestedUnion_SameStore [graphFetch/tests/union]: filter predicate references column 'productId', unresolvable even after isolation
-- ERROR testRootUnionWithOnePropertySet_SameStore [graphFetch/tests/union]: filter predicate references column 'productId', unresolvable even after isolation
+- FAIL test1 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}..., got [{legalName=Firm A, employees=[{lastName=Roberts, address={name=Hoboken}}, {lastName=David, address={
+- FAIL test2 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address=null}, {lastName=Taylor, address=null}, {lastName=Wright, ..., got [{legalName=Firm X, employees=[{lastName=Taylor, address=null}, {lastName=Wright, address={name=Hobok
+- FAIL test3 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}..., got [{legalName=Firm X, employees=[{lastName=Taylor, address={name=New York}}, {lastName=Wright, address=
+- FAIL test5 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address=null}, {lastName=Taylor, address=null}, {lastName=Wright, ..., got [{legalName=Firm A, employees=[{lastName=Mark, address=null}, {lastName=Allen, address={name=Hoboken}
+- FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm A, employees=[{lastName=Mark, address={name=New York}}, {lastName=Allen, address={na
+- FAIL testNestedUnion_SameStore [graphFetch/tests/union]: assertJsonStringsEqual: expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, quantity=100, traderKerb=abc, tradeId=1}, {product={productId=31, descriptio..., got [{tradeId=1, traderKerb=abc, quantity=100, product={productId=30, productName=Prod_1, description=Pro
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
 - SHAPE createDropTableStatement [helperFunctions/tests]: no execute(|...) call
@@ -7201,6 +7198,11 @@ in-process Alloy-shaped path).
 - SHAPE testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testChainedUnionsWithAggregation [tests/mapping/union]: assertEquals: expected [Anand,Scott,Taylor,Wright, TDSNull], got [TDSNull, TDSNull]
+- FAIL testChainedUnionsWithMultipleAggregation [tests/mapping/union]: assertEquals: expected Anand,Scott,Taylor,Wright, Anand,Scott,Taylor,Wright | Roberts, TDSNull, got TDSNull, TDSNull | TDSNull, TDSNull
+- FAIL testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: assertEquals: expected [Firm X, Anand,Scott,Taylor,Wright, Firm A, TDSNull], got [Firm X, TDSNull, Firm A, TDSNull]
+- FAIL testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: assertEquals: expected Firm X, Anand,Scott,Taylor,Wright, Anand,Scott,Taylor,Wright | Firm A, Roberts, TDSNull, got Firm A, TDSNull, TDSNull | Firm X, TDSNull, TDSNull
+- FAIL testChainedUnionsWithMapAggregation [tests/mapping/union]: assertEquals: expected Anand,Scott,Taylor,Wright, got []
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::unionOfViews2$class$meta::relational::tests::model::simple::PersonExtension': unknown table 'midTableView1' in database 'meta::relational::tests::mapping::union::unionOfViewsDb'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
@@ -7217,6 +7219,11 @@ in-process Alloy-shaped path).
 - SHAPE testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testChainedUnionsWithAggregation [tests/mapping/union]: assertEquals: expected [Anand,Scott,Taylor,Wright, TDSNull], got [TDSNull, TDSNull]
+- FAIL testChainedUnionsWithMultipleAggregation [tests/mapping/union]: assertEquals: expected Anand,Scott,Taylor,Wright, Anand,Scott,Taylor,Wright | Roberts, TDSNull, got TDSNull, TDSNull | TDSNull, TDSNull
+- FAIL testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: assertEquals: expected [Firm X, Anand,Scott,Taylor,Wright, Firm A, TDSNull], got [Firm X, TDSNull, Firm A, TDSNull]
+- FAIL testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: assertEquals: expected Firm X, Anand,Scott,Taylor,Wright, Anand,Scott,Taylor,Wright | Firm A, Roberts, TDSNull, got Firm A, TDSNull, TDSNull | Firm X, TDSNull, TDSNull
+- FAIL testChainedUnionsWithMapAggregation [tests/mapping/union]: assertEquals: expected Anand,Scott,Taylor,Wright, got []
 - SHAPE testViewToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion$class$meta::relational::tests::mapping::union::multipleChainedJoins::model::Y': unknown table 'VX2' in database 'meta::relational::tests::mapping::union::multipleChainedJoins::store::multip
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy:
