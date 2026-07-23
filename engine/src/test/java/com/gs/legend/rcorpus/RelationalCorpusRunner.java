@@ -97,7 +97,17 @@ public class RelationalCorpusRunner {
         }
 
         Map<String, List<Runner.Outcome>> byFamily = new LinkedHashMap<>();
+        // -Drcorpus.only=<family-substring>[,<substring>...] scopes the run
+        // for fast leg iteration; a scoped run NEVER writes the scoreboard
+        // (a partial ledger must not clobber the full one).
+        String only = System.getProperty("rcorpus.only", "").trim();
+        List<String> onlyFilters = only.isEmpty() ? List.of()
+                : List.of(only.split(","));
         for (String family : allFamilies()) {
+            if (!onlyFilters.isEmpty()
+                    && onlyFilters.stream().noneMatch(family::contains)) {
+                continue;
+            }
             List<Runner.Outcome> outcomes = runFamily(runner, family);
             if (!outcomes.isEmpty()) {
                 byFamily.put(family, outcomes);
@@ -118,8 +128,17 @@ public class RelationalCorpusRunner {
             seedFails.forEach(f -> sf.append("- `").append(f).append("`\n"));
             header = header + sf;
         }
-        Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
-                runner.walls(), header);
+        if (onlyFilters.isEmpty()) {
+            Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
+                    runner.walls(), header);
+        } else {
+            System.out.println("[rcorpus] SCOPED run (" + only
+                    + ") — scoreboard NOT written");
+            byFamily.forEach((f, outs) -> outs.stream()
+                    .filter(o -> o.status() != Runner.Status.PASS)
+                    .forEach(o -> System.out.println("[rcorpus]   " + o.status()
+                            + " " + o.test() + ": " + o.detail())));
+        }
         System.out.println("[rcorpus] failed seeds: " + seedFails.size());
         byFamily.forEach((f, outs) -> {
             long p = outs.stream().filter(o -> o.status() == Runner.Status.PASS).count();
@@ -127,7 +146,9 @@ public class RelationalCorpusRunner {
         });
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
-        System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
+        if (onlyFilters.isEmpty()) {
+            System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
+        }
     }
 
     /** ONE family through the pipeline — shared by the scoreboard and the

@@ -41,8 +41,8 @@ class ResolveFilterDemandTest {
             Database s::DB (
               Table TP (ID INTEGER, FIRM_ID INTEGER, NAME VARCHAR(50))
               Table TF (ID INTEGER, IS_ACTIVE INTEGER)
-              Table ORG (ID INTEGER, PARENT_ID INTEGER, NAME VARCHAR(50))
-              Table OTHER (ORG_ID INTEGER, FILTER_VAL INTEGER)
+              Table ORG (ID INTEGER PRIMARY KEY, PARENT_ID INTEGER, NAME VARCHAR(50))
+              Table OTHER (ORG_ID INTEGER PRIMARY KEY, FILTER_VAL INTEGER)
               Join PF (TP.FIRM_ID = TF.ID)
               Join OrgParent (ORG.PARENT_ID = {target}.ID)
               Join OrgChildren (ORG.ID = {target}.PARENT_ID)
