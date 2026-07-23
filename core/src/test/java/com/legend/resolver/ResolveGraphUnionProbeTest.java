@@ -128,6 +128,66 @@ class ResolveGraphUnionProbeTest {
             Runtime g::RT2 { mappings: [g::M2]; }
             """).formatted(UNION_FQN);
 
+    private static final String MODEL_DIAGONAL = ("""
+            Class g::Trade { tradeId: Integer[1]; }
+            Class g::Product { productName: String[1]; }
+            Association g::TP { trade: g::Trade[0..1]; product: g::Product[0..1]; }
+            Database g::DB3 (
+              Table T1 (tradeId INTEGER PRIMARY KEY, productId VARCHAR)
+              Table T2 (tradeId INTEGER PRIMARY KEY, productId VARCHAR)
+              Table PR1 (productId VARCHAR PRIMARY KEY, NAME VARCHAR)
+              Table PR2 (productId VARCHAR PRIMARY KEY, NAME VARCHAR)
+              Join trade_product (PR1.productId = T1.productId)
+              Join trade2_product2 (PR2.productId = T2.productId)
+            )
+            Mapping g::M3 (
+              *g::Trade : Operation { %s(t1, t2) }
+              *g::Product : Operation { %s(p1, p2) }
+              g::Trade[t1] : Relational { ~mainTable [g::DB3] T1
+                tradeId: T1.tradeId,
+                product[p1]: [g::DB3] @trade_product }
+              g::Trade[t2] : Relational { ~mainTable [g::DB3] T2
+                tradeId: T2.tradeId,
+                product[p2]: [g::DB3] @trade2_product2 }
+              g::Product[p1] : Relational { ~mainTable [g::DB3] PR1
+                productName: PR1.NAME }
+              g::Product[p2] : Relational { ~mainTable [g::DB3] PR2
+                productName: PR2.NAME }
+            )
+            Runtime g::RT3 { mappings: [g::M3]; }
+            """).formatted(UNION_FQN, UNION_FQN);
+
+    @Test
+    @DisplayName("DIAGONAL union routes: member pairing yields NULL, never a cross-member match")
+    void diagonalUnionPairing() throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE T1 (tradeId INTEGER, productId VARCHAR)");
+            st.execute("CREATE TABLE T2 (tradeId INTEGER, productId VARCHAR)");
+            st.execute("CREATE TABLE PR1 (productId VARCHAR, NAME VARCHAR)");
+            st.execute("CREATE TABLE PR2 (productId VARCHAR, NAME VARCHAR)");
+            // TRAPS both directions (corpus SameStore data shape: same
+            // column NAME on both sides, VARCHAR keys, target-first join
+            // spelling): trade 5 (member 1, product 40 ONLY in PR2) and
+            // trade 3 (member 2, product 30 ONLY in PR1) must both be NULL
+            st.execute("INSERT INTO T1 VALUES (1, '30'), (5, '40')");
+            st.execute("INSERT INTO T2 VALUES (2, '31'), (3, '30')");
+            st.execute("INSERT INTO PR1 VALUES ('30', 'Prod_1')");
+            st.execute("INSERT INTO PR2 VALUES ('31', 'Prod_2'), ('40', 'Prod_3')");
+        }
+        String query = "g::Trade.all()"
+                + "->graphFetch(#{g::Trade{tradeId, product{productName}}}#)"
+                + "->serialize(#{g::Trade{tradeId, product{productName}}}#)"
+                + "->from(g::M3, g::RT3)";
+        ExecutionResult r = Compiler.execute(MODEL_DIAGONAL, query, "g::RT3", conn);
+        String json = r instanceof ExecutionResult.Graph g ? g.json()
+                : String.valueOf(r);
+        System.out.println("[graph-diagonal] " + json);
+        assertEquals("[{\"tradeId\":1,\"product\":{\"productName\":\"Prod_1\"}},"
+                + "{\"tradeId\":5,\"product\":null},"
+                + "{\"tradeId\":2,\"product\":{\"productName\":\"Prod_2\"}},"
+                + "{\"tradeId\":3,\"product\":null}]", json);
+    }
+
     @Test
     @DisplayName("graph tree from a UNION ROOT into a single-set child")
     void graphUnionRootOnly() throws SQLException {

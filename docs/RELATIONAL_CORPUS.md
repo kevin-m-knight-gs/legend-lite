@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 42 | 12 | 87 | 2 |
-| graphFetch/tests/union | 15 | 6 | 5 | 4 | 0 |
+| graphFetch/tests/union | 15 | 9 | 2 | 4 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1437** | 66 | 390 | 645 |
+| **total** | 2538 | **1440** | 63 | 390 | 645 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6169,7 +6169,7 @@ in-process Alloy-shaped path).
 - 15x unbound variable '$dbRuntime'
 - 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
@@ -6331,7 +6331,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6399,7 +6399,7 @@ in-process Alloy-shaped path).
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: no execute(|...) call
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
-- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New 
+- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={n
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
@@ -6455,11 +6455,11 @@ in-process Alloy-shaped path).
 - SHAPE testProjectionOfPropertyJoinedToViewWithGroupByAndFilter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testGraphFetch [graphFetch/domain]: no execute(|...) call
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
-- FAIL testMultipleCrossDBPropertyAcceses [graphFetch/tests]: assertJsonStringsEqual: expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, tradeEvents=[{eventId=1, description=Event_1, timestamp=2018-01-01T00:00:00...., got [{tradeId=1, product={productId=30, productName=Prod_1, description=Product 1 description}, tradeEven
-- FAIL testSameStoreAndCrossStorePropertyAcceses [graphFetch/tests]: assertJsonStringsEqual: expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, productName=Prod_1}, tradeEvents=[{..., got [{tradeId=1, trader={firstName=F_Name1, lastName=L_Name_1, kerberos=abc}, product={productId=30, prod
-- FAIL testDeepCrossPropertyAccesses [graphFetch/tests]: assertJsonStringsEqual: expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, productName=Prod_1}, tradeEvents=[{..., got [{tradeId=1, trader={firstName=F_Name1, lastName=L_Name_1, kerberos=abc}, product={productId=30, prod
-- FAIL testDeepCrossPropertyAccesses3Levels [graphFetch/tests]: assertJsonStringsEqual: expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, productName=Prod_1}, tradeEvents=[{..., got [{tradeId=1, trader={kerberos=abc, firstName=F_Name1, lastName=L_Name_1}, product={productId=30, prod
-- FAIL testMultiDeepCrossPropertyAccesses [graphFetch/tests]: assertJsonStringsEqual: expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, trades=[{tradeId=1}, {tradeId=3}], ..., got [{tradeId=1, trader={firstName=F_Name1, lastName=L_Name_1, kerberos=abc}, product={productId=30, prod
+- FAIL testMultipleCrossDBPropertyAcceses [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].tradeEvents[0].timestamp expected 2018-01-01T00:00:00.000000000, got 2018-01-01 00:00:00 | expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, tradeEvents=[{eventId=1, description=Event_1, timestamp=2018-01-01T00:00:00.
+- FAIL testSameStoreAndCrossStorePropertyAcceses [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].tradeEvents[0].timestamp expected 2018-01-01T00:00:00.000000000, got 2018-01-01 00:00:00 | expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, productName=Prod_1}, tradeEvents=[{
+- FAIL testDeepCrossPropertyAccesses [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].tradeEvents[0].timestamp expected 2018-01-01T00:00:00.000000000, got 2018-01-01 00:00:00 | expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, productName=Prod_1}, tradeEvents=[{
+- FAIL testDeepCrossPropertyAccesses3Levels [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].tradeEvents[0].timestamp expected 2018-01-01T00:00:00.000000000, got 2018-01-01 00:00:00 | expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, productName=Prod_1}, tradeEvents=[{
+- FAIL testMultiDeepCrossPropertyAccesses [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].tradeEvents[0].timestamp expected 2018-01-01T00:00:00.000000000, got 2018-01-01 00:00:00 | expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name=Syn_2, type=ISIN}], description=Product 1 description, trades=[{tradeId=1}, {tradeId=3}], 
 - ERROR testCrossMappingWithMoreBooleanAlgebra [graphFetch/tests]: association 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::Trade_TradeEvent' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2' (property 'trader' routes to unknown mapping set 'trader_set'; the property is dropped from this synthes
 - ERROR testCrossMappingJsonToDB [graphFetch/tests]: unbound variable '$dbRuntime'
 - ERROR testCrossMappingJsonToDBWithNoLocalProperties [graphFetch/tests]: unbound variable '$dbRuntime'
@@ -6478,9 +6478,9 @@ in-process Alloy-shaped path).
 - ERROR testRelationalChainExecutionNested [graphFetch/tests]: unbound variable '$modelChainConnection'
 - ERROR testRelationalChainExecutionWithFilter [graphFetch/tests]: unbound variable '$modelChainConnection'
 - ERROR testRelationalChainExecutionWithInScopeVariableFilter [graphFetch/tests]: unbound variable '$modelChainConnection'
-- FAIL testFlatGraphFetchWithJoin [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, age=23}, {firstName=John, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=Anthony, lastNa..., got [{firstName=Anthony, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=
-- FAIL testNestedGraphFetch [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, f..., got [{firstName=Anthony, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, fir
-- FAIL testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, nameWithTitle=Mr Peter Firm X}, {firstName=John, lastName=Firm X, nameWithTitle=Mr John Firm X}, {firstName=John, lastNam..., got [{firstName=Anthony, lastName=Firm X, nameWithTitle=Mr Anthony Firm X}, {firstName=John, lastName=Fir
+- FAIL testFlatGraphFetchWithJoin [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].firstName expected Peter, got Anthony | expected [{firstName=Peter, lastName=Firm X, age=23}, {firstName=John, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=Anthony, lastNa..., got [{firstName=Anthony, lastName=Firm X, age=
+- FAIL testNestedGraphFetch [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].firstName expected Peter, got Anthony | expected [{firstName=Peter, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, f..., got [{firstName=Anthony, lastName=Firm X, firm
+- FAIL testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].firstName expected Peter, got Anthony | expected [{firstName=Peter, lastName=Firm X, nameWithTitle=Mr Peter Firm X}, {firstName=John, lastName=Firm X, nameWithTitle=Mr John Firm X}, {firstName=John, lastNam..., got [{firstName=Anthony, lastName=Firm X, name
 - ERROR testInnerJoinFilterClassMappingAsTarget [graphFetch/tests]: graph leaf 'lastName' of class 'meta::relational::tests::model::simple::Person' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - ERROR testSimpleEmbeddedMapping [graphFetch/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testEmbeddedMappingForPropertyHavingEnumAttribute [graphFetch/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
@@ -6510,7 +6510,7 @@ in-process Alloy-shaped path).
 - ERROR testBiTemporalRoot [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
 - ERROR testBiTemporalProperty [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
 - ERROR testSnapshotMilestoning [graphFetch/tests]: parameterized qualifier tree leaf 'classification' with a non-literal argument needs an alias — the rendered-key form only covers literals
-- FAIL testInnerJoinIsolationAtRoot [graphFetch/tests]: assertJsonStringsEqual: expected [{cancelProductActivityCreatedBy=null, id=2}, {cancelProductActivityCreatedBy=null, id=3}], got [{id=3, cancelProductActivityCreatedBy=null}, {id=2, cancelProductActivityCreatedBy=null}]
+- FAIL testInnerJoinIsolationAtRoot [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].id expected 2, got 3 | expected [{cancelProductActivityCreatedBy=null, id=2}, {cancelProductActivityCreatedBy=null, id=3}], got [{id=3, cancelProductActivityCreatedBy=null}, {id=2, cancelProductActivityCreatedBy=null}]
 - ERROR testInnerJoinIsolationAtChild [graphFetch/tests]: graph leaf 'cancelProductActivityCreatedBy' of class 'meta::relational::tests::milestoning::Product' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
@@ -6531,9 +6531,9 @@ in-process Alloy-shaped path).
 - ERROR testGraphFetchCheckedWithSize [graphFetch/tests]: no overload of 'graphFetchChecked' matches 3 argument(s) of these shapes
 - ERROR testRelationalGraphFetchWithAlloySerializationConfig [graphFetch/tests]: unknown function 'alloyConfig'
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
-- FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, otherNames=mno}, {firstName=Peter, otherNames=de
-- FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tinyInt=1, smallInt=2, integer=3, bigInt=1000, varchar=Something, char=c, date=2003-07-19, timestam
-- FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm 
+- FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
+- FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].timestamp expected 2003-07-19T00:00:00.000000000, got 2003-07-19 00:00:00 | expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tiny
+- FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
@@ -6558,11 +6558,8 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithMultiLevelUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
-- FAIL test1 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}..., got [{legalName=Firm X, employees=[{lastName=Taylor, address={name=New York}}, {lastName=Wright, address=
-- FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={na
-- FAIL testUnionWithQualifiedProperty [graphFetch/tests/union]: assertJsonStringsEqual: expected [{legalName=Firm X, isFirmX()=Yes, employeeByLastNameFirstName('Scott')=Bran, employees=[{lastName=Scott, firstName=Bran}, {lastName=Anand, firstName=Ravi}, ..., got [{legalName=Firm A, employeeByLastNameFirstName('Scott')=null, isFirmX()=No, employees=[{lastName=Rob
-- FAIL testNestedUnion_SameStore [graphFetch/tests/union]: assertJsonStringsEqual: expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, quantity=100, traderKerb=abc, tradeId=1}, {product={productId=31, descriptio..., got [{tradeId=3, traderKerb=xyz, quantity=300, product={productId=30, productName=Prod_1, description=Pro
-- FAIL testRootUnionWithOnePropertySet_SameStore [graphFetch/tests/union]: assertJsonStringsEqual: expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, quantity=100, traderKerb=abc, tradeId=1}, {product={productId=31, descriptio..., got [{tradeId=3, traderKerb=xyz, quantity=300, product={productId=30, productName=Prod_1, description=Pro
+- FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=S
+- FAIL testNestedUnion_SameStore [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[2].product expected null, got {productId=40, productName=Prod_3, description=Product 3 description} | expected [{product={productId=30, description=Product 1 description, productName=Prod_1}, quantity=100, traderKerb=abc, tradeId=1}, {product={productId=31, de
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
 - SHAPE createDropTableStatement [helperFunctions/tests]: no execute(|...) call
@@ -6667,7 +6664,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6719,13 +6716,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: No value present
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: No value present
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: No value present
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -6825,7 +6822,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
@@ -7089,7 +7086,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -7237,7 +7234,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call
 - ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'query' of 'meta::relational::tests::functions::sqlstring::TestCase': expected FunctionDefinition<{ -> meta::pure::metamodel::type::Any[*]}>, got { -> (firstName:String[1], new:Integer[1])[1]} (value: La
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
