@@ -56,18 +56,60 @@ final class TemporalFrame {
     private final ClassSources sources;
     private final TemporalContext root;
     private final Map<String, TemporalSpec> specs;
+    /** Query-body {@code let} bindings (name &rarr; bound value), shared
+     * BY REFERENCE with the resolver — a variable-spelled milestoning date
+     * ({@code let d = %2015-10-16; Product.all($d)}) resolves through it
+     * (engine resolveMilestoningDateParams' inScopeVars arm, M:648-651). */
+    private final Map<String, TypedSpec> letEnv;
 
     TemporalFrame(ModelContext ctx, ClassSources sources,
             TemporalContext root, Map<String, TemporalSpec> specs) {
+        this(ctx, sources, root, specs, Map.of());
+    }
+
+    TemporalFrame(ModelContext ctx, ClassSources sources,
+            TemporalContext root, Map<String, TemporalSpec> specs,
+            Map<String, TypedSpec> letEnv) {
         this.ctx = ctx;
         this.sources = sources;
         this.root = root;
         this.specs = specs;
+        this.letEnv = letEnv;
     }
 
     /** The frame with the demand scan's chain-keyed specs attached. */
     TemporalFrame withSpecs(Map<String, TemporalSpec> byChain) {
-        return new TemporalFrame(ctx, sources, root, byChain);
+        return new TemporalFrame(ctx, sources, root, byChain, letEnv);
+    }
+
+    /**
+     * ROOT context derivation per the {@code all(...)} arity — the engine's
+     * {@code getMilestoningContextForAll} (M:830-844): 0 dates = none
+     * (sweep = allVersions); 1 date + temporal strategy = POINT; 2 dates =
+     * bitemporal both-slots, else RANGE (the {@code getAll(C, start, end)}
+     * / {@code allVersionsInRange} spellings). Dates normalize through the
+     * let env and context reads first.
+     */
+    static TemporalFrame rootFrame(ModelContext ctx, ClassSources sources,
+            Map<String, TypedSpec> letEnv, List<TypedSpec> dates,
+            boolean versionSweep, String classFqn) {
+        TemporalFrame seed = new TemporalFrame(ctx, sources,
+                TemporalContext.NONE, Map.of(), letEnv);
+        List<TypedSpec> nd = seed.normalizeContextDates(dates);
+        String strat = seed.temporalStrategy(classFqn);
+        TemporalContext rc = TemporalContext.NONE;
+        if (versionSweep) {
+            rc = nd.size() == 2
+                    ? TemporalContext.range(strat, nd.get(0), nd.get(1))
+                    : TemporalContext.NONE;
+        } else if (nd.size() == 2 && "bitemporal".equals(strat)) {
+            rc = TemporalContext.bitemporal(nd.get(0), nd.get(1));
+        } else if (nd.size() == 2) {
+            rc = TemporalContext.range(strat, nd.get(0), nd.get(1));
+        } else if (nd.size() == 1 && strat != null) {
+            rc = TemporalContext.single(strat, nd.get(0));
+        }
+        return new TemporalFrame(ctx, sources, rc, Map.of(), letEnv);
     }
 
     /** The NESTED frame for an inner scope hanging off a DATED hop
@@ -87,7 +129,7 @@ final class TemporalFrame {
         }
         TemporalFrame nf = new TemporalFrame(ctx, sources,
                 TemporalContext.single(strat, hopSpec.dates().get(0)),
-                Map.of());
+                Map.of(), letEnv);
         Map<String, TemporalSpec> local = new java.util.LinkedHashMap<>();
         for (var e : specs.entrySet()) {
             if (e.getKey().startsWith(chainPrefix + ".")) {
@@ -1334,6 +1376,26 @@ final class TemporalFrame {
     }
 
     TypedSpec normalizeContextDate(TypedSpec d) {
+        // let-bound variable date ($d after `let d = %2015-10-16`) —
+        // resolve through the query-body env, transitively; a toOne wrap
+        // around a resolvable variable drops with it. Unresolvable
+        // variables pass through (downstream walls stay the honest
+        // failure — never a silent guess).
+        if (d instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            TypedSpec bound = letEnv.get(v.name());
+            if (bound != null) {
+                return normalizeContextDate(bound);
+            }
+        }
+        if (d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                && c.args().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedVariable iv
+                && letEnv.containsKey(iv.name())) {
+            return normalizeContextDate(letEnv.get(iv.name()));
+        }
         if (d instanceof TypedPropertyAccess pa
                 && (pa.property().equals("businessDate")
                         || pa.property().equals("processingDate"))

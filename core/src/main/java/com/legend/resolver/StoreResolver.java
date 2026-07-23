@@ -80,6 +80,9 @@ public final class StoreResolver {
     private int freshVarCounter;
     /** Synthetic head registry ('#f'/'#d'/'#c') — append-only. */
     private final SyntheticHeads synthetics;
+    /** Query-body lets, shared by reference with every TemporalFrame. */
+    private final Map<String, TypedSpec> letBindings =
+            new java.util.LinkedHashMap<>();
     private GraphEmission.SerializeTypeConfig serializeTypeCfg;
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
@@ -103,7 +106,7 @@ public final class StoreResolver {
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
         // see NO context, exactly the old fields' initial values
         this.temporal = new TemporalFrame(ctx, sources, TemporalContext.NONE,
-                Map.of());
+                Map.of(), letBindings);
         this.assocMaterial = new AssociationJoins(ctx, sources, specs,
                 synthetics);
         this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
@@ -140,6 +143,11 @@ public final class StoreResolver {
                 : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt : body) {
+            // milestoning-date let env (engine inScopeVars, M:648): lets
+            // recorded into the map every TemporalFrame shares by reference
+            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet l) {
+                letBindings.put(l.name(), l.value());
+            }
             out.add(resolveNode(stmt, context));
         }
         for (TypedSpec stmt : out) {
@@ -2571,32 +2579,12 @@ public final class StoreResolver {
                     + " (use allVersions() for the unfiltered extent)",
                     g.classFqn());
         }
-        // M3 temporal context: this fetch's dates propagate to same-strategy
-        // targets through temporal parents (set per getAll). audit 10:
-        // never read the PREVIOUS getAll's context — fresh frame per
-        // resolution entry, ONE construction site
-        temporal = new TemporalFrame(ctx, sources, TemporalContext.NONE,
-                Map.of());
-        {
-            List<TypedSpec> nd =
-                    temporal.normalizeContextDates(g.milestoning());
-            String rootStrat = temporal.temporalStrategy(g.classFqn());
-            TemporalContext rc = TemporalContext.NONE;
-            if (g.versionSweep()) {
-                // allVersions() = NONE; allVersionsInRange(s, e) = RANGE
-                rc = nd.size() == 2
-                        ? TemporalContext.range(rootStrat, nd.get(0), nd.get(1))
-                        : TemporalContext.NONE;
-            } else if (nd.size() == 2 && "bitemporal".equals(rootStrat)) {
-                rc = TemporalContext.bitemporal(nd.get(0), nd.get(1));
-            } else if (nd.size() == 2) {
-                // getAll(Class, start, end) — the allVersionsInRange spelling
-                rc = TemporalContext.range(rootStrat, nd.get(0), nd.get(1));
-            } else if (nd.size() == 1 && rootStrat != null) {
-                rc = TemporalContext.single(rootStrat, nd.get(0));
-            }
-            temporal = new TemporalFrame(ctx, sources, rc, Map.of());
-        }
+        // M3 temporal context: fresh ROOT frame per getAll (audit 10 —
+        // never the previous fetch's context); derivation lives in the
+        // calculus (TemporalFrame.rootFrame = engine
+        // getMilestoningContextForAll, M:830-844)
+        temporal = TemporalFrame.rootFrame(ctx, sources, letBindings,
+                g.milestoning(), g.versionSweep(), g.classFqn());
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
                 target -> dispatch(fctx, target),
