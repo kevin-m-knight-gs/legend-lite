@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 186 | 8 | 48 | 16 |
+| functions/tests | 258 | 187 | 7 | 48 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1420** | 62 | 413 | 643 |
+| **total** | 2538 | **1421** | 61 | 413 | 643 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6363,7 +6363,6 @@ in-process Alloy-shaped path).
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6702,7 +6701,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -7253,9 +7252,9 @@ in-process Alloy-shaped path).
 - ERROR testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::extend::unionMappingWithSelfJoin$class$meta::relational::tests::mapping::union::extend::Person': relation has no column 'lastName_s2'
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
-- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
-- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
+- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: join condition references unknown column 'y_Y1_G_fk1' on its left side
+- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: join condition references unknown column 'y_Y2_H__H_I_fk1' on its left side
+- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: join condition references unknown column 'y_Y3_J__J_K__K_L_fk1' on its left side
 - SHAPE testViewToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion$class$meta::relational::tests::mapping::union::multipleChainedJoins::model::Y': unknown table 'VX2' in database 'meta::relational::tests::mapping::union::multipleChainedJoins::store::multip
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmProject [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
