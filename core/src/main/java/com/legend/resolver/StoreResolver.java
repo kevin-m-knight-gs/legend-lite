@@ -1996,10 +1996,9 @@ public final class StoreResolver {
                 var nav = Pipelines.navSteps(cs.pipeline()).get(SyntheticHeads.realHead(head));
                 if (nav == null || !(nav.target()
                         instanceof TypedGetAll tg)
-                        // eager material only when the target class IS mapped
-                        // here (an M2M chain's nav target lives upstream —
-                        // registration must not throw for a rewrite that may
-                        // never fire)
+                        // eager material only when the target class IS
+                        // mapped here (M2M nav targets live upstream —
+                        // must not throw for a rewrite that may never fire)
                         || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
                     continue;
                 }
@@ -2039,10 +2038,9 @@ public final class StoreResolver {
                                     predPaths0);
                         }
                     }
-                    // CLOSED parked preds read target navs too ($e.address
-                    // .name — the Fork family): demand their steps for the
-                    // pred substitution's SubNav dispatch (identity dedup
-                    // at the lift keeps the join count engine-equal).
+                    // CLOSED parked preds read target navs too (Fork
+                    // family): demand their steps for SubNav dispatch
+                    // (identity dedup keeps join count engine-equal).
                     for (TypedLambda cp : synthetics.allPreds(head)) {
                         for (TypedSpec b : cp.body()) {
                             consumedPaths(b, cp.parameters().get(0),
@@ -2122,14 +2120,12 @@ public final class StoreResolver {
                         .isPresent());
                 // #70 COMPOSITE chain-backed target (the tree family): the
                 // navigate step's condition reads a SIBLING JOINSLOT
-                // sub-row on the parent ($s.<optSlot>.ancestor == $t.id) —
-                // unresolvable on the outer correlation row (demanding the
-                // slot at parent level explodes 1:N hops — probed).
-                // ENGINE: the subselect contains BOTH tables, correlated
-                // OUTWARD by hop-1's condition only. The composite joins
-                // the slot's table INTO the target pipeline; the oriented
-                // condition becomes hop-1's, its target reads landing on
-                // the composite's prefixed slot columns.
+                // sub-row on the parent — unresolvable on the outer
+                // correlation row (parent-level slot demand explodes 1:N,
+                // probed). ENGINE: subselect contains BOTH tables,
+                // correlated OUTWARD by hop-1's condition; the composite
+                // joins the slot table INTO the target pipeline, target
+                // reads land on the composite's prefixed slot columns.
                 TypedSpec chainPipe = tMat.pipeline();
                 if (corrNav == null && navCond.parameters().size() == 2) {
                     CorrelatedSubselects.CompositeChain cc =
@@ -2154,25 +2150,29 @@ public final class StoreResolver {
             if (assocOpt.isEmpty()) {
                 continue;   // not an association — plain unmapped (loud later)
             }
-            // ANY multiplicity: the EXISTS material is consumed only under
-            // emptiness calls (plan rule: class-typed isEmpty/isNotEmpty of
-            // any multiplicity, incl. to-one-optional, => [NOT] EXISTS); a
-            // bare head not under an emptiness call still gets the honest
-            // H4 story at substitution.
+            // EMBEDDED-ONLY coverage: no root binding for the target
+            // class — property mappings override the association
+            var hprop = ctx.findProperty(cs.classFqn(),
+                    SyntheticHeads.realHead(head)).orElse(null);
+            if (hprop != null && hprop.type() instanceof Type.ClassType hct
+                    && !sources.binds(cs.mappingFqn(), hct.fqn())) {
+                continue;
+            }
+            // ANY multiplicity: EXISTS material is consumed only under
+            // emptiness calls (class-typed isEmpty/isNotEmpty of any mult
+            // => [NOT] EXISTS); a bare head keeps the honest H4 story.
             AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, cs, head, context, true,
                     InnerDemand.leaves(ops, head));
             var assocEnd = assocOpt.get().property1().propertyName()
                     .equals(SyntheticHeads.realHead(head))
                     ? assocOpt.get().property1() : assocOpt.get().property2();
             boolean isToMany = !assocEnd.isToOne();
-            // the SCALAR (slot-undemanded) pipeline serves value-position
-            // consumers (filteredNavLeafRead): other consumers' slot demand
-            // must not fan a single-row subquery out (audit 13 B3)
-            // B3 (scalar fan-out) DEFERRED: a separate slot-undemanded
-            // scalar pipeline regressed real corpus value-leaf reads
-            // (testConstraintTargetingMultipleJoinsInPropertyMapping); the
-            // engineered fan-out shape stays data-dependent-loud for now —
-            // the plumbing (scalarPipeline field) is in place for the fix.
+            // SCALAR (slot-undemanded) pipeline serves value-position
+            // consumers; other consumers' slot demand must not fan a
+            // single-row subquery out (audit 13 B3). B3 DEFERRED: a
+            // separate scalar pipeline regressed real value-leaf reads
+            // (testConstraintTargetingMultipleJoins...); stays
+            // data-dependent-loud, plumbing (scalarPipeline) in place.
             NestedScope assocNs = nestedScope(aj.target(), ops, head, context,
                     aj.targetPipeline());
             existsSubs.put(head, new Substitution.ExistsSub(assocNs.pipeline(),
