@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
-| aggregationAware/test/rewrite | 13 | 1 | 0 | 5 | 7 |
+| aggregationAware/test/rewrite | 13 | 4 | 0 | 0 | 9 |
 | aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 6 | 2 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1372** | 64 | 467 | 635 |
+| **total** | 2538 | **1375** | 64 | 462 | 637 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6234,11 +6234,8 @@ in-process Alloy-shaped path).
 - SHAPE testRewriteSwitchToSalesTableWithQualifiedProperty [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testRewriteWithTDSJoin [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testRewriteSwitchToProductMonthTable [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[productLine]; head binding=TypedPropertyAccess]
-- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet [assocs=[person, product]; head subNavs=[productLine]; head binding=TypedPropertyAccess]
-- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[]; head binding=TypedPropertyAccess]
-- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[person]; head binding=TypedPropertyAccess]
-- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[person]; head binding=TypedPropertyAccess]
+- SHAPE testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: ~Product ID Added 2: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(C
@@ -6364,7 +6361,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6713,7 +6710,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -7332,7 +7329,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call
 - ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'query' of 'meta::relational::tests::functions::sqlstring::TestCase': expected FunctionDefinition<{ -> meta::pure::metamodel::type::Any[*]}>, got { -> (firstName:String[1], new:Integer[1])[1]} (value: La
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

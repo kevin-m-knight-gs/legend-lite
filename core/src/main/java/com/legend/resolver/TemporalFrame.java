@@ -1138,6 +1138,28 @@ final class TemporalFrame {
         return false;
     }
 
+    /** The ALIASES of Join-PM slots whose target table is milestoned —
+     * the demand-aware form of {@link #hasMilestonedSlotTarget}: a
+     * context-less sub-materialization is unsafe only when a DEMANDED
+     * read actually crosses one of these. */
+    java.util.Set<String> milestonedSlotAliases(TypedSpec pipeline) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        collectMilestonedSlotAliases(pipeline, out);
+        return out;
+    }
+
+    private void collectMilestonedSlotAliases(TypedSpec pipeline,
+            java.util.Set<String> out) {
+        if (pipeline instanceof TypedJoinSlot js
+                && js.target() instanceof TypedTableReference tr
+                && ctx.findTableMilestoning(tr.store(), tr.table()).isPresent()) {
+            out.add(js.alias());
+        }
+        for (TypedSpec c : pipeline.children()) {
+            collectMilestonedSlotAliases(c, out);
+        }
+    }
+
     /** Any join-slot target table in the pipeline carrying a milestoning block. */
     boolean hasMilestonedSlotTarget(TypedSpec pipeline) {
         if (pipeline instanceof TypedJoinSlot js

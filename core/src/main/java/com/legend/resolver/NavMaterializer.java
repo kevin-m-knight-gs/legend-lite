@@ -454,15 +454,35 @@ final class NavMaterializer {
                 // Targets pass stamps them (audit 14 ungate: the
                 // blanket gate predated per-hop context threading);
                 // context-less they'd fan versions out — stays loud
+                // for reads that actually CROSS one (demand-aware: a
+                // scalar tail beside an un-demanded milestoned slot is
+                // safe — materialization never touches the slot)
                 boolean subHasContext = chainPrefix != null
                         && (temporal.spec(
                                 chainPrefix + "." + tail.get(0)) != null
                             || !temporal.contextAt(
                                 chainPrefix + "." + tail.get(0),
                                 subCls, hopCtx).isEmpty());
-                if (temporal.hasMilestonedSlotTarget(subT.pipeline())
-                        && !subHasContext) {
-                    return;
+                Set<String> subMilestoned =
+                        temporal.milestonedSlotAliases(subT.pipeline());
+                if (!subMilestoned.isEmpty() && !subHasContext) {
+                    Set<String> subDemand = new LinkedHashSet<>();
+                    Set<String> subSlots =
+                            Pipelines.slotAliases(subT.pipeline());
+                    for (String leaf : tail.subList(1, tail.size())) {
+                        TypedSpec lb = subT.bindings().get(
+                                SyntheticHeads.realHead(leaf));
+                        if (lb != null) {
+                            CorrelatedSubselects.collectAliasReads(lb,
+                                    subT.rowVar(), subSlots, subDemand);
+                        }
+                    }
+                    subDemand = Pipelines.closeOverConditions(
+                            subT.pipeline(), subDemand);
+                    if (!java.util.Collections.disjoint(subDemand,
+                            subMilestoned)) {
+                        return;
+                    }
                 }
                 tNavs.add(subAlias);
                 subTails.computeIfAbsent(subAlias, k -> new ArrayList<>())
