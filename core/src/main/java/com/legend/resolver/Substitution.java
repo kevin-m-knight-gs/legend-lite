@@ -1052,9 +1052,21 @@ final class Substitution {
                                         : target.rowType(),
                                 a3.readVar() != null ? "" : a3.prefix(), n);
                     }
-                    throw new NotImplementedException("nested navigation leaf '"
-                            + leaf + "' of '" + hops + "' is mapped by a"
-                            + " non-column expression — not supported yet");
+                    // EXPRESSION-valued leaf (enum if-chain / computed
+                    // binding): every sub-row column read re-points to the
+                    // composed prefix on the outer read row — the same
+                    // emission assocBindingRead gives assoc-target
+                    // expression leaves.
+                    String rv3 = a3.readVar() != null ? a3.readVar()
+                            : target.freshRowVar();
+                    Type.RelationType rr3 = a3.readRowType() != null
+                            ? a3.readRowType() : target.rowType();
+                    String fp3 = (a3.readVar() != null ? "" : a3.prefix())
+                            + sub.prefix();
+                    return Pipelines.prefixColumns(leafBinding, sub.rowVar(),
+                            fp3, v -> new TypedVariable(rv3,
+                                    new ExprType(rr3,
+                                            Multiplicity.Bounded.ONE)));
                 }
             }
             // MULTI-HOP association chain ($p.dept.org.name): the demand scan
