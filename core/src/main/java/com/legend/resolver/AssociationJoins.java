@@ -153,7 +153,7 @@ final class AssociationJoins {
      * composes into the NAV/ASSOC CONDITION — both rows in scope (engine:
      * window in the join ON against "root".orderDate; temporalTargetPipe
      * left the pipe unstamped for such specs). Identity otherwise. */
-    private TypedLambda withOuterDatedWindow(TemporalFrame temporal,
+    static TypedLambda withOuterDatedWindow(TemporalFrame temporal,
             ClassSource cs, ClassSource target, String head,
             TypedLambda cond, TypedSpec targetPipe) {
         String odc = temporal.outerDateColumn(head, cs);

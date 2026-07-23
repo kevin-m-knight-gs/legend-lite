@@ -2363,7 +2363,9 @@ public final class StoreResolver {
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(AssociationJoins.prefixFor(headKey, cs), target, tPipe,
                     (Type.RelationType)
                             tPipe.info().type(),
-                    nav.predicate(), mat.slotPrefixes());
+                    AssociationJoins.withOuterDatedWindow(temporal, cs, target,
+                            headKey, nav.predicate(), tPipe),
+                    mat.slotPrefixes());
             assocJoins.add(aj);
             assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
                     target.rowVar(), target.bindings(), target.classFqn(),
@@ -2398,7 +2400,9 @@ public final class StoreResolver {
                     AssociationJoins.prefixFor(headKey, cs), target, tPipe,
                     (Type.RelationType)
                             tPipe.info().type(),
-                    nav.predicate(), mat.slotPrefixes(), mat.subNavs(),
+                    AssociationJoins.withOuterDatedWindow(temporal, cs, target,
+                            headKey, nav.predicate(), tPipe),
+                    mat.slotPrefixes(), mat.subNavs(),
                     synthetics.correlatedPred(headKey));
             assocJoins.add(aj);
             joinsByChain.put(headKey, aj);
