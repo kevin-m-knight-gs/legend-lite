@@ -606,7 +606,8 @@ public final class StoreResolver {
      * re-pointed through the slot prefix. */
     private ClassSource flattenNavSlot(ClassSource src, String alias,
             TypedNavigate step, Set<String> downstreamHeads,
-            Map<String, Substitution.AssocSub> provOut) {
+            Map<String, Substitution.AssocSub> provOut,
+            List<TypedSpec> belowOps) {
         if (!(step.target() instanceof TypedGetAll tg)) {
             throw new NotImplementedException("class flatten through a"
                     + " CHAINED navigate step ('" + alias
@@ -614,11 +615,10 @@ public final class StoreResolver {
         }
         String targetClass = tg.classFqn();
         ClassSource t = sources.get(src.mappingFqn(), targetClass);
-        // DOWNSTREAM demand (task #63): heads the chain reads off the
-        // re-rooted target dispatch through the target's OWN nav/slot
-        // steps — materialize them INTO the hop so the composed prefixes
-        // (employees_firm_*) exist; provenance AssocSubs below give the
-        // substitution the dispatch route. Un-demanded steps still strip.
+        // DOWNSTREAM demand (#63): heads read off the re-rooted target
+        // dispatch through its OWN nav/slot steps — materialize them INTO
+        // the hop (composed prefixes employees_firm_*); provenance
+        // AssocSubs give the dispatch route. Un-demanded steps strip.
         var tNavSteps = Pipelines.navSteps(t.pipeline());
         Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
         Set<String> tSlotDemand = new LinkedHashSet<>();
@@ -642,8 +642,19 @@ public final class StoreResolver {
                 Pipelines.closeOverConditions(t.pipeline(), tSlotDemand);
         final Set<String> fNavDemand = tNavDemand;
         Pipelines.Materialized[] innerM = new Pipelines.Materialized[1];
+        TypedSpec spliced = src.pipeline();
+        if (!belowOps.isEmpty()) {
+            Pipelines.Materialized m0 = Pipelines.materialize(
+                    src.pipeline(), java.util.Set.of(), src.classFqn());
+            String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
+                    src.pipeline(), List.of(), List.of(), Map.of(),
+                    () -> freshVarCounter++);
+            spliced = FlattenOps.spliceBelow(src.pipeline(), belowOps,
+                    fn -> substitution(src, m0, Map.of(), Set.of(), Map.of(),
+                            Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
+        }
         Pipelines.Materialized m = Pipelines.materialize(
-                src.pipeline(), java.util.Set.of(), java.util.Set.of(alias),
+                spliced, java.util.Set.of(), java.util.Set.of(alias),
                 src.classFqn(),
                 (a, tc) -> {
                     Pipelines.Materialized im = Pipelines.materialize(
@@ -667,9 +678,8 @@ public final class StoreResolver {
         Map<String, String> innerPrefixes = innerM[0] == null
                 ? Map.of() : innerM[0].slotPrefixes();
         // binding pre-rewrite uses JOINSLOT prefixes only: a nav-HEAD
-        // binding is a BARE class-typed slot read (dispatched via the
-        // provenance AssocSub below) — the row-read rewriter would throw
-        // its unrecognized-shape guard on it
+        // binding is a bare class-typed slot read (provenance AssocSub
+        // dispatches it) — the row-read rewriter would throw on it
         Map<String, String> innerSlotOnly = new LinkedHashMap<>(innerPrefixes);
         innerSlotOnly.keySet().removeAll(fNavDemand);
         for (var he : headNavAlias.entrySet()) {
@@ -687,12 +697,10 @@ public final class StoreResolver {
                     sub.classFqn(),
                     Pipelines.slotAliases(sub.pipeline())));
         }
-        // audit 21b F3: the flatten contract is INNER ≡ the engine's LEFT +
-        // reader null-skip — a childless parent contributes NOTHING.
-        // Pipelines.materialize emits the demanded navigate join LEFT
-        // (projection semantics: parent rows survive); riding it unchanged
-        // serialized a phantom all-null object and ->size() counted it.
-        // Re-stamp the flattened hop's join INNER, like the assoc arm.
+        // audit 21b F3: the flatten contract is INNER ≡ engine LEFT +
+        // reader null-skip. materialize emits the navigate join LEFT;
+        // unchanged it serialized a phantom all-null object (->size()
+        // counted it). Re-stamp the hop's join INNER, like the assoc arm.
         TypedSpec innerized = innerizeFlattenJoin(m.pipeline(), prefix);
         m = new Pipelines.Materialized(innerized, m.slotPrefixes(),
                 m.stripped());
@@ -789,24 +797,30 @@ public final class StoreResolver {
      */
     private ClassSource flattenSource(ClassSource src, String hop,
             Context context, List<TypedSpec> ops, TypedSpec top,
-            Map<String, Substitution.AssocSub> provOut) {
-        // ROUTE by the hop's MAPPING: a class-typed Join PM
-        // (employees: @Firm_Person) is a NAVIGATE SLOT — the pipeline
-        // already carries its TypedNavigate step; an AssociationMapping
-        // end routes through the association-binding predicate.
+            Map<String, Substitution.AssocSub> provOut,
+            List<TypedSpec> belowOps) {
+        // ROUTE by the hop's MAPPING: a class-typed Join PM is a NAVIGATE
+        // SLOT (pipeline carries its TypedNavigate step); an
+        // AssociationMapping end routes via the association predicate.
         TypedSpec hopBinding = src.bindings().get(hop);
         var navSteps = Pipelines.navSteps(src.pipeline());
         String alias = hopBinding == null ? null
                 : navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
             return flattenNavSlot(src, alias, navSteps.get(alias),
-                    downstreamHeads(ops, top), provOut);
+                    downstreamHeads(ops, top), provOut, belowOps);
         }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
                 temporal, src, hop, context, false,
                 downstreamHeads(ops, top));
         Pipelines.Materialized m = Pipelines.materialize(
                 src.pipeline(), java.util.Set.of(), src.classFqn());
+        String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
+                src.pipeline(), List.of(), List.of(), Map.of(),
+                () -> freshVarCounter++);
+        TypedSpec left = FlattenOps.applyBelow(m.pipeline(), belowOps,
+                fn -> substitution(src, m, Map.of(), Set.of(), Map.of(),
+                        Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
         Type.RelationType leftRow =
                 (Type.RelationType) m.pipeline().info().type();
         List<Type.Column> cols = new ArrayList<>(leftRow.columns());
@@ -817,15 +831,14 @@ public final class StoreResolver {
         Type.RelationType row = new Type.RelationType(cols);
         ExprType rowInfo = new ExprType(row,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-        TypedSpec joined = new TypedJoin(m.pipeline(), aj.targetPipeline(),
+        TypedSpec joined = new TypedJoin(left, aj.targetPipeline(),
                 innerKind(), aj.condition(),
                 Optional.of(aj.prefix()), rowInfo);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
-            // scalar-through-slot bindings first flatten onto the
-            // MATERIALIZED target row (W4 demandedLeaves), then prefix.
-            // Ctor (embedded) bindings skip: the rewriter refuses them and
-            // prefixBinding walks their props itself.
+            // scalar-through-slot bindings flatten onto the MATERIALIZED
+            // target row (W4 demandedLeaves), then prefix. Ctor bindings
+            // skip: prefixBinding walks their props itself.
             TypedSpec b = e.getValue();
             if (!aj.targetSlotPrefixes().isEmpty()
                     && !(Pipelines.unwrapToOne(b) instanceof TypedNewInstance)) {
@@ -1304,11 +1317,10 @@ public final class StoreResolver {
             if (headBinding == null) {
                 continue;   // association heads (below)
             }
-            // OTHERWISE per-leaf dispatch (V1 §D.5): a leaf mapped by the
-            // embedded partial reads the PARENT row — no demand; any other
-            // leaf demands the FALLBACK's navigate slot. Same head can go
-            // both ways in one query. The normalizer's emission is the one
-            // canonical shape: otherwise(^Inner(...), $row.<slot>).
+            // OTHERWISE per-leaf dispatch (V1 §D.5): an embedded-partial
+            // leaf reads the PARENT row (no demand); any other leaf demands
+            // the FALLBACK's navigate slot — same head can go both ways.
+            // Canonical emission: otherwise(^Inner(...), $row.<slot>).
             TypedSpec navRead = headBinding;
             var ow = Substitution.otherwiseOf(headBinding);
             if (ow != null) {
@@ -1338,9 +1350,8 @@ public final class StoreResolver {
                         && mid + 1 < path.size()
                         && ni.properties().containsKey(
                                 SyntheticHeads.realHead(path.get(mid)))) {
-                    // a SYNTHETIC (filter-lifted) mid component drills by
-                    // its REAL property; the parked pred applies at the
-                    // slot materialization below (#70 embedded sub-chains)
+                    // a SYNTHETIC mid component drills by its REAL property;
+                    // the parked pred applies at slot materialization (#70)
                     drill = ni.properties().get(
                             SyntheticHeads.realHead(path.get(mid)));
                     mid++;
@@ -1439,9 +1450,8 @@ public final class StoreResolver {
             // the outer join-stamping never double-stamps it
             String liftedHead = navHeadByAlias.getOrDefault(alias, alias);
             // preds park under the BARE synthetic head — a DOTTED chain
-            // key (embedded drill: money.usdRates#f0) keys the pred by
-            // its LAST component (silent-skip here = unfiltered join =
-            // wrong rows)
+            // key (money.usdRates#f0) keys by its LAST component
+            // (silent-skip = unfiltered join = wrong rows)
             String predKey = liftedHead.substring(
                     liftedHead.lastIndexOf('.') + 1);
             if (synthetics.hasPred(predKey)
@@ -2280,10 +2290,9 @@ public final class StoreResolver {
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
                     // accumulated joined row — re-point the condition's LEFT
-                    // param reads (dept's raw $d.ID becomes dept_ID), and the
-                    // hop's own prefix extends the chain (dept_org_) with the
-                    // SAME collision guard hop 0 gets (audit: a physical
-                    // dept.org_id FK would collide with the chained prefix).
+                    // param reads (raw $d.ID -> dept_ID); the hop's own
+                    // prefix extends the chain (dept_org_) with hop 0's
+                    // collision guard.
                     String chainPrefix = AssociationJoins.chainedPrefix(
                             parentPrefix + path.get(hop), cs, joinsByChain);
                     final String pp2 = parentPrefix;
@@ -2324,10 +2333,9 @@ public final class StoreResolver {
         }
 
         // 2a-x. SECOND head identities on one physical slot: an extra
-        // prefixed join per identity, from the SAME nav material — the
-        // dotted chainPrefix keys its own temporal spec, a lifted
-        // predicate parks inside the target (the slot route's exact
-        // semantics, join identity aside).
+        // prefixed join per identity from the SAME nav material — dotted
+        // chainPrefix keys its own temporal spec, a lifted predicate
+        // parks inside the target.
         for (var extra : extraNavHeads.entrySet()) {
             String headKey = extra.getKey();
             String alias = extra.getValue();
@@ -2339,16 +2347,14 @@ public final class StoreResolver {
                     targetClass,
                     extraNavTails.getOrDefault(headKey, List.of()),
                     headKey, null);
-            // the slot route's root stamp comes from the outer join-walk
-            // (navPrefixToChain); an extra join never passes it — stamp
-            // here, exactly the association route's emission
+            // the slot route's root stamp comes from the outer join-walk;
+            // an extra join never passes it — stamp here (assoc emission)
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
                             Map.of()));
             // preds park under the BARE synthetic component — a dotted
-            // chain key must strip to it here or the identity's pred is
-            // silently dropped (unfiltered join = wrong values; the
-            // isolation 'filters without alias' family)
+            // chain key must strip to it or the identity's pred silently
+            // drops (unfiltered join = wrong values)
             String exPredKey = headKey.substring(headKey.lastIndexOf('.') + 1);
             requireNoCorrelatedPred(exPredKey, "navigate-step chain");
             tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
@@ -2368,10 +2374,9 @@ public final class StoreResolver {
         }
 
         // 2a-c. #69 CORRELATED-slot reroute: heads whose correlated pred
-        // demands a parent NAV left the slot spine (registerNavigations) —
-        // each joins as an AssocJoin carrying the pred for the fold's
-        // exploding parent-copy subselect. The head's CLOSED preds still
-        // apply in-target (applyToPipe passes corr-only heads through).
+        // demands a parent NAV left the slot spine — each joins as an
+        // AssocJoin carrying the pred for the parent-copy subselect.
+        // CLOSED preds still apply in-target.
         for (var ch : corrNavHeads.entrySet()) {
             String headKey = ch.getKey();
             String alias = ch.getValue();
@@ -2453,6 +2458,7 @@ public final class StoreResolver {
         }
         // 1. Collect the below-boundary op chain (top-down) to the getAll.
         List<TypedSpec> ops = new ArrayList<>();
+        List<TypedSpec> belowOps = new ArrayList<>();
         String flattenHop = null;
         while (!(cur instanceof TypedGetAll)) {
             // Normalize collection natives with relation shapes BEFORE
@@ -2499,8 +2505,7 @@ public final class StoreResolver {
                 cur = asSort;
                 continue;
             }
-            // an in-chain from() re-scopes the execution context for the
-            // rest of the walk and contributes NO op
+            // in-chain from(): re-scopes execution context, contributes NO op
             if (cur instanceof TypedFrom fr) {
                 if (fr.mapping().isPresent()) {
                     context = Context.ofMapping(fr.mapping().get().fullPath());
@@ -2512,8 +2517,7 @@ public final class StoreResolver {
             }
             // ->map(f|$f.assocEnd->...) with a CLASS-result mapper: the
             // flatten IS the mapper body with the source spliced for the
-            // param (flatten composition is associative) - normalize and
-            // keep walking.
+            // param (flatten composition is associative) — keep walking.
             if (cur instanceof TypedMap cm
                     && ((Type.FunctionType) cm.mapper().info().type()).result()
                             .type() instanceof Type.ClassType) {
@@ -2521,9 +2525,8 @@ public final class StoreResolver {
                 continue;
             }
             // CLASS-TERMINAL ASSOCIATION HOP: the flatten boundary — the
-            // chain re-roots at the target over the JOIN. EMBEDDED class
-            // hops never reach this loop: consumers compose them into the
-            // reading lambda (the funnel's embedded dispatch owns them).
+            // chain re-roots at the target over the JOIN. EMBEDDED hops
+            // never reach here (the funnel's embedded dispatch owns them).
             if (cur instanceof TypedPropertyAccess hp
                     && hp.info().type() instanceof Type.ClassType
                     && hp.source().info().type() instanceof Type.ClassType oc) {
@@ -2542,12 +2545,10 @@ public final class StoreResolver {
                 continue;
             }
             if (flattenHop != null) {
-                throw new NotImplementedException(
-                        "a class flatten over a FILTERED/transformed source"
-                        + " chain is not supported yet (op below the '"
-                        + flattenHop + "' hop)");
+                belowOps.add(cur);
+            } else {
+                ops.add(cur);
             }
-            ops.add(cur);
             cur = switch (cur) {
                 case TypedFilter f -> f.source();
                 case TypedLimit l -> l.source();
@@ -2571,18 +2572,17 @@ public final class StoreResolver {
         if (g.milestoning().isEmpty() && !g.versionSweep()
                 && temporal.temporalStrategy(g.classFqn()) != null) {
             // engine: .all() on a temporal class REQUIRES a date argument
-            // (allVersions() is the version-sweep spelling) — an unfiltered
-            // extent would silently return every version as a row
+            // (allVersions() = sweep) — unfiltered extent would silently
+            // return every version as a row
             throw new MappingResolutionException("fetch of temporal class '"
                     + g.classFqn() + "' requires a milestoning date argument"
                     + " (use allVersions() for the unfiltered extent)",
                     g.classFqn());
         }
         // M3 temporal context: this fetch's dates propagate to same-strategy
-        // targets navigated through temporal parents (set per getAll; nested
-        // sibling resolutions overwrite at their own entry).
-        // audit 10: never read the PREVIOUS getAll's context — a fresh
-        // frame per resolution entry, ONE construction site
+        // targets through temporal parents (set per getAll). audit 10:
+        // never read the PREVIOUS getAll's context — fresh frame per
+        // resolution entry, ONE construction site
         temporal = new TemporalFrame(ctx, sources, TemporalContext.NONE,
                 Map.of());
         {
@@ -2618,7 +2618,8 @@ public final class StoreResolver {
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         if (flattenHop != null) {
-            cs = flattenSource(cs, flattenHop, fctx, ops, top, flattenAssocs);
+            cs = flattenSource(cs, flattenHop, fctx, ops, top, flattenAssocs,
+                    belowOps);
         }
         return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
                 flattenAssocs);
@@ -2871,9 +2872,8 @@ public final class StoreResolver {
         }
 
         // 3. Fold the ops back on, bottom-up, substituting filter lambdas.
-        // The fresh row var must not collide with ANY lambda parameter in
-        // reach (user lambdas may legally be named _rN — audit capture
-        // finding); scan and skip.
+        // Fresh row var must not collide with any lambda param in reach
+        // (user lambdas may legally be named _rN); scan and skip.
         String fresh = CorrelatedSubselects.freshRowVar(cs, ops, top,
                 assocJoins, aggAssocJoins, existsSubs,
                 () -> freshVarCounter++);
