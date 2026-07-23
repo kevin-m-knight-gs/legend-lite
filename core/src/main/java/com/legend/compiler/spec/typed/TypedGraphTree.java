@@ -12,27 +12,33 @@ import java.util.Objects;
  * @param children the nested sub-tree, empty for a leaf
  */
 public record TypedGraphTree(String property, List<TypedGraphTree> children,
-        String alias, List<TypedSpec> args, boolean sweep) {
+        String alias, List<TypedSpec> args, boolean sweep, String subTypeFqn) {
     public TypedGraphTree {
         Objects.requireNonNull(property, "property");
         children = List.copyOf(children);
         args = args == null ? List.of() : List.copyOf(args);
     }
 
+    /** Non-subType node (every pre-subType shape). */
+    public TypedGraphTree(String property, List<TypedGraphTree> children,
+            String alias, List<TypedSpec> args, boolean sweep) {
+        this(property, children, alias, args, sweep, null);
+    }
+
     /** Non-sweep node with alias and call args (the pre-sweep shape). */
     public TypedGraphTree(String property, List<TypedGraphTree> children,
             String alias, List<TypedSpec> args) {
-        this(property, children, alias, args, false);
+        this(property, children, alias, args, false, null);
     }
 
     /** Aliased node without call args. */
     public TypedGraphTree(String property, List<TypedGraphTree> children,
             String alias) {
-        this(property, children, alias, List.of(), false);
+        this(property, children, alias, List.of(), false, null);
     }
 
     /** Un-aliased node (the common spelling). */
     public TypedGraphTree(String property, List<TypedGraphTree> children) {
-        this(property, children, null, List.of(), false);
+        this(property, children, null, List.of(), false, null);
     }
 }

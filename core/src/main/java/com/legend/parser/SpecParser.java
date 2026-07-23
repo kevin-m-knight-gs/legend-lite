@@ -2490,6 +2490,25 @@ public final class SpecParser implements TokenStreamCursor {
      * preserves AST compatibility.
      */
     private ColSpec parseGraphPath(int depth) {
+        // ->subType(@FQN) { ... } — the SUBTYPE VIEW of the enclosing node
+        // (engine graph grammar): children read the subtype's own
+        // properties; rows not of that type omit them. Encoded as a
+        // ColSpec named '->subType' carrying the @Type annotation arg.
+        if (!atEnd() && peek() == TokenType.ARROW
+                && pos + 1 < tokens.count()
+                && isFqnSegmentToken(tokens.type(pos + 1))
+                && "subType".equals(tokens.text(pos + 1))) {
+            pos += 2;
+            expect(TokenType.PAREN_OPEN, "expected '(' after ->subType");
+            expect(TokenType.AT, "expected '@' in ->subType(@Type)");
+            String subFqn = parseQualifiedName();
+            expect(TokenType.PAREN_CLOSE, "expected ')' after ->subType type");
+            ColSpecArray nested = parseGraphDefinition(depth + 1);
+            LambdaFunction fn2 = new LambdaFunction(List.of(), List.of(nested));
+            return new ColSpec("->subType", null, fn2, null,
+                    List.of(new TypeAnnotation.Named(
+                            new TypeExpression.NameRef(subFqn))));
+        }
         // Optional alias: 'aliasName': property — the engine serializes
         // the node under the ALIAS (task #78; the discard was engine-lite
         // behaviour our envelope emission has outgrown)

@@ -80,6 +80,32 @@ final class GraphFetchChecker {
             ColSpecArray tree, String fn, Env env) {
         List<TypedGraphTree> out = new ArrayList<>(tree.colSpecs().size());
         for (ColSpec cs : tree.colSpecs()) {
+            // ->subType(@Sub) { ... }: the SUBTYPE VIEW — children validate
+            // against the subtype class, which must extend the owner
+            if (cs.name().equals("->subType")) {
+                String subFqn = cs.args().size() == 1
+                        && cs.args().get(0)
+                                instanceof com.legend.model.spec.TypeAnnotation.Named tn
+                        && tn.type() instanceof com.legend.model.TypeExpression.NameRef nr
+                        ? nr.name() : null;
+                if (subFqn == null || t.model().findClass(subFqn).isEmpty()) {
+                    throw new TypeInferenceException(fn + " tree: ->subType"
+                            + " requires a known class, got '" + subFqn + "'");
+                }
+                if (!t.model().isSubtype(subFqn, classFqn)) {
+                    throw new TypeInferenceException(fn + " tree: ->subType class '"
+                            + subFqn + "' does not extend '" + classFqn + "'");
+                }
+                ColSpecArray subNested = nestedTree(cs);
+                if (subNested == null) {
+                    throw new TypeInferenceException(fn + " tree: ->subType"
+                            + " requires a sub-tree of the subtype's properties");
+                }
+                out.add(new TypedGraphTree("->subType",
+                        validate(t, subFqn, subNested, fn, env),
+                        null, List.of(), false, subFqn));
+                continue;
+            }
             Property prop = t.model().findProperty(classFqn, cs.name()).orElse(null);
             String propName = cs.name();
             boolean sweep = false;

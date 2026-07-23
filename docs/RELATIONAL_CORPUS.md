@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 81 | 0 | 32 | 11 |
+| tests/mapping/union | 124 | 80 | 1 | 32 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1360** | 62 | 481 | 635 |
+| **total** | 2538 | **1359** | 63 | 481 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6197,8 +6197,8 @@ in-process Alloy-shaped path).
 
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x unbound variable '$dbRuntime'
-- 13x serialize expects (classCollection, #{Class{…}}#)
 - 11x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- 10x graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
 - 7x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
@@ -6364,7 +6364,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6594,20 +6594,20 @@ in-process Alloy-shaped path).
 - ERROR testSimpleGraphFetchCheckedWithPrimitivesOnlyNoDefects [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - ERROR testCheckedOneComplexProperty [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - ERROR testCheckedWithCircularConstraints [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
-- ERROR testSubTypeAtRootLevelWithSimpleProperty [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testSubTypeAtRootLevelWithComplexProperty [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testSubTypeAtRootLevelWithFilter [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testMultipleSubTypeAtRootLevel [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testSubTypeAtRootLevelWithAlloySerializationConfig [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testCommonPropertyAtRootLevelWithSubTypeSpecificMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR testCommonPropertyAtSubTypeLevelWithSubTypeSpecificMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR testSubTypeAtRootLevelWithSimpleProperty [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR testSubTypeAtRootLevelWithComplexProperty [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR testSubTypeAtRootLevelWithFilter [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR testMultipleSubTypeAtRootLevel [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR testSubTypeAtRootLevelWithAlloySerializationConfig [graphFetch/tests]: unknown class 'meta::pure::graphFetch::execution::AlloySerializationConfig' in ^meta::pure::graphFetch::execution::AlloySerializationConfig(…)
+- ERROR testCommonPropertyAtRootLevelWithSubTypeSpecificMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR testCommonPropertyAtSubTypeLevelWithSubTypeSpecificMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'
-- ERROR RootSubTypeWithRootPropertyUnion [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR RootSubTypeWithRootPropertyUnion [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: unknown function 'meta::legend::compileLegendValueSpecification'
+- ERROR RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: unknown function 'meta::legend::compileLegendValueSpecification'
+- ERROR RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
+- ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street) serialization is not built yet (subtype member dispatch over the row set)
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithMultiLevelUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
@@ -6725,7 +6725,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -7281,6 +7281,7 @@ in-process Alloy-shaped path).
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: Binder Error: Values list "t10" does not have a column named "ID" |  | LINE 29: ) AS t10 ON t2.FirmID_0 = t10.ID OR t2.FirmID_1 = t10.ID |                                    ^
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum

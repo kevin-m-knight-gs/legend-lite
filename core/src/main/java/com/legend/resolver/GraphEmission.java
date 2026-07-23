@@ -172,6 +172,15 @@ final class GraphEmission {
         List<TypedFuncCol> leaves = new ArrayList<>();
         List<TypedSerializeGraph.Child> children = new ArrayList<>();
         for (TypedGraphTree node : tree) {
+            // ->subType(@X){...}: the subtype VIEW needs the union/extends
+            // MEMBER's own bindings joined into this row set (per-member
+            // column demand + row-membership gating) — the #71 subtype
+            // dispatch integration; loud until it lands
+            if (node.subTypeFqn() != null) {
+                throw new NotImplementedException("graph ->subType(@"
+                        + node.subTypeFqn() + ") serialization is not built"
+                        + " yet (subtype member dispatch over the row set)");
+            }
             if (!node.children().isEmpty()
                     || (!cs.bindings().containsKey(node.property())
                             && ctx.findAssociationOf(cs.classFqn(), node.property())
