@@ -67,7 +67,13 @@ final class EvalChecker {
                     + " parameter(s) but " + rawArgs.size() + " argument(s) were supplied");
         }
         if (lam.body().size() != 1) {
-            throw new TypeInferenceException("only single-expression lambdas are supported yet");
+            // [let*, final] folds by source-level let-inlining (SourceSubst)
+            LambdaFunction folded = SourceSubst.inlineLets(lam);
+            if (folded == null) {
+                throw new TypeInferenceException(
+                        "only single-expression lambdas are supported yet");
+            }
+            lam = folded;
         }
         List<TypedSpec> args = new ArrayList<>(rawArgs.size());
         Env scope = env;

@@ -974,11 +974,16 @@ final class Typer {
                     + " parameter(s) but the function type expects " + ftype.params().size());
         }
         if (lam.body().size() != 1 && !lam.parameters().isEmpty()) {
-            // Multi-statement bodies are supported only for ZERO-ARG query
-            // thunks (consumed as STATEMENT lists — the K natives and the
-            // harness splice); a parameterized relation lambda's lets would
-            // silently drop at lowering (consumers read the last body expr).
-            throw new TypeInferenceException("only single-expression lambdas are supported yet");
+            // A parameterized lambda's [let*, final] body FOLDS by
+            // source-level let-inlining (pure lets are value bindings —
+            // β-substitution is exact, and the single-expression result
+            // drops nothing at lowering). Non-let intermediates stay loud.
+            LambdaFunction folded = SourceSubst.inlineLets(lam);
+            if (folded == null) {
+                throw new TypeInferenceException(
+                        "only single-expression lambdas are supported yet");
+            }
+            lam = folded;
         }
 
         Env lambdaScope = env;
