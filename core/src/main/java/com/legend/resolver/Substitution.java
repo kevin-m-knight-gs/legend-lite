@@ -1000,11 +1000,30 @@ final class Substitution {
                 AssocSub a3 = target.assocs().get(path.get(0));
                 SubNav sub = a3.subNavs().get(path.get(1));
                 int hop = 2;
-                while (sub != null && hop + 1 < path.size()) {
+                while (sub != null && hop + 1 < path.size()
+                        && sub.children().containsKey(path.get(hop))) {
                     sub = sub.children().get(path.get(hop));
                     hop++;
                 }
-                if (sub != null) {
+                if (sub != null && hop + 1 < path.size()) {
+                    // EMBEDDED CTOR TAIL under the sub-nav ($a.splits
+                    // .incomeFunction.code — the sub-target maps the next
+                    // hop as ^Inner(...)): the leaf is a same-row column
+                    // of the sub-target, read through the composed prefix
+                    TypedSpec ctorLeaf = ctorTailLeaf(sub, path, hop);
+                    if (ctorLeaf instanceof TypedPropertyAccess paE
+                            && paE.source() instanceof TypedVariable vE
+                            && vE.name().equals(sub.rowVar())) {
+                        return milestoneColumnRead(
+                                sub.prefix() + paE.property(),
+                                a3.readVar() != null ? a3.readVar()
+                                        : target.freshRowVar(),
+                                a3.readRowType() != null ? a3.readRowType()
+                                        : target.rowType(),
+                                a3.readVar() != null ? "" : a3.prefix(), n);
+                    }
+                }
+                if (sub != null && hop + 1 == path.size()) {
                     String leaf = path.get(path.size() - 1);
                     String hops = String.join(".",
                             path.subList(0, path.size() - 1));
@@ -2207,6 +2226,43 @@ final class Substitution {
             return oc;
         }
         return null;
+    }
+
+    /** The EMBEDDED-CTOR tail walk under a sub-nav: from {@code path[hop]}
+     * (a {@code ^Inner(...)}-valued binding on the sub-target, toOne/
+     * otherwise looked through) descend ctor properties to the leaf.
+     * Returns the leaf's binding expression (over the sub-target's row
+     * var), or {@code null} when any hop is not a ctor property — the
+     * caller's loud wall stands. */
+    private static TypedSpec ctorTailLeaf(SubNav sub, List<String> path,
+            int hop) {
+        TypedSpec cur = sub.bindings().get(path.get(hop));
+        int h = hop + 1;
+        while (cur != null && h < path.size()) {
+            TypedSpec inner = cur;
+            if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                    && c.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")) {
+                inner = c.args().get(0);
+            }
+            var ow = otherwiseOf(inner);
+            if (ow != null) {
+                inner = ow.args().get(0);
+            }
+            if (inner instanceof TypedNewInstance ni
+                    && ni.properties().containsKey(path.get(h))) {
+                cur = ni.properties().get(path.get(h));
+                h++;
+            } else {
+                cur = null;
+            }
+        }
+        if (cur instanceof TypedNativeCall c && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            cur = c.args().get(0);
+        }
+        return cur;
     }
 
     /** An emptiness-family call at this node or anywhere beneath it. */

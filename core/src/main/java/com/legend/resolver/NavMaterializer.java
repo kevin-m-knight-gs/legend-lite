@@ -460,9 +460,8 @@ final class NavMaterializer {
                             || !temporal.contextAt(
                                 chainPrefix + "." + tail.get(0),
                                 subCls, hopCtx).isEmpty());
-                if ((temporal.hasMilestonedSlotTarget(subT.pipeline())
-                                && !subHasContext)
-                        || StoreResolver.containsFilter(subT.pipeline())) {
+                if (temporal.hasMilestonedSlotTarget(subT.pipeline())
+                        && !subHasContext) {
                     return;
                 }
                 tNavs.add(subAlias);
