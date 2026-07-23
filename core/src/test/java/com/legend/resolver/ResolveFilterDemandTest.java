@@ -38,6 +38,7 @@ class ResolveFilterDemandTest {
     private static final String MODEL = """
             Class m::Person { name: String[1]; }
             Class m::Org { name: String[1]; parent: m::Org[0..1]; children: m::Org[*]; }
+            Class m::SOrg { name: String[1]; parent: m::SOrg[0..1]; }
             Database s::DB (
               Table TP (ID INTEGER, FIRM_ID INTEGER, NAME VARCHAR(50))
               Table TF (ID INTEGER, IS_ACTIVE INTEGER)
@@ -47,8 +48,11 @@ class ResolveFilterDemandTest {
               Join OrgParent (ORG.PARENT_ID = {target}.ID)
               Join OrgChildren (ORG.ID = {target}.PARENT_ID)
               Join OrgOther (ORG.ID = OTHER.ORG_ID)
+              Table SORG (ID INTEGER PRIMARY KEY, PARENT_ID INTEGER, NAME VARCHAR(50), FVAL INTEGER)
+              Join SOrgParent (SORG.PARENT_ID = {target}.ID)
               Filter ActiveFirms ( [s::DB] @PF | TF.IS_ACTIVE = 1 )
               Filter OtherFilter ( OTHER.FILTER_VAL <= 4 )
+              Filter SOrgFilter ( SORG.FVAL <= 4 )
             )
             Mapping m::M (
               *m::Person: Relational { ~filter [s::DB] ActiveFirms
@@ -59,6 +63,11 @@ class ResolveFilterDemandTest {
                 name: [s::DB] ORG.NAME,
                 parent: [s::DB] @OrgParent,
                 children: [s::DB] @OrgChildren }
+              *m::SOrg: Relational {
+                ~filter [s::DB] SOrgFilter
+                ~mainTable [s::DB] SORG
+                name: [s::DB] SORG.NAME,
+                parent: [s::DB] @SOrgParent }
             )
             Runtime m::RT { mappings: [m::M]; }
             """;
@@ -79,6 +88,11 @@ class ResolveFilterDemandTest {
                     + " (3, 1, 'Gamma')");
             st.execute("CREATE TABLE OTHER (ORG_ID INTEGER, FILTER_VAL INTEGER)");
             st.execute("INSERT INTO OTHER VALUES (1, 3), (2, 9)");
+            st.execute("CREATE TABLE SORG (ID INTEGER, PARENT_ID INTEGER,"
+                    + " NAME VARCHAR, FVAL INTEGER)");
+            st.execute("INSERT INTO SORG VALUES (1, NULL, 'SAlpha', 1),"
+                    + " (2, 1, 'SBeta', 2), (3, 1, 'SGamma', 9),"
+                    + " (4, 3, 'SDelta', 3)");
         }
     }
 
@@ -143,6 +157,25 @@ class ResolveFilterDemandTest {
         // Alpha (other row 3<=4) kept; Beta (other row 9>4) filtered;
         // Gamma (no OTHER row, NULL<=4 false) filtered.
         assertEquals(List.of("Alpha"), exec(sql), sql);
+    }
+
+    @Test
+    @DisplayName("nav into ~filter'd class: hop filter folds into ON (overlapp shape)")
+    void navIntoFilteredClassFoldsIntoOn() throws SQLException {
+        // Engine golden (testFilterMappingWithProjectionOverlapp): the
+        // TARGET's mapping ~filter rides the navigation join's ON — rows
+        // with a filtered-out (or absent) parent survive with NULLs; the
+        // ROOT keeps its own filter in WHERE. Org here has a plain
+        // single-table filter via OrgSelfFilter to isolate the strategy.
+        String sql = sqlOf("m::SOrg.all()->project("
+                + "[o|$o.name, o|$o.parent.name], ['name','p_name'])"
+                + "->from(m::M, m::RT)");
+        List<String> rows = exec(sql + " ORDER BY 1");
+        // SAlpha: no parent -> null. SBeta: parent SAlpha (in extent).
+        // SDelta: parent SGamma is FILTERED OUT -> null, row SURVIVES
+        // (the ON-fold contract; a WHERE-placed hop filter would drop it).
+        assertEquals(List.of("SAlpha|null", "SBeta|SAlpha", "SDelta|null"),
+                rows, sql);
     }
 
     @Test
