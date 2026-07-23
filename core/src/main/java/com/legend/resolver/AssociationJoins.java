@@ -208,6 +208,25 @@ final class AssociationJoins {
      * member thread — V4), else the loud wall. */
     AssocJoin chainedUnionHop(TemporalFrame temporal, ClassSource parent,
             AssocJoin aj, String head, String chainKey,
+            StoreResolver.Context context, Set<String> leaves,
+            String parentKey, Map<String, AssocJoin> joinsByChain,
+            List<AssocJoin> assocJoins) {
+        AssocJoin out = chainedUnionHopInner(temporal, parent, aj, head,
+                chainKey, context, leaves);
+        // V4 mid-key demand: the hop condition's parent-side chained-lift
+        // reads survive the PARENT union's projection
+        AssocJoin paj = joinsByChain.get(parentKey);
+        AssocJoin paj2 = paj == null ? null
+                : widenParentForChainedReads(paj, out);
+        if (paj2 != null) {
+            joinsByChain.put(parentKey, paj2);
+            assocJoins.set(assocJoins.indexOf(paj), paj2);
+        }
+        return out;
+    }
+
+    private AssocJoin chainedUnionHopInner(TemporalFrame temporal,
+            ClassSource parent, AssocJoin aj, String head, String chainKey,
             StoreResolver.Context context, Set<String> leaves) {
         TypedLambda paired = memberPairedCondition(aj.condition(),
                 (Type.RelationType) parent.pipeline().info().type(),

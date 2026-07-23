@@ -2280,22 +2280,13 @@ public final class StoreResolver {
                             aj, context, assocJoins, joinsByChain, assocs);
                 }
                 if (hop > 0 && containsConcatenate(aj.targetPipeline())) {
-                    // union target: paired condition | routed-lift fallback
-                    // | loud wall (engine V-family) — one arm, extracted
+                    // union target: paired | routed-lift | wall, plus V4
+                    // mid-key parent widen — one arm (AssociationJoins)
                     aj = assocMaterial.chainedUnionHop(temporal, parent, aj,
                             path.get(hop), chainKey, context,
-                            leavesByChain.getOrDefault(chainKey, Set.of()));
-                    // mid-key demand: the hop condition's parent-side reads
-                    // survive the PARENT union's projection (V4)
-                    String parentKey = String.join(".", path.subList(0, hop));
-                    AssociationJoins.AssocJoin paj = joinsByChain.get(parentKey);
-                    AssociationJoins.AssocJoin paj2 = paj == null ? null
-                            : AssociationJoins.widenParentForChainedReads(paj, aj);
-                    if (paj2 != null) {
-                        joinsByChain.put(parentKey, paj2);
-                        assocJoins.set(assocJoins.indexOf(paj), paj2);
-                        parent = paj2.target();
-                    }
+                            leavesByChain.getOrDefault(chainKey, Set.of()),
+                            String.join(".", path.subList(0, hop)),
+                            joinsByChain, assocJoins);
                 }
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
