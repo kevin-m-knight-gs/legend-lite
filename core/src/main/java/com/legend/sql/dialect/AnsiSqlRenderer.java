@@ -312,6 +312,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a LEFT-JOIN-missed operand yields the other side, never
             // NULL. The '||' spelling propagates NULL — a row-value
             // divergence on join misses (testQualifierWithVariableArg).
+            case JSON_MERGE_PATCH -> "json_merge_patch("
+                    + a.stream().map(x -> expr(x, 0))
+                            .collect(java.util.stream.Collectors.joining(", "))
+                    + ")";
             case CONCAT -> "concat(" + flattenConcat(a).stream()
                     .map(x -> expr(x, 0))
                     .collect(java.util.stream.Collectors.joining(", ")) + ")";

@@ -30,6 +30,7 @@ public enum SqlFn {
     UNNEST,
     /** Flatten one level of a list-of-lists (pure map's collection-mapper flatten). */
     LIST_FLATTEN,
+    JSON_MERGE_PATCH,   // json_merge_patch(obj, patch) — null patch keys DROP (RFC 7386)
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
     SQRT, CBRT, EXP, LN, LOG10, POW, PI,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,

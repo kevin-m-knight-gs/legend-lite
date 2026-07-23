@@ -138,6 +138,15 @@ class TypedSpecChildrenTest {
         if (type == TypedFuncCol.class) {
             return new TypedFuncCol("c", (TypedLambda) dummy(TypedLambda.class, null));
         }
+        if (type == com.legend.compiler.spec.typed
+                .TypedSerializeGraph.SubTypePatch.class) {
+            // patch leaves + member witness surface through children()
+            return new com.legend.compiler.spec.typed.TypedSerializeGraph
+                    .SubTypePatch("t::Sub",
+                            java.util.List.of((TypedFuncCol) dummy(
+                                    TypedFuncCol.class, null)),
+                            (TypedFuncCol) dummy(TypedFuncCol.class, null));
+        }
         if (type == com.legend.compiler.spec.typed.TypedSerializeGraph.Child.class) {
             // The child's envelope IS a TypedSpec — surfaced through
             // children() via c.node(); the coverage walk sees it there.

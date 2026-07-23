@@ -661,6 +661,40 @@ public final class Lowerer {
         // bareValue: a to-many PRIMITIVE leaf aggregates the raw values —
         // ["abc","def"] — never json_object envelopes
         SqlExpr obj = g.bareValue() ? kv.get(1) : new SqlExpr.JsonObject(kv);
+        // ->subType views ride as JSON MERGE PATCHES: null-valued keys
+        // (non-member rows' carrier columns) DROP per RFC 7386, so member
+        // rows gain the subtype fields and others omit them
+        for (var p : g.subTypePatches()) {
+            List<SqlExpr> pkv = new ArrayList<>(2 * p.leaves().size());
+            for (TypedFuncCol leaf : p.leaves()) {
+                pkv.add(new SqlExpr.StringLit(leaf.name()));
+                switch (attempt(() -> scalar(last(leaf.fn()),
+                        (v, name) -> resolveOrThrow(base, name)))) {
+                    case Resolution.Resolved r -> pkv.add(r.expr());
+                    case Resolution.Unfoldable u -> throw new IllegalStateException(
+                            "subType patch leaf '" + leaf.name()
+                                    + "' references column '" + u.column()
+                                    + "', unresolvable in the envelope source");
+                }
+            }
+            SqlExpr member;
+            switch (attempt(() -> scalar(last(p.member().fn()),
+                    (v, name) -> resolveOrThrow(base, name)))) {
+                case Resolution.Resolved r -> member = r.expr();
+                case Resolution.Unfoldable u -> throw new IllegalStateException(
+                        "subType membership witness references column '"
+                                + u.column() + "', unresolvable in the"
+                                + " envelope source");
+            }
+            // gate on the MEMBERSHIP WITNESS: two subtypes sharing a
+            // property name (Street.type / City.type) must not have the
+            // NON-member's null patch DELETE the member's value
+            obj = new SqlExpr.Case(
+                    List.of(new SqlExpr.Case.When(member,
+                            SqlExpr.Call.of(SqlFn.JSON_MERGE_PATCH, obj,
+                                    new SqlExpr.JsonObject(pkv)))),
+                    obj);
+        }
         SqlExpr result = g.arrayWrap() ? new SqlExpr.JsonArrayAgg(obj) : obj;
         return base.withProjections(
                 List.of(new SqlSelect.Projection(result, "result")),

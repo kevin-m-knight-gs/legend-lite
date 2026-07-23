@@ -46,11 +46,30 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   boolean arrayWrap, boolean bareValue,
                                   String classFqn,
                                   ExprType info,
-                                  boolean inlineChild) implements TypedSpec {
+                                  boolean inlineChild,
+                                  List<SubTypePatch> subTypePatches) implements TypedSpec {
 
     public TypedSerializeGraph {
         leaves = List.copyOf(leaves);
         nested = List.copyOf(nested);
+        subTypePatches = subTypePatches == null ? List.of()
+                : List.copyOf(subTypePatches);
+    }
+
+    /** A ->subType(@X){...} view: leaves reading the subtype member's
+     * carrier columns, rendered as a JSON MERGE PATCH over the envelope —
+     * NULL values (non-member rows) drop their keys (RFC 7386). */
+    public record SubTypePatch(String subTypeFqn, List<TypedFuncCol> leaves,
+            TypedFuncCol member) {
+    }
+
+    /** Patch-free compat (every pre-subType construction). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, String classFqn, ExprType info,
+            boolean inlineChild) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, List.of());
     }
 
     /** Correlated node (the common case — an inline child reads the
@@ -87,6 +106,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         out.add(source);
         leaves.forEach(l -> out.add(l.fn()));
         nested.forEach(c -> out.add(c.node()));
+        subTypePatches.forEach(p -> {
+            p.leaves().forEach(l -> out.add(l.fn()));
+            out.add(p.member().fn());
+        });
         return out;
     }
 }
