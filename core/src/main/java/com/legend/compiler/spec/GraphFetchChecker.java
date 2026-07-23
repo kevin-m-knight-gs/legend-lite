@@ -62,7 +62,9 @@ final class GraphFetchChecker {
      * {@code FuncColSpec} &mdash; so validation walks the class model directly.)
      */
     private static Checked checkTree(Typer t, AppliedFunction af, Env env, String fn) {
-        if (af.parameters().size() < 2 || !(af.parameters().get(1) instanceof ColSpecArray tree)) {
+        ValueSpecification second = af.parameters().size() < 2 ? null
+                : unwrapCompiledTree(af.parameters().get(1));
+        if (!(second instanceof ColSpecArray tree)) {
             throw new TypeInferenceException(fn + " expects (classCollection, #{Class{…}}#)");
         }
         TypedSpec source = t.synth(af.parameters().get(0), env);
@@ -134,6 +136,73 @@ final class GraphFetchChecker {
                     alias, targs, sweep));
         }
         return out;
+    }
+
+    /**
+     * A tree built at runtime from SOURCE TEXT —
+     * {@code compileLegendValueSpecification('#{...}#')->cast(@RootGraphFetchTree<T>)}
+     * (the subType-family spelling) — unwraps to the PARSED tree literal:
+     * the cast strips, the string-concat chain folds, and the platform
+     * parser (the same island grammar) produces the ColSpecArray. Any
+     * other shape (or a parse failure — e.g. the ->subType() paths the
+     * grammar does not carry yet) returns the ORIGINAL node so the loud
+     * arity message stands.
+     */
+    private static ValueSpecification unwrapCompiledTree(ValueSpecification v) {
+        if (v instanceof AppliedFunction c
+                && (c.function().equals("cast")
+                        || c.function().equals("meta::pure::functions::lang::cast"))
+                && !c.parameters().isEmpty()) {
+            ValueSpecification inner = unwrapCompiledTree(c.parameters().get(0));
+            return inner instanceof ColSpecArray ? inner : v;
+        }
+        if (v instanceof AppliedFunction cf
+                && (cf.function().equals("compileLegendValueSpecification")
+                        || cf.function().equals(
+                                "meta::legend::compileLegendValueSpecification"))
+                && cf.parameters().size() == 1) {
+            String src = foldStringConcat(cf.parameters().get(0));
+            if (src != null) {
+                ValueSpecification parsed =
+                        com.legend.parser.TreeLiterals.parseTree(src);
+                if (parsed != null) {
+                    return parsed;
+                }
+            }
+        }
+        return v;
+    }
+
+    /** Fold a literal string-concatenation chain ('a' + 'b' + ...) to its
+     * value, or null when any operand is not a literal string. */
+    private static String foldStringConcat(ValueSpecification v) {
+        if (v instanceof com.legend.model.spec.CString cs) {
+            return cs.value();
+        }
+        if (v instanceof AppliedFunction pf
+                && (pf.function().equals("plus")
+                        || pf.function().equals("meta::pure::functions::math::plus"))) {
+            StringBuilder sb = new StringBuilder();
+            for (ValueSpecification p : pf.parameters()) {
+                if (p instanceof com.legend.model.spec.PureCollection pc) {
+                    for (ValueSpecification e : pc.values()) {
+                        String part = foldStringConcat(e);
+                        if (part == null) {
+                            return null;
+                        }
+                        sb.append(part);
+                    }
+                    continue;
+                }
+                String part = foldStringConcat(p);
+                if (part == null) {
+                    return null;
+                }
+                sb.append(part);
+            }
+            return sb.toString();
+        }
+        return null;
     }
 
     /** The nested sub-tree a colspec's {@code function2} wraps, or {@code null} for a leaf. */

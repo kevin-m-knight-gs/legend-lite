@@ -449,6 +449,22 @@ public final class TestBody {
         return new Outcome.Ran(verified, advisory, executed, List.of());
     }
 
+    /** Strip JSON canonicalization wrappers (parseJSON / toPrettyJSONString)
+     * from an assertJsonStringsEqual argument — the assert parses and
+     * deep-compares both sides itself, so the wrappers are identity. */
+    private static com.legend.model.spec.ValueSpecification stripJsonCanon(
+            com.legend.model.spec.ValueSpecification v) {
+        while (v instanceof com.legend.model.spec.AppliedFunction af
+                && af.parameters().size() == 1
+                && (af.function().equals("parseJSON")
+                        || af.function().equals("toPrettyJSONString")
+                        || af.function().endsWith("::parseJSON")
+                        || af.function().endsWith("::toPrettyJSONString"))) {
+            v = af.parameters().get(0);
+        }
+        return v;
+    }
+
     /** One side of a JSON assert as a PARSED structure: a GRAPH result's
      * envelope, or a String value holding JSON text. Null = not JSON-shaped
      * (the caller reports Unsupported, never a false verdict). */
@@ -675,6 +691,11 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
+                // canonicalization WRAPPERS (->parseJSON()->toPrettyJSONString())
+                // are identity here: the comparison below already parses both
+                // sides and deep-compares the structures
+                args = java.util.List.of(stripJsonCanon(args.get(0)),
+                        stripJsonCanon(args.get(1)));
                 Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (emptinessUnverifiable) {
