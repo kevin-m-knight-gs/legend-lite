@@ -2704,6 +2704,8 @@ public final class StoreResolver {
             for (TypedLambda fn : terminalLambdas(top)) {
                 temporal.collectTemporalSpecs(fn, specs);
             }
+        } else {
+            temporal.collectTreeSweeps(tree, specs);
         }
         return specs;
     }

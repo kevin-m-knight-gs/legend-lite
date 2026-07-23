@@ -78,9 +78,29 @@ final class GraphFetchChecker {
             ColSpecArray tree, String fn, Env env) {
         List<TypedGraphTree> out = new ArrayList<>(tree.colSpecs().size());
         for (ColSpec cs : tree.colSpecs()) {
-            Property prop = t.model().findProperty(classFqn, cs.name()).orElseThrow(() ->
-                    new TypeInferenceException(fn + " tree: class " + classFqn
-                            + " has no property '" + cs.name() + "'"));
+            Property prop = t.model().findProperty(classFqn, cs.name()).orElse(null);
+            String propName = cs.name();
+            boolean sweep = false;
+            // the SYNTHETIC milestoned sweep spelling: <base>AllVersions on
+            // an end targeting a temporal class (real pure GENERATES it) —
+            // the node resolves by the BASE property; the spelled name
+            // becomes the envelope alias; the sweep serves the RAW extent
+            if (prop == null && cs.name().endsWith("AllVersions")) {
+                String base = cs.name().substring(0,
+                        cs.name().length() - "AllVersions".length());
+                Property bp = t.model().findProperty(classFqn, base).orElse(null);
+                if (bp != null && bp.type() instanceof Type.ClassType btc
+                        && com.legend.compiler.element.Temporal
+                                .strategyOf(t.model(), btc.fqn()) != null) {
+                    prop = bp;
+                    propName = base;
+                    sweep = true;
+                }
+            }
+            if (prop == null) {
+                throw new TypeInferenceException(fn + " tree: class " + classFqn
+                        + " has no property '" + cs.name() + "'");
+            }
             // qualifier CALL args type here and ride the tree (the
             // resolver inlines the derived body with them); non-derived
             // parenthesized args (milestoning dates) keep the historical
@@ -97,19 +117,21 @@ final class GraphFetchChecker {
                 }
                 targs = ta;
             }
+            String alias = cs.alias() != null ? cs.alias()
+                    : (sweep ? cs.name() : null);
             ColSpecArray nested = nestedTree(cs);
             if (nested == null) {
-                out.add(new TypedGraphTree(cs.name(), List.of(), cs.alias(),
-                        targs));
+                out.add(new TypedGraphTree(propName, List.of(), alias,
+                        targs, sweep));
                 continue;
             }
             if (!(prop.type() instanceof Type.ClassType nestedClass)) {
                 throw new TypeInferenceException(fn + " tree: property '" + cs.name()
                         + "' is not class-typed and cannot carry a sub-tree");
             }
-            out.add(new TypedGraphTree(cs.name(),
+            out.add(new TypedGraphTree(propName,
                     validate(t, nestedClass.fqn(), nested, fn, env),
-                    cs.alias(), targs));
+                    alias, targs, sweep));
         }
         return out;
     }

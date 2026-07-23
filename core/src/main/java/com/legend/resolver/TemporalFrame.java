@@ -920,6 +920,20 @@ final class TemporalFrame {
      * navigation head ({@code product(%d)} / sweep / range spellings). */
     record TemporalSpec(List<TypedSpec> dates, boolean sweep) {}
 
+    /** Serialize-tree SWEEP nodes (productAllVersions{...}) register as
+     * dateless sweep specs — the hop serves the RAW extent, exactly like
+     * the query-position propAllVersions() spelling. */
+    void collectTreeSweeps(List<com.legend.compiler.spec.typed.TypedGraphTree> tree,
+            Map<String, TemporalSpec> out) {
+        for (com.legend.compiler.spec.typed.TypedGraphTree n : tree) {
+            if (n.sweep()) {
+                out.putIfAbsent(n.property(),
+                        new TemporalSpec(List.of(), true));
+            }
+            collectTreeSweeps(n.children(), out);
+        }
+    }
+
     /**
      * A temporal TARGET's pipeline filtered by its milestoning columns —
      * explicit spec (property-function dates) wins; else the ROOT context

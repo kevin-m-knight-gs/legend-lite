@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 101 | 6 | 29 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 26 | 12 | 103 | 2 |
+| graphFetch/tests | 143 | 28 | 12 | 101 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 80 | 1 | 32 | 11 |
+| tests/mapping/union | 124 | 81 | 0 | 32 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1355** | 64 | 484 | 635 |
+| **total** | 2538 | **1358** | 63 | 482 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6198,7 +6198,7 @@ in-process Alloy-shaped path).
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x unbound variable '$dbRuntime'
 - 15x serialize expects (classCollection, #{Class{…}}#)
-- 10x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- 11x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 7x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
@@ -6508,7 +6508,7 @@ in-process Alloy-shaped path).
 - ERROR testCrossStoreWithCSVDataSource [graphFetch/tests]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDown [graphFetch/tests]: 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: graphFetch tree: class meta::pure::graphFetch::tests::XStore::milestoning::Trade has no property 'customerAllVersions'
+- ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call
 - ERROR testSimpleUnionCrossStore [graphFetch/tests]: unbound variable '$dbRuntime'
@@ -6537,8 +6537,8 @@ in-process Alloy-shaped path).
 - ERROR testQualifierJoinProperty [graphFetch/tests]: derived graph leaf 'duration' reads 'type' which is not a stored binding on 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' — only same-class stored reads inline yet
 - ERROR testQualifierPropertyWithArgs [graphFetch/tests]: store resolution left getAll(meta::relational::tests::mapping::embedded::advanced::model::BondDetail) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testQualifierPropertyExpressionWithEmbeddedPropertyandJoinProperty [graphFetch/tests]: derived graph leaf 'fullName' reads 'type' which is not a stored binding on 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' — only same-class stored reads inline yet
-- ERROR testMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Order has no property 'productAllVersions'
-- ERROR testMilestonedRootWithMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Product has no property 'synonymsAllVersions'
+- ERROR testMilestonedPropertyAllVersions [graphFetch/tests]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
+- ERROR testMilestonedRootWithMilestonedPropertyAllVersions [graphFetch/tests]: class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' not found in db 'db'; PM='synonyms', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - ERROR testMilestonedRootAndMilestonedProperty [graphFetch/tests]: class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' not found in db 'db'; PM='synonyms', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - ERROR testMultiLevelMilestoning [graphFetch/tests]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - ERROR testMilestonedClassAtRootWithQualifierBD [graphFetch/tests]: class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' not found in db 'db'; PM='synonyms', mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
@@ -6546,8 +6546,6 @@ in-process Alloy-shaped path).
 - ERROR testMilestonedClassAtRoot [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testMilestonedClassAtRootQualifierWithBD [graphFetch/tests]: derived graph leaf 'classificationExchangeName1' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testMilestonedProperty [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
-- ERROR testMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Order has no property 'productAllVersions'
-- ERROR testMilestonedRootWithMilestonedPropertyAllVersions [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::Product has no property 'synonymsAllVersions'
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - ERROR testMultiLevelMilestoning [graphFetch/tests]: serialize tree: class meta::relational::tests::milestoning::Product has no property 'businessDate'
 - ERROR testDateTimeInQuery [graphFetch/tests]: serialize tree: class meta::relational::tests::milestoning::Product has no property 'businessDate'
@@ -6729,7 +6727,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -7165,7 +7163,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
@@ -7285,7 +7283,6 @@ in-process Alloy-shaped path).
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: Binder Error: Values list "t10" does not have a column named "ID" |  | LINE 29: ) AS t10 ON t2.FirmID_0 = t10.ID OR t2.FirmID_1 = t10.ID |                                    ^
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
