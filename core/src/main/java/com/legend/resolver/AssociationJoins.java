@@ -157,6 +157,51 @@ final class AssociationJoins {
      * absent (engine sqlQueryMerging/V-family goldens; off-member NULLs
      * make same-member pairing exact). Null when not applicable — the
      * caller keeps its wall. */
+    /** Widen a PARENT hop's union pipe so the NEXT hop's condition can
+     * read its chained-lift key columns through the union projection
+     * (V4 mid-key demand: y_Y1_G_fk1). Null when nothing to widen. */
+    static AssocJoin widenParentForChainedReads(AssocJoin parentAj,
+            AssocJoin next) {
+        String v = next.condition().parameters().get(0);
+        Set<String> flats = new LinkedHashSet<>();
+        for (TypedSpec b : next.condition().body()) {
+            collectFlatChainedReads(b, v, flats);
+        }
+        Set<String> aliases = new LinkedHashSet<>();
+        for (String f : flats) {
+            aliases.add(f.substring(0, f.lastIndexOf('_')));
+        }
+        Set<String> reads = new LinkedHashSet<>();
+        for (TypedSpec b : next.condition().body()) {
+            Pipelines.collectVarReads(b, v, reads);
+        }
+        reads.removeAll(aliases);   // alias-only inners of two-hop reads
+        reads.addAll(flats);
+        TypedSpec widened = Pipelines.widenConcatenateForKeys(
+                parentAj.targetPipeline(), reads);
+        return widened == parentAj.targetPipeline() ? null
+                : parentAj.withTargetPipeline(widened);
+    }
+
+    /** {@code $v.<alias>.<col>} two-hop reads flattened to the union's
+     * chained-lift projection name {@code <alias>_<col>}. */
+    private static void collectFlatChainedReads(TypedSpec n, String var,
+            Set<String> out) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedPropertyAccess inner
+                && inner.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable tv
+                && tv.name().equals(var)) {
+            out.add(inner.property() + "_" + pa.property());
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectFlatChainedReads(c, var, out);
+        }
+    }
+
     /** The chained-hop union arm: member-paired condition, else the
      * parent's ROUTED LIFT when it carries the head as a nav slot
      * (collectPairAssociationEntries put each per-pair route inside its
@@ -348,6 +393,12 @@ final class AssociationJoins {
         AssocJoin withCondition(TypedLambda cond) {
             return new AssocJoin(prefix, target, targetPipeline, targetRow,
                     cond, targetSlotPrefixes, targetSubNavs, corrSubPred);
+        }
+
+        AssocJoin withTargetPipeline(TypedSpec pipe) {
+            return new AssocJoin(prefix, target, pipe,
+                    (Type.RelationType) pipe.info().type(), condition,
+                    targetSlotPrefixes, targetSubNavs, corrSubPred);
         }
     }
 

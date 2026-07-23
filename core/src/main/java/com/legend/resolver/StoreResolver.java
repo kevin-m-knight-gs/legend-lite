@@ -2285,6 +2285,17 @@ public final class StoreResolver {
                     aj = assocMaterial.chainedUnionHop(temporal, parent, aj,
                             path.get(hop), chainKey, context,
                             leavesByChain.getOrDefault(chainKey, Set.of()));
+                    // mid-key demand: the hop condition's parent-side reads
+                    // survive the PARENT union's projection (V4)
+                    String parentKey = String.join(".", path.subList(0, hop));
+                    AssociationJoins.AssocJoin paj = joinsByChain.get(parentKey);
+                    AssociationJoins.AssocJoin paj2 = paj == null ? null
+                            : AssociationJoins.widenParentForChainedReads(paj, aj);
+                    if (paj2 != null) {
+                        joinsByChain.put(parentKey, paj2);
+                        assocJoins.set(assocJoins.indexOf(paj), paj2);
+                        parent = paj2.target();
+                    }
                 }
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
