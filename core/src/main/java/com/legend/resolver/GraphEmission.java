@@ -183,7 +183,7 @@ final class GraphEmission {
                     || (!cs.bindings().containsKey(node.property())
                             && ctx.findAssociationOf(cs.classFqn(), node.property())
                                     .isPresent())) {
-                children.add(graphChild(cs, node, context, rowVar, rowType));
+                children.add(graphChild(cs, node, context, rowVar, rowType, pipeline));
                 continue;
             }
             TypedSpec binding = cs.bindings().get(node.property());
@@ -421,7 +421,7 @@ final class GraphEmission {
     /** One nested hop: correlated child pipeline + the child's own envelope. */
     TypedSerializeGraph.Child graphChild(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String parentRowVar,
-            Type.RelationType parentRowType) {
+            Type.RelationType parentRowType, TypedSpec parentPipeline) {
         if (node.children().isEmpty()) {
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
@@ -481,7 +481,7 @@ final class GraphEmission {
                 emb = ow2.args().get(0);
             }
             if (emb instanceof TypedNewInstance ctor2) {
-                return embeddedChild(cs, node, ctor2, context);
+                return embeddedChild(cs, node, ctor2, context, parentPipeline);
             }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' is mapped as an"
@@ -661,7 +661,7 @@ final class GraphEmission {
      * the embedded) stay loud — their join machinery is a later rung. */
     private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
             TypedGraphTree node, TypedNewInstance ctor,
-            StoreResolver.Context context) {
+            StoreResolver.Context context, TypedSpec parentPipeline) {
         var prop = ctx.findProperty(cs.classFqn(), node.property())
                 .orElseThrow(() -> new IllegalStateException(
                         "resolver bug: graph child '" + node.property()
@@ -674,7 +674,7 @@ final class GraphEmission {
                         .toList()
                 : node.children();
         Type.RelationType rowT = (Type.RelationType)
-                cs.pipeline().info().type();
+                parentPipeline.info().type();
         var rowInfo = new ExprType(rowT,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         List<TypedFuncCol> leaves = new ArrayList<>();
@@ -716,7 +716,8 @@ final class GraphEmission {
                 ei = tc1.args().get(0);
             }
             if (ei instanceof TypedNewInstance subCtor) {
-                nested.add(embeddedChild(cs, c, subCtor, context));
+                nested.add(embeddedChild(cs, c, subCtor, context,
+                        parentPipeline));
                 continue;
             }
             if (ei.info().type() instanceof Type.ClassType) {
@@ -736,7 +737,12 @@ final class GraphEmission {
                                     com.legend.compiler.element.type
                                             .Multiplicity.Bounded.ONE))));
         }
-        TypedSerializeGraph nodeG = new TypedSerializeGraph(cs.pipeline(),
+        // INLINE child: the pipeline is a row-typing CARRIER only (the
+        // envelope reads leaves off the PARENT base) — carry the parent's
+        // MATERIALIZED pipeline, never the raw cs.pipeline() whose
+        // undemanded navigate thunks still hold getAll (the embedded
+        // family's join-inside-embedded shape tripped the escapee wall)
+        TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
                 cs.rowVar(), leaves, nested, false, false, childClass,
                 rowInfo, true);
         return new TypedSerializeGraph.Child(keyOf(node), nodeG);
@@ -1143,7 +1149,9 @@ final class GraphEmission {
                         node.subTypeFqn(),
                         target -> dispatch.apply(context, target), skey);
                 patchChildren.add(graphChild(subCs, sub, context,
-                        rowVar, rowType));
+                        rowVar, rowType,
+                        Pipelines.materialize(subCs.pipeline(), Set.of(),
+                                subCs.classFqn()).pipeline()));
                 continue;
             }
             String col = com.legend.model.ClassMapping.subTypeColumn(

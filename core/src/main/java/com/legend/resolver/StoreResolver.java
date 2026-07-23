@@ -158,25 +158,28 @@ public final class StoreResolver {
 
     /**
      * POST-CONDITION (core/README rule 9): no {@code TypedGetAll} or
-     * {@code TypedUserCall} survives store resolution. An escapee here is
-     * a RESOLVER-phase gap named as such — before this walk they died at
-     * the lowerer's generic wall with the wrong phase attribution.
+     * {@code TypedUserCall} survives store resolution — a RESOLVER-phase
+     * gap named as such, with its ancestry path.
      */
     static void assertNoStoreOnlyEscapees(TypedSpec n) {
+        assertNoStoreOnlyEscapees(n, "root");
+    }
+    private static void assertNoStoreOnlyEscapees(TypedSpec n, String path) {
         if (n instanceof TypedGetAll ga) {
             throw new com.legend.error.NotImplementedException(
                     "store resolution left getAll(" + ga.classFqn()
                     + ") unresolved — the query shape around it is not"
-                    + " supported by the resolver yet");
+                    + " supported by the resolver yet [at " + path + "]");
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
             throw new com.legend.error.NotImplementedException(
                     "store resolution left user call '" + uc.callee().qualifiedName()
                     + "' uninlined — the call shape is not supported by the"
-                    + " resolver yet");
+                    + " resolver yet [at " + path + "]");
         }
+        String next = path + " > " + n.getClass().getSimpleName();
         for (TypedSpec c : n.children()) {
-            assertNoStoreOnlyEscapees(c);
+            assertNoStoreOnlyEscapees(c, next);
         }
     }
 

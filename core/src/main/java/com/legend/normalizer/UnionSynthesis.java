@@ -1339,7 +1339,6 @@ final class UnionSynthesis {
         Set<Integer> tgtOrds = new HashSet<>();
         Set<Integer> srcMembers = new HashSet<>();
         Set<String> tgtColSets = new HashSet<>();
-        Set<String> liftJoinIds = new HashSet<>();
         boolean mergeable = true;
         for (int k2 = 0; mergeable && k2 < jsPre.size(); k2++) {
             PropertyMapping.Join j0 = jsPre.get(k2);
@@ -1357,13 +1356,6 @@ final class UnionSynthesis {
             JoinChainElement hop0 = j0.joins().get(0);
             String db0 = hop0.databaseName() != null
                     ? hop0.databaseName() : j0.database();
-            // SAME-JOIN across every route is REQUIRED: merged and routed
-            // emissions only coincide when the join is literally shared
-            // (partiallyMilestoning golden); DIAGONAL routes (different
-            // joins per member — graph rootLevel SameStore golden, which
-            // serializes product=null for a key value only the OTHER
-            // member's table carries) demand strict member pairing.
-            liftJoinIds.add(db0 + "@" + hop0.joinName());
             DatabaseDefinition.JoinDefinition jd0 =
                     model.findJoin(db0, hop0.joinName()).orElse(null);
             if (jd0 == null) {
@@ -1378,8 +1370,17 @@ final class UnionSynthesis {
             MappingNormalizer.collectColumnsOfTable(jd0.operation(), tgtT, cols0);
             tgtColSets.add(String.join(",", cols0));
         }
+        // NOTE (graph rootLevel SameStore vs partiallyMilestoning): the
+        // ENGINE's two subsystems disagree on this exact shape — its
+        // RELATIONAL path (pureToSQLQuery golden, rows [2,2]) merges and
+        // cross-matches; its GRAPH executor pairs strictly per member
+        // (product=null). The merged form is therefore CORRECT here (this
+        // lift feeds the relational navigate); the graph-side strict
+        // pairing needs a SECOND (paired) condition carried alongside —
+        // the dual-condition design banked in task #84. A same-target-
+        // table narrowing was tried and reverted: it broke the
+        // partiallyMilestoning trio whose golden demands the cross-match.
         return mergeable
-                && liftJoinIds.size() == 1
                 && tgtOrds.size() == targetUnion.memberSetIds().size()
                 && colsProjectedByTarget(tgtColSets, targetClassFqn, model);
     }

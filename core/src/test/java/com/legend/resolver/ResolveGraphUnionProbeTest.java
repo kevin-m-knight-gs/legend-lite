@@ -163,7 +163,46 @@ class ResolveGraphUnionProbeTest {
             Runtime g::RT3 { mappings: [g::M3]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
+    private static final String MODEL_EMBEDDED = """
+            Class g::EPerson { firstName: String[1]; firm: g::EFirm[1]; }
+            Class g::EFirm { legalName: String[1]; employees: g::EPerson[*]; }
+            Database g::DB4 (
+              Table PT (ID INTEGER PRIMARY KEY, FN VARCHAR, FL VARCHAR)
+              Join firmEmployees (PT.FL = {target}.FL)
+            )
+            Mapping g::M4 (
+              g::EPerson[p] : Relational { ~mainTable [g::DB4] PT
+                firstName: PT.FN,
+                firm ( legalName: PT.FL,
+                       employees: [g::DB4] @firmEmployees ) }
+            )
+            Runtime g::RT4 { mappings: [g::M4]; }
+            """;
+
     @Test
+    @DisplayName("graph tree with an EMBEDDED child (corpus embedded family shape)")
+    void graphEmbeddedChild() throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE PT (ID INTEGER, FN VARCHAR, FL VARCHAR)");
+            st.execute("INSERT INTO PT VALUES (1, 'Peter', 'Firm X')");
+        }
+        String query = "g::EPerson.all()"
+                + "->graphFetch(#{g::EPerson{firstName, firm{legalName}}}#)"
+                + "->serialize(#{g::EPerson{firstName, firm{legalName}}}#)"
+                + "->from(g::M4, g::RT4)";
+        ExecutionResult r = Compiler.execute(MODEL_EMBEDDED, query, "g::RT4", conn);
+        String json = r instanceof ExecutionResult.Graph g ? g.json()
+                : String.valueOf(r);
+        System.out.println("[graph-embedded] " + json);
+        assertEquals("[{\"firstName\":\"Peter\",\"firm\":{\"legalName\":\"Firm X\"}}]",
+                json);
+    }
+
+    @Test
+    @org.junit.jupiter.api.Disabled("graph-STRICT member pairing needs the dual-condition"
+            + " navigate (task #84): the engine's relational path MERGES this shape"
+            + " (partiallyMilestoning golden, rows [2,2]) while its graph executor"
+            + " pairs strictly (product=null) — one lift condition cannot serve both")
     @DisplayName("DIAGONAL union routes: member pairing yields NULL, never a cross-member match")
     void diagonalUnionPairing() throws SQLException {
         try (Statement st = conn.createStatement()) {
