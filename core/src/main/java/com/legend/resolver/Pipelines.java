@@ -98,7 +98,13 @@ final class Pipelines {
             Map<String, TypedNavigate> out) {
         if (n instanceof TypedNavigate nav
                 && nav.alias().isPresent()) {
-            out.put(nav.alias().get(), nav);
+            // OUTERMOST wins (top-down walk, first-seen): a union pipeline
+            // carries the LIFTED navigate above the concatenate AND the
+            // member threads' own same-named navigates inside — only the
+            // lifted one is addressable from the union frame's row (its
+            // condition reads the member-suffixed keys; a thread-internal
+            // navigate's raw reads are meaningless outside its thread).
+            out.putIfAbsent(nav.alias().get(), nav);
         }
         for (TypedSpec c : n.children()) {
             if (!(n instanceof TypedNavigate nav)
