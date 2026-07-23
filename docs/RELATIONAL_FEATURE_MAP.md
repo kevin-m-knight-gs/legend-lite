@@ -355,6 +355,68 @@ Net: general mapping/lowering needs no redesign leg of its own. It is the founda
 legs build on — which is precisely why the legs are worth doing as calculi rather than
 patches: the spine can carry them.
 
+## 2b. Multi-hop navigation: the chain algebra
+
+The recurring pain point, given its own verdict. Multi-hop = the composition of hops
+(`$x.a.b.c`, filtered hops, to-many mid-chain, aggregates over chains, class-flatten
+hops, qualifier hops) — historically our densest source of bespoke blocks.
+
+### 2b.1 The engine's coherence — a 4-mechanism algebra (model coherent, machinery fragile)
+
+1. **One hop function + cursor invariant**: every hop folds through
+   processProperty → processPropertyMapping → doJoinToClass; EVERY feature (embedded,
+   otherwise, union route, milestoned, view, distinct target) is an arm inside that
+   per-hop dispatch, and every arm restores the same invariant — the cursor points at
+   the hop's target frame. Chains compose across features because arms compose under
+   one invariant.
+2. **One sharing mechanism**: merge-by-join-name over per-column threads (prefix sharing).
+3. **One cardinality mechanism**: filter channels + isolation chooser (to-many-in-filter
+   → EXISTS; aggregate-over-chain → PK injection + grouped rejoin; below-hop filters →
+   saved then placed by strategy).
+4. **One target rule**: distinct/groupBy/complex targets re-materialize as subselects.
+
+The engine's fragility is in HOW the invariant is maintained (live-pointer re-search,
+`__iso` prefixes, qualifier re-entry through recorded state) — and its own test.ToFix
+wrong-goldens cluster exactly at multi-hop × qualifier × isolation (P:188, ADV:237).
+Even the reference strains at that intersection.
+
+### 2b.2 Our state: right primitives, scattered decision
+
+NavPath whole-chain registry beats the engine's sharing (keep). But "a hop" is served by
+context-dependent mechanisms — AssociationJoins, NavMaterializer ([0..1] correlated),
+CorrelatedSubselects, FlattenOps (below-op splice), SyntheticHeads, tail mappers,
+parent-copy grouped subselect — and the EMISSION decision (flat join | correlated
+subquery | EXISTS | grouped rejoin | splice) is made at multiple sites with local
+heuristics. Every bespoke wall (#70 chained filtered nav, #63 auto-map class-hops,
+size-over-aggregate, navLeafSubquery) landed in the seam BETWEEN two mechanisms, where
+neither owned the decision. The positional rule table exists in the H2/H3 plan; it was
+never promoted to the single authority as features accreted.
+
+### 2b.3 The coherent target (this is Leg 1 + 15.0 seen from the chain's point of view)
+
+Not a new mechanism — a re-organization making the existing ones arms of one decision:
+1. **`Hop` algebra**: one resolver function `hop(frame, pmKind) → frame` with per-kind
+   arms (column read / NavPath join / embedded parent-read / otherwise per-leaf /
+   union OR-route / re-materialized target), each restoring one frame invariant.
+   Existing satellites become the arms' implementations, not competing owners.
+2. **One positional emission table**, consulted at ONE site at materialization
+   (fed by Leg 1's DeferredFilter channel):
+   - projection / sort-key / groupBy-key path → LEFT JOIN via NavPath registry
+   - filter-position to-many (and class isEmpty) → correlated EXISTS
+   - scalar isEmpty → IS NULL
+   - aggregate over a chain → PK-grouped subquery rejoin (parent-copy shape)
+   - ops below a class-flatten hop → splice (FlattenOps arm)
+   - qualifier hop → inline body, filters ACCUMULATE to caller's isolation (never
+     partial application, never LIMIT)
+3. **One target-materialization rule** shared with views/modelJoin/distinct (15.0).
+Pin the seams explicitly: filtered-hop × aggregate, flatten × limit, union-route ×
+chain, qualifier × isolation — one fixture each, because that intersection is where
+both we AND the engine historically break.
+
+Verdict: **PATCHWORK at the seams, sound at the primitives** — and the seams are not a
+fifth leg; they are the chain-side statement of Leg 1 + the shared foundation. Treat
+2b.3's emission table as Leg 1's acceptance criteria.
+
 ## 3. Milestoning (temporal)
 
 ### 3.1 Engine model (milestoning.pure "M", PSQL = pureToSQLQuery.pure)
