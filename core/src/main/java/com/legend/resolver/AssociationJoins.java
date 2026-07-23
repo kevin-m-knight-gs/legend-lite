@@ -264,7 +264,9 @@ final class AssociationJoins {
         if (n instanceof TypedNativeCall c && c.args().size() == 2) {
             String q = c.callee().qualifiedName();
             if (q.endsWith("::equal")) {
-                out.add(new TypedSpec[]{c.args().get(0), c.args().get(1), c});
+                out.add(new TypedSpec[]{
+                        Pipelines.unwrapToOne(c.args().get(0)),
+                        Pipelines.unwrapToOne(c.args().get(1)), c});
                 return true;
             }
             if (q.endsWith("::and")) {
