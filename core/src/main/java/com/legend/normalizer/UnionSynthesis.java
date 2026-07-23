@@ -1261,6 +1261,29 @@ final class UnionSynthesis {
     }
 
     /** Collect the member class-typed Join PMs liftable onto the union. */
+    /** MERGED target reads resolve against the union's PROJECTED row —
+     * valid only when every read column IS a projected name (a mapped
+     * value column like the partiallyMilestoning golden's {@code id}). A
+     * RAW key ({@code fk}) takes the SUFFIXED NULL-crossed form, where
+     * member pairing comes free: off-member suffixes read NULL, so only
+     * same-member pairs match (engine sqlQueryMerging golden
+     * {@code fk_0=fk_0 OR fk_1=fk_1}). */
+    private static boolean colsProjectedByTarget(Set<String> tgtColSets,
+            String targetClassFqn, ModelBuilder model) {
+        if (tgtColSets.size() != 1) {
+            return false;
+        }
+        ClassDefinition tgtOwner = model.findClass(targetClassFqn).orElse(null);
+        for (String c : tgtColSets.iterator().next().split(",")) {
+            if (c.isEmpty() || tgtOwner == null
+                    || MappingNormalizer.findPropertyTypeDeep(
+                            tgtOwner, c, model) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static List<NavLift> collectNavLifts(LegacyMappingDefinition md,
             String className, List<ClassMapping> members,
             ModelBuilder model) {
@@ -1408,7 +1431,8 @@ final class UnionSynthesis {
                 // one-route-per-source + identical target columns.
                 liftTargetMerged = mergeable
                         && tgtOrds.size() == targetUnion.memberSetIds().size()
-                        && tgtColSets.size() == 1;
+                        && colsProjectedByTarget(tgtColSets, targetClassFqn,
+                                model);
             }
             Variable s = new Variable("s");
             Variable t = new Variable("t");
