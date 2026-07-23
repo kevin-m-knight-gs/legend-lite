@@ -1104,17 +1104,7 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.LIST_AVG, args));
             }
         }
-        // Statistical list reductions: DuckDB list_aggregate(x, '<agg>').
-        for (var e : Map.of(
-                "stdDevSample", "stddev_samp", "stdDev", "stddev_samp",
-                "stdDevPopulation", "stddev_pop",
-                "varianceSample", "var_samp",
-                "variancePopulation", "var_pop").entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
-                RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                        new SqlExpr.StringLit(e.getValue()), args.get(0))));
-            }
-        }
+        ScalarStats.register(RULES);   // stat reductions + tolerance assert
         // variance(list, isBiasCorrected): true => sample, false => population.
         for (String f : Pure.nativeKeysAt("variance")) {
             RULES.put(f, (n, args) -> {

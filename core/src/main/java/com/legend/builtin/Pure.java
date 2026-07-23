@@ -1273,6 +1273,12 @@ public final class Pure {
     // ({$this.get($colName)->cast(@String)}:String[1]) — registered as the
     // 2-arg native the dot-call dispatch resolves; the tdsContains
     // cross-operation rewrite substitutes it to a column/outer read
+    // real platform assertEqWithinTolerance.pure:17 — numeric tolerance
+    // assert; compiles inside collection lambdas (forAll), so it needs a
+    // catalog entry (the harness's statement-level arm serves top-level
+    // spellings only)
+    public static final NativeFunctionDefinition ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::metamodel::type::Number[1], actual:meta::pure::metamodel::type::Number[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
+
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
 
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS

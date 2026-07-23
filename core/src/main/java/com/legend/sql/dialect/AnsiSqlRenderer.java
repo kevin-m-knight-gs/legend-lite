@@ -300,14 +300,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // NON-COMMUTATIVE ops (-): trailing SAME-precedence operands
             // must parenthesize — 6 - (4 - 5) is not 6 - 4 - 5 (a real
             // wrong-answer bug PCT caught on the minus composition tests).
+            // COMPARISONS (prec 4) are NON-ASSOCIATIVE: a nested
+            // comparison operand always parenthesizes — bare
+            // a = b = TRUE is a type error, (a = b) = TRUE is the value.
             boolean nonCommutative = c.fn() == SqlFn.MINUS;
+            boolean nonAssociative = infix.prec() == 4;
             StringBuilder joined = new StringBuilder();
             for (int i = 0; i < c.args().size(); i++) {
                 if (i > 0) {
                     joined.append(" ").append(infix.sql()).append(" ");
                 }
                 joined.append(expr(c.args().get(i),
-                        i > 0 && nonCommutative ? infix.prec() + 1 : infix.prec()));
+                        (i > 0 && nonCommutative) || nonAssociative
+                                ? infix.prec() + 1 : infix.prec()));
             }
             return infix.prec() < parentPrec ? "(" + joined + ")" : joined.toString();
         }

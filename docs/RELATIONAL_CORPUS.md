@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 187 | 7 | 48 | 16 |
+| functions/tests | 258 | 186 | 8 | 48 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -70,7 +70,7 @@ in-process Alloy-shaped path).
 | tests/mapping/relation | 93 | 47 | 3 | 0 | 43 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
+| tests/mapping/sqlFunction | 74 | 62 | 3 | 9 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
 | tests/mapping/union | 124 | 80 | 1 | 32 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1400** | 62 | 437 | 639 |
+| **total** | 2538 | **1402** | 63 | 434 | 639 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6199,7 +6199,7 @@ in-process Alloy-shaped path).
 - 15x unbound variable '$dbRuntime'
 - 11x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
@@ -6361,8 +6361,9 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6702,7 +6703,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6754,13 +6755,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -7212,9 +7213,7 @@ in-process Alloy-shaped path).
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
 - ERROR testTriminNotSybaseASE [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_samp') AS stdDev
-- ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_pop') AS stdDevP
-- ERROR testProject [tests/mapping/sqlFunction]: unknown function 'assertEqWithinTolerance'
+- ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc
 - ERROR testToSQLStringToStringInDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringConcatInDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - FAIL testToSQLStringParseDecimalExecutioninH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
@@ -7224,7 +7223,6 @@ in-process Alloy-shaped path).
 - ERROR testToSQLStringParseIntegerinDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: WHERE lower(t0.stringToInt) = upper(t0.stringToInt) = TRUE |                                                             ^
 - ERROR testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: only single-expression lambdas are supported yet
 - ERROR testProjectionDeeper [tests/mapping/tree]: relation has no column 'name' in scalar read
 - ERROR testProjectionDeeperInlined [tests/mapping/tree]: relation has no column 'name' in scalar read
@@ -7304,7 +7302,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call
 - ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'query' of 'meta::relational::tests::functions::sqlstring::TestCase': expected FunctionDefinition<{ -> meta::pure::metamodel::type::Any[*]}>, got { -> (firstName:String[1], new:Integer[1])[1]} (value: La
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

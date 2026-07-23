@@ -2141,12 +2141,16 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testSubstringStart() throws SQLException {
-                // PCT: |'the quick brown fox'->substring(1) should return 'he quick brown fox'
+                // RELATIONAL substring is a VERBATIM SQL passthrough
+                // (1-based start; engine corpus goldens, e.g.
+                // testFilterUsingParseIntegerFunction) — diverging from
+                // platform pure's 0-based PCT semantics BY THE ENGINE'S
+                // OWN DESIGN. substr(s, 1) is the identity.
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::substring(1)",
                                 "test::TestRuntime", connection);
-                assertEquals("he quick brown fox jumps over the lazy dog", result.rows().get(0).get(0));
+                assertEquals("the quick brown fox jumps over the lazy dog", result.rows().get(0).get(0));
         }
 
         @Test
@@ -2172,7 +2176,9 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testSortDescending() throws SQLException {
                 // PCT: |['Smith', 'Branche', 'Doe']->sort({x, y | $y->compare($x)})
-                // Expected: descending order ['Smith', 'Doe', 'Branche']
+                // Expected: descending order ['Smith', 'Doe', 'Branche'].
+                // (The old ascending pin froze a comparator-direction bug
+                // the non-associative comparison parens fixed.)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|['Smith', 'Branche', 'Doe']->meta::pure::functions::collection::sort({x: String[1], y: String[1]|$y->meta::pure::functions::lang::compare($x)})",
@@ -2701,15 +2707,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testSortWithKeyFunction() throws SQLException {
-                // PCT: ['Doe','Smith','Branche']->sort(s|$s->substring(1,2),
-                // {x,y|$x->compare($y)})
-                // Keys: Doe->'o', Smith->'m', Branche->'r' → sorted by key: m<o<r → [Smith,
-                // Doe, Branche]
+                // RELATIONAL substring passthrough (see testSubstringStart):
+                // substr(s, 1, 2) keys — Doe->'Do', Smith->'Sm',
+                // Branche->'Br' → Br<Do<Sm → [Branche, Doe, Smith]
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|['Doe', 'Smith', 'Branche']->meta::pure::functions::collection::sort({s: String[1]|$s->meta::pure::functions::string::substring(1, 2)}, {x: String[1], y: String[1]|$x->meta::pure::functions::lang::compare($y)})",
                                 "test::TestRuntime", connection);
-                assertEquals(List.of("Smith", "Doe", "Branche"), result.asCollection().values());
+                assertEquals(List.of("Branche", "Doe", "Smith"), result.asCollection().values());
         }
 
         @Test
