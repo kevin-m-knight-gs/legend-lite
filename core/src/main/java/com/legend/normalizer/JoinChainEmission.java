@@ -135,7 +135,11 @@ final class JoinChainEmission {
                   + oe.fallback().getClass().getSimpleName()
                   + " not supported (Join only). Mapping=" + md.qualifiedName());
         }
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow();
+        ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow(() ->
+                new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "OtherwiseEmbedded PM '" + oe.propertyName()
+                        + "': unknown owner class '" + ownerClassFqn
+                        + "'; mapping=" + md.qualifiedName()));
         TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, oe.propertyName(), model);
         if (!(propType instanceof TypeExpression.NameRef nr)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 

@@ -704,19 +704,37 @@ public final class Runner {
             com.legend.model.ImportScope scope =
                     pre.model().elementImports().get(md.qualifiedName());
             for (String r : refs) {
-                if (r == null || moduleDbs.contains(r)) {
+                if (r == null) {
                     continue;
                 }
                 String qualified = null;
                 if (r.contains("::")) {
+                    if (moduleDbs.contains(r)) {
+                        continue;
+                    }
                     qualified = elementSource.containsKey(r) ? r : null;
-                } else if (scope != null) {
-                    for (String pkg : scope.wildcards()) {
-                        String cand = pkg + "::" + r;
-                        if (elementSource.containsKey(cand)) {
-                            qualified = cand;
-                            break;
+                } else {
+                    // IMPORT-SCOPE FIRST: a shared module db with the same
+                    // SIMPLE name (the corpus's tests::db) must not shadow
+                    // the element's scope-qualified store (milestoning::db
+                    // via milestoning::* — the graph milestoning-union trio)
+                    boolean inModule = false;
+                    if (scope != null) {
+                        for (String pkg : scope.wildcards()) {
+                            String cand = pkg + "::" + r;
+                            if (moduleDbs.contains(cand)) {
+                                inModule = true;
+                                break;
+                            }
+                            if (qualified == null
+                                    && elementSource.containsKey(cand)) {
+                                qualified = cand;
+                            }
                         }
+                    }
+                    if (inModule
+                            || (qualified == null && moduleDbs.contains(r))) {
+                        continue;
                     }
                 }
                 if (qualified == null) {

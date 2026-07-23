@@ -32,13 +32,19 @@ final class StoreSubstitutionRewrite {
 
     static ClassMapping apply(ClassMapping cm,
             List<MappingInclude.StoreSubstitution> subs) {
-        if (subs.isEmpty() || !(cm instanceof ClassMapping.Relational r)) {
+        if (subs.isEmpty()) {
             return cm;
         }
-        Map<String, String> m = subs.stream().collect(Collectors.toMap(
+        return applyWith(cm, subs.stream().collect(Collectors.toMap(
                 MappingInclude.StoreSubstitution::originalStore,
                 MappingInclude.StoreSubstitution::replacementStore,
-                (a, b) -> b));
+                (a, b) -> b)));
+    }
+
+    static ClassMapping applyWith(ClassMapping cm, Map<String, String> m) {
+        if (!(cm instanceof ClassMapping.Relational r)) {
+            return cm;
+        }
         return new ClassMapping.Relational(r.className(), r.setId(),
                 r.extendsSetId(), r.root(),
                 r.mainTable() == null ? null
@@ -153,5 +159,104 @@ final class StoreSubstitutionRewrite {
                             j.chain().stream().map(c -> chain(c, m)).toList(),
                             j.terminal() == null ? null : op(j.terminal(), m));
         };
+    }
+
+    /** The same exhaustive walk over an ASSOCIATION mapping's PM bodies. */
+    static com.legend.model.AssociationMapping applyAssoc(
+            com.legend.model.AssociationMapping am, Map<String, String> m) {
+        if (!(am instanceof com.legend.model.AssociationMapping.Relational rel)) {
+            return am;
+        }
+        return new com.legend.model.AssociationMapping.Relational(
+                rel.associationName(),
+                rel.propertyMappings().stream()
+                        .map(apm -> new com.legend.model
+                                .AssociationPropertyMapping(apm.sourceSetId(),
+                                        apm.targetSetId(), pm(apm.body(), m)))
+                        .toList());
+    }
+
+    /**
+     * Every database name the mapping's stores reference — collected by
+     * running the SAME exhaustive rewrite with a RECORDING map (zero
+     * drift: a new db-carrying node cannot be added without the rewrite
+     * rule, and the recorder rides the rule).
+     */
+    static void collectDatabases(LegacyMappingDefinition md,
+            java.util.Set<String> out) {
+        Map<String, String> recorder = new java.util.AbstractMap<>() {
+            @Override
+            public java.util.Set<Entry<String, String>> entrySet() {
+                return java.util.Set.of();
+            }
+
+            @Override
+            public String getOrDefault(Object k, String d) {
+                if (k != null) {
+                    out.add((String) k);
+                }
+                return d;
+            }
+        };
+        for (ClassMapping cm : md.classMappings()) {
+            applyWith(cm, recorder);
+        }
+        for (com.legend.model.AssociationMapping am : md.associationMappings()) {
+            applyAssoc(am, recorder);
+        }
+    }
+
+    /**
+     * IMPORT-SCOPE store-ref qualification (the graph milestoning-union
+     * trio): a mapping spelling {@code [db]} under
+     * {@code import a::b::*} means {@code a::b::db} — global
+     * unique-simple-name resolution silently picks a SAME-NAMED shared
+     * store instead (the corpus's {@code tests::db}). Unqualified refs
+     * whose scope-qualified candidate is a REGISTERED database rewrite to
+     * the FQN; everything else is untouched (the lenient simple-name
+     * fallback still serves scope-less models).
+     */
+    static LegacyMappingDefinition qualifyStoreRefs(LegacyMappingDefinition md,
+            com.legend.compiler.ModelBuilder model) {
+        com.legend.model.ImportScope scope = model.importsOf(md.qualifiedName());
+        if (scope == null || scope.wildcards().isEmpty()) {
+            return md;
+        }
+        java.util.Set<String> raws = new java.util.LinkedHashSet<>();
+        collectDatabases(md, raws);
+        Map<String, String> q = new java.util.LinkedHashMap<>();
+        for (String r : raws) {
+            if (r == null || r.contains("::") || model.hasDatabaseExact(r)) {
+                continue;
+            }
+            // rewrite ONLY the SHADOWED cases: the raw spelling's lenient
+            // simple-name resolution lands somewhere OTHER than the
+            // scope-qualified candidate (or nowhere). When they agree the
+            // raw spelling stays — downstream machinery keyed on it is
+            // untouched (the propertyLevel family regressed wholesale
+            // under unconditional qualification).
+            String current = model.findDatabase(r)
+                    .map(com.legend.model.DatabaseDefinition::qualifiedName)
+                    .orElse(null);
+            for (String w : scope.wildcards()) {
+                String cand = w + "::" + r;
+                if (model.hasDatabaseExact(cand)) {
+                    if (!cand.equals(current)) {
+                        q.put(r, cand);
+                    }
+                    break;
+                }
+            }
+        }
+        if (q.isEmpty()) {
+            return md;
+        }
+        LegacyMappingDefinition out = md.withClassMappings(
+                md.classMappings().stream().map(cm -> applyWith(cm, q)).toList());
+        return new LegacyMappingDefinition(out.qualifiedName(), out.includes(),
+                out.classMappings(),
+                out.associationMappings().stream()
+                        .map(am -> applyAssoc(am, q)).toList(),
+                out.enumerationMappings(), out.testSuitesSource());
     }
 }

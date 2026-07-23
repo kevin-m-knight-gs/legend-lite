@@ -161,12 +161,19 @@ public final class ModelBuilder {
     private final Map<Integer, Map<String, ViewDefinition>> viewsByDb = new HashMap<>();
 
     private final ImportScope imports;
+    private final java.util.Map<String, ImportScope> elementImports;
 
     // ====================================================================
     // Construction
     // ====================================================================
 
     private ModelBuilder(ImportScope imports) {
+        this(imports, java.util.Map.of());
+    }
+
+    private ModelBuilder(ImportScope imports,
+            java.util.Map<String, ImportScope> elementImports) {
+        this.elementImports = elementImports;
         this.imports = imports;
     }
 
@@ -204,7 +211,9 @@ public final class ModelBuilder {
      */
     public static ModelBuilder from(ParsedModel model) {
         Objects.requireNonNull(model, "model");
-        ModelBuilder mb = new ModelBuilder(model.imports());
+        ModelBuilder mb = new ModelBuilder(model.imports(),
+                model.elementImports() == null
+                        ? java.util.Map.of() : model.elementImports());
 
         // Phase 1: intern every FQN so cross-references (e.g. a
         // RuntimeDefinition naming a Class) can resolve in any order.
@@ -938,6 +947,18 @@ public final class ModelBuilder {
     /** All {@link RuntimeDefinition}s in ingest order. */
     public Stream<RuntimeDefinition> runtimes() {
         return runtimes.stream().filter(Objects::nonNull);
+    }
+
+    /** The ELEMENT's own import scope, else the model-wide one — store
+     * refs inside a mapping resolve through the section that declared it. */
+    public ImportScope importsOf(String elementFqn) {
+        return elementImports.getOrDefault(elementFqn, imports);
+    }
+
+    /** Registered database by EXACT FQN only (no simple-name leniency) —
+     * the import-scope qualification's membership probe. */
+    public boolean hasDatabaseExact(String fqn) {
+        return idGet(databases, symbols.resolveId(fqn)) != null;
     }
 
     /** {@link ImportScope} carried through from {@link ParsedModel#imports()}. */

@@ -242,6 +242,12 @@ public final class MappingNormalizer {
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
         md = resolveExtends(md, model);
 
+        // Pre-pass: IMPORT-SCOPE store-ref qualification — [db] under
+        // `import a::b::*` means a::b::db; global unique-simple-name
+        // resolution silently picks a same-named shared store instead
+        // (the graph milestoning-union trio vs the corpus tests::db).
+        md = StoreSubstitutionRewrite.qualifyStoreRefs(md, model);
+
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join PMs
         // into their owning class mappings (Option A; see
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b). Single-hop ends keep the
