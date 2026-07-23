@@ -14,12 +14,12 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 187 | 7 | 48 | 16 |
+| functions/tests | 258 | 186 | 8 | 48 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 45 | 14 | 82 | 2 |
-| graphFetch/tests/union | 15 | 10 | 2 | 3 | 0 |
+| graphFetch/tests/union | 15 | 11 | 1 | 3 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
@@ -6762,6 +6762,7 @@ in-process Alloy-shaped path).
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6925,7 +6926,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestonedPropertyAllVersions [graphFetch/tests]: Binder Error: Table "t0" does not have a column named "prodFk" |  | Candidate bindings: : "prodid" |  | LINE 1: ...', t1.type)), '[]') AS result FROM ProductTable AS t1 WHERE t0.prodFk = t1.id))), '[]') AS result |                                                                        ^
 - ERROR testMilestonedRootWithMilestonedPropertyAllVersions [graphFetch/tests]: Binder Error: Table "t0" does not have a column named "from_z" |  | Candidate bindings: : "productId" |  | LINE 3: WHERE t0.from_z IS NOT NULL AND t0.from_z <= TIMESTAMP '2023-10... |               ^
 - ERROR testMilestonedRootAndMilestonedProperty [graphFetch/tests]: Binder Error: Table "t0" does not have a column named "from_z" |  | Candidate bindings: : "productId" |  | LINE 3: WHERE t0.from_z IS NOT NULL AND t0.from_z <= TIMESTAMP '2023-10... |               ^
-- ERROR testMultiLevelMilestoning [graphFetch/tests]: Binder Error: Table "t0" does not have a column named "prodFk" |  | Candidate bindings: : "prodid" |  | LINE 1: ...', t1.type))), '[]') AS result FROM ProductTable AS t1 WHERE t0.prodFk = t1.id))), '[]') AS result |                                                                         ^
+- ERROR testMultiLevelMilestoning [graphFetch/tests]: Binder Error: Referenced table "t1" not found! | Candidate tables: "t0" |  | LINE 1: ...', t1.type))), '[]') AS result FROM ProductTable AS t1 WHERE t1.from_z IS NOT NULL AND t1.from_z <= DATE '2015-10-16... |                                                                         ^
 - ERROR testMilestonedClassAtRootWithQualifierBD [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testMilestonedClassAtRootWithQualifierNormal [graphFetch/tests]: Binder Error: Table "t0" does not have a column named "from_z" |  | Candidate bindings: : "productId" |  | LINE 3: WHERE t0.from_z IS NOT NULL AND t0.from_z <= DATE '2015-10-16... |               ^
 - ERROR testMilestonedClassAtRootQualifierWithBD [graphFetch/tests]: derived graph leaf 'classificationExchangeName1' body node TypedPropertyAccess referencing $this is not inlinable yet
@@ -6983,7 +6984,6 @@ in-process Alloy-shaped path).
 - ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street): carrier column 'stc_meta__relational__graphFetch__tests__subType__Street___landmarkName' is not on the row (non-union subtype mapping) — not built yet
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: filter predicate references column 'businessDate', unresolvable even after isolation
 - ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: derived graph leaf 'classificationExchangeName1' body node TypedPropertyAccess referencing $this is not inlinable yet
-- FAIL testMilestoningWithMultiLevelUnionMapping [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].product(2015-08-20)[0].synonyms(2015-08-20) expected 2 element(s), got 4 | expected [{id=1, product(2015-08-20)=[{synonyms(2015-08-20)=[{synonym=GS-Mod-S1, type=STOCK}, {synonym=GS-Mod-S2, type=STOCK}], name=ProductName1}, {synonyms(2015-08-..., got [{id=1,
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=S
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
@@ -7247,7 +7247,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
