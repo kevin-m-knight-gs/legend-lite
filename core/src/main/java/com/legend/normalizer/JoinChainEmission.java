@@ -424,12 +424,11 @@ final class JoinChainEmission {
         }
         String tableName = mainTable != null && mainTable.contains(".")
                 ? mainTable.substring(mainTable.lastIndexOf('.') + 1) : mainTable;
-        boolean collides = model.findDatabase(mainDb)
-                .map(db -> db.tables().stream()
-                        .filter(t -> t.name().equalsIgnoreCase(tableName))
-                        .flatMap(t -> t.columns().stream())
-                        .anyMatch(c -> c.name().equalsIgnoreCase(propName)))
-                .orElse(false);
+        // include-aware: the main table may live in an INCLUDED database
+        // (classMappingFilterWithInnerJoin's milestongingDB includes the
+        // milestoning db that declares ProductTable.exchange)
+        boolean collides = tableHasColumn(model, mainDb, tableName, propName,
+                new java.util.LinkedHashSet<>());
         String alias = propName;
         if (collides) {
             alias = propName + "_nav";
@@ -439,6 +438,31 @@ final class JoinChainEmission {
         }
         p.navSlotByProp.put(propName, alias);
         return alias;
+    }
+
+    /** Whether {@code table} (in {@code dbFqn} or any INCLUDED database)
+     * declares a column named {@code col} — the slot-alias collision test. */
+    private static boolean tableHasColumn(ModelBuilder model, String dbFqn,
+            String table, String col, java.util.Set<String> seen) {
+        if (dbFqn == null || !seen.add(dbFqn)) {
+            return false;
+        }
+        var db = model.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return false;
+        }
+        if (db.tables().stream()
+                .filter(t -> t.name().equalsIgnoreCase(table))
+                .flatMap(t -> t.columns().stream())
+                .anyMatch(c -> c.name().equalsIgnoreCase(col))) {
+            return true;
+        }
+        for (String inc : db.includes()) {
+            if (tableHasColumn(model, inc, table, col, seen)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static String uniqueSlotName(Pipeline p, List<String> path) {

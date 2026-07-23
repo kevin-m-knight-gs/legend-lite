@@ -140,19 +140,11 @@ public final class MappingNormalizer {
     // Entry point
     // ====================================================================
 
-    /**
-     * Desugar legacy mapping DSL (Phase E.1) into synthesized realizing
-     * functions, threading a pre-built resolution index.
-     *
-     * <p>{@code model} MUST be {@code ModelBuilder.from(parsed)} for the same
-     * {@code parsed}: it is the shared resolution view
-     * (findClass/findAssociation/findJoin/findFilter) and supplies the
-     * cross-baked mappings (findMapping picks up JsonModelConnection synthetic
-     * class mappings injected during {@code ModelBuilder.from}). The index is
-     * owned by the step-5 entry {@link ModelNormalizer} (or a test), never
-     * self-built here, so this phase is a pure function of {@code (parsed, model)}
-     * and every caller — prod and test — exercises this single code path.
-     */
+    /** Desugar legacy mapping DSL (E.1) into synthesized realizing
+     * functions. {@code model} MUST be {@code ModelBuilder.from(parsed)}
+     * for the SAME parsed (shared resolution view incl. cross-baked
+     * mappings); the index is owned by {@link ModelNormalizer}/tests —
+     * this phase is a pure function of {@code (parsed, model)}. */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model) {
         return normalize(parsed, model, null);
     }
@@ -212,14 +204,6 @@ public final class MappingNormalizer {
         return new NormalizedModel(out, parsed.imports());
     }
 
-    /**
-     * Rewrite one legacy mapping surface into the canonical
-     * {@link MappingDefinition} binding table, lifting each class/association
-     * transform into an ordinary top-level {@link FunctionDefinition}
-     * (appended to {@code lifted}). Each binding references its realizing
-     * function by the function's own FQN — the same string the lift produced,
-     * so binding and function agree by construction (no regeneration).
-     */
     /**
      * Attach the ELEMENT FQN to any {@link com.legend.error.ModelException}
      * escaping {@code work} — ONE wrap covers every throw inside a mapping's
@@ -2558,6 +2542,20 @@ public final class MappingNormalizer {
             return new AppliedFunction("typeAsDeclared", List.of(read,
                     new TypeAnnotation.Named(
                             new TypeExpression.NameRef(declared))));
+        }
+        // a NUMERIC property over a VARCHAR column parses by EMISSION —
+        // the engine's H2 reader converts numeric strings at read
+        // (multigrain ACCOUNT_NUM); DuckDB needs the explicit parse
+        if (numeric.contains(declared) && "String".equals(colKind)) {
+            String parseFn = switch (declared) {
+                case "Integer" -> "parseInteger";
+                case "Float", "Number" -> "parseFloat";
+                case "Decimal" -> "parseDecimal";
+                default -> null;
+            };
+            if (parseFn != null) {
+                return new AppliedFunction(parseFn, List.of(read));
+            }
         }
         return read;
     }
