@@ -338,6 +338,9 @@ public final class TestBody {
                     && af.parameters().get(0) instanceof CString name) {
                 ValueSpecification rhs =
                         substitute(af.parameters().get(1), lets);
+                // literal-if over zero-param thunks folds at bind time —
+                // the helper pattern let q = if(\$checked, |{|...}, |{|...})
+                rhs = foldLiteralIf(rhs);
                 // an execute() binding — or any read over one — forwards to
                 // the PLATFORM's result frame (audit 19d B2). Forwarding is
                 // EAGER (audit 16 F1, engine parity): the statement executor
@@ -447,6 +450,23 @@ public final class TestBody {
                     + stmt.getClass().getSimpleName());
         }
         return new Outcome.Ran(verified, advisory, executed, List.of());
+    }
+
+    /** Fold {@code if(<literal>, |a, |b)} (zero-param thunks, one body
+     * expression each) to the chosen branch — the checked/unchecked
+     * helper idiom resolves to a plain query lambda. */
+    private static ValueSpecification foldLiteralIf(ValueSpecification v) {
+        while (v instanceof AppliedFunction f && f.function().equals("if")
+                && f.parameters().size() == 3
+                && f.parameters().get(0)
+                        instanceof com.legend.model.spec.CBoolean b
+                && f.parameters().get(1) instanceof LambdaFunction t
+                && t.parameters().isEmpty() && t.body().size() == 1
+                && f.parameters().get(2) instanceof LambdaFunction e
+                && e.parameters().isEmpty() && e.body().size() == 1) {
+            v = b.value() ? t.body().get(0) : e.body().get(0);
+        }
+        return v;
     }
 
     /** Strip JSON canonicalization wrappers (parseJSON / toPrettyJSONString)

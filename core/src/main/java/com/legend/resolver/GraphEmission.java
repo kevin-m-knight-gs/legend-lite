@@ -951,6 +951,30 @@ final class GraphEmission {
                 node.subTypeFqn(), patch, member, patchChildren);
     }
 
+    /** serialize(..., config): the all-false/absent AlloySerializationConfig
+     * is a NOP; any flag that would CHANGE the envelope walls loudly —
+     * never a silently-ignored config. */
+    static void validateSerializeConfig(TypedSpec cfg) {
+        if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
+                || !ni.classFqn().endsWith("AlloySerializationConfig")) {
+            throw new NotImplementedException("serialize config of shape "
+                    + cfg.getClass().getSimpleName() + " is not supported yet");
+        }
+        for (var e : ni.properties().entrySet()) {
+            if (e.getKey().equals("typeKeyName")) {
+                continue;   // only meaningful when includeType is true
+            }
+            TypedSpec v = e.getValue();
+            boolean nop = v instanceof com.legend.compiler.spec.typed
+                    .TypedCBoolean b && !b.value();
+            if (!nop) {
+                throw new NotImplementedException("serialize config flag '"
+                        + e.getKey() + "' is not supported yet (only the"
+                        + " all-false NOP config)");
+            }
+        }
+    }
+
     /** The serialized key: the tree alias when given, else the
      * property name. */
     private static String keyOf(TypedGraphTree node) {

@@ -406,13 +406,21 @@ class NativeFunctionTest {
         //     +AggregationAwareActivity (aggregationAware.pure:36).
         // 63: +Schema metaclass (platform_store_relational relational.pure;
         //     the schema()/table() metamodel navigation pair).
-        assertEquals(63, Pure.allNativeClasses().size(),
+        // 64: +AlloySerializationConfig (graphFetch.pure:89 — serialize's
+        //     config carrier; all-false = NOP, flags wall in the resolver).
+        assertEquals(64, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
     private static final java.util.Map<String, List<String>> RUNTIME_SURFACE_PROPERTIES =
             java.util.Map.of(
                     "meta::core::runtime::ConnectionStore", List.of("connection", "element"),
+                    "meta::pure::graphFetch::execution::AlloySerializationConfig",
+                    // real graphFetch.pure:89-111 (serialize config carrier)
+                    List.of("typeKeyName", "includeType", "includeEnumType",
+                            "dateTimeFormat", "removePropertiesWithNullValues",
+                            "removePropertiesWithEmptySets",
+                            "fullyQualifiedTypePath", "includeObjectReference"),
                     "meta::core::runtime::Runtime", List.of("connectionStores"),
                     "meta::external::store::relational::runtime::DatabaseConnection",
                     // real relationalRuntime.pure:26-48 (queryGenerationConfigs

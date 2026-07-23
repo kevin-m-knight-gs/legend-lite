@@ -2440,6 +2440,7 @@ public final class StoreResolver {
         Context chainContext = context;     // an in-chain from() re-scopes
         TypedSpec cur;
         if (top instanceof TypedSerialize sz) {
+            sz.config().ifPresent(GraphEmission::validateSerializeConfig);
             tree = sz.tree();
             cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
         } else if (top instanceof TypedProject t) {
