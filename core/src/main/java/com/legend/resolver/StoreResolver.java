@@ -2367,6 +2367,9 @@ public final class StoreResolver {
                             headKey, nav.predicate(), tPipe),
                     mat.slotPrefixes());
             assocJoins.add(aj);
+            // the identity's OWN join — outer-dated windows must bind to
+            // it, never fall back to the first identity's (twoDatesOneChain)
+            joinsByChain.put(headKey, aj);
             assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
                     target.rowVar(), target.bindings(), target.classFqn(),
                     Pipelines.slotAliases(target.pipeline()),

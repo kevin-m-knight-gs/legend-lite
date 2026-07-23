@@ -386,12 +386,11 @@ final class TemporalFrame {
                 continue;
             }
             // SYNTHETIC identities (product#d0, the lifted-head suffix) key
-            // the SPEC; joins and bindings speak the REAL property.
+            // the SPEC and their OWN join; bindings speak the REAL
+            // property. NEVER fall back to another identity's join — the
+            // window would bind to the wrong-dated frame (twoDatesOneChain).
             String real = SyntheticHeads.realHead(head);
             AssociationJoins.AssocJoin aj = joinsByChain.get(head);
-            if (aj == null) {
-                aj = joinsByChain.get(real);
-            }
             String hopClass = aj != null ? aj.target().classFqn()
                     : hopNavClass(real, cs);
             String hopPfx = aj != null ? aj.prefix()

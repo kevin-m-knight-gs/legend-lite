@@ -149,4 +149,20 @@ class ResolveOuterDatedNavTest {
         // means the detail nav materialized twice (the [STOCK, STOCK] bug).
         assertEquals(List.of("1|STOCK", "2|EQUITY"), exec(sql + " ORDER BY 1"), sql);
     }
+
+    @Test
+    @DisplayName("two dates on one chain: filter($o.orderDate) + project($o.orderDetails.settlementDate)")
+    void twoDatesOneChain() throws SQLException {
+        // Engine golden testBusinessDateMilestoning:577 — the corpus
+        // WithProject shape: first identity windowed in its join ON,
+        // second identity (product#d0) reads through ITS OWN dated
+        // materialization. Order 1 is the only STOCK-at-orderDate order;
+        // its detail-dated read is also STOCK.
+        String sql = sqlOf("n::Order.all()"
+                + "->filter(o|$o.product($o.orderDate->toOne()).kind == 'STOCK')"
+                + "->project([o|$o.product("
+                + "$o.orderDetails.settlementDate->toOne()).kind],"
+                + " ['kind'])->from(n::M, n::RT)");
+        assertEquals(List.of("STOCK"), exec(sql), sql);
+    }
 }
