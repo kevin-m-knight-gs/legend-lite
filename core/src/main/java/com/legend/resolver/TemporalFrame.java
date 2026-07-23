@@ -70,6 +70,38 @@ final class TemporalFrame {
         return new TemporalFrame(ctx, sources, root, byChain);
     }
 
+    /** The NESTED frame for an inner scope hanging off a DATED hop
+     * (exists/filter cursor over {@code product(%d)}): the hop's date
+     * becomes the nested ROOT context (the engine's one-context-per-
+     * cursor rule — propagation to inner temporal targets flows from
+     * it), and specs under the hop's chain prefix re-key LOCALLY
+     * ({@code product.classification -> classification}) so the inner
+     * scope's own lookups see them. Null when the hop has no usable
+     * single-date spec — the caller keeps the outer frame. */
+    TemporalFrame nestedFrame(String hopClassFqn, String chainPrefix) {
+        TemporalSpec hopSpec = specs.get(chainPrefix);
+        String strat = temporalStrategy(hopClassFqn);
+        if (hopSpec == null || hopSpec.sweep()
+                || hopSpec.dates().size() != 1 || strat == null) {
+            return null;
+        }
+        TemporalFrame nf = new TemporalFrame(ctx, sources,
+                TemporalContext.single(strat, hopSpec.dates().get(0)),
+                Map.of());
+        Map<String, TemporalSpec> local = new java.util.LinkedHashMap<>();
+        for (var e : specs.entrySet()) {
+            if (e.getKey().startsWith(chainPrefix + ".")) {
+                // a generated-date read ($this.businessDate inside the
+                // hop's qualifier) NORMALIZES against the NESTED root —
+                // it means 'this cursor's date', which is now the hop's
+                local.put(e.getKey().substring(chainPrefix.length() + 1),
+                        new TemporalSpec(nf.normalizeContextDates(
+                                e.getValue().dates()), e.getValue().sweep()));
+            }
+        }
+        return nf.withSpecs(local);
+    }
+
     TemporalContext root() {
         return root;
     }
@@ -886,19 +918,25 @@ final class TemporalFrame {
 
     void collectTemporalNodes(TypedSpec n, String userVar,
             Map<String, TemporalSpec> out) {
+        collectTemporalNodes(n, userVar, out, "");
+    }
+
+    private void collectTemporalNodes(TypedSpec n, String userVar,
+            Map<String, TemporalSpec> out, String prefix) {
         if (n instanceof TypedMilestonedAccess ma) {
             // specs key by the FULL CHAIN prefix (engine: one milestoning
             // context per cursor, an explicit property-function date builds
             // a NEW context for ITS hop — MIL:846-868). A 1-hop access keys
-            // by the bare property (chain of one). Non-var-rooted accesses
-            // (inner lambdas) stay loud.
+            // by the bare property (chain of one). An INNER collection
+            // lambda's accesses key under the COMPOSED chain (the arm
+            // below); a root the walk cannot tie stays loud.
             List<String> maPath = Substitution.pathOf(ma, userVar);
             if (maPath == null) {
                 throw new NotImplementedException("milestoned property access '"
                         + ma.property() + "' on a NESTED navigation is not"
                         + " supported yet");
             }
-            String chainKey = String.join(".", maPath);
+            String chainKey = prefix + String.join(".", maPath);
             TemporalSpec spec = new TemporalSpec(
                     normalizeContextDates(ma.dates()), ma.sweep());
             TemporalSpec prior = out.putIfAbsent(chainKey, spec);
@@ -908,11 +946,64 @@ final class TemporalFrame {
                         + " is not supported yet");
             }
         }
+        // INNER COLLECTION LAMBDA over a navigation (exists($f.employees,
+        // e|$e.classification(%d)...) / ->filter / ->map): the lambda's
+        // own dated accesses belong to the INNER cursor — key them under
+        // the composed chain (employees.classification), exactly the
+        // spelling the sub-materialization's spec lookups consume.
+        if (n instanceof TypedNativeCall nc && !nc.args().isEmpty()) {
+            List<String> hp = Substitution.pathOf(nc.args().get(0), userVar);
+            if (hp != null && nc.args().size() > 1) {
+                boolean tied = false;
+                for (int i = 1; i < nc.args().size(); i++) {
+                    if (nc.args().get(i) instanceof TypedLambda il
+                            && il.parameters().size() == 1) {
+                        for (TypedSpec bb : il.body()) {
+                            collectTemporalNodes(bb, il.parameters().get(0),
+                                    out, prefix
+                                            + String.join(".", hp) + ".");
+                        }
+                        tied = true;
+                    }
+                }
+                if (tied) {
+                    collectTemporalNodes(nc.args().get(0), userVar, out,
+                            prefix);
+                    return;
+                }
+            }
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedFilter tf
+                && tf.predicate().parameters().size() == 1) {
+            List<String> fp = Substitution.pathOf(tf.source(), userVar);
+            if (fp != null) {
+                for (TypedSpec bb : tf.predicate().body()) {
+                    collectTemporalNodes(bb, tf.predicate().parameters().get(0),
+                            out, prefix + String.join(".", fp) + ".");
+                }
+                collectTemporalNodes(tf.source(), userVar, out, prefix);
+                return;
+            }
+        }
+        // qualifier AUTO-MAP spelling (map($o.product(...), v_qam|$v_qam
+        // .classification(...))) — same cursor composition as filter
+        if (n instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && tm.mapper().parameters().size() == 1) {
+            List<String> mp = Substitution.pathOf(tm.source(), userVar);
+            if (mp != null) {
+                for (TypedSpec bb : tm.mapper().body()) {
+                    collectTemporalNodes(bb, tm.mapper().parameters().get(0),
+                            out, prefix + String.join(".", mp) + ".");
+                }
+                collectTemporalNodes(tm.source(), userVar, out, prefix);
+                return;
+            }
+        }
         if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
             return;
         }
         for (TypedSpec c : n.children()) {
-            collectTemporalNodes(c, userVar, out);
+            collectTemporalNodes(c, userVar, out, prefix);
         }
     }
 

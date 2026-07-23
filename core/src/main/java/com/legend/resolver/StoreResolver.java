@@ -1991,8 +1991,7 @@ public final class StoreResolver {
             }
             if (cs.bindings().containsKey(SyntheticHeads.realHead(head))) {
                 // A NAVIGATE-SLOT head (class-typed Join PM): the nav step
-                // carries the target extent + oriented (s, t) predicate —
-                // the same correlated-EXISTS material as an association end.
+                // carries the target extent + oriented (s, t) predicate.
                 var nav = Pipelines.navSteps(cs.pipeline()).get(SyntheticHeads.realHead(head));
                 if (nav == null || !(nav.target()
                         instanceof TypedGetAll tg)
@@ -2192,10 +2191,9 @@ public final class StoreResolver {
             Map<String, AssociationJoins.AssocJoin> joinsByChain,
             Map<String, Set<String>> leavesByChain) {}
 
-    /** PHASE — association demand (paths whose head is NOT a binding):
-     * one LEFT join per hop chained by path prefix, plus the SECOND
-     * head identities on shared physical slots (2a-x: per-use extra
-     * joins from the same nav material). */
+    /** PHASE — association demand (heads that are NOT bindings): one
+     * LEFT join per hop chained by prefix, plus SECOND head identities
+     * on shared physical slots (2a-x). */
     private AssocPlan registerAssociationJoins(ClassSource cs,
             Set<List<String>> paths, Context context,
             Map<String, TypedNavigate> navSteps,
@@ -2206,8 +2204,8 @@ public final class StoreResolver {
             Map<String, List<List<String>>> navTailsByAlias) {
         List<AssociationJoins.AssocJoin> assocJoins = new ArrayList<>();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = new LinkedHashMap<>();
-        // Per chain-prefix leaf demand: for [firm, country], hop 'firm'
-        // must materialize firm's OWN slots feeding 'country'.
+        // Per chain-prefix leaf demand: hop 'firm' materializes its OWN
+        // slots feeding 'country'.
         Map<String, Set<String>> leavesByChain = new LinkedHashMap<>();
         for (List<String> path : paths) {
             for (int i = 0; i + 1 < path.size(); i++) {
@@ -2222,19 +2220,16 @@ public final class StoreResolver {
             }
             String head = path.get(0);
             // EVERY to-many crossing joins with ROW EXPLOSION — filter
-            // position included (engine testInNegated golden: a bare LEFT
-            // JOIN whose surviving rows DUPLICATE the parent value; the
-            // distinct-subselect semi-join is reserved for EXPLICIT
-            // exists/isEmpty calls, whose paths are 1-hop and never reach
-            // this loop). AUDIT 9: the previous filter-only EXISTS diversion
-            // was set-correct but cardinality-wrong.
+            // position included (engine testInNegated golden: bare LEFT
+            // JOIN, surviving rows duplicate the parent; distinct-
+            // subselect semi-join reserved for EXPLICIT exists/isEmpty).
+            // AUDIT 9: filter-only EXISTS was cardinality-wrong.
             ClassSource parent = cs;
             String parentPrefix = "";
-            // $p.assoc.milestoning.from: the struct is a COLUMN read on the
-            // assoc target, not a further hop. Audit 23 B3: the GENERATED
-            // struct exists only on a TEMPORAL hop class with no DECLARED
-            // property of that name (declared wins — audit 10); a user
-            // property literally named 'milestoning' keeps its hop.
+            // $p.assoc.milestoning.from: the struct is a COLUMN read on
+            // the assoc target, not a further hop. Audit 23 B3: the
+            // GENERATED struct exists only on a TEMPORAL hop class with
+            // no DECLARED property of that name (declared wins).
             int effectiveSize = path.size();
             if (path.size() >= 2
                     && path.get(path.size() - 2).equals("milestoning")) {
@@ -2256,13 +2251,10 @@ public final class StoreResolver {
                 }
                 if (hop > 0 && synthetics.hasPred(path.get(hop))
                         && synthetics.correlatedPred(path.get(hop)) != null) {
-                    // a CORRELATED pred on a chained MID hop: the
-                    // parent-copy reroute serves only hop-0 heads so far —
-                    // loud until the chained variant is built. CLOSED
-                    // preds fall through: associationJoin parks them on
-                    // the hop's target pipeline (engine golden
-                    // testQualifierInLambdaDeep — the filtered subselect
-                    // joins the chain).
+                    // CORRELATED pred on a chained MID hop: parent-copy
+                    // reroute serves hop-0 only — loud until the chained
+                    // variant. CLOSED preds fall through (associationJoin
+                    // parks them on the hop's target pipeline).
                     throw new com.legend.error.NotImplementedException(
                             "correlated filtered navigation as a chained"
                             + " association hop ('"
@@ -3094,9 +3086,8 @@ public final class StoreResolver {
             this(node, leaf, mapper, null, true);
         }
 
-        /** Target-side property heads this demand reads (leaf name, or
-         * the computed mapper's / order key's own-param path heads) —
-         * feeds the target's slot demand. */
+        /** Target-side property heads this demand reads — feeds the
+         * target's slot demand. */
         List<String> demandLeaves() {
             List<String> out = new ArrayList<>();
             if (leaf != null) {
@@ -3292,9 +3283,8 @@ public final class StoreResolver {
                        Type.RelationType row) {
     }
 
-    private NestedScope nestedScope(ClassSource t,
-            List<TypedSpec> ops, String head, Context context,
-            TypedSpec targetPipe) {
+    private NestedScope nestedScope(ClassSource t, List<TypedSpec> ops,
+            String head, Context context, TypedSpec targetPipe) {
         return nestedScope(t, ops, List.of(head), context, targetPipe);
     }
 
@@ -3318,9 +3308,8 @@ public final class StoreResolver {
             Set<String> heads = new LinkedHashSet<>();
             collectParamPathHeads(lam, lam.parameters().get(0), heads);
             heads.forEach(h -> innerPaths.add(List.of(h)));
-            // FULL paths feed depth-2+ leaf/nav demand below (heads-only
-            // collection lost the tails — the multi-hop exists family:
-            // $e.locations.placeOfInterest.name, task #70/#78)
+            // FULL paths feed depth-2+ leaf/nav demand (heads-only lost
+            // the tails — multi-hop exists family, #70/#78)
             for (TypedSpec b : lam.body()) {
                 consumedPaths(b, lam.parameters().get(0), innerFullPaths);
             }
@@ -3329,12 +3318,20 @@ public final class StoreResolver {
         if (innerPaths.isEmpty()) {
             return new NestedScope(none, targetPipe, row);
         }
+        // DATED-HOP cursor: nested registrations run under the hop's
+        // own frame (root = hop date, specs re-keyed locally)
+        TemporalFrame outerT = temporal;
+        TemporalFrame nf = temporal.nestedFrame(t.classFqn(),
+                String.join(".", pathKey));
+        if (nf != null) {
+            temporal = nf;
+        }
+        try {
         // nested EXISTS materials (emptiness consumption)
         Map<String, Substitution.ExistsSub> nested =
                 registerExistsSubs(t, innerPaths, Set.of(), innerOps, context, Map.of());
-        // nested ASSOC materials (leaf reads) + deep chain keys — the
-        // material construction lives with the other correlated-scope
-        // machinery (guardrail extraction)
+        // nested ASSOC materials (leaf reads) + deep chain keys — built
+        // with the correlated-scope machinery (guardrail extraction)
         CorrelatedSubselects.NestedMaterials nm = corrSubs
                 .nestedAssocMaterials(temporal, context, t, targetPipe,
                         innerPaths, innerFullPaths,
@@ -3349,11 +3346,13 @@ public final class StoreResolver {
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
                         Map.of(), isNotEmptyCallee(), equalCallee()),
                 pipe, (Type.RelationType) pipe.info().type());
+        } finally {
+            temporal = outerT;
+        }
     }
 
-    /** Multi-hop paths consumed DIRECTLY under an emptiness-family call
-     * ({@code isEmpty}/{@code isNotEmpty}/{@code exists} first arg) —
-     * the class-typed-leaf EXISTS registration keys off these. */
+    /** Multi-hop paths consumed DIRECTLY under an emptiness-family
+     * call — the class-typed-leaf EXISTS registration keys off these. */
     private static void collectEmptinessChainPaths(TypedSpec n, String userVar,
             Set<List<String>> out) {
         if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
