@@ -859,9 +859,14 @@ final class GraphEmission {
                 && hma.source() instanceof TypedVariable hv2
                 && hv2.name().equals(thisVar)) {
             // a DATED head registers its dates as the head's temporal spec
-            // (the same channel query-position property functions use)
+            // (the same channel query-position property functions use).
+            // Generated-date reads ($this.businessDate from the inlined
+            // qualifier) NORMALIZE against the fetch's root context — the
+            // literal date the local subquery can actually spell (the
+            // cycle-71 nested-cursor rule; a dateless root keeps the raw
+            // read and its honest lowering wall).
             headProp = hma.property();
-            hopDates = hma.dates();
+            hopDates = temporal.normalizeContextDates(hma.dates());
             hopSweep = hma.sweep();
         } else {
             return null;
