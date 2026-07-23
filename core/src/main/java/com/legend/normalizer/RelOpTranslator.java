@@ -384,32 +384,16 @@ final class RelOpTranslator {
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull, pipeline))),
                             new CInteger(1)));
-            // dyna 'substring' is SQL SUBSTRING — 1-BASED start (H2 clamps
-            // start < 1 to 1: the corpus passes literal 0); pure's
-            // substring is 0-based. Conform by emission for BOTH arities:
-            // start' = max(start - 1, 0).
+            // dyna 'substring' is SQL SUBSTRING (1-based start, LENGTH
+            // third arg) and the RELATIONAL substring rule is now a
+            // VERBATIM passthrough with the H2 sub-1-start clamp — args
+            // forward unchanged (the old pure-semantics pre-shift paired
+            // with the lowering's re-shift; both sides dropped together).
             case RelationalOperation.FunctionCall call
                     when call.name().equals("substring")
-                    && (call.args().size() == 2 || call.args().size() == 3) -> {
-                List<ValueSpecification> args = translateArgs(call, tableScope,
-                        targetVarOrNull, rowBindOrNull, pipeline);
-                List<ValueSpecification> out = new java.util.ArrayList<>(args.size());
-                out.add(args.get(0));
-                ValueSpecification start0 = new AppliedFunction("max", List.of(
-                        new AppliedFunction("minus",
-                                List.of(args.get(1), new CInteger(1))),
-                        new CInteger(0)));
-                out.add(start0);
-                if (args.size() == 3) {
-                    // the dyna's third argument is an SQL LENGTH; pure's is
-                    // the EXCLUSIVE END index — end = start' + length
-                    // (audit 17: forwarding the length verbatim was wrong
-                    // for any start > 1)
-                    out.add(new AppliedFunction("plus",
-                            List.of(start0, args.get(2))));
-                }
-                yield new AppliedFunction("substring", out);
-            }
+                    && (call.args().size() == 2 || call.args().size() == 3) ->
+                new AppliedFunction("substring", translateArgs(call,
+                        tableScope, targetVarOrNull, rowBindOrNull, pipeline));
             // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
             // plus/minus; the bare names would hit pure's COLLECTION
             // add(T[*],T[1]) and type [*]

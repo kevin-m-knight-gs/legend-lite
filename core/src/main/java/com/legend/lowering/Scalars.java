@@ -1146,20 +1146,20 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(-1))));
         }
-        // 0-based Pure -> 1-based SQL shifts (the semantics contract).
-        // The 3-arg form's third argument is the EXCLUSIVE END index (real
-        // pure = Java substring), not SQL's length: length = end - start.
+        // RELATIONAL substring = VERBATIM SQL substring(start, length)
+        // passthrough (engine golden testFilterUsingParseIntegerFunction
+        // passes args unshifted; diverges from platform pure's 0-based).
         for (String f : Pure.nativeKeysAt("substring")) {
             RULES.put(f, (n, args) -> {
-                List<SqlExpr> shifted = new ArrayList<>(args);
-                shifted.set(1, plusOne(args.get(1)));
-                if (args.size() == 3) {
-                    shifted.set(2, args.get(2) instanceof SqlExpr.IntLit end
-                            && args.get(1) instanceof SqlExpr.IntLit start
-                            ? new SqlExpr.IntLit(end.value() - start.value())
-                            : SqlExpr.Call.of(SqlFn.MINUS, args.get(2), args.get(1)));
-                }
-                return new SqlExpr.Call(SqlFn.SUBSTRING, shifted);
+                // H2 CLAMPS a sub-1 start (length unchanged); DuckDB
+                // counts empty positions into the window — clamp to H2
+                List<SqlExpr> a2 = new ArrayList<>(args);
+                SqlExpr st = args.get(1);
+                a2.set(1, st instanceof SqlExpr.IntLit il
+                        ? (il.value() < 1 ? new SqlExpr.IntLit(1) : st)
+                        : SqlExpr.Call.of(SqlFn.GREATEST, st,
+                                new SqlExpr.IntLit(1)));
+                return new SqlExpr.Call(SqlFn.SUBSTRING, a2);
             });
         }
         for (String f : Pure.nativeKeysAt("indexOf")) {
