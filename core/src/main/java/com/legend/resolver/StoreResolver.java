@@ -3050,8 +3050,8 @@ public final class StoreResolver {
         if (path != null) {
             out.add(path);
         }
-        InnerDemand.scanTdsContainsFns(n, userVar,
-                (b, pv) -> consumedPaths(b, pv, out));
+        InnerDemand.composeAutoMapPaths(n, userVar, out, StoreResolver::consumedPaths);
+        InnerDemand.scanTdsContainsFns(n, userVar, (b, pv) -> consumedPaths(b, pv, out));
         if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
             return;   // shadowing: the substitution stops here too (one funnel)
         }

@@ -203,6 +203,42 @@ final class InnerDemand {
         return inQueryReadsOver(roots, resolver);
     }
 
+    /** The path scanner's shape: (node, userVar, out-path-set). */
+    @FunctionalInterface
+    interface PathScan {
+        void scan(com.legend.compiler.spec.typed.TypedSpec n, String userVar,
+                java.util.Set<java.util.List<String>> out);
+    }
+
+    /** AUTO-MAP with a MULTI-PATH body (map(chain, m|$m.first+' '+
+     * $m.last) — an inlined derived leaf over a navigation chain):
+     * pathOf flattens only single-path bodies, so compose the map
+     * SOURCE's path with each body leaf path — the demand the
+     * substitution's own walk consumes (one-funnel discipline, #78). */
+    static void composeAutoMapPaths(com.legend.compiler.spec.typed.TypedSpec n,
+            String userVar, java.util.Set<java.util.List<String>> out,
+            PathScan scanner) {
+        if (!(n instanceof com.legend.compiler.spec.typed.TypedMap am)
+                || am.mapper().parameters().size() != 1) {
+            return;
+        }
+        java.util.List<String> prefix =
+                Substitution.pathOf(am.source(), userVar);
+        if (prefix == null) {
+            return;
+        }
+        java.util.Set<java.util.List<String>> bodyPaths =
+                new java.util.LinkedHashSet<>();
+        for (com.legend.compiler.spec.typed.TypedSpec mb : am.mapper().body()) {
+            scanner.scan(mb, am.mapper().parameters().get(0), bodyPaths);
+        }
+        for (java.util.List<String> bp : bodyPaths) {
+            java.util.List<String> full = new java.util.ArrayList<>(prefix);
+            full.addAll(bp);
+            out.add(full);
+        }
+    }
+
     /** tdsContains fn lambdas bind the OUTER object: hand each lambda
      * body + its own param to the caller's scanner (the shadow stop in
      * both path walkers would otherwise drop them — task #78). */
