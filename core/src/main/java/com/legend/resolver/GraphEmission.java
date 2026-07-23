@@ -762,7 +762,8 @@ final class GraphEmission {
                 binds.put(cf.signature().parameters().get(i + 1).name(),
                         node.args().get(i));
             }
-            TypedSpec nav = navLeafSubquery(cs, cf.body().get(0), thisVar,
+            TypedSpec nav = navLeafSubquery(cs,
+                    substVars(cf.body().get(0), binds), thisVar,
                     context, rowVar, rowType);
             if (nav != null) {
                 return nav;
@@ -846,6 +847,8 @@ final class GraphEmission {
             hop = inner;
         }
         String headProp;
+        List<TypedSpec> hopDates = List.of();
+        boolean hopSweep = false;
         if (hop instanceof TypedPropertyAccess hpa
                 && hpa.source() instanceof TypedVariable hv
                 && hv.name().equals(thisVar)
@@ -854,10 +857,12 @@ final class GraphEmission {
         } else if (hop instanceof com.legend.compiler.spec.typed
                         .TypedMilestonedAccess hma
                 && hma.source() instanceof TypedVariable hv2
-                && hv2.name().equals(thisVar)
-                && hma.dates().isEmpty()) {
-            // dated bodies need their own spec threading — wall via inline
+                && hv2.name().equals(thisVar)) {
+            // a DATED head registers its dates as the head's temporal spec
+            // (the same channel query-position property functions use)
             headProp = hma.property();
+            hopDates = hma.dates();
+            hopSweep = hma.sweep();
         } else {
             return null;
         }
@@ -865,9 +870,12 @@ final class GraphEmission {
         TypedSpec targetPipeline;
         Type.RelationType targetRow;
         TypedLambda cond;
+        TemporalFrame tf = hopDates.isEmpty() && !hopSweep ? temporal
+                : temporal.withSpecs(Map.of(headProp,
+                        new TemporalFrame.TemporalSpec(hopDates, hopSweep)));
         AssociationJoins.AssocJoin aj = null;
         try {
-            aj = assocMaterial.associationJoin(temporal, cs, headProp,
+            aj = assocMaterial.associationJoin(tf, cs, headProp,
                     context, /*forExists*/ true);
         } catch (RuntimeException notAnAssoc) {
             aj = null;
@@ -882,6 +890,15 @@ final class GraphEmission {
             // carries the raw target and the predicate — navSlotChild's
             // route, scalar-shaped
             TypedSpec bindingRead = cs.bindings().get(headProp);
+            // conform-by-emission wrappers (toOne over the slot read) unwrap
+            while (bindingRead instanceof TypedNativeCall bw
+                    && bw.args().size() == 1
+                    && (bw.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                        || bw.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::first"))) {
+                bindingRead = bw.args().get(0);
+            }
             TypedNavigate nav = null;
             if (bindingRead instanceof TypedPropertyAccess bpa
                     && bpa.source() instanceof TypedVariable bvv
@@ -900,7 +917,8 @@ final class GraphEmission {
                     t -> dispatch.apply(context, t), key);
             Pipelines.Materialized cMat = Pipelines.materialize(
                     target.pipeline(), Set.of(), rawTarget);
-            targetPipeline = cMat.pipeline();
+            targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
+                    cMat.pipeline());
             targetRow = (Type.RelationType) targetPipeline.info().type();
             cond = nav.predicate();
         }
