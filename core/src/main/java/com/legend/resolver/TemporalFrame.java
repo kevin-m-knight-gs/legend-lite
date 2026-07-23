@@ -1371,18 +1371,33 @@ final class TemporalFrame {
      * navigation head ({@code product(%d)} / sweep / range spellings). */
     record TemporalSpec(List<TypedSpec> dates, boolean sweep) {}
 
-    /** Serialize-tree SWEEP nodes (productAllVersions{...}) register as
-     * dateless sweep specs — the hop serves the RAW extent, exactly like
-     * the query-position propAllVersions() spelling. */
+    /** Serialize-tree temporal specs: SWEEP nodes (productAllVersions{...})
+     * register as dateless sweeps — the hop serves the RAW extent, exactly
+     * like the query-position propAllVersions() spelling; DATE-ARG nodes
+     * ({@code product(%2015-08-20){...}}) register their dates as the
+     * hop's spec — the graph child's window (the engine serializes the
+     * date into the KEY and filters the child query by it; unfiltered
+     * children serialize every version row — the multi-level union
+     * duplication). Non-date args (qualifier calls like
+     * {@code nameWithTitle('Mr')}) never register. */
     void collectTreeSweeps(List<com.legend.compiler.spec.typed.TypedGraphTree> tree,
             Map<String, TemporalSpec> out) {
         for (com.legend.compiler.spec.typed.TypedGraphTree n : tree) {
             if (n.sweep()) {
                 out.putIfAbsent(n.property(),
                         new TemporalSpec(List.of(), true));
+            } else if (!n.args().isEmpty() && n.args().size() <= 2
+                    && n.args().stream().allMatch(TemporalFrame::isDateTyped)) {
+                out.putIfAbsent(n.property(),
+                        new TemporalSpec(normalizeContextDates(n.args()), false));
             }
             collectTreeSweeps(n.children(), out);
         }
+    }
+
+    private static boolean isDateTyped(com.legend.compiler.spec.typed.TypedSpec a) {
+        return a.info().type() instanceof Type.Primitive p
+                && p.family() == Type.Primitive.Family.TEMPORAL;
     }
 
     /**

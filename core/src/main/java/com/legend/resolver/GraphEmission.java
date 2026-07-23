@@ -545,13 +545,20 @@ final class GraphEmission {
         }
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), Set.of(), childClass);
+        // MILESTONED child: the tree node's date arg registered as the
+        // hop's temporal spec (collectTreeSweeps) — the child pipeline
+        // filters by its window here, exactly like the relational
+        // navigate's target (unfiltered children serialize every version
+        // row: the multi-level union 2->4 duplication)
+        TypedSpec childPipe = temporal.temporalTargetPipe(cs, child,
+                node.property(), cMat.pipeline());
         // GRAPH children pair STRICTLY per union member (the engine's
         // graph executor runs per-member serial child queries) — a merged
         // union navigate carries the paired variant for exactly this
         // consumer (TypedNavigate.pairedPredicate)
-        return correlatedGraphChild(child, cMat.pipeline(),
+        return correlatedGraphChild(child, childPipe,
                 (Type.RelationType)
-                        cMat.pipeline().info().type(),
+                        childPipe.info().type(),
                 nav.pairedPredicate().orElse(nav.predicate()),
                 toMany, node, parentRowVar, parentRowType, context);
     }

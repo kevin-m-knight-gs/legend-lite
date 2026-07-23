@@ -179,6 +179,119 @@ class ResolveGraphUnionProbeTest {
             Runtime g::RT4 { mappings: [g::M4]; }
             """;
 
+    private static final String MODEL_MATRIX = ("""
+            Class g::MOrder { oid: Integer[1]; }
+            Class g::MProduct { pname: String[1]; }
+            Association g::OP { order: g::MOrder[0..1]; product: g::MProduct[*]; }
+            Database g::DB5 (
+              Table OT1 (oid INTEGER PRIMARY KEY, pfk INTEGER)
+              Table OT2 (oid INTEGER PRIMARY KEY, pfk INTEGER)
+              Table PT1 (pid INTEGER PRIMARY KEY, pname VARCHAR)
+              Table PT2 (pid INTEGER PRIMARY KEY, pname VARCHAR)
+              Join O1_P1 (OT1.pfk = PT1.pid)
+              Join O1_P2 (OT1.pfk = PT2.pid)
+              Join O2_P1 (OT2.pfk = PT1.pid)
+              Join O2_P2 (OT2.pfk = PT2.pid)
+            )
+            Mapping g::M5 (
+              *g::MOrder : Operation { %s(o1, o2) }
+              *g::MProduct : Operation { %s(p1, p2) }
+              g::MOrder[o1] : Relational { ~mainTable [g::DB5] OT1
+                oid: OT1.oid,
+                product[p1]: [g::DB5] @O1_P1,
+                product[p2]: [g::DB5] @O1_P2 }
+              g::MOrder[o2] : Relational { ~mainTable [g::DB5] OT2
+                oid: OT2.oid,
+                product[p1]: [g::DB5] @O2_P1,
+                product[p2]: [g::DB5] @O2_P2 }
+              g::MProduct[p1] : Relational { ~mainTable [g::DB5] PT1
+                pname: PT1.pname }
+              g::MProduct[p2] : Relational { ~mainTable [g::DB5] PT2
+                pname: PT2.pname }
+            )
+            Runtime g::RT5 { mappings: [g::M5]; }
+            """).formatted(UNION_FQN, UNION_FQN);
+
+    private static final String MODEL_TEMPORAL = """
+            Class g::TOrder { oid: Integer[1]; }
+            Class <<temporal.businesstemporal>> g::TProduct { pname: String[1]; }
+            Association g::TOP { order: g::TOrder[0..1]; product: g::TProduct[*]; }
+            Database g::DB6 (
+              Table TOT (oid INTEGER PRIMARY KEY, pfk INTEGER)
+              Table TPT (
+                milestoning(business(BUS_FROM=from_z, BUS_THRU=thru_z))
+                pid INTEGER PRIMARY KEY, pname VARCHAR,
+                from_z DATE, thru_z DATE)
+              Join O_P (TOT.pfk = TPT.pid)
+            )
+            Mapping g::M6 (
+              g::TOrder[o] : Relational { ~mainTable [g::DB6] TOT
+                oid: TOT.oid,
+                product: [g::DB6] @O_P }
+              g::TProduct[p] : Relational { ~mainTable [g::DB6] TPT
+                pname: TPT.pname }
+            )
+            Runtime g::RT6 { mappings: [g::M6]; }
+            """;
+
+    @Test
+    @DisplayName("MILESTONED graph child: tree-arg date filters version rows")
+    void temporalGraphChild() throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE TOT (oid INTEGER, pfk INTEGER)");
+            st.execute("CREATE TABLE TPT (pid INTEGER, pname VARCHAR,"
+                    + " from_z DATE, thru_z DATE)");
+            st.execute("INSERT INTO TOT VALUES (1, 10)");
+            // TWO VERSIONS of product 10: only 'Current' is in-window at
+            // 2015-08-20 — an unfiltered child serializes BOTH (the
+            // corpus multi-level test's 2->4 duplication mechanism)
+            st.execute("INSERT INTO TPT VALUES"
+                    + " (10, 'Old', DATE '2014-01-01', DATE '2015-01-01'),"
+                    + " (10, 'Current', DATE '2015-01-01', DATE '9999-12-31')");
+        }
+        String query = "g::TOrder.all()"
+                + "->graphFetch(#{g::TOrder{oid, product(%2015-08-20){pname}}}#)"
+                + "->serialize(#{g::TOrder{oid, product(%2015-08-20){pname}}}#)"
+                + "->from(g::M6, g::RT6)";
+        ExecutionResult r = Compiler.execute(MODEL_TEMPORAL, query, "g::RT6", conn);
+        String json = r instanceof ExecutionResult.Graph g ? g.json()
+                : String.valueOf(r);
+        System.out.println("[graph-temporal] " + json);
+        assertEquals("[{\"oid\":1,\"product(2015-08-20)\":"
+                + "[{\"pname\":\"Current\"}]}]", json);
+    }
+
+    @Test
+    @DisplayName("FULL route matrix: a child reached via multiple routes serializes ONCE")
+    void fullMatrixNoDuplicates() throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE OT1 (oid INTEGER, pfk INTEGER)");
+            st.execute("CREATE TABLE OT2 (oid INTEGER, pfk INTEGER)");
+            st.execute("CREATE TABLE PT1 (pid INTEGER, pname VARCHAR)");
+            st.execute("CREATE TABLE PT2 (pid INTEGER, pname VARCHAR)");
+            // order 1 (member o1) pfk 10: product 10 exists in BOTH PT1 and
+            // PT2 — reached via BOTH of o1's routes; the engine's per-node
+            // identity dedup keeps... BOTH (different members = different
+            // identities); a SINGLE-member double-reach cannot happen with
+            // one route per (source, target) pair. Order 2 (o2) pfk 20:
+            // only PT2 carries it — exactly one match.
+            st.execute("INSERT INTO OT1 VALUES (1, 10)");
+            st.execute("INSERT INTO OT2 VALUES (2, 20)");
+            st.execute("INSERT INTO PT1 VALUES (10, 'A1')");
+            st.execute("INSERT INTO PT2 VALUES (10, 'A2'), (20, 'B2')");
+        }
+        String query = "g::MOrder.all()"
+                + "->graphFetch(#{g::MOrder{oid, product{pname}}}#)"
+                + "->serialize(#{g::MOrder{oid, product{pname}}}#)"
+                + "->from(g::M5, g::RT5)";
+        ExecutionResult r = Compiler.execute(MODEL_MATRIX, query, "g::RT5", conn);
+        String json = r instanceof ExecutionResult.Graph g ? g.json()
+                : String.valueOf(r);
+        System.out.println("[graph-matrix] " + json);
+        assertEquals("[{\"oid\":1,\"product\":[{\"pname\":\"A1\"},{\"pname\":\"A2\"}]},"
+                + "{\"oid\":2,\"product\":[{\"pname\":\"B2\"}]}]", json);
+    }
+
     @Test
     @DisplayName("graph tree with an EMBEDDED child (corpus embedded family shape)")
     void graphEmbeddedChild() throws SQLException {
