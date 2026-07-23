@@ -1755,6 +1755,21 @@ final class Scalars {
                 }
                 Type elem = n.args().get(0).info().type();
                 Type val = n.args().get(1).info().type();
+                // the TDSNull sentinel (^TDSNull() travels as the literal
+                // string 'TDSNull' on the wire) probes for a NULL cell —
+                // against a NON-string element list the string could never
+                // match anyway (today it dies as a cross-type comparison)
+                if (args.get(1) instanceof SqlExpr.StringLit snl
+                        && "TDSNull".equals(snl.value())
+                        && elem != Type.Primitive.STRING) {
+                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
+                            SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                    SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
+                                            new SqlExpr.Lambda(List.of("_nv"),
+                                                    SqlExpr.Call.of(SqlFn.IS_NULL,
+                                                            new SqlExpr.Column(null, "_nv"))))),
+                            new SqlExpr.IntLit(0)));
+                }
                 if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     // pure [0..1] overload body inlines HERE (engine

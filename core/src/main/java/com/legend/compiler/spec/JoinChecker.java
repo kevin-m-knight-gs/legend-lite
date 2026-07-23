@@ -204,13 +204,20 @@ final class JoinChecker {
      */
     private static TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
-        if (ps.size() != 4 || !(ps.get(2) instanceof EnumValue kind)
+        if ((ps.size() != 4 && ps.size() != 5)
+                || !(ps.get(2) instanceof EnumValue kind)
                 || !(kind.fullPath().equals("meta::relational::metamodel::join::JoinType")
                         || kind.fullPath().equals("JoinType"))) {
             return null;
         }
         List<String> keys = columnNames(ps.get(3));
         if (keys == null) {
+            return null;
+        }
+        // the EXPLICIT-pair spelling join(l, r, kind, ['id'], ['id']) with
+        // IDENTICAL lists is the shared-key join by another name — distinct
+        // names go to the modern desugar (no collision there)
+        if (ps.size() == 5 && !keys.equals(columnNames(ps.get(4)))) {
             return null;
         }
         // WHICH side's key values survive is join-type-dependent (engine
