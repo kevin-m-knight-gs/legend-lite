@@ -143,9 +143,23 @@ final class AssociationJoins {
                 CorrelatedSubselects.predFilteredPipe(p, t, tMat.slotPrefixes(),
                         tSubNavs, pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
-                (Type.RelationType)
-                        tPipe0.info().type(),
-                nav.predicate(), tMat.slotPrefixes(), tSubNavs);
+                (Type.RelationType) tPipe0.info().type(),
+                withOuterDatedWindow(temporal, cs, t, head, nav.predicate(),
+                        tPipe0),
+                tMat.slotPrefixes(), tSubNavs);
+    }
+
+    /** OUTER-ROW date ($o.product($o.orderDate)): the temporal window
+     * composes into the NAV/ASSOC CONDITION — both rows in scope (engine:
+     * window in the join ON against "root".orderDate; temporalTargetPipe
+     * left the pipe unstamped for such specs). Identity otherwise. */
+    private TypedLambda withOuterDatedWindow(TemporalFrame temporal,
+            ClassSource cs, ClassSource target, String head,
+            TypedLambda cond, TypedSpec targetPipe) {
+        String odc = temporal.outerDateColumn(head, cs);
+        return odc == null ? cond
+                : temporal.outerDatedJoinCond(cond, cs.pipeline(), targetPipe,
+                        target.classFqn(), odc);
     }
 
     /** A demanded association navigation, ready to emit as a prefixed LEFT
@@ -533,7 +547,8 @@ final class AssociationJoins {
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (Type.RelationType)
                         tPipe.info().type(),
-                oriented, tMat.slotPrefixes(), tailSubNavs, corrSub);
+                withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
+                tMat.slotPrefixes(), tailSubNavs, corrSub);
     }
 
     /** The correlation pass: two sequential substitutions over the lifted

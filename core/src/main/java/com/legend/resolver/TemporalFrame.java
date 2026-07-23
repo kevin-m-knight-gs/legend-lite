@@ -282,10 +282,22 @@ final class TemporalFrame {
                 ? pb.property() : null;
     }
 
+    /** The chain-spec date's SOURCE-ROW physical column for {@code head},
+     * or null when the spec is absent / not an outer-row read — the
+     * callers' switch between pipe-stamping and join-composition. */
+    String outerDateColumn(String head, ClassSource parent) {
+        return outerColumnDate(specs.get(head), parent);
+    }
+
     /** The join condition AND'd with the target's temporal window read
      * against the SOURCE row's date column (the outer-dated channel).
      * Plain single-date business/processing only — snapshot and
      * bi-temporal outer dates keep their walls. */
+    TypedLambda outerDatedJoinCond(TypedLambda cond, TypedSpec left,
+            TypedSpec right, String navClass, String outerCol) {
+        return outerDatedCond(cond, left, right, navClass, outerCol);
+    }
+
     private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String navClass, String outerCol) {
         String strat = temporalStrategy(navClass);
@@ -1125,6 +1137,14 @@ final class TemporalFrame {
             if (spec.sweep()) {
                 return rangeMilestonedPipe(pipe, spec.dates().get(0),
                         spec.dates().get(1), target.classFqn());
+            }
+            if (outerColumnDate(spec, parent) != null) {
+                // OUTER-ROW date ($o.product($o.orderDate)): stamping the
+                // target pipe would read $o out of scope — the caller
+                // composes the window into the JOIN condition instead
+                // (outerDatedJoinCond; engine golden: window in the ON
+                // against "root".orderDate).
+                return pipe;
             }
             return milestonedPipe(pipe, spec.dates().get(0), target.classFqn());
         }
