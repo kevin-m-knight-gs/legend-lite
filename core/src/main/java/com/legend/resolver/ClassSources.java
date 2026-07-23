@@ -216,6 +216,8 @@ public final class ClassSources {
         // a plain same-row column read). Different-source, slot-reading,
         // or ctor-valued sub bindings stay un-synthesized (loud
         // downstream). Local bindings only — extends is same-mapping.
+        Map<String, com.legend.compiler.spec.typed.TypedNavigate>
+                stcNavTransplants = new LinkedHashMap<>();
         for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
             if (cb.classFqn().equals(classFqn)
                     || !ctx.isSubtype(cb.classFqn(), classFqn)) {
@@ -229,7 +231,9 @@ public final class ClassSources {
                 // source — casts to it stay loud at their own read
                 continue;
             }
-            if (!sameRootTable(sub.pipeline(), pipeline)) {
+            if (!sameRootTable(sub.pipeline(), pipeline)
+                    && !sameRootTableUnderSubstitution(mapping,
+                            sub.pipeline(), pipeline)) {
                 continue;
             }
             java.util.Set<String> subSlots =
@@ -237,12 +241,50 @@ public final class ClassSources {
             String pfx = com.legend.model.ClassMapping
                     .subTypeColumnPrefix(cb.classFqn());
             ExprType rowInfo = ExprType.one(rowType);
+            var subNavSteps = Pipelines.navSteps(sub.pipeline());
             for (Map.Entry<String, TypedSpec> be : sub.bindings().entrySet()) {
                 if (com.legend.model.ClassMapping.isSubTypeColumn(be.getKey())
                         || Pipelines.unwrapToOne(be.getValue())
-                                instanceof TypedNewInstance
-                        || Pipelines.referencesAliasOn(be.getValue(),
-                                sub.rowVar(), subSlots)) {
+                                instanceof TypedNewInstance) {
+                    continue;
+                }
+                // a CLASS-typed slot read (rating:@Product_Rating on the
+                // subclass): the cast hop navigates the SUB's slot — the
+                // step TRANSPLANTS into this pipeline under the stc alias
+                // (same root table, so its condition reads this row), and
+                // the pseudo-binding is an ordinary slot read the demand /
+                // SubNav machinery walks. Sibling-reading conditions stay
+                // un-synthesized (their aliases don't exist here — loud).
+                TypedSpec inner = Pipelines.unwrapToOne(be.getValue());
+                if (inner instanceof TypedPropertyAccess spa
+                        && spa.source() instanceof TypedVariable spv
+                        && spv.name().equals(sub.rowVar())
+                        && subNavSteps.containsKey(spa.property())
+                        && inner.info().type() instanceof Type.ClassType) {
+                    var st = subNavSteps.get(spa.property());
+                    java.util.Set<String> siblings =
+                            new java.util.LinkedHashSet<>(subSlots);
+                    siblings.remove(spa.property());
+                    boolean readsSibling = false;
+                    for (TypedSpec pb : st.predicate().body()) {
+                        for (String sp0 : st.predicate().parameters()) {
+                            if (Pipelines.referencesAliasOn(pb, sp0, siblings)) {
+                                readsSibling = true;
+                            }
+                        }
+                    }
+                    if (!readsSibling) {
+                        String stcAlias = pfx + be.getKey();
+                        stcNavTransplants.putIfAbsent(stcAlias, st);
+                        bindings.putIfAbsent(stcAlias, new TypedPropertyAccess(
+                                new TypedVariable(mapper.parameters().get(0),
+                                        rowInfo),
+                                stcAlias, inner.info()));
+                    }
+                    continue;
+                }
+                if (Pipelines.referencesAliasOn(be.getValue(),
+                        sub.rowVar(), subSlots)) {
                     continue;
                 }
                 bindings.putIfAbsent(pfx + be.getKey(),
@@ -251,6 +293,12 @@ public final class ClassSources {
                                 v -> new TypedVariable(
                                         mapper.parameters().get(0), rowInfo)));
             }
+        }
+        for (var tr : stcNavTransplants.entrySet()) {
+            var st = tr.getValue();
+            pipeline = new com.legend.compiler.spec.typed.TypedNavigate(
+                    pipeline, java.util.Optional.of(tr.getKey()), st.target(),
+                    st.predicate(), st.form(), pipeline.info());
         }
 
         // A ~func Relation pipeline may ITSELF be a class query
@@ -531,6 +579,42 @@ public final class ClassSources {
      * binding shadows included ones (checked first, include semantics).
      * Multi-set-ID within one mapping is a legal-but-unbuilt feature (H5).
      */
+    /** As {@link #sameRootTable}, but stores equated through the mapping's
+     * include-closure STORE SUBSTITUTIONS ({@code include m[db->MyDb]}):
+     * the included set's pipeline keeps the ORIGINAL store name while a
+     * local subclass extends it against the substituted one — same
+     * physical table, two spellings of the store. */
+    private boolean sameRootTableUnderSubstitution(MappingDefinition mapping,
+            TypedSpec a, TypedSpec b) {
+        var ra = rootTableOf(a);
+        var rb = rootTableOf(b);
+        if (ra == null || rb == null || !ra.table().equals(rb.table())) {
+            return false;
+        }
+        java.util.LinkedHashSet<String> visited = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<MappingDefinition> work = new java.util.ArrayDeque<>();
+        work.add(mapping);
+        while (!work.isEmpty()) {
+            MappingDefinition m = work.poll();
+            if (!visited.add(m.qualifiedName())) {
+                continue;
+            }
+            for (MappingInclude inc : m.includes()) {
+                for (MappingInclude.StoreSubstitution sub
+                        : inc.substitutions()) {
+                    if ((sub.originalStore().equals(ra.store())
+                                && sub.replacementStore().equals(rb.store()))
+                            || (sub.originalStore().equals(rb.store())
+                                && sub.replacementStore().equals(ra.store()))) {
+                        return true;
+                    }
+                }
+                ctx.findMapping(inc.mappingPath()).ifPresent(work::add);
+            }
+        }
+        return false;
+    }
+
     /** Both pipelines scan the SAME leftmost physical table. */
     private static boolean sameRootTable(TypedSpec a, TypedSpec b) {
         com.legend.compiler.spec.typed.TypedTableReference ra = rootTableOf(a);
