@@ -1547,6 +1547,25 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 }
                 return;   // the path is agg-consumed, not bare
             }
+            // DEEP leaf ($f.employees.address.name->count()): encode as
+            // the COMPUTED-MAPPER spelling (λe.$e.address.name) — the
+            // fold's mapper machinery substitutes it through the target's
+            // SubNav dispatch, and buildAggMaterials threads the mapper
+            // paths as the target's sub-slot demand. Shapes the rebuild
+            // can't peel (auto-map/milestoned spellings) stay loud below.
+            if (path != null && path.size() > 2
+                    && toManyHead.test(cs, path.get(0))) {
+                TypedLambda synth = tailMapperOf(nc.args().get(0), userVar);
+                if (synth != null) {
+                    aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
+                            .add(new StoreResolver.AggDemand(nc, null, synth));
+                    for (int i = 1; i < nc.args().size(); i++) {
+                        aggScan(nc.args().get(i), userVar, cs, aggOut,
+                                bareOut, toManyHead);
+                    }
+                    return;
+                }
+            }
             // LOUD FALLTHROUGH (audit 9): any other aggregate whose argument
             // crosses a to-many would bare-demand the path — the join
             // explodes and the scalar reducer's to-one identity silently
@@ -1598,6 +1617,60 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             aggScan(c, userVar, cs, aggOut, bareOut, toManyHead);
         }
     }
+
+    /** The per-element TAIL of a deep aggregated navigation, rebuilt as
+     * a mapper lambda over the head's element ($f.employees.address.name
+     * -> λ_agm.$_agm.address.name): peels pa/toOne wrappers down to the
+     * 1-hop head access, then re-roots them on a fresh [1]-stamped param.
+     * Null when a wrapper is not peelable (auto-map / milestoned
+     * spellings) — the caller's loud wall stands. */
+    private static TypedLambda tailMapperOf(TypedSpec arg, String userVar) {
+        ArrayDeque<Function<TypedSpec, TypedSpec>> shell = new ArrayDeque<>();
+        TypedSpec cur = arg;
+        while (true) {
+            List<String> p = Substitution.pathOf(cur, userVar);
+            if (p != null && p.size() == 1) {
+                break;
+            }
+            if (cur instanceof TypedNativeCall c && c.args().size() == 1
+                    && c.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")) {
+                final TypedNativeCall cc = c;
+                shell.push(x -> new TypedNativeCall(cc.callee(),
+                        List.of(x), cc.info()));
+                cur = c.args().get(0);
+                continue;
+            }
+            if (cur instanceof TypedPropertyAccess pa) {
+                final TypedPropertyAccess pp = pa;
+                shell.push(x -> new TypedPropertyAccess(x, pp.property(),
+                        pp.info()));
+                cur = pa.source();
+                continue;
+            }
+            return null;
+        }
+        if (!(cur.info().type() instanceof Type.ClassType)) {
+            return null;
+        }
+        String v = "_agm";
+        TypedSpec body = new TypedVariable(v, new ExprType(cur.info().type(),
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        Type paramType = cur.info().type();
+        while (!shell.isEmpty()) {
+            body = shell.pop().apply(body);
+        }
+        return new TypedLambda(List.of(v), List.of(body),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(paramType,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE)),
+                        new Type.Param(body.info().type(),
+                                body.info().multiplicity())),
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE));
+    }
+
 
     /** Any {@code $p.<toManyHead>.<...>} read anywhere under {@code n}. */
     static boolean containsToManyCrossing(TypedSpec n, String userVar,
