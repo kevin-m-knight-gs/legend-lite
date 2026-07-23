@@ -387,7 +387,8 @@ final class Pipelines {
             // the distinct tuple is the FULL materialized row. Column list
             // rebuilt from the widened row.
             case TypedDistinct d
-                    when containsSlot(d.source()) -> {
+                    when containsSlot(d.source())
+                            || !navSteps(d.source()).isEmpty() -> {
                 Set<String> prefixesBefore = new LinkedHashSet<>(prefixes.values());
                 TypedSpec src = walk(d.source(), scalarSlotAliases(d.source()),
                         demandedNavs, targets, prefixes, stripped, classFqn);
