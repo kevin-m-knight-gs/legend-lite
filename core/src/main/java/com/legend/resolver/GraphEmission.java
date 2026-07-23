@@ -661,7 +661,18 @@ final class GraphEmission {
                 new Type.ClassType(target.classFqn()),
                 toMany ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
                         : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
-        TypedSerializeGraph child = buildGraphNode(target, childRel, Map.of(),
+        // ONE CONTEXT PER CURSOR (engine getMilestoningContextFor
+        // QualifiedProperty): a DATED hop's spec becomes the CHILD scope's
+        // ROOT context — its leaves and filters substitute businessDate/
+        // processingDate against the HOP date, not the (possibly absent)
+        // outer root's ('filter predicate references businessDate' with a
+        // non-temporal root and a dated tree node).
+        TemporalFrame childFrame = temporal.nestedFrame(target.classFqn(),
+                node.property());
+        GraphEmission em = childFrame == null ? this
+                : new GraphEmission(ctx, sources, assocMaterial, childFrame,
+                        dispatch, freshVar);
+        TypedSerializeGraph child = em.buildGraphNode(target, childRel, Map.of(),
                 Pipelines.slotAliases(target.pipeline()), childVar,
                 node.children(), context, toMany, childInfo);
         return new TypedSerializeGraph.Child(keyOf(node), child);
