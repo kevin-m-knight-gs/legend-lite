@@ -800,20 +800,45 @@ public final class ModelBuilder {
             return Optional.empty();
         }
         int id = symbols.resolveId(dbFqn);
-        if (id == SymbolTable.UNRESOLVED) return Optional.empty();
-        Map<String, JoinDefinition> byName = joinsByDb.get(id);
-        JoinDefinition own = byName == null ? null : byName.get(joinName);
-        if (own != null) {
-            return Optional.of(own);
-        }
-        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
-        if (db != null) {
-            for (String inc : db.includes()) {
-                Optional<JoinDefinition> hit = findJoin(inc, joinName, seen);
-                if (hit.isPresent()) {
-                    return hit;
+        if (id != SymbolTable.UNRESOLVED) {
+            Map<String, JoinDefinition> byName = joinsByDb.get(id);
+            JoinDefinition own = byName == null ? null : byName.get(joinName);
+            if (own != null) {
+                return Optional.of(own);
+            }
+            DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+            if (db != null) {
+                for (String inc : db.includes()) {
+                    Optional<JoinDefinition> hit =
+                            findJoin(inc, joinName, seen);
+                    if (hit.isPresent()) {
+                        return hit;
+                    }
                 }
             }
+        }
+        // BARE store reference ([myDB]@join) with several same-named
+        // databases in the model: the engine resolves by the file's
+        // imports; our lenient equivalent picks the one db that DECLARES
+        // the join — ambiguity (declared in two) stays a miss, exactly
+        // the findDatabase unique-name discipline.
+        if (!dbFqn.contains("::")) {
+            JoinDefinition hit = null;
+            for (DatabaseDefinition db2 : databases) {
+                if (db2 == null
+                        || !db2.qualifiedName().endsWith("::" + dbFqn)) {
+                    continue;
+                }
+                Optional<JoinDefinition> h = findJoin(
+                        db2.qualifiedName(), joinName, seen);
+                if (h.isPresent()) {
+                    if (hit != null) {
+                        return Optional.empty();
+                    }
+                    hit = h.get();
+                }
+            }
+            return Optional.ofNullable(hit);
         }
         return Optional.empty();
     }
