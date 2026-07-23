@@ -969,9 +969,17 @@ final class UnionSynthesis {
     private static boolean isThreadProjectable(ValueSpecification v,
             String rowVar) {
         return switch (v) {
+            // one-hop ($row.col) or two-hop ($row.slot.col): an embedded
+            // sub bound THROUGH a join reads its emitted pipeline slot —
+            // the owning member's thread carries that join (the same
+            // two-hop-body shape chained-lift key columns project)
             case AppliedProperty ap -> ap.receiver()
                     instanceof com.legend.model.spec.Variable rv
-                    && rv.name().equals(rowVar);
+                    ? rv.name().equals(rowVar)
+                    : ap.receiver() instanceof AppliedProperty inner
+                            && inner.receiver()
+                                    instanceof com.legend.model.spec.Variable rv2
+                            && rv2.name().equals(rowVar);
             case AppliedFunction f -> f.parameters().stream()
                     .allMatch(x -> isThreadProjectable(x, rowVar));
             case com.legend.model.spec.Variable var2 -> false;
