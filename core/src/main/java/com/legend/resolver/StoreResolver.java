@@ -2280,9 +2280,11 @@ public final class StoreResolver {
                             aj, context, assocJoins, joinsByChain, assocs);
                 }
                 if (hop > 0 && containsConcatenate(aj.targetPipeline())) {
-                    // member-paired OR over NULL-crossed suffixed keys —
-                    // engine V-family; non-pairable keeps the loud wall
-                    aj = assocMaterial.pairChainedUnionHop(aj, parent, chainKey);
+                    // union target: paired condition | routed-lift fallback
+                    // | loud wall (engine V-family) — one arm, extracted
+                    aj = assocMaterial.chainedUnionHop(temporal, parent, aj,
+                            path.get(hop), chainKey, context,
+                            leavesByChain.getOrDefault(chainKey, Set.of()));
                 }
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the

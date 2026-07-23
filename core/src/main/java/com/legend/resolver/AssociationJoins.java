@@ -157,6 +157,30 @@ final class AssociationJoins {
      * absent (engine sqlQueryMerging/V-family goldens; off-member NULLs
      * make same-member pairing exact). Null when not applicable — the
      * caller keeps its wall. */
+    /** The chained-hop union arm: member-paired condition, else the
+     * parent's ROUTED LIFT when it carries the head as a nav slot
+     * (collectPairAssociationEntries put each per-pair route inside its
+     * member thread — V4), else the loud wall. */
+    AssocJoin chainedUnionHop(TemporalFrame temporal, ClassSource parent,
+            AssocJoin aj, String head, String chainKey,
+            StoreResolver.Context context, Set<String> leaves) {
+        TypedLambda paired = memberPairedCondition(aj.condition(),
+                (Type.RelationType) parent.pipeline().info().type(),
+                aj.targetRow());
+        if (paired != null) {
+            return aj.withCondition(paired);
+        }
+        TypedSpec pb = parent.bindings().get(SyntheticHeads.realHead(head));
+        if (pb != null && StoreResolver.navSlotAlias(pb, parent.rowVar(),
+                Pipelines.navSteps(parent.pipeline()).keySet()) != null) {
+            return aggJoinMaterial(temporal, parent, head, context, leaves,
+                    Set.of());
+        }
+        throw new NotImplementedException("chained association hop '"
+                + chainKey + "' navigates INTO a union-mapped class —"
+                + " per-member route dispatch is not built yet");
+    }
+
     /** The chained-hop union arm: paired condition or the loud wall. */
     AssocJoin pairChainedUnionHop(AssocJoin aj, ClassSource parent,
             String chainKey) {
