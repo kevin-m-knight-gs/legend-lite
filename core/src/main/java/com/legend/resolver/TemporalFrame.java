@@ -337,6 +337,27 @@ final class TemporalFrame {
                 ? c.args().get(0) : d;
     }
 
+    /** The TARGET class of a nav-slot head on the outer pipeline. */
+    private String hopNavClass(String head, ClassSource cs) {
+        TypedSpec b = cs.bindings().get(head);
+        var navSteps = Pipelines.navSteps(cs.pipeline());
+        String alias = b == null ? null
+                : StoreResolver.navSlotAlias(b, cs.rowVar(), navSteps.keySet());
+        return alias != null && navSteps.get(alias).target()
+                instanceof com.legend.compiler.spec.typed.TypedGetAll g
+                ? g.classFqn() : null;
+    }
+
+    /** The materialized prefix of a nav-slot head on the outer frame. */
+    private String prefixOf(String head, ClassSource cs,
+            Map<String, String> slotPrefixes) {
+        TypedSpec b = cs.bindings().get(head);
+        String alias = b == null ? null
+                : StoreResolver.navSlotAlias(b, cs.rowVar(),
+                        Pipelines.navSteps(cs.pipeline()).keySet());
+        return alias == null ? null : slotPrefixes.get(alias);
+    }
+
     /** Apply every head's form-2 window onto the JOINED outer frame:
      * {@code <hopPfx>from <= <navPfx>leaf AND <hopPfx>thru > <navPfx>leaf}
      * (inclusive flag flips per the table block). Identity when no head
@@ -356,17 +377,37 @@ final class TemporalFrame {
             Map<String, AssociationJoins.AssocJoin> joinsByChain,
             Map<String, String> slotPrefixes) {
         TypedSpec out = frame;
-        for (var e : joinsByChain.entrySet()) {
-            OuterNavDate odn = outerNavDate(e.getKey(), cs);
+        // Every spec'd head, whatever route materialized it (assoc join OR
+        // nav slot) — a route not covered here would SILENTLY drop the
+        // window, the one unshippable failure mode (loud below instead).
+        for (String head : specs.keySet()) {
+            OuterNavDate odn = outerNavDate(head, cs);
             if (odn == null) {
                 continue;
             }
-            var aj = e.getValue();
-            TypedTableReference rt = rootTable(aj.targetPipeline());
+            // SYNTHETIC identities (product#d0, the lifted-head suffix) key
+            // the SPEC; joins and bindings speak the REAL property.
+            String real = SyntheticHeads.realHead(head);
+            AssociationJoins.AssocJoin aj = joinsByChain.get(head);
+            if (aj == null) {
+                aj = joinsByChain.get(real);
+            }
+            String hopClass = aj != null ? aj.target().classFqn()
+                    : hopNavClass(real, cs);
+            String hopPfx = aj != null ? aj.prefix()
+                    : prefixOf(real, cs, slotPrefixes);
+            if (hopClass == null || hopPfx == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "outer-nav milestoning date: dated hop '" + head
+                        + "' has no materialized join on the outer frame");
+            }
+            TypedTableReference rt = rootTable(aj != null
+                    ? aj.targetPipeline()
+                    : sources.get(cs.mappingFqn(), hopClass).pipeline());
             var ms = rt == null ? null
                     : ctx.findTableMilestoning(rt.store(), rt.table())
                             .orElse(null);
-            String strat = temporalStrategy(aj.target().classFqn());
+            String strat = temporalStrategy(hopClass);
             String fromCol;
             String thruCol;
             boolean inclusive;
@@ -386,19 +427,15 @@ final class TemporalFrame {
                 throw new com.legend.error.NotImplementedException(
                         "outer-nav milestoning date over a "
                         + (strat == null ? "non-temporal" : strat)
-                        + " target ('" + aj.target().classFqn()
+                        + " target ('" + hopClass
                         + "') is not supported yet");
             }
             // read through the SAME materialization the demand produced:
             // an assoc-route join for the nav wins over the slot prefix —
-            // a second read-side join would fan the rows out (the
-            // [STOCK, STOCK] duplicate).
+            // a second read-side join would fan the rows out.
             AssociationJoins.AssocJoin navAj = joinsByChain.get(odn.navHead());
-            String navAlias = StoreResolver.navSlotAlias(
-                    cs.bindings().get(odn.navHead()), cs.rowVar(),
-                    Pipelines.navSteps(cs.pipeline()).keySet());
             String navPfx = navAj != null ? navAj.prefix()
-                    : navAlias == null ? null : slotPrefixes.get(navAlias);
+                    : prefixOf(odn.navHead(), cs, slotPrefixes);
             if (navPfx == null) {
                 throw new com.legend.error.NotImplementedException(
                         "outer-nav milestoning date: nav '" + odn.navHead()
@@ -424,20 +461,20 @@ final class TemporalFrame {
             TypedSpec win = inclusive
                     ? cmpCall("meta::pure::functions::boolean::and",
                             dateCmpCall("meta::pure::functions::boolean::lessThan",
-                                    read.apply(aj.prefix() + fromCol),
+                                    read.apply(hopPfx + fromCol),
                                     dateRead, boolT),
                             dateCmpCall("meta::pure::functions::boolean::"
                                     + "greaterThanEqual",
-                                    read.apply(aj.prefix() + thruCol),
+                                    read.apply(hopPfx + thruCol),
                                     dateRead, boolT), boolT)
                     : cmpCall("meta::pure::functions::boolean::and",
                             dateCmpCall("meta::pure::functions::boolean::"
                                     + "lessThanEqual",
-                                    read.apply(aj.prefix() + fromCol),
+                                    read.apply(hopPfx + fromCol),
                                     dateRead, boolT),
                             dateCmpCall("meta::pure::functions::boolean::"
                                     + "greaterThan",
-                                    read.apply(aj.prefix() + thruCol),
+                                    read.apply(hopPfx + thruCol),
                                     dateRead, boolT), boolT);
             TypedLambda pred = new TypedLambda(List.of(rv), List.of(win),
                     new ExprType(new Type.FunctionType(

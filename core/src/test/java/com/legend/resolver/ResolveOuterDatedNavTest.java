@@ -36,10 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ResolveOuterDatedNavTest {
 
     private static final String MODEL = """
-            Class n::Order { id: Integer[1]; orderDate: StrictDate[0..1]; product: n::Product[*]; }
+            Class n::Order { id: Integer[1]; orderDate: StrictDate[0..1]; product: n::Product[*]; orderDetails: n::Detail[*]; }
+            Class n::Detail { settlementDate: StrictDate[1]; }
             Class <<temporal.businesstemporal>> n::Product { name: String[1]; kind: String[1]; }
             Database n::DB (
               Table OrderT (ID INTEGER PRIMARY KEY, PID INTEGER, orderDate DATE)
+              Table DetailT (OID INTEGER PRIMARY KEY, settlementDate DATE)
+              Join OD (OrderT.ID = DetailT.OID)
               Table ProdT (
                 milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
                 ID INTEGER PRIMARY KEY, name VARCHAR(64), kind VARCHAR(16),
@@ -49,7 +52,10 @@ class ResolveOuterDatedNavTest {
             Mapping n::M (
               *n::Order : Relational { ~mainTable [n::DB] OrderT
                 id: OrderT.ID, orderDate: OrderT.orderDate,
-                product: [n::DB]@OP }
+                product: [n::DB]@OP,
+                orderDetails: [n::DB]@OD }
+              *n::Detail : Relational { ~mainTable [n::DB] DetailT
+                settlementDate: DetailT.settlementDate }
               *n::Product : Relational { ~mainTable [n::DB] ProdT
                 name: ProdT.name, kind: ProdT.kind }
             )
@@ -65,6 +71,9 @@ class ResolveOuterDatedNavTest {
             st.execute("CREATE TABLE OrderT (ID INTEGER, PID INTEGER, orderDate DATE)");
             st.execute("INSERT INTO OrderT VALUES (1, 10, DATE '2015-03-01'),"
                     + " (2, 10, DATE '2015-08-01')");
+            st.execute("CREATE TABLE DetailT (OID INTEGER, settlementDate DATE)");
+            st.execute("INSERT INTO DetailT VALUES (1, DATE '2015-03-01'),"
+                    + " (2, DATE '2015-08-01')");
             st.execute("CREATE TABLE ProdT (ID INTEGER, name VARCHAR,"
                     + " kind VARCHAR, from_z DATE, thru_z DATE)");
             // one product, two versions: STOCK until 2015-07-01, then EQUITY
@@ -126,6 +135,18 @@ class ResolveOuterDatedNavTest {
                 + " ['id','kind'])->from(n::M, n::RT)");
         // to-many auto-map: one row per (order, in-window version) — each
         // order has exactly one version in-window at its own date.
+        assertEquals(List.of("1|STOCK", "2|EQUITY"), exec(sql + " ORDER BY 1"), sql);
+    }
+
+    @Test
+    @DisplayName("form 2: $o.product($o.orderDetails.settlementDate).kind — one nav join only")
+    void outerNavDateNoDoubleFan() throws SQLException {
+        String sql = sqlOf("n::Order.all()"
+                + "->project([o|$o.id, o|$o.product("
+                + "$o.orderDetails.settlementDate->toOne()).kind],"
+                + " ['id','kind'])->from(n::M, n::RT)");
+        // each order: ONE detail row, ONE in-window version — any duplicate
+        // means the detail nav materialized twice (the [STOCK, STOCK] bug).
         assertEquals(List.of("1|STOCK", "2|EQUITY"), exec(sql + " ORDER BY 1"), sql);
     }
 }
