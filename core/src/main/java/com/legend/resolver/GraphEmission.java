@@ -193,7 +193,8 @@ final class GraphEmission {
                 // function ($this reads substitute to the row bindings) —
                 // the QUERY position gets this at the Typer front door;
                 // tree leaves are bare names and inline here (task #78)
-                TypedSpec derived = derivedLeaf(cs, node);
+                TypedSpec derived = derivedLeaf(cs, node, context,
+                        rowVar, rowType);
                 if (derived != null) {
                     var dFn = new Type.FunctionType(
                             List.of(new Type.Param(rowType,
@@ -744,8 +745,231 @@ final class GraphEmission {
     /** The INLINED typed body of a parameterless derived property, its
      * {@code $this} reads substituted to the class's row bindings —
      * null when the name is not a parameterless derived property. */
-    private TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node) {
+    private TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node,
+            StoreResolver.Context context, String rowVar,
+            Type.RelationType rowType) {
+        String prop = node.property();
+        var p = ctx.findProperty(cs.classFqn(), prop).orElse(null);
+        if (!(p instanceof com.legend.compiler.element.Property.Derived d)
+                || d.parameters().size() != node.args().size()) {
+            return null;
+        }
+        var cf = sources.compileSynthFn(d.bodyFunctionFqn());
+        if (cf.body().size() == 1) {
+            String thisVar = cf.signature().parameters().get(0).name();
+            Map<String, TypedSpec> binds = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < node.args().size(); i++) {
+                binds.put(cf.signature().parameters().get(i + 1).name(),
+                        node.args().get(i));
+            }
+            TypedSpec nav = navLeafSubquery(cs, cf.body().get(0), thisVar,
+                    context, rowVar, rowType);
+            if (nav != null) {
+                return nav;
+            }
+        }
         return derivedLeaf(cs.bindings(), cs.classFqn(), node);
+    }
+
+    /**
+     * A derived body that is a DEPTH-1 NAVIGATION with a scalar leaf —
+     * {@code $this.assoc.leaf} behind optional toOne/first wrappers —
+     * emits as the fnlr encoding: the target pipeline filtered by the
+     * oriented association condition (parent reads freed onto the
+     * enclosing row var), projecting the leaf binding, LIMIT 1 — the
+     * lowerer renders a relation in scalar position as a correlated
+     * scalar subquery. Null when the shape does not match (the inline
+     * route and its louder walls take over).
+     */
+    private TypedSpec navLeafSubquery(ClassSource cs, TypedSpec body,
+            String thisVar, StoreResolver.Context context, String parentRowVar,
+            Type.RelationType parentRowType) {
+        TypedSpec b = body;
+        while (b instanceof TypedNativeCall w && w.args().size() == 1
+                && (w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first"))) {
+            b = w.args().get(0);
+        }
+        if (!(b instanceof TypedPropertyAccess leaf)) {
+            return null;
+        }
+        TypedSpec hop = leaf.source();
+        while (hop instanceof TypedNativeCall w2 && w2.args().size() == 1
+                && (w2.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || w2.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first"))) {
+            hop = w2.args().get(0);
+        }
+        // a NESTED $prop$ qualifier CALL β-inlines here (compileSynthFn
+        // keeps user calls: $this.synonymByType(CUSIP) arrives as a
+        // TypedUserCall whose callee body is the filter shape below)
+        if (hop instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && uc.callee().qualifiedName().contains("$prop$")) {
+            var ccf = sources.compileSynthFn(uc.callee().qualifiedName());
+            if (ccf.body().size() == 1
+                    && ccf.signature().parameters().size() == uc.args().size()) {
+                Map<String, TypedSpec> sub = new java.util.LinkedHashMap<>();
+                for (int i = 0; i < uc.args().size(); i++) {
+                    sub.put(ccf.signature().parameters().get(i).name(),
+                            uc.args().get(i));
+                }
+                hop = substVars(ccf.body().get(0), sub);
+                while (hop instanceof TypedNativeCall w4
+                        && w4.args().size() == 1
+                        && (w4.callee().qualifiedName().equals(
+                                "meta::pure::functions::multiplicity::toOne")
+                            || w4.callee().qualifiedName().equals(
+                                "meta::pure::functions::collection::first"))) {
+                    hop = w4.args().get(0);
+                }
+            }
+        }
+        // a FILTERED head (the qualifier-calls-qualifier inline:
+        // toOne(filter($this.synonyms, pred)).name) carries its predicate
+        // into the subquery, substituted through the TARGET's bindings
+        TypedLambda extraPred = null;
+        if (hop instanceof TypedFilter hf
+                && hf.predicate().parameters().size() == 1
+                && hf.predicate().body().size() == 1) {
+            TypedSpec inner = hf.source();
+            while (inner instanceof TypedNativeCall w3 && w3.args().size() == 1
+                    && (w3.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                        || w3.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::first"))) {
+                inner = w3.args().get(0);
+            }
+            extraPred = hf.predicate();
+            hop = inner;
+        }
+        String headProp;
+        if (hop instanceof TypedPropertyAccess hpa
+                && hpa.source() instanceof TypedVariable hv
+                && hv.name().equals(thisVar)
+                && hpa.info().type() instanceof Type.ClassType) {
+            headProp = hpa.property();
+        } else if (hop instanceof com.legend.compiler.spec.typed
+                        .TypedMilestonedAccess hma
+                && hma.source() instanceof TypedVariable hv2
+                && hv2.name().equals(thisVar)
+                && hma.dates().isEmpty()) {
+            // dated bodies need their own spec threading — wall via inline
+            headProp = hma.property();
+        } else {
+            return null;
+        }
+        ClassSource target;
+        TypedSpec targetPipeline;
+        Type.RelationType targetRow;
+        TypedLambda cond;
+        AssociationJoins.AssocJoin aj = null;
+        try {
+            aj = assocMaterial.associationJoin(temporal, cs, headProp,
+                    context, /*forExists*/ true);
+        } catch (RuntimeException notAnAssoc) {
+            aj = null;
+        }
+        if (aj != null) {
+            target = aj.target();
+            targetPipeline = aj.targetPipeline();
+            targetRow = aj.targetRow();
+            cond = aj.condition();
+        } else {
+            // NAVIGATE-SLOT-backed head (join PM): the slot's TypedNavigate
+            // carries the raw target and the predicate — navSlotChild's
+            // route, scalar-shaped
+            TypedSpec bindingRead = cs.bindings().get(headProp);
+            TypedNavigate nav = null;
+            if (bindingRead instanceof TypedPropertyAccess bpa
+                    && bpa.source() instanceof TypedVariable bvv
+                    && bvv.name().equals(cs.rowVar())) {
+                nav = Pipelines.navSteps(cs.pipeline()).get(bpa.property());
+            }
+            if (nav == null) {
+                return null;
+            }
+            String key = (context.explicitMapping() == null ? ""
+                    : context.explicitMapping()) + '\u0000'
+                    + (context.runtimeFqn() == null ? ""
+                            : context.runtimeFqn());
+            String rawTarget = ((TypedGetAll) nav.target()).classFqn();
+            target = sources.get(dispatch.apply(context, rawTarget), rawTarget,
+                    t -> dispatch.apply(context, t), key);
+            Pipelines.Materialized cMat = Pipelines.materialize(
+                    target.pipeline(), Set.of(), rawTarget);
+            targetPipeline = cMat.pipeline();
+            targetRow = (Type.RelationType) targetPipeline.info().type();
+            cond = nav.predicate();
+        }
+        TypedSpec leafBind = target.bindings().get(leaf.property());
+        if (leafBind == null
+                || leafBind.info().type() instanceof Type.ClassType) {
+            return null;
+        }
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        List<TypedSpec> corrBody = cond.body().stream().map(cb ->
+                Pipelines.rewriteRowReads(cb, pVar, Map.of(), Set.of(),
+                        v -> new TypedVariable(parentRowVar,
+                                new ExprType(parentRowType,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))))
+                .toList();
+        var boolFn = new Type.FunctionType(
+                List.of(new Type.Param(targetRow,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                new Type.Param(Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new ExprType(boolFn,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        TypedSpec rel = new TypedFilter(targetPipeline, corr,
+                targetPipeline.info());
+        if (extraPred != null) {
+            TypedSpec pb;
+            try {
+                pb = inlineThis(extraPred.body().get(0),
+                        extraPred.parameters().get(0), Map.of(),
+                        target.bindings(), target.classFqn(),
+                        leaf.property());
+            } catch (NotImplementedException unsupported) {
+                return null;   // the inline route's louder wall takes over
+            }
+            rel = new TypedFilter(rel,
+                    new TypedLambda(List.of(target.rowVar()),
+                            List.of(pb), corr.info()),
+                    rel.info());
+        }
+        // project the leaf binding over the TARGET's own row var
+        var leafFn = new Type.FunctionType(
+                List.of(new Type.Param(targetRow,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                new Type.Param(leafBind.info().type(),
+                        leafBind.info().multiplicity()));
+        Type.RelationType oneCol = new Type.RelationType(List.of(
+                new Type.Column(leaf.property(), leafBind.info().type(),
+                        leafBind.info().multiplicity())));
+        TypedSpec proj = new com.legend.compiler.spec.typed.TypedProject(rel,
+                List.of(new TypedFuncCol(leaf.property(),
+                        new TypedLambda(List.of(target.rowVar()),
+                                List.of(leafBind),
+                                new ExprType(leafFn,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)))),
+                new ExprType(oneCol,
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ZERO_MANY));
+        // the READ is [0..1]: pure toOne semantics — a plain scalar
+        // subquery, never a LIST aggregation
+        return new com.legend.compiler.spec.typed.TypedLimit(proj,
+                new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                        ExprType.one(Type.Primitive.INTEGER)),
+                new ExprType(oneCol,
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ZERO_ONE));
     }
 
     private TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
@@ -1013,6 +1237,50 @@ final class GraphEmission {
                                         .toList()))
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq());
+    }
+
+    /** β-substitute free variables by name over the derived-body
+     * vocabulary (shadowing lambdas drop their params). */
+    private static TypedSpec substVars(TypedSpec n, Map<String, TypedSpec> sub) {
+        if (sub.isEmpty()) {
+            return n;
+        }
+        return switch (n) {
+            case TypedVariable v ->
+                    sub.getOrDefault(v.name(), v);
+            case TypedPropertyAccess pa -> new TypedPropertyAccess(
+                    substVars(pa.source(), sub), pa.property(), pa.info());
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            substVars(ma.source(), sub), ma.property(),
+                            ma.dates().stream().map(d2 -> substVars(d2, sub))
+                                    .toList(),
+                            ma.sweep(), ma.info());
+            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
+                    c.args().stream().map(a -> substVars(a, sub)).toList(),
+                    c.info());
+            case TypedFilter f -> new TypedFilter(substVars(f.source(), sub),
+                    (TypedLambda) substVars(f.predicate(), sub), f.info());
+            case TypedLambda l -> {
+                Map<String, TypedSpec> inner = new java.util.LinkedHashMap<>(sub);
+                l.parameters().forEach(inner::remove);
+                yield new TypedLambda(l.parameters(),
+                        l.body().stream().map(b2 -> substVars(b2, inner))
+                                .toList(), l.info());
+            }
+            case com.legend.compiler.spec.typed.TypedIf i ->
+                    new com.legend.compiler.spec.typed.TypedIf(
+                            substVars(i.condition(), sub),
+                            substVars(i.thenBranch(), sub),
+                            i.elseBranch().map(e -> substVars(e, sub)),
+                            i.info());
+            case com.legend.compiler.spec.typed.TypedCollection tc ->
+                    new com.legend.compiler.spec.typed.TypedCollection(
+                            tc.elements().stream()
+                                    .map(e -> substVars(e, sub)).toList(),
+                            tc.info());
+            default -> n;
+        };
     }
 
     /** The serialized key: the tree alias when given, else the
