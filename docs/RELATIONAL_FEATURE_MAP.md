@@ -679,19 +679,245 @@ shared ObjectValue dispatch if we route graph emission through it — pin it).
 
 ## 7. GraphFetch (graph output)
 
-*(wave 2)*
+### 7.1 Engine model (relationalGraphFetch.pure "GF", 1087 lines)
+
+**NOT one big join.** The engine compiles a graphFetch tree into a TREE OF EXECUTION
+NODES — one independent `SELECT DISTINCT` per class-level tree node, stitched by the
+EXECUTOR, with the parent's PK set as the driver:
+- Root node: SQL projecting root `pk_*` + to-one primitive properties (only to-one plain
+  Properties inline — qualified properties NEVER inline, they always become child nodes).
+- Each complex child: separate query whose FROM is the parent-PK temp table
+  (`${temp_table_node_N}` placeholder; real temp table only on H2/Snowflake, VALUES
+  inlining elsewhere) INNER JOIN main table LEFT JOIN property tables — projecting
+  `parent_key_gen_*` (stitch keys) + own `pk_*` + primitives, with AND-of-`pk_* is not
+  null` to suppress phantom children (GF:496–499).
+- Executor groups child rows under parents by parent_key_gen; multiplicity from the tree
+  decides object vs array. Temp table carries ONLY pk columns (GF:387).
+- Cross-store children = root-like query on the target store driven by
+  `parent_cross_key_*`; strict XStore constraints (single-property traversal,
+  primitive-only keys, Varchar(4000) key type).
+
+**Invariants:** PK definition REQUIRED (GF:663); store ~groupBy/~distinct FORBIDDEN in
+graphFetch (GF:664–665) yet every generated query is `distinct=true` (identity dedup in
+SQL); unions unsupported in this path (GF:950; union graphFetch is separate/newer);
+aggregating qualifier children get GROUP BY over non-result columns, non-agg get
+isNotNull; inner-join mapping ~filter switches the driver to a subquery (`_gftm`).
+
+**Serialization contracts** (the part ANY implementation must honor):
+- to-one absent → `null`; to-many absent → `[]`.
+- JSON keys are semantically loaded: qualifier signature (`"name()"`,
+  `"nameWithTitle('Mr')"`), milestone date (`"product(2015-10-16)"`), tree alias
+  overrides (`'fn':name` → `"fn"`).
+- primitives: date `"2003-07-19"`, timestamp with nanos, booleans, nulls.
+- `graphFetchChecked` → `{"defects":[],"value":{...}}` envelope; defect records carry
+  id/externalId/message/enforcementLevel/ruleType/ruleDefinerPath/path; checked and
+  enableConstraints change NO SQL — executor-side.
+- subtype subtrees: rows not of the subtype simply omit those properties; alloy config
+  adds `@type` + base64 object references encoding PKs.
+- batchSize only from `graphFetch(tree, size)` overloads.
+
+### 7.2 legend-lite side & verdict
+
+**MISSING (H4) — and the survey licenses a deliberate architectural divergence.** The
+engine's per-node temp-table pipeline exists for cross-DB portability and streaming
+batching. Our tenet (Java orchestrates, DATABASE executes) + DuckDB's JSON support make
+the planned single-query snapshot envelope (json_group_array(json_object(...)) with
+correlated subqueries per child) the right shape for us — the engine's own
+GraphFetchLowering confirms graphFetch is source-preserving at the SQL layer with the
+envelope in serialize.
+
+What we must PORT from the engine model regardless of emission strategy:
+1. **Identity semantics**: per-node DISTINCT-by-PK — a to-many child reached through a
+   fanning join must dedup by child PK inside its array; PK required, loud without one.
+2. **Phantom suppression**: AND-of-pk-not-null before a child object materializes.
+3. **The serialization key contract** (qualifier signatures, milestone dates, aliases,
+   null vs []).
+4. **Qualified properties as child computations** (never inlined into the parent row).
+5. Store ~groupBy/~distinct forbidden in graph flow; checked envelope executor-side.
+6. Embedded/otherwise per-leaf dispatch inside trees (§6).
+Out of scope for now: cross-store children, temp-table strategies, batch streaming,
+alloy object references.
 
 ## 8. Qualified/derived properties + auto-map
 
-*(wave 2)*
+### 8.1 Engine contracts (test-derived; P/Q/ADV/MAP/ATM/TREE = engine test files, IMPL = pureToSQLQuery.pure)
+
+**The governing invariant — TRANSPARENCY:** a qualified property is indistinguishable from
+manually inlining its body (pinned by consistency tests modulo alias numbering). The body
+is position-INDEPENDENT; the surrounding SHAPE is position-DEPENDENT:
+- project/filter, body touches owning table only → verbatim inline, no join, no subquery.
+- through association → the join emits once; body binds to the joined alias.
+- parameterized: scalar/enum args → SQL literals (enum via EnumerationMapping source
+  value, NOT the enum name); root-correlated args ($f.legalName, $this.date) → correlated
+  column refs folded into the join ON, operand order preserved (never normalized).
+- **aggregate anywhere in a QP/map body** → `addPkForAggregation` grouped-subquery-rejoin:
+  `left outer join (select PK, agg(...) as aggCol ... group by PK) on root.PK` —
+  post-aggregate arithmetic stays OUTER referencing aggCol; hard-fails without a PK
+  (IMPL:3855). The isAggregationFunction whitelist surprisingly includes plus/stringPlus/
+  joinStrings.
+- isEmpty/isNotEmpty on to-1 complex → `select distinct PK` existence subquery + CASE on
+  null-ness (branch order flips with the predicate).
+- chaining a QP off an already-joined table isolates the type-filter into a subselect
+  (can't share the ON); single-hop keeps it in the ON-clause. Forced-isolation debug
+  goldens (FQ) pin all three strategies on one query.
+- mapping ~filter ANDs into the QP-generated join ON.
+- null-safe equality `a=b or (a is null and b is null)` fires by column NULLABILITY, not
+  syntax.
+- toOne()/first()/at() NEVER emit LIMIT — multiplicity assertions that only steer
+  isolation. (Our cycle-86 navLeafSubquery LIMIT-1 wrong-value bug violated exactly this.)
+- Single-expression rule: multi-statement QP bodies rejected (IMPL:1060).
+
+**Auto-map:** implicit `.prop` over to-many ≡ explicit ->map (pinned identical SQL).
+Project position → LEFT JOIN row explosion, no dedup; filter position → distinct-FK
+semijoin + is-not-null; aggregation → grouped subquery keyed on the PK of the MAP SOURCE
+set (per-employee vs per-firm vs global distinguished only by what encloses the map);
+duplicate navigations reuse one alias.
+
+**Paths (#/Class/prop!alias#):** path ≡ lambda for the same navigation; segments fold
+left-to-right, QP segments (with args) allowed mid-path, navigation continues past a QP
+result; `!alias` names the TDS column; aliasing suppressed in filter position.
+
+**Trap:** engine `test.ToFix` goldens assert current-but-WRONG behavior (P:136, P:188,
+ADV:237) — never port those as contracts.
+
+### 8.2 legend-lite side & verdict
+
+**Mostly SOUND, gaps named.** Qualifier inlining via Substitution = the transparency
+invariant by construction. The parent-copy grouped subselect (task #77) = the
+addPkForAggregation shape; tail mappers cover deep sub-agg. Gaps:
+1. **Derived-leaf-inline in nav position** (cycle-86 revert) — the engine rule is now
+   explicit: inline the body at the hop, let ISOLATION (not LIMIT-1 subqueries) handle
+   to-many; requires §2's DeferredFilter/strategy chooser first.
+2. **Root-correlated QP arguments folded into join ON** — check our Substitution scope
+   handling against P:240/243 (arg referencing the OUTER row inside the join condition).
+3. **Null-safe equality by nullability** — we have pure!=null semantics work (#62);
+   verify the complex-type nullable-column arm matches ADV:104 vs ADV:111.
+4. **isEmpty existence-subquery CASE shape** for to-1 complex (P:117/125).
+5. Paths: parser-level sugar; verify our normalizer's path handling covers QP-segments
+   with args + `!alias` (TREE family).
 
 ## 9. Dyna-functions & dialect architecture
 
-*(wave 2)*
+### 9.1 Engine model (REL = relationalExtension.pure; DBX = dbExtension.pure; DEF = extensionDefaults.pure; H2/DB2 = dialect files)
 
-## 10. Mapping metamodel: inheritance/extends, modelJoins, include, merge, multigrain
+**TWO independent registries keyed by the same dyna names** (never conflate):
+1. **Type-inference registry** (REL:192–1887): dyna name → ordered list of
+   (matcher-guard, type-producer) pairs; first matching guard wins; numeric promotion via
+   the safe-type lattice (TinyInt→…→Decimal, Varchar size=max, precision capped at 31);
+   uninferrable string size defaults 1024.
+2. **Rendering registry** (DEF:180–295 ANSI + per-DB): dyna name → `ToSql{format,
+   transform, contextAwareTransform, parametersWithinWhenClause}`. Per-DB composition is
+   `default->groupBy(name)->putAll(dbSpecific->groupBy(name))` — **whole-template
+   replacement per name, no partial override**. Dispatch filters by GenerationState
+   (Select/Where × withinWhenClause) and asserts exactly one survivor.
+   The legal-name universe is the `DynaFunctionRegistry` enum (DBX:1080–1308, 300+ names).
 
-*(wave 2)*
+**DbExtension** = a record of function slots (literalProcessor, dynaFuncDispatch,
+selectSQLQueryProcessor, joinProcessor, identifierProcessor, dataTypeToSqlText, limits…)
+with `default::` fallbacks per slot. Literals: ANSI quotes booleans ('true'); H2 unquoted
+TRUE + `CAST(%s AS FLOAT)` float literals + DATE'…'/TIMESTAMP'…'; date literals default
+GMT. Identifier quoting: global flag OR reserved word OR embedded space; FreeMarker
+`${…}` never quoted. LIMIT dialects diverge structurally (limit N / offset-fetch /
+fetch-first / top), with limit arithmetic pre-computed. H2 emulates FULL OUTER as
+UNION ALL of LEFT+RIGHT with a `_lhsJoinValid_` sentinel.
+
+**Load-bearing per-function semantics** (the agent archive has the full ~300-name
+catalog; these are the correctness-critical ones):
+- 1-BASED string indexing everywhere (substring, indexOf→LOCATE with swapped args).
+- `mod` is SIGN-NORMALIZED `mod(mod(a,b)+b,b)`; `rem` is raw mod. Distinct functions.
+- division/average force float: `((1.0*a)/b)`, `avg(1.0*x)`.
+- `round` defaults 2nd arg 0; projection wraps `cast(round(x) as bigint)`;
+  ceiling/floor project through `cast(cast(... as numeric) as bigint)`.
+- null-safe equality ONLY in filter position on two nullable columns (DBX:926–948);
+  `not(equal)` / `not(in)` add OR-is-null arms depending on which side is a literal.
+- `if`/`case` args render within-when-clause; `coalesce` n-ary; `concat` null semantics
+  and rendering differ per DB (DB2 infix `concat`).
+- Filter contract: the projected expression string is REPEATED VERBATIM in WHERE — same
+  rendering in both positions.
+- adjust/dateDiff unit maps (WEEKS→7·DAYS on DB2); firstDayOf* families are date
+  arithmetic, not calendar-table lookups.
+
+### 9.2 legend-lite side & verdict
+
+**SOUND architecture, catalog-completeness gap.** Our builtin/Pure catalog +
+Scalars/SqlFn + AnsiSqlRenderer/DuckDb mirrors the two-registry split (signatures typed
+in Pure.java = inference; Scalars/dialect = rendering), and the wall between them is
+enforced. Verified-equivalent semantics already: 1-based substring (verbatim passthrough
++ H2 clamp), float division, null-safe filter equality (#62). Actions:
+1. **Audit our catalog against the DynaFunctionRegistry enum** — the `functions` family
+   (75 err/35 shape) is mostly missing names; burn it as a checklist against the agent's
+   catalog table, family by family, not test by test.
+2. mod-vs-rem sign semantics; round/ceiling/floor cast-wrapping in projection; adjust
+   unit map — verify each against goldens when touched.
+3. The H2 advisory backend (#67): the engine's H2 file IS the spec for it (member
+   renderings, offset-fetch limits, FULL OUTER emulation, UDF-based JSON) — plus
+   `assertEqualsH2Compatible` explains dual goldens in the corpus.
+4. Multi-dialect seam: keep per-name whole-template override (our dialect override map
+   should mirror putAll semantics — no partial merges).
+
+## 10. Mapping metamodel: inheritance/extends, includes, merge, multigrain, modelJoins, cross-store, associations
+
+### 10.1 Engine model (P2S = pureToSQLQuery.pure; MJ = modelJoins.pure; tests under $E/tests/mapping/)
+
+- **Inheritance/subtypes** — two mechanisms: (a) Operation set-impl with the
+  `inheritance_...` operation fanning an abstract-class query to concrete subtype
+  mappings (mixed-type results); (b) `subType(@T)` navigation cast mid-query. Unmatched
+  subtype columns project TDSNull, rows never dropped. Embedded mappings can live inside
+  per-subtype mappings on ONE table. `root==true` (`*` in grammar) marks the primary
+  mapping among several for one class. Known engine gap (ToFix): qualified property from
+  an unmapped superclass.
+- **Extends** — `X[child] extends [parent]` inherits mainTable, PK, ~filter/~groupBy/
+  ~distinct, and property mappings; overrides by property name; transitive chains; store
+  substitution composes. **The PK-resolution matrix** (testExtendsForPrimaryKey:238–258)
+  is the authoritative 4×4 truth table for child×parent {groupBy, distinct, userPK,
+  nothing} — counterintuitive corners (child userPK loses to parent distinct → [id,aName]).
+- **Includes** — transitive; `include M[src->dst]` store substitution is per-include-edge;
+  `resolveStore` on a non-substituting mapping silently maps foreign→local (not an
+  error); class-mapping ids must be unique across the include closure.
+- **Merge** — union of set-impls + multi-hop join expressions inside one PM
+  (case/and/or over `@J1 > @J2 > @J3` chains). Missing union branch column ⇒
+  `Literal('__SQLNULL__')` (never dropped); same table via two join paths ⇒ two aliases,
+  NEVER deduped by table name.
+- **Multigrain** — MultiGrainFilter (discriminator ~filter per grain on one table) with
+  THE suppression rule (P2S:1758–1771): root grain filter → WHERE; joined grain via
+  non-PK column → discriminator pushed into ON; joined grain via a **single-column PK
+  equi-join** (`isSimpleJoinToPk` P2S:1792) → filter SUPPRESSED (grain already pinned).
+  distinct/groupBy short-circuit filter handling entirely, before the multigrain check.
+- **ModelJoins** — association bound by a Pure lambda over the two ends instead of a DB
+  @Join. Operator whitelist {equal,not,and,or,comparisons}; only end-var navigation +
+  literals. TWO implementations: static localization (MJ:39–143, → synthetic
+  RelationalAssociationImplementation + Join in a synthetic DB) and the newer
+  union/milestoning-aware per-branch runtime compilation (P2S:2208–2304: placeholder
+  `ON 1=1` join, `_mj_src`/`_mj_tgt` scope binding, conditional target
+  materialization-as-subselect when the target has filter/groupBy/distinct or nested
+  navigation). Goldens: condition compiles into the ON (incl. lower(), concat, arithmetic,
+  IN — the IN predicate is pushed BOTH into the target subselect WHERE and the ON).
+- **Cross-store** — CrossSetImplementation → synthesized root set over a placeholder
+  table (`Gen_Cross_DB`), primitive cross columns as propertyPlaceHolder columns filled
+  at execution.
+- **Associations** — `AssociationMapping(end1[srcId,tgtId]: @J, end2[tgtId,srcId]: @J)`;
+  default ids only legal when each end class has exactly ONE mapping; self-association =
+  two class-mapping ids for the same class; multi-join chains `@J1 > @J2` are
+  direction-specific (reverse spells the reverse chain); intermediate tables need PKs.
+
+Provenance note: the core set-impl metamodel classes live UPSTREAM in legend-pure (this
+matches [[verify-signatures-against-real-legend-pure]] — legend-pure checkout is part of
+the spec base).
+
+### 10.2 legend-lite side & verdict
+
+**Mostly SOUND — these families are largely passing** (inheritance 9 err mostly db-pull;
+extends 2 fail; modelJoin 8 err; multigrain 1 err). Named gaps to close from the read:
+1. **Extends PK matrix** — our extraction inherits parent pipelines; verify the 4×4
+   table's corners (esp. child-PK-loses-to-parent-distinct) with pins.
+2. **Multigrain suppression rule** — check we re-apply grain filters on non-PK joined
+   grains into the ON and suppress on single-column-PK joins; our TemporalFrame-adjacent
+   filter placement should reuse §2's DeferredFilter channel.
+3. **ModelJoin target materialization condition** — ours must subselect the target when
+   it has filter/groupBy/distinct or deep navigation (same rule as §5 views / §2
+   distinct-target re-materialization — one shared rule, three consumers).
+4. **`__SQLNULL__` merge-branch behavior + never-dedup-aliases-by-table-name** — pins.
+5. Cross-store: DEFERRED (placeholder-table model documented for when it matters).
 
 ## 11. AggregationAware + calendar aggregation
 
