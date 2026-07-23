@@ -1094,6 +1094,45 @@ final class Pipelines {
      * funnel), or null when the shape is not the plain sugar (milestoned
      * hops and class/relation-typed results keep their walls).
      */
+    /** isEmpty/isNotEmpty over a CLASS chain rewrites to the
+     * constant-project relation form (lowerer EXISTS; map §2 rule) —
+     * identity otherwise. */
+    static TypedNativeCall classEmptinessRewrite(TypedNativeCall nc,
+            java.util.function.Predicate<TypedSpec> objectSpace) {
+        boolean empt = com.legend.builtin.Pure.nativeNamed("isEmpty",
+                nc.callee().signatureKey())
+                || com.legend.builtin.Pure.nativeNamed("isNotEmpty",
+                        nc.callee().signatureKey());
+        if (!empt || nc.args().size() != 1
+                || !objectSpace.test(nc.args().get(0))
+                || !(nc.args().get(0).info().type()
+                        instanceof Type.ClassType ct)) {
+            return nc;
+        }
+        return new TypedNativeCall(nc.callee(),
+                List.of(constantProjectOver(nc.args().get(0), ct)), nc.info());
+    }
+
+    /** {@code chain->project([_e|1],['c'])} — the RELATION form of a class
+     * chain for scalar consumers (emptiness-as-EXISTS; map §2 rule). */
+    static TypedSpec constantProjectOver(TypedSpec chain,
+            Type.ClassType elementType) {
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        ExprType intT = new ExprType(Type.Primitive.INTEGER, one);
+        TypedLambda fn = new TypedLambda(java.util.List.of("_e"),
+                java.util.List.of(new com.legend.compiler.spec.typed
+                        .TypedCInteger(1, intT)),
+                new ExprType(new Type.FunctionType(
+                        java.util.List.of(new Type.Param(elementType, one)),
+                        new Type.Param(Type.Primitive.INTEGER, one)), one));
+        return new TypedProject(chain,
+                java.util.List.of(new com.legend.compiler.spec.typed
+                        .TypedFuncCol("c", fn)),
+                new ExprType(new Type.RelationType(java.util.List.of(
+                        new Type.Column("c", Type.Primitive.INTEGER, one))),
+                        one));
+    }
+
     static TypedSpec autoMapRead(TypedPropertyAccess pa) {
         if (pa.info().type() instanceof Type.ClassType
                 || pa.info().type() instanceof Type.RelationType) {

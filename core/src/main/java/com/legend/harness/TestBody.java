@@ -341,6 +341,30 @@ public final class TestBody {
                 // literal-if over zero-param thunks folds at bind time —
                 // the helper pattern let q = if(\$checked, |{|...}, |{|...})
                 rhs = foldLiteralIf(rhs);
+                // meta::legend::executeLegendQuery(q, vars, ctx, ext) over a
+                // zero-arg lambda: the lambda body IS the query; the result
+                // is the engine's SERIALIZED scalar — booleans/numbers match
+                // toString; quoted-string/JSON results MIS-compare and FAIL
+                // loudly, never silently pass. Body statements splice; the
+                // binding becomes toString(final).
+                if (rhs instanceof AppliedFunction elq
+                        && harnessVocabName(elq.function())
+                        && simpleName(elq.function())
+                                .equals("executeLegendQuery")
+                        && !elq.parameters().isEmpty()
+                        && substitute(elq.parameters().get(0), lets)
+                                instanceof LambdaFunction qlf
+                        && qlf.parameters().isEmpty()
+                        && !qlf.body().isEmpty()) {
+                    List<ValueSpecification> qb = qlf.body();
+                    work.addFirst(new AppliedFunction("letFunction",
+                            List.of(name, new AppliedFunction("toString",
+                                    List.of(qb.get(qb.size() - 1))))));
+                    for (int i = qb.size() - 2; i >= 0; i--) {
+                        work.addFirst(qb.get(i));
+                    }
+                    continue;
+                }
                 // an execute() binding — or any read over one — forwards to
                 // the PLATFORM's result frame (audit 19d B2). Forwarding is
                 // EAGER (audit 16 F1, engine parity): the statement executor

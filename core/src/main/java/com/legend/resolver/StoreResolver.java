@@ -399,15 +399,17 @@ public final class StoreResolver {
                             instanceof Type.RelationType ->
                     new TypedMap(
                             resolveNode(m.source(), context), m.mapper(), m.info());
-            // scalar/relation NATIVES over chains bottoming at a getAll
-            // (size()/equal()/isEmpty() tails of assert expressions): the
-            // object-space native arms matched earlier; here every arg
-            // resolves structurally
+            // scalar/relation NATIVES over chains bottoming at a getAll:
+            // args resolve structurally; CLASS-typed emptiness rewrites
+            // FIRST (constant-project relation -> lowerer EXISTS; map §2).
             case TypedNativeCall nc
-                    when containsGetAll(nc) ->
-                    new TypedNativeCall(nc.callee(),
-                            nc.args().stream().map(a2 -> resolveNode(a2, context))
-                                    .toList(), nc.info());
+                    when containsGetAll(nc) -> {
+                TypedNativeCall n2 = Pipelines.classEmptinessRewrite(nc,
+                        StoreResolver::isObjectSpace);
+                yield new TypedNativeCall(n2.callee(),
+                        n2.args().stream().map(a2 -> resolveNode(a2, context))
+                                .toList(), n2.info());
+            }
             // collection literal whose ELEMENTS carry class chains:
             // each element resolves independently, structurally
             case com.legend.compiler.spec.typed.TypedCollection col

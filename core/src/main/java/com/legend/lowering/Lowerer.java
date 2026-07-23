@@ -317,7 +317,7 @@ public final class Lowerer {
     // Relation ops
     // ==================================================================
 
-    private SqlSelect relation(TypedSpec spec) {
+    SqlSelect relation(TypedSpec spec) {
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc
@@ -3319,7 +3319,7 @@ public final class Lowerer {
     // Relation-level predicate family (EXISTS forms)
     // ==================================================================
 
-    private interface RelationPredicate {
+    interface RelationPredicate {
         SqlExpr lower(Lowerer lowerer, TypedNativeCall call);
     }
 
@@ -3359,7 +3359,7 @@ public final class Lowerer {
         return false;
     }
 
-    private static boolean isFamily(TypedNativeCall n, String pureName) {
+    static boolean isFamily(TypedNativeCall n, String pureName) {
         // signatureKey membership — the LAST parser-node dispatch the re-audit
         // found dodging the parser-free wall (ArchUnit cannot see a dependency
         // reached through definition()'s return type + contains(Object)).
@@ -3367,42 +3367,7 @@ public final class Lowerer {
     }
 
     private static RelationPredicate relationPredicate(TypedNativeCall n) {
-        if (isFamily(n, "size")) {
-            // NOTE (audit 22b F1 residual): size over a RELATION value
-            // counts ROWS regardless of the value's [1] multiplicity (one
-            // relation != one row — a value-mult constant fold here broke
-            // three correlated-count pins). rows->toOne()->size() therefore
-            // still answers the row count when toOne sits mid-expression;
-            // the exactly-one contract is reader-enforced at toOne ROOTS
-            // only. Documented residual, not silently folded.
-            // COUNT(*) is a zero-key aggregation: a grouped/deduped/truncated
-            // source must count from OUTSIDE (COUNT(*) per group is a row per
-            // group — a multi-row scalar subquery).
-            return (lw, call) -> {
-                SqlSelect src = lw.relation(call.args().get(0));
-                SqlSelect base = Fold.groupByFolds(src) && !Fold.unnestInProjections(src)
-                        ? src : lw.isolate(src);
-                return new SqlExpr.ScalarSubquery(base
-                        .withProjections(List.of(new SqlSelect.Projection(
-                                SqlAgg.Reducer.of("COUNT"), null)), List.of()));
-            };
-        }
-        if (isFamily(n, "exists")) {
-            return (lw, call) -> new SqlExpr.Exists(select1(
-                    lw.whereLambda(call.args().get(0), call.args().get(1), false)));
-        }
-        if (isFamily(n, "forAll")) {
-            return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(select1(
-                    lw.whereLambda(call.args().get(0), call.args().get(1), true))));
-        }
-        if (isFamily(n, "isEmpty")) {
-            return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT,
-                    new SqlExpr.Exists(select1(lw.relation(call.args().get(0)))));
-        }
-        if (isFamily(n, "isNotEmpty")) {
-            return (lw, call) -> new SqlExpr.Exists(select1(lw.relation(call.args().get(0))));
-        }
-        return null;
+        return RelationPredicates.of(n);
     }
 
     /**
@@ -3410,13 +3375,13 @@ public final class Lowerer {
      * never read, and {@code SELECT 1} is the reference engines' lean shape
      * ({@code buildExistsPredicate}).
      */
-    private static SqlSelect select1(SqlSelect s) {
+    static SqlSelect select1(SqlSelect s) {
         return s.withProjections(List.of(new SqlSelect.Projection(
                 new SqlExpr.IntLit(1), null)), List.of());
     }
 
     /** Lower {@code rel} and fold {@code pred} (negated for forAll) into its WHERE. */
-    private SqlSelect whereLambda(TypedSpec rel, TypedSpec predArg, boolean negate) {
+    SqlSelect whereLambda(TypedSpec rel, TypedSpec predArg, boolean negate) {
         if (!(predArg instanceof TypedLambda lambda)) {
             throw new IllegalStateException("relation exists/forAll expects a predicate lambda");
         }
@@ -3454,7 +3419,7 @@ public final class Lowerer {
         return branch;
     }
 
-    private SqlSelect isolate(SqlSelect s) {
+    SqlSelect isolate(SqlSelect s) {
         return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias()));
     }
 
