@@ -29,6 +29,9 @@ class ResolveGraphUnionProbeTest {
     private static final String UNION_FQN =
             "meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_";
 
+    private static final String SPECIAL_UNION_FQN =
+            "meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_";
+
     private static final String MODEL = ("""
             Class g::Firm { legalName: String[1]; }
             Class g::Person { lastName: String[1]; }
@@ -130,7 +133,7 @@ class ResolveGraphUnionProbeTest {
 
     private static final String MODEL_DIAGONAL = ("""
             Class g::Trade { tradeId: Integer[1]; }
-            Class g::Product { productName: String[1]; }
+            Class g::Product { productId: String[1]; productName: String[1]; }
             Association g::TP { trade: g::Trade[0..1]; product: g::Product[0..1]; }
             Database g::DB3 (
               Table T1 (tradeId INTEGER PRIMARY KEY, productId VARCHAR)
@@ -143,6 +146,7 @@ class ResolveGraphUnionProbeTest {
             Mapping g::M3 (
               *g::Trade : Operation { %s(t1, t2) }
               *g::Product : Operation { %s(p1, p2) }
+              // corpus SameStoreMapping uses special_union at BOTH roots
               g::Trade[t1] : Relational { ~mainTable [g::DB3] T1
                 tradeId: T1.tradeId,
                 product[p1]: [g::DB3] @trade_product }
@@ -150,8 +154,10 @@ class ResolveGraphUnionProbeTest {
                 tradeId: T2.tradeId,
                 product[p2]: [g::DB3] @trade2_product2 }
               g::Product[p1] : Relational { ~mainTable [g::DB3] PR1
+                productId: PR1.productId,
                 productName: PR1.NAME }
               g::Product[p2] : Relational { ~mainTable [g::DB3] PR2
+                productId: PR2.productId,
                 productName: PR2.NAME }
             )
             Runtime g::RT3 { mappings: [g::M3]; }
@@ -175,16 +181,16 @@ class ResolveGraphUnionProbeTest {
             st.execute("INSERT INTO PR2 VALUES ('31', 'Prod_2'), ('40', 'Prod_3')");
         }
         String query = "g::Trade.all()"
-                + "->graphFetch(#{g::Trade{tradeId, product{productName}}}#)"
-                + "->serialize(#{g::Trade{tradeId, product{productName}}}#)"
+                + "->graphFetch(#{g::Trade{tradeId, product{productId, productName}}}#)"
+                + "->serialize(#{g::Trade{tradeId, product{productId, productName}}}#)"
                 + "->from(g::M3, g::RT3)";
         ExecutionResult r = Compiler.execute(MODEL_DIAGONAL, query, "g::RT3", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-diagonal] " + json);
-        assertEquals("[{\"tradeId\":1,\"product\":{\"productName\":\"Prod_1\"}},"
+        assertEquals("[{\"tradeId\":1,\"product\":{\"productId\":\"30\",\"productName\":\"Prod_1\"}},"
                 + "{\"tradeId\":5,\"product\":null},"
-                + "{\"tradeId\":2,\"product\":{\"productName\":\"Prod_2\"}},"
+                + "{\"tradeId\":2,\"product\":{\"productId\":\"31\",\"productName\":\"Prod_2\"}},"
                 + "{\"tradeId\":3,\"product\":null}]", json);
     }
 

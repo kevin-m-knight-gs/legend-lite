@@ -1323,6 +1323,67 @@ final class UnionSynthesis {
         return steps;
     }
 
+    /** The MERGED (un-suffixed target) lift eligibility — see the caller's
+     * partiallyMilestoning-golden comment. SAME-JOIN across every route is
+     * REQUIRED: merged and routed emissions only coincide when the join is
+     * literally shared; diagonal routes (different joins per member —
+     * graph rootLevel SameStore golden) demand strict member pairing. */
+    private static boolean liftTargetMerged(List<int[]> ordsPre,
+            List<PropertyMapping.Join> jsPre, String prop,
+            ClassMapping.Union targetUnion, String targetClassFqn,
+            List<ClassMapping> members, LegacyMappingDefinition md,
+            ModelBuilder model) {
+        if (targetUnion == null) {
+            return false;
+        }
+        Set<Integer> tgtOrds = new HashSet<>();
+        Set<Integer> srcMembers = new HashSet<>();
+        Set<String> tgtColSets = new HashSet<>();
+        Set<String> liftJoinIds = new HashSet<>();
+        boolean mergeable = true;
+        for (int k2 = 0; mergeable && k2 < jsPre.size(); k2++) {
+            PropertyMapping.Join j0 = jsPre.get(k2);
+            if (j0.targetSetId() == null || j0.joins().size() != 1) {
+                mergeable = false;
+                break;
+            }
+            int o = memberOrdinalOf(targetUnion.memberSetIds(), md,
+                    model, j0.targetSetId());
+            if (o < 0 || !srcMembers.add(ordsPre.get(k2)[0])) {
+                mergeable = false;   // 2 routes on one source member
+                break;
+            }
+            tgtOrds.add(o);
+            JoinChainElement hop0 = j0.joins().get(0);
+            String db0 = hop0.databaseName() != null
+                    ? hop0.databaseName() : j0.database();
+            // SAME-JOIN across every route is REQUIRED: merged and routed
+            // emissions only coincide when the join is literally shared
+            // (partiallyMilestoning golden); DIAGONAL routes (different
+            // joins per member — graph rootLevel SameStore golden, which
+            // serializes product=null for a key value only the OTHER
+            // member's table carries) demand strict member pairing.
+            liftJoinIds.add(db0 + "@" + hop0.joinName());
+            DatabaseDefinition.JoinDefinition jd0 =
+                    model.findJoin(db0, hop0.joinName()).orElse(null);
+            if (jd0 == null) {
+                mergeable = false;
+                break;
+            }
+            String srcT = ((ClassMapping.Relational)
+                    members.get(ordsPre.get(k2)[0])).mainTable().table();
+            String tgtT = MappingNormalizer.determineTargetTable(jd0.operation(), srcT,
+                    hop0.joinName(), prop, 1, md.qualifiedName());
+            Set<String> cols0 = new TreeSet<>();
+            MappingNormalizer.collectColumnsOfTable(jd0.operation(), tgtT, cols0);
+            tgtColSets.add(String.join(",", cols0));
+        }
+        return mergeable
+                && liftJoinIds.size() == 1
+                && tgtOrds.size() == targetUnion.memberSetIds().size()
+                && colsProjectedByTarget(tgtColSets, targetClassFqn, model);
+    }
+
     static List<LiftMidStep> liftMidSteps(PropertyMapping.Join j,
             String prop, String srcTable, LegacyMappingDefinition md,
             ModelBuilder model) {
@@ -1541,57 +1602,9 @@ final class UnionSynthesis {
             // set) keeps the per-pair suffixed form (testUnion golden
             // FirmID_0 = ID_0 OR FirmID_1 = ID_1 — audit 12: the merged
             // form cross-matched colliding keys, [0..1] fan-out).
-            boolean liftTargetMerged;
-            {
-                Set<Integer> tgtOrds = new HashSet<>();
-                Set<Integer> srcMembers = new HashSet<>();
-                Set<String> tgtColSets = new HashSet<>();
-                boolean mergeable = targetUnion != null;
-                List<int[]> ordsPre = found.get(prop);
-                List<PropertyMapping.Join> jsPre = joins.get(prop);
-                for (int k2 = 0; mergeable && k2 < jsPre.size(); k2++) {
-                    PropertyMapping.Join j0 = jsPre.get(k2);
-                    if (j0.targetSetId() == null || j0.joins().size() != 1) {
-                        mergeable = false;
-                        break;
-                    }
-                    int o = memberOrdinalOf(targetUnion.memberSetIds(), md,
-                            model, j0.targetSetId());
-                    if (o < 0 || !srcMembers.add(ordsPre.get(k2)[0])) {
-                        mergeable = false;   // 2 routes on one source member
-                        break;
-                    }
-                    tgtOrds.add(o);
-                    JoinChainElement hop0 = j0.joins().get(0);
-                    String db0 = hop0.databaseName() != null
-                            ? hop0.databaseName() : j0.database();
-                    DatabaseDefinition.JoinDefinition jd0 =
-                            model.findJoin(db0, hop0.joinName()).orElse(null);
-                    if (jd0 == null) {
-                        mergeable = false;
-                        break;
-                    }
-                    String srcT = ((ClassMapping.Relational)
-                            members.get(ordsPre.get(k2)[0])).mainTable().table();
-                    String tgtT = MappingNormalizer.determineTargetTable(jd0.operation(), srcT,
-                            hop0.joinName(), prop, 1, md.qualifiedName());
-                    Set<String> cols0 = new TreeSet<>();
-                    MappingNormalizer.collectColumnsOfTable(jd0.operation(), tgtT, cols0);
-                    tgtColSets.add(String.join(",", cols0));
-                }
-                // audit 23 #75 (crossed-routes review): target ordinals
-                // do not appear in the merged emission at all — crossed
-                // and uncrossed routes produce IDENTICAL SQL, so the
-                // residual exposure (key values colliding across target
-                // members matching the "wrong" member) is the ENGINE's
-                // own (its partiallyMilestoning golden emits exactly this
-                // shared-target form). Nothing to gate beyond coverage +
-                // one-route-per-source + identical target columns.
-                liftTargetMerged = mergeable
-                        && tgtOrds.size() == targetUnion.memberSetIds().size()
-                        && colsProjectedByTarget(tgtColSets, targetClassFqn,
-                                model);
-            }
+            boolean liftTargetMerged = liftTargetMerged(found.get(prop),
+                    joins.get(prop), prop, targetUnion, targetClassFqn,
+                    members, md, model);
             Variable s = new Variable("s");
             Variable t = new Variable("t");
             ValueSpecification orCond = null;
