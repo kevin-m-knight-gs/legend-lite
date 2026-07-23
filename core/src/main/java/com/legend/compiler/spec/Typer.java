@@ -401,6 +401,22 @@ final class Typer {
                     && ctx.findProperty(classFqn, af.function()).orElse(null)
                             instanceof Property.Derived d
                     && d.parameters().size() == af.parameters().size() - 1) {
+                // AUTO-MAP: a qualifier call on a MANY receiver applies per
+                // element (engine qualified-property auto-map:
+                // $o.product($bd).qualifier() over a [*] milestoned read)
+                // — rewrite as receiver->map(v|$v.qualifier(args))
+                if (recv.info().multiplicity()
+                        instanceof Multiplicity.Bounded rb && rb.isMany()) {
+                    Variable mv = new Variable("v_qam");
+                    java.util.List<ValueSpecification> inner =
+                            new ArrayList<>(af.parameters());
+                    inner.set(0, mv);
+                    return synth(new AppliedFunction("map", List.of(
+                            af.parameters().get(0),
+                            new LambdaFunction(List.of(mv), List.of(
+                                    new AppliedFunction(af.function(), inner))))),
+                            env);
+                }
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                         af.parameters()), env);
             }
