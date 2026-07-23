@@ -2843,6 +2843,8 @@ public final class StoreResolver {
         JoinedPipe joined = foldAssociationJoins(cs, m, keyWidenedPipe,
                 assocJoins, aggMaterials, aggDemands);
         m = joined.m();
+        // form-2 outer-nav dates: windows over the JOINED frame (Leg 2)
+        m = temporal.applyOuterNavDateFilters(cs, m, joinsByChain);
         List<AssociationJoins.AssocJoin> aggAssocJoins = joined.aggAssocJoins();
         Map<TypedSpec, Substitution.AggRead> aggReads = joined.aggReads();
 

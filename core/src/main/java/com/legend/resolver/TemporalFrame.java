@@ -289,6 +289,169 @@ final class TemporalFrame {
         return outerColumnDate(specs.get(head), parent);
     }
 
+    /** FORM-2 outer date: {@code $o.<nav>.<leaf>->toOne()} — the date reads
+     * a column of ANOTHER nav on the outer frame (engine golden
+     * testBusinessDateMilestoning:569: window in the outer WHERE reading
+     * orderdetailstable_0.settlementDate). Null when not that shape. */
+    record OuterNavDate(String navHead, String leafColumn) {
+    }
+
+    OuterNavDate outerNavDate(String head, ClassSource cs) {
+        TemporalSpec spec = specs.get(head);
+        if (spec == null || spec.sweep() || spec.dates().size() != 1) {
+            return null;
+        }
+        TypedSpec d = unwrapToOne(spec.dates().get(0));
+        if (!(d instanceof TypedPropertyAccess leaf)
+                || !(leaf.source() instanceof TypedPropertyAccess nav)
+                || !(nav.source()
+                        instanceof com.legend.compiler.spec.typed.TypedVariable)) {
+            return null;
+        }
+        TypedSpec navB = cs.bindings().get(nav.property());
+        if (navB == null) {
+            return null;
+        }
+        var navSteps = Pipelines.navSteps(cs.pipeline());
+        String alias = StoreResolver.navSlotAlias(navB, cs.rowVar(),
+                navSteps.keySet());
+        if (alias == null
+                || !(navSteps.get(alias).target()
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll g)) {
+            return null;
+        }
+        TypedSpec lb = sources.get(cs.mappingFqn(), g.classFqn())
+                .bindings().get(leaf.property());
+        lb = lb == null ? null : unwrapToOne(lb);
+        return lb instanceof TypedPropertyAccess pb
+                && pb.source()
+                        instanceof com.legend.compiler.spec.typed.TypedVariable
+                ? new OuterNavDate(nav.property(), pb.property()) : null;
+    }
+
+    private static TypedSpec unwrapToOne(TypedSpec d) {
+        return d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                ? c.args().get(0) : d;
+    }
+
+    /** Apply every head's form-2 window onto the JOINED outer frame:
+     * {@code <hopPfx>from <= <navPfx>leaf AND <hopPfx>thru > <navPfx>leaf}
+     * (inclusive flag flips per the table block). Identity when no head
+     * carries an outer-nav date; LOUD when the frame lacks a needed
+     * column — never a silently dropped window. */
+    Pipelines.Materialized applyOuterNavDateFilters(ClassSource cs,
+            Pipelines.Materialized m,
+            Map<String, AssociationJoins.AssocJoin> joinsByChain) {
+        TypedSpec out = applyOuterNavDateFilters(cs, m.pipeline(),
+                joinsByChain, m.slotPrefixes());
+        return out == m.pipeline() ? m
+                : new Pipelines.Materialized(out, m.slotPrefixes(),
+                        m.stripped());
+    }
+
+    private TypedSpec applyOuterNavDateFilters(ClassSource cs, TypedSpec frame,
+            Map<String, AssociationJoins.AssocJoin> joinsByChain,
+            Map<String, String> slotPrefixes) {
+        TypedSpec out = frame;
+        for (var e : joinsByChain.entrySet()) {
+            OuterNavDate odn = outerNavDate(e.getKey(), cs);
+            if (odn == null) {
+                continue;
+            }
+            var aj = e.getValue();
+            TypedTableReference rt = rootTable(aj.targetPipeline());
+            var ms = rt == null ? null
+                    : ctx.findTableMilestoning(rt.store(), rt.table())
+                            .orElse(null);
+            String strat = temporalStrategy(aj.target().classFqn());
+            String fromCol;
+            String thruCol;
+            boolean inclusive;
+            if ("businesstemporal".equals(strat) && ms != null
+                    && ms.business() != null
+                    && ms.business().snapshotDate() == null) {
+                fromCol = ms.business().from();
+                thruCol = ms.business().thru();
+                inclusive = ms.business().thruIsInclusive();
+            } else if ("processingtemporal".equals(strat) && ms != null
+                    && ms.processing() != null
+                    && ms.processing().snapshotDate() == null) {
+                fromCol = ms.processing().in();
+                thruCol = ms.processing().out();
+                inclusive = ms.processing().outIsInclusive();
+            } else {
+                throw new com.legend.error.NotImplementedException(
+                        "outer-nav milestoning date over a "
+                        + (strat == null ? "non-temporal" : strat)
+                        + " target ('" + aj.target().classFqn()
+                        + "') is not supported yet");
+            }
+            // read through the SAME materialization the demand produced:
+            // an assoc-route join for the nav wins over the slot prefix —
+            // a second read-side join would fan the rows out (the
+            // [STOCK, STOCK] duplicate).
+            AssociationJoins.AssocJoin navAj = joinsByChain.get(odn.navHead());
+            String navAlias = StoreResolver.navSlotAlias(
+                    cs.bindings().get(odn.navHead()), cs.rowVar(),
+                    Pipelines.navSteps(cs.pipeline()).keySet());
+            String navPfx = navAj != null ? navAj.prefix()
+                    : navAlias == null ? null : slotPrefixes.get(navAlias);
+            if (navPfx == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "outer-nav milestoning date: nav '" + odn.navHead()
+                        + "' is not materialized on the outer frame");
+            }
+            Type.RelationType row = (Type.RelationType) out.info().type();
+            String rv = "_odw";
+            java.util.function.Function<String, TypedSpec> read = name -> {
+                Type.Column c = row.columns().stream()
+                        .filter(x -> x.name().equalsIgnoreCase(name))
+                        .findFirst().orElseThrow(() ->
+                                new com.legend.error.NotImplementedException(
+                                        "outer-nav milestoning window column '"
+                                        + name + "' is not on the outer frame"));
+                return new TypedPropertyAccess(new com.legend.compiler.spec
+                        .typed.TypedVariable(rv, new ExprType(row,
+                                Multiplicity.Bounded.ONE)),
+                        c.name(), new ExprType(c.type(), c.multiplicity()));
+            };
+            TypedSpec dateRead = read.apply(navPfx + odn.leafColumn());
+            ExprType boolT = new ExprType(Type.Primitive.BOOLEAN,
+                    Multiplicity.Bounded.ONE);
+            TypedSpec win = inclusive
+                    ? cmpCall("meta::pure::functions::boolean::and",
+                            dateCmpCall("meta::pure::functions::boolean::lessThan",
+                                    read.apply(aj.prefix() + fromCol),
+                                    dateRead, boolT),
+                            dateCmpCall("meta::pure::functions::boolean::"
+                                    + "greaterThanEqual",
+                                    read.apply(aj.prefix() + thruCol),
+                                    dateRead, boolT), boolT)
+                    : cmpCall("meta::pure::functions::boolean::and",
+                            dateCmpCall("meta::pure::functions::boolean::"
+                                    + "lessThanEqual",
+                                    read.apply(aj.prefix() + fromCol),
+                                    dateRead, boolT),
+                            dateCmpCall("meta::pure::functions::boolean::"
+                                    + "greaterThan",
+                                    read.apply(aj.prefix() + thruCol),
+                                    dateRead, boolT), boolT);
+            TypedLambda pred = new TypedLambda(List.of(rv), List.of(win),
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(row,
+                                    Multiplicity.Bounded.ONE)),
+                            new Type.Param(Type.Primitive.BOOLEAN,
+                                    Multiplicity.Bounded.ONE)),
+                            Multiplicity.Bounded.ONE));
+            out = new com.legend.compiler.spec.typed.TypedFilter(out, pred,
+                    out.info());
+        }
+        return out;
+    }
+
     /** The join condition AND'd with the target's temporal window read
      * against the SOURCE row's date column (the outer-dated channel).
      * Plain single-date business/processing only — snapshot and
@@ -1138,12 +1301,13 @@ final class TemporalFrame {
                 return rangeMilestonedPipe(pipe, spec.dates().get(0),
                         spec.dates().get(1), target.classFqn());
             }
-            if (outerColumnDate(spec, parent) != null) {
+            if (outerColumnDate(spec, parent) != null
+                    || outerNavDate(head, parent) != null) {
                 // OUTER-ROW date ($o.product($o.orderDate)): stamping the
                 // target pipe would read $o out of scope — the caller
-                // composes the window into the JOIN condition instead
-                // (outerDatedJoinCond; engine golden: window in the ON
-                // against "root".orderDate).
+                // composes the window into the JOIN condition (form 1,
+                // outerDatedJoinCond) or the outer frame's WHERE (form 2,
+                // applyOuterNavDateFilters; engine :568/:569).
                 return pipe;
             }
             return milestonedPipe(pipe, spec.dates().get(0), target.classFqn());
