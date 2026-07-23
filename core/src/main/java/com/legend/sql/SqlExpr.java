@@ -118,7 +118,16 @@ public sealed interface SqlExpr
      * aggregation of an envelope: all rows into one JSON-array value; an
      * empty rowset is the EMPTY ARRAY, never SQL NULL.
      */
-    record JsonArrayAgg(SqlExpr value) implements SqlExpr {
+    record JsonArrayAgg(SqlExpr value, List<SqlExpr> orderKeys) implements SqlExpr {
+        public JsonArrayAgg {
+            orderKeys = orderKeys == null ? List.of() : List.copyOf(orderKeys);
+        }
+
+        /** Unordered aggregation (scan order — the pre-determinism shape). */
+        public JsonArrayAgg(SqlExpr value) {
+            this(value, List.of());
+        }
+
     }
 
     /**

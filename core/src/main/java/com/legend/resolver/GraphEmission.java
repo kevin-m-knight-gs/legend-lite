@@ -173,82 +173,10 @@ final class GraphEmission {
         List<TypedSerializeGraph.Child> children = new ArrayList<>();
         List<TypedSerializeGraph.SubTypePatch> subTypePatches = new ArrayList<>();
         for (TypedGraphTree node : tree) {
-            // ->subType(@X){...}: the subtype VIEW reads the row's
-            // stc_<Sub>___<prop> carrier columns (#71 same-source subtype
-            // machinery — NULL on non-member rows) and rides the envelope
-            // as a JSON MERGE PATCH, whose null-valued keys DROP (RFC
-            // 7386): member rows gain the fields, others omit them.
+            // ->subType(@X){...}: the subtype VIEW — extracted builder
             if (node.subTypeFqn() != null) {
-                List<TypedFuncCol> patch = new ArrayList<>();
-                List<TypedSerializeGraph.Child> patchChildren = new ArrayList<>();
-                for (TypedGraphTree sub : node.children()) {
-                    if (!sub.children().isEmpty()) {
-                        // CLASS-typed subtype child (coordinate{...}): a
-                        // correlated child against the SUBTYPE's own
-                        // ClassSource (its member pipeline holds the
-                        // binding); it rides INSIDE the member-gated patch,
-                        // so non-member rows never evaluate or emit it
-                        String skey = (context.explicitMapping() == null ? ""
-                                : context.explicitMapping()) + '\u0000'
-                                + (context.runtimeFqn() == null ? ""
-                                        : context.runtimeFqn());
-                        ClassSource subCs = sources.get(cs.mappingFqn(),
-                                node.subTypeFqn(),
-                                target -> dispatch.apply(context, target), skey);
-                        patchChildren.add(graphChild(subCs, sub, context,
-                                rowVar, rowType));
-                        continue;
-                    }
-                    String col = com.legend.model.ClassMapping.subTypeColumn(
-                            node.subTypeFqn(), sub.property());
-                    Type.Column rc = rowType.columns().stream()
-                            .filter(c -> c.name().equals(col))
-                            .findFirst().orElse(null);
-                    if (rc == null) {
-                        throw new NotImplementedException("graph ->subType(@"
-                                + node.subTypeFqn() + "): carrier column '"
-                                + col + "' is not on the row (non-union"
-                                + " subtype mapping) — not built yet");
-                    }
-                    TypedSpec read = new TypedPropertyAccess(
-                            toRow.apply(null), col,
-                            new ExprType(rc.type(), rc.multiplicity()));
-                    var pFn = new Type.FunctionType(
-                            List.of(new Type.Param(rowType,
-                                    com.legend.compiler.element.type
-                                            .Multiplicity.Bounded.ONE)),
-                            new Type.Param(rc.type(), rc.multiplicity()));
-                    patch.add(new TypedFuncCol(keyOf(sub),
-                            new TypedLambda(List.of(rowVar), List.of(read),
-                                    new ExprType(pFn,
-                                            com.legend.compiler.element.type
-                                                    .Multiplicity.Bounded.ONE))));
-                }
-                String mcol = com.legend.model.ClassMapping.subTypeColumn(
-                        node.subTypeFqn(),
-                        com.legend.model.ClassMapping.memberWitness());
-                Type.Column mrc = rowType.columns().stream()
-                        .filter(c -> c.name().equals(mcol))
-                        .findFirst().orElseThrow(() ->
-                                new NotImplementedException("graph ->subType(@"
-                                        + node.subTypeFqn() + "): membership"
-                                        + " witness '" + mcol
-                                        + "' is not on the row"));
-                TypedSpec mread = new TypedPropertyAccess(
-                        toRow.apply(null), mcol,
-                        new ExprType(mrc.type(), mrc.multiplicity()));
-                var mFn = new Type.FunctionType(
-                        List.of(new Type.Param(rowType,
-                                com.legend.compiler.element.type
-                                        .Multiplicity.Bounded.ONE)),
-                        new Type.Param(mrc.type(), mrc.multiplicity()));
-                TypedFuncCol member = new TypedFuncCol(mcol,
-                        new TypedLambda(List.of(rowVar), List.of(mread),
-                                new ExprType(mFn,
-                                        com.legend.compiler.element.type
-                                                .Multiplicity.Bounded.ONE)));
-                subTypePatches.add(new TypedSerializeGraph.SubTypePatch(
-                        node.subTypeFqn(), patch, member, patchChildren));
+                subTypePatches.add(subTypePatch(cs, node, context, rowVar,
+                        rowType, toRow));
                 continue;
             }
             if (!node.children().isEmpty()
@@ -395,8 +323,34 @@ final class GraphEmission {
                             new ExprType(fnType,
                                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE))));
         }
+        // UNION-root row order: the engine serializes members in BRANCH
+        // DECLARATION order (serial union); DuckDB's aggregation is scan-
+        // ordered. The member WITNESS columns (row-type column order =
+        // declaration order) become ORDER keys — TRUE-first per member.
+        List<TypedFuncCol> orderKeys = new ArrayList<>();
+        if (arrayWrap) {
+            for (Type.Column c : rowType.columns()) {
+                if (com.legend.model.ClassMapping
+                        .witnessPrefixOf(c.name()) == null) {
+                    continue;
+                }
+                TypedSpec wread = new TypedPropertyAccess(toRow.apply(null),
+                        c.name(), new ExprType(c.type(), c.multiplicity()));
+                var wFn = new Type.FunctionType(
+                        List.of(new Type.Param(rowType,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)),
+                        new Type.Param(c.type(), c.multiplicity()));
+                orderKeys.add(new TypedFuncCol(c.name(),
+                        new TypedLambda(List.of(rowVar), List.of(wread),
+                                new ExprType(wFn,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))));
+            }
+        }
         return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
-                arrayWrap, false, cs.classFqn(), info, false, subTypePatches);
+                arrayWrap, false, cs.classFqn(), info, false, subTypePatches,
+                orderKeys);
     }
 
     /**
@@ -914,6 +868,87 @@ final class GraphEmission {
             }
         }
         return k.append(')').toString();
+    }
+
+    /**
+     * A ->subType(@X){...} node as a member-gated patch: scalar leaves read
+     * the row's stc carrier columns (NULL off-member); class-typed children
+     * correlate against the SUBTYPE's own ClassSource; the $member witness
+     * gates the branch at the envelope.
+     */
+    private TypedSerializeGraph.SubTypePatch subTypePatch(ClassSource cs,
+            TypedGraphTree node, StoreResolver.Context context, String rowVar,
+            Type.RelationType rowType,
+            UnaryOperator<TypedSpec> toRow) {
+        List<TypedFuncCol> patch = new ArrayList<>();
+        List<TypedSerializeGraph.Child> patchChildren = new ArrayList<>();
+        for (TypedGraphTree sub : node.children()) {
+            if (!sub.children().isEmpty()) {
+                // CLASS-typed subtype child (coordinate{...}): a correlated
+                // child against the SUBTYPE's own ClassSource (its member
+                // pipeline holds the binding); it rides INSIDE the
+                // member-gated branch, so non-member rows never emit it
+                String skey = (context.explicitMapping() == null ? ""
+                        : context.explicitMapping()) + '\u0000'
+                        + (context.runtimeFqn() == null ? ""
+                                : context.runtimeFqn());
+                ClassSource subCs = sources.get(cs.mappingFqn(),
+                        node.subTypeFqn(),
+                        target -> dispatch.apply(context, target), skey);
+                patchChildren.add(graphChild(subCs, sub, context,
+                        rowVar, rowType));
+                continue;
+            }
+            String col = com.legend.model.ClassMapping.subTypeColumn(
+                    node.subTypeFqn(), sub.property());
+            Type.Column rc = rowType.columns().stream()
+                    .filter(c -> c.name().equals(col))
+                    .findFirst().orElse(null);
+            if (rc == null) {
+                throw new NotImplementedException("graph ->subType(@"
+                        + node.subTypeFqn() + "): carrier column '"
+                        + col + "' is not on the row (non-union"
+                        + " subtype mapping) — not built yet");
+            }
+            TypedSpec read = new TypedPropertyAccess(
+                    toRow.apply(null), col,
+                    new ExprType(rc.type(), rc.multiplicity()));
+            var pFn = new Type.FunctionType(
+                    List.of(new Type.Param(rowType,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE)),
+                    new Type.Param(rc.type(), rc.multiplicity()));
+            patch.add(new TypedFuncCol(keyOf(sub),
+                    new TypedLambda(List.of(rowVar), List.of(read),
+                            new ExprType(pFn,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE))));
+        }
+        String mcol = com.legend.model.ClassMapping.subTypeColumn(
+                node.subTypeFqn(),
+                com.legend.model.ClassMapping.memberWitness());
+        Type.Column mrc = rowType.columns().stream()
+                .filter(c -> c.name().equals(mcol))
+                .findFirst().orElseThrow(() ->
+                        new NotImplementedException("graph ->subType(@"
+                                + node.subTypeFqn() + "): membership"
+                                + " witness '" + mcol
+                                + "' is not on the row"));
+        TypedSpec mread = new TypedPropertyAccess(
+                toRow.apply(null), mcol,
+                new ExprType(mrc.type(), mrc.multiplicity()));
+        var mFn = new Type.FunctionType(
+                List.of(new Type.Param(rowType,
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ONE)),
+                new Type.Param(mrc.type(), mrc.multiplicity()));
+        TypedFuncCol member = new TypedFuncCol(mcol,
+                new TypedLambda(List.of(rowVar), List.of(mread),
+                        new ExprType(mFn,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)));
+        return new TypedSerializeGraph.SubTypePatch(
+                node.subTypeFqn(), patch, member, patchChildren);
     }
 
     /** The serialized key: the tree alias when given, else the

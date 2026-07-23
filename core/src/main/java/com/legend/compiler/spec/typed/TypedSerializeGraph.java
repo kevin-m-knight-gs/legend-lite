@@ -47,13 +47,24 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   String classFqn,
                                   ExprType info,
                                   boolean inlineChild,
-                                  List<SubTypePatch> subTypePatches) implements TypedSpec {
+                                  List<SubTypePatch> subTypePatches,
+                                  List<TypedFuncCol> orderKeys) implements TypedSpec {
 
     public TypedSerializeGraph {
         leaves = List.copyOf(leaves);
         nested = List.copyOf(nested);
         subTypePatches = subTypePatches == null ? List.of()
                 : List.copyOf(subTypePatches);
+        orderKeys = orderKeys == null ? List.of() : List.copyOf(orderKeys);
+    }
+
+    /** Order-free compat: envelope row order = scan order. */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, List.of());
     }
 
     /** A ->subType(@X){...} view: leaves reading the subtype member's
@@ -114,6 +125,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
             out.add(p.member().fn());
             p.children().forEach(c -> out.add(c.node()));
         });
+        orderKeys.forEach(k -> out.add(k.fn()));
         return out;
     }
 }

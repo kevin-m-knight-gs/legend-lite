@@ -273,8 +273,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .map(kvE -> expr(kvE, 0)).collect(Collectors.joining(", ")) + ")";
             // COALESCE: an aggregate over ZERO rows is SQL NULL; the graph
             // contract says empty collection = the EMPTY ARRAY.
-            case SqlExpr.JsonArrayAgg j -> "coalesce(json_group_array("
-                    + expr(j.value(), 0) + "), '[]')";
+            // ordered form: json_group_array is a DuckDB MACRO (no ORDER
+            // BY) — list() is a real aggregate that takes one, and to_json
+            // over the JSON list yields the same array value
+            case SqlExpr.JsonArrayAgg j -> j.orderKeys().isEmpty()
+                    ? "coalesce(json_group_array(" + expr(j.value(), 0) + "), '[]')"
+                    : "coalesce(to_json(list(" + expr(j.value(), 0)
+                            + " ORDER BY " + j.orderKeys().stream()
+                                    .map(k -> expr(k, 0) + " DESC NULLS LAST")
+                                    .collect(java.util.stream.Collectors
+                                            .joining(", "))
+                            + ")), '[]')";
             case SqlAgg.Reducer r -> reducer(r);
         };
     }

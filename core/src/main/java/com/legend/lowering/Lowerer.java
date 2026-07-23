@@ -658,54 +658,66 @@ public final class Lowerer {
                 enclosing.pop();
             }
         }
-        // bareValue: a to-many PRIMITIVE leaf aggregates the raw values —
-        // ["abc","def"] — never json_object envelopes
+        // bareValue: a to-many PRIMITIVE leaf aggregates raw values
         SqlExpr obj = g.bareValue() ? kv.get(1) : new SqlExpr.JsonObject(kv);
-        // ->subType views ride as JSON MERGE PATCHES: null-valued keys
-        // (non-member rows' carrier columns) DROP per RFC 7386, so member
-        // rows gain the subtype fields and others omit them
-        for (var p : g.subTypePatches()) {
-            List<SqlExpr> pkv = new ArrayList<>(2 * p.leaves().size());
-            for (TypedFuncCol leaf : p.leaves()) {
-                pkv.add(new SqlExpr.StringLit(leaf.name()));
-                switch (attempt(() -> scalar(last(leaf.fn()),
+        // ->subType views: DISJOINT members -> ONE CASE over the witnesses;
+        // a member's branch serializes base + subtype fields IN FULL (engine
+        // keeps "coordinate":null on member rows); non-members fall through
+        if (!g.subTypePatches().isEmpty() && !g.bareValue()) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>();
+            for (var p : g.subTypePatches()) {
+                List<SqlExpr> pkv = new ArrayList<>(kv);
+                for (TypedFuncCol leaf : p.leaves()) {
+                    pkv.add(new SqlExpr.StringLit(leaf.name()));
+                    switch (attempt(() -> scalar(last(leaf.fn()),
+                            (v, name) -> resolveOrThrow(base, name)))) {
+                        case Resolution.Resolved r -> pkv.add(r.expr());
+                        case Resolution.Unfoldable u -> throw new IllegalStateException(
+                                "subType patch leaf '" + leaf.name()
+                                        + "' references column '" + u.column()
+                                        + "', unresolvable in the envelope source");
+                    }
+                }
+                for (var child : p.children()) {
+                    pkv.add(new SqlExpr.StringLit(child.property()));
+                    enclosing.push(own);
+                    try {
+                        pkv.add(new SqlExpr.ScalarSubquery(
+                                serializeGraph(child.node())));
+                    } finally {
+                        enclosing.pop();
+                    }
+                }
+                SqlExpr member;
+                switch (attempt(() -> scalar(last(p.member().fn()),
                         (v, name) -> resolveOrThrow(base, name)))) {
-                    case Resolution.Resolved r -> pkv.add(r.expr());
+                    case Resolution.Resolved r -> member = r.expr();
                     case Resolution.Unfoldable u -> throw new IllegalStateException(
-                            "subType patch leaf '" + leaf.name()
-                                    + "' references column '" + u.column()
-                                    + "', unresolvable in the envelope source");
+                            "subType membership witness references column '"
+                                    + u.column() + "', unresolvable in the"
+                                    + " envelope source");
                 }
+                whens.add(new SqlExpr.Case.When(member,
+                        new SqlExpr.JsonObject(pkv)));
             }
-            for (var child : p.children()) {
-                pkv.add(new SqlExpr.StringLit(child.property()));
-                enclosing.push(own);
-                try {
-                    pkv.add(new SqlExpr.ScalarSubquery(
-                            serializeGraph(child.node())));
-                } finally {
-                    enclosing.pop();
-                }
-            }
-            SqlExpr member;
-            switch (attempt(() -> scalar(last(p.member().fn()),
-                    (v, name) -> resolveOrThrow(base, name)))) {
-                case Resolution.Resolved r -> member = r.expr();
-                case Resolution.Unfoldable u -> throw new IllegalStateException(
-                        "subType membership witness references column '"
-                                + u.column() + "', unresolvable in the"
-                                + " envelope source");
-            }
-            // gate on the MEMBERSHIP WITNESS: two subtypes sharing a
-            // property name (Street.type / City.type) must not have the
-            // NON-member's null patch DELETE the member's value
-            obj = new SqlExpr.Case(
-                    List.of(new SqlExpr.Case.When(member,
-                            SqlExpr.Call.of(SqlFn.JSON_MERGE_PATCH, obj,
-                                    new SqlExpr.JsonObject(pkv)))),
-                    obj);
+            obj = new SqlExpr.Case(whens, obj);
         }
-        SqlExpr result = g.arrayWrap() ? new SqlExpr.JsonArrayAgg(obj) : obj;
+        SqlExpr result;
+        if (g.arrayWrap()) {
+            List<SqlExpr> okeys = new ArrayList<>(g.orderKeys().size());
+            for (TypedFuncCol k : g.orderKeys()) {
+                switch (attempt(() -> scalar(last(k.fn()),
+                        (v, name) -> resolveOrThrow(base, name)))) {
+                    case Resolution.Resolved r -> okeys.add(r.expr());
+                    case Resolution.Unfoldable u -> throw new IllegalStateException(
+                            "envelope order key references column '" + u.column()
+                                    + "', unresolvable in the source");
+                }
+            }
+            result = new SqlExpr.JsonArrayAgg(obj, okeys);
+        } else {
+            result = obj;
+        }
         return base.withProjections(
                 List.of(new SqlSelect.Projection(result, "result")),
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
@@ -3259,23 +3271,18 @@ public final class Lowerer {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
     }
 
-    /**
-     * fold: emitted in PURE conventions — {@link SqlExpr.FoldCall} with the
-     * {@code (element, accumulator)} lambda exactly as written. The Phase-G
-     * strategy collapses to logical facts (Concatenation is a list concat;
-     * MapReduce pre-transforms; {@code accIsList} rides for the dialect's
-     * encoding decisions). NOTHING here knows how any backend folds.
-     */
+    /** fold in PURE conventions ({@code (element, accumulator)} lambda);
+     * the Phase-G strategy collapses to logical facts (Concatenation =
+     * list concat; MapReduce pre-transforms; {@code accIsList} rides for
+     * the dialect). NOTHING here knows how any backend folds. */
     private SqlExpr fold(TypedFold f,
                          ColumnResolver columns) {
         SqlExpr source = scalar(f.source(), columns);
         SqlExpr init = scalar(f.init(), columns);
         List<String> ps = f.reducer().parameters();
         return switch (f.strategy()) {
-            // A TO-ONE side (1->fold(add, …), scalar init) concatenates as a
-            // singleton list. Already-list-shaped values ([9] lowers to an
-            // ArrayLit despite mult [1]) and NULL (the []-born empty, which
-            // DuckDB list_concat treats as []) pass through.
+            // TO-ONE sides concatenate as singleton lists; list-shaped
+            // values and NULL (=[] to DuckDB list_concat) pass through.
             case FoldStrategy.Concatenation c ->
                     new SqlExpr.Call(SqlFn.LIST_CONCAT,
                             List.of(asList(init, isMany(f.init())),

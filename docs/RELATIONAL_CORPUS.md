@@ -18,11 +18,11 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 183 | 7 | 52 | 16 |
+| functions/tests | 258 | 182 | 8 | 52 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 101 | 6 | 29 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 34 | 15 | 92 | 2 |
+| graphFetch/tests | 143 | 37 | 12 | 92 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1364** | 66 | 473 | 635 |
+| **total** | 2538 | **1366** | 64 | 473 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6364,8 +6364,9 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6594,12 +6595,9 @@ in-process Alloy-shaped path).
 - ERROR testSimpleGraphFetchCheckedWithPrimitivesOnlyNoDefects [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - ERROR testCheckedOneComplexProperty [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - ERROR testCheckedWithCircularConstraints [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
-- FAIL testMultipleSubTypeAtRootLevel [graphFetch/tests]: assertJsonStringsEqual: expected [{coordinate={latitude=38.8951, longitude= -77.0364}, street=str1, Id=1, landmark={lmName=lm1}}, {coordinate={latitude=32.8951, longitude= -75.0364}, street=..., got [{Id=4, landmark={lmName=lm4}, name=City1}, {Id=5, landmark={lmName=lm5}, name=City2}, {Id=6, landmar
 - ERROR testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: unknown function 'parseJSON'
 - ERROR testSubTypeAtRootLevelWithAlloySerializationConfig [graphFetch/tests]: unknown class 'meta::pure::graphFetch::execution::AlloySerializationConfig' in ^meta::pure::graphFetch::execution::AlloySerializationConfig(…)
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'
-- FAIL testUnionMappingWithoutSubType [graphFetch/tests]: assertJsonStringsEqual: expected [{Id=1, landmark={lmName=lm1}}, {Id=2, landmark={lmName=lm2}}, {Id=3, landmark={lmName=lm3}}, {Id=4, landmark={lmName=lm4}}, {Id=5, landmark={lmName=lm5}}, {..., got [{Id=4, landmark={lmName=lm4}}, {Id=5, landmark={lmName=lm5}}, {Id=6, landmark={lmName=lm6}}, {Id=1, 
-- FAIL RootSubTypeWithRootPropertyUnion [graphFetch/tests]: assertJsonStringsEqual: expected [{coordinate={latitude=31.8951, longitude= -77.0364}, street=str1, Id=1, landmark={lmName=lm1}}, {coordinate={latitude=33.8951, longitude= -75.0364}, street=..., got [{Id=1, landmark={lmName=lm1}, street=str1, coordinate={latitude=31.8951, longitude= -77.0364}}, {Id=
 - ERROR RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: unknown function 'meta::legend::compileLegendValueSpecification'
 - ERROR RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: unknown function 'meta::legend::compileLegendValueSpecification'
 - ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street): carrier column 'stc_meta__relational__graphFetch__tests__subType__Street___landmarkName' is not on the row (non-union subtype mapping) — not built yet
@@ -6880,7 +6878,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
@@ -7156,7 +7154,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending

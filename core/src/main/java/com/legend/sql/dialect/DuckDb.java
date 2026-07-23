@@ -101,7 +101,9 @@ public final class DuckDb extends AnsiSqlRenderer {
             case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(
                     j.kv().stream().map(DuckDb::unqualify).toList());
             case SqlExpr.JsonArrayAgg ja ->
-                    new SqlExpr.JsonArrayAgg(unqualify(ja.value()));
+                    new SqlExpr.JsonArrayAgg(unqualify(ja.value()),
+                            ja.orderKeys().stream()
+                                    .map(DuckDb::unqualify).toList());
             case SqlAgg.Reducer r -> new SqlAgg.Reducer(r.fn(),
                     r.args().stream().map(DuckDb::unqualify).toList(),
                     r.distinct());
