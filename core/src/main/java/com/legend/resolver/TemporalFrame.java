@@ -254,28 +254,135 @@ final class TemporalFrame {
         if (spec == null || spec.sweep() || spec.dates().size() != 1) {
             return null;
         }
-        TypedSpec d = spec.dates().get(0);
-        if (d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
-            d = c.args().get(0);
+        return outerReadColumn(spec.dates().get(0), cs);
+    }
+
+    /** [processing, business] dates for a bi-temporal hop: an explicit
+     * 2-date spec; else both root-context slots (through a temporal
+     * parent); else the engine-generated 1-DATE form (the param is the
+     * dimension the OWNER lacks, the owner's own fills from the context).
+     * Null when underivable. */
+    private List<TypedSpec> biTemporalDatesFor(TemporalSpec spec,
+            ClassSource parent) {
+        if (spec != null && !spec.sweep() && spec.dates().size() == 2) {
+            return spec.dates();
         }
+        String parentStrat = temporalStrategy(parent.classFqn());
+        if (root.processing() != null && root.business() != null
+                && parentStrat != null) {
+            return List.of(root.processing(), root.business());
+        }
+        if (spec != null && !spec.sweep() && spec.dates().size() == 1) {
+            TypedSpec ownerDate = root.dateFor(parentStrat);
+            if (ownerDate != null && "businesstemporal".equals(parentStrat)) {
+                return List.of(spec.dates().get(0), ownerDate);
+            }
+            if (ownerDate != null
+                    && "processingtemporal".equals(parentStrat)) {
+                return List.of(ownerDate, spec.dates().get(0));
+            }
+        }
+        return null;
+    }
+
+    /** BITEMPORAL outer-dated compose: BOTH dimension windows AND into the
+     * join condition, each date an outer-col read or a literal (engine
+     * testBiTemporalDateMilestoning:279; mixed variants :276-277). Null
+     * when the head is not bitemporal-with-an-outer-date. */
+    TypedLambda outerBiDatedJoinCond(TypedLambda cond, TypedSpec left,
+            TypedSpec right, ClassSource parent, ClassSource target,
+            String head) {
+        if (!"bitemporal".equals(temporalStrategy(target.classFqn()))) {
+            return null;
+        }
+        List<TypedSpec> dates = biTemporalDatesFor(specs.get(head), parent);
+        if (dates == null) {
+            return null;
+        }
+        String pCol = outerReadColumn(dates.get(0), parent);
+        String bCol = outerReadColumn(dates.get(1), parent);
+        if (pCol == null && bCol == null) {
+            return null;   // both literal: the stamped path serves it
+        }
+        TypedTableReference rt = rootTable(right);
+        var ms = rt == null ? null
+                : ctx.findTableMilestoning(rt.store(), rt.table()).orElse(null);
+        if (ms == null || ms.processing() == null || ms.business() == null
+                || ms.processing().snapshotDate() != null
+                || ms.business().snapshotDate() != null) {
+            throw new com.legend.error.NotImplementedException(
+                    "outer-row bitemporal date: target table "
+                    + (rt == null ? "?" : "'" + rt.table() + "'")
+                    + " lacks plain processing+business blocks");
+        }
+        String sv = cond.parameters().get(0);
+        String tv = cond.parameters().get(1);
+        Type.RelationType lRow = (Type.RelationType) left.info().type();
+        Type.RelationType rRow = (Type.RelationType) right.info().type();
+        java.util.function.BiFunction<String, String, TypedSpec> col =
+                (var vn, var name) -> {
+                    Type.RelationType row = vn.equals(sv) ? lRow : rRow;
+                    Type.Column c = row.columns().stream()
+                            .filter(x -> x.name().equalsIgnoreCase(name))
+                            .findFirst().orElseThrow(() ->
+                                    new MappingResolutionException(
+                                            "bitemporal window column '" + name
+                                            + "' is not on the join row",
+                                            target.classFqn()));
+                    return new TypedPropertyAccess(new com.legend.compiler
+                            .spec.typed.TypedVariable(vn, new ExprType(row,
+                                    Multiplicity.Bounded.ONE)),
+                            c.name(), new ExprType(c.type(), c.multiplicity()));
+                };
+        java.util.function.BiFunction<String, TypedSpec, TypedSpec> dexpr =
+                (var outerCol, var literal) -> outerCol != null
+                        ? col.apply(sv, outerCol) : unwrapToOne(literal);
+        ExprType boolT = new ExprType(Type.Primitive.BOOLEAN,
+                Multiplicity.Bounded.ONE);
+        TypedSpec pd = dexpr.apply(pCol, dates.get(0));
+        TypedSpec bd = dexpr.apply(bCol, dates.get(1));
+        TypedSpec win = cmpCall("meta::pure::functions::boolean::and",
+                windowPair(col.apply(tv, ms.processing().in()),
+                        col.apply(tv, ms.processing().out()), pd,
+                        ms.processing().outIsInclusive(), boolT),
+                windowPair(col.apply(tv, ms.business().from()),
+                        col.apply(tv, ms.business().thru()), bd,
+                        ms.business().thruIsInclusive(), boolT), boolT);
+        TypedSpec merged = cmpCall("meta::pure::functions::boolean::and",
+                cond.body().get(cond.body().size() - 1), win, boolT);
+        return new TypedLambda(cond.parameters(), List.of(merged),
+                cond.info());
+    }
+
+    /** {@code from <= d AND thru > d} (inclusive flips the pair). */
+    private TypedSpec windowPair(TypedSpec fromRead, TypedSpec thruRead,
+            TypedSpec d, boolean inclusive, ExprType boolT) {
+        return inclusive
+                ? cmpCall("meta::pure::functions::boolean::and",
+                        dateCmpCall("meta::pure::functions::boolean::lessThan",
+                                fromRead, d, boolT),
+                        dateCmpCall("meta::pure::functions::boolean::"
+                                + "greaterThanEqual", thruRead, d, boolT),
+                        boolT)
+                : cmpCall("meta::pure::functions::boolean::and",
+                        dateCmpCall("meta::pure::functions::boolean::"
+                                + "lessThanEqual", fromRead, d, boolT),
+                        dateCmpCall("meta::pure::functions::boolean::"
+                                + "greaterThan", thruRead, d, boolT), boolT);
+    }
+
+    /** ONE date expression's source-row physical column ({@code
+     * $o.orderDate->toOne()} &rarr; the parent binding's column), or null
+     * when the date is not a direct outer-row read. */
+    private String outerReadColumn(TypedSpec d, ClassSource cs) {
+        d = unwrapToOne(d);
         if (!(d instanceof TypedPropertyAccess pa)
                 || !(pa.source() instanceof
                         com.legend.compiler.spec.typed.TypedVariable)) {
             return null;
         }
         TypedSpec b = cs.bindings().get(pa.property());
-        if (b == null) {
-            return null;
-        }
-        if (b instanceof com.legend.compiler.spec.typed.TypedNativeCall c2
-                && c2.args().size() == 1
-                && c2.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
-            b = c2.args().get(0);
-        }
+        b = b == null ? null : unwrapToOne(b);
         return b instanceof TypedPropertyAccess pb
                 && pb.source() instanceof
                         com.legend.compiler.spec.typed.TypedVariable
@@ -1295,34 +1402,20 @@ final class TemporalFrame {
             return pipe;   // propAllVersions(): the RAW extent, any dimension
         }
         if (strat.equals("bitemporal")) {
-            List<TypedSpec> dates =
-                    spec != null && !spec.sweep() && spec.dates().size() == 2
-                            ? spec.dates()
-                            : root.processing() != null
-                                    && root.business() != null
-                                    && temporalStrategy(parent.classFqn()) != null
-                                    ? List.of(root.processing(),
-                                            root.business())
-                                    : null;
-            // the engine-generated 1-DATE bitemporal property: the param is
-            // the dimension the OWNER lacks; the owner's own dimension
-            // fills from $this.<date> = the propagated context
-            if (dates == null && spec != null && !spec.sweep()
-                    && spec.dates().size() == 1) {
-                String parentStrat = temporalStrategy(parent.classFqn());
-                TypedSpec ownerDate = root.dateFor(parentStrat);
-                if (ownerDate != null && "businesstemporal".equals(parentStrat)) {
-                    dates = List.of(spec.dates().get(0), ownerDate);
-                } else if (ownerDate != null
-                        && "processingtemporal".equals(parentStrat)) {
-                    dates = List.of(ownerDate, spec.dates().get(0));
-                }
-            }
+            List<TypedSpec> dates = biTemporalDatesFor(spec, parent);
             if (dates == null) {
                 throw new MappingResolutionException("navigation '" + head
                         + "' to bi-temporal class '" + target.classFqn()
                         + "' requires processing and business dates",
                         target.classFqn());
+            }
+            if (outerReadColumn(dates.get(0), parent) != null
+                    || outerReadColumn(dates.get(1), parent) != null) {
+                // any OUTER-ROW dimension date: BOTH windows compose into
+                // the join ON (engine testBiTemporalDateMilestoning:279 —
+                // in_z/out_z AND from_z/thru_z against "root".orderDate;
+                // mixed literal+outer keeps the literal in the ON too).
+                return pipe;
             }
             return milestonedPipeByStrategy(
                     milestonedPipeByStrategy(pipe, dates.get(0),

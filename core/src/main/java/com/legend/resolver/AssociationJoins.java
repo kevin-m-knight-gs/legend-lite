@@ -157,9 +157,13 @@ final class AssociationJoins {
             ClassSource cs, ClassSource target, String head,
             TypedLambda cond, TypedSpec targetPipe) {
         String odc = temporal.outerDateColumn(head, cs);
-        return odc == null ? cond
-                : temporal.outerDatedJoinCond(cond, cs.pipeline(), targetPipe,
-                        target.classFqn(), odc);
+        if (odc != null) {
+            return temporal.outerDatedJoinCond(cond, cs.pipeline(), targetPipe,
+                    target.classFqn(), odc);
+        }
+        TypedLambda bi = temporal.outerBiDatedJoinCond(cond, cs.pipeline(),
+                targetPipe, cs, target, head);
+        return bi != null ? bi : cond;
     }
 
     /** A demanded association navigation, ready to emit as a prefixed LEFT
