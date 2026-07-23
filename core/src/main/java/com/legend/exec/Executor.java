@@ -63,6 +63,24 @@ public final class Executor {
         // direct Statement's real error behind 'Attempting to execute an
         // unsuccessful or closed pending query result' (audit: 74 corpus
         // errors were unreadable); prepare() surfaces the actual message
+        try {
+            return executePrepared(connection, sql, shape, plan, rootType,
+                    dialect, anyRoot, variantRoot);
+        } catch (SQLException e) {
+            // error-path echo under the same diagnostic flag: a sweep's
+            // failing statement is otherwise invisible (pre-exec dump
+            // interleaves; the FAILING sql is the one worth reading)
+            if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+                System.err.println("[sql-fail] " + sql);
+            }
+            throw e;
+        }
+    }
+
+    private static ExecutionResult executePrepared(Connection connection,
+            String sql, ResultShape shape, SqlQuery plan, ExprType rootType,
+            com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
+            boolean variantRoot) throws SQLException {
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             return switch (shape) {
