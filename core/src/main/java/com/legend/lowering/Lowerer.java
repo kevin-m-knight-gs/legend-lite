@@ -1085,14 +1085,12 @@ public final class Lowerer {
                     new SqlAgg.Reducer("MAX", List.of(value), false))),
                     uvDefault);
         }
-        // hashCode over a group: HASH(LIST(values)) — no single SQL reducer.
-        // DuckDB hash() is UBIGINT (surfaces as a non-integer through JDBC);
-        // the result is a pure Integer — shift into signed BIGINT range
-        // (deterministic; real pure's hash VALUES are platform-specific,
-        // only determinism and type are the contract).
+        // hashCode over a group: HASH(LIST(values)) — no single SQL
+        // reducer. DuckDB hash() is UBIGINT; result is pure Integer —
+        // shift into signed BIGINT range (only determinism and type are
+        // the contract; real pure hash values are platform-specific).
         if ("__HASH_LIST__".equals(fn)) {
-            // shift by 2^63 exactly (PLUS Long.MIN_VALUE — a MAX_VALUE
-            // shift left hash 2^64-1 mapping to 2^63, one past BIGINT)
+            // shift by 2^63 exactly (PLUS Long.MIN_VALUE)
             return new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.PLUS,
                             new SqlExpr.Cast(
@@ -1102,15 +1100,13 @@ public final class Lowerer {
                             new SqlExpr.IntLit(Long.MIN_VALUE)),
                     SqlType.Scalar.BIGINT);
         }
-        // 1-arg joinStrings joins with the EMPTY separator
-        // (stringExtension.pure:253) — DuckDB's bare STRING_AGG(x)
-        // defaults to a COMMA, which would be silently wrong.
+        // 1-arg joinStrings joins with the EMPTY separator (string-
+        // Extension.pure:253) — bare STRING_AGG defaults to COMMA.
         if ("STRING_AGG".equals(fn) && extra.isEmpty()) {
             extra.add(new SqlExpr.StringLit(""));
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
-        // separator — prefix/suffix concatenate AROUND the aggregate
-        // (the audit: three extras produced an invalid 4-arg string_agg).
+        // separator — prefix/suffix concatenate AROUND the aggregate.
         if ("STRING_AGG".equals(fn) && extra.size() == 3) {
             return SqlExpr.Call.of(SqlFn.CONCAT,
                     SqlExpr.Call.of(SqlFn.CONCAT, extra.get(0),
@@ -1118,9 +1114,8 @@ public final class Lowerer {
                                     false, aggOrder)),
                     extra.get(2));
         }
-        // Descending DISCRETE percentile: the ceil(p*N)-th element of the
-        // DESC-sorted values (SQL-standard PERCENTILE_DISC ... ORDER BY
-        // DESC semantics — no direct DuckDB reducer).
+        // Descending DISCRETE percentile: ceil(p*N)-th element of the
+        // DESC-sorted values (PERCENTILE_DISC ORDER BY DESC semantics).
         if ("__QDISC_DESC__".equals(fn)) {
             return SqlExpr.Call.of(SqlFn.LIST_GET,
                     SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
@@ -2694,7 +2689,12 @@ public final class Lowerer {
                     return r;
                 });
                 try {
-                    boolean toMany = !(rel.info().multiplicity()
+                    // a RELATION-OP head (TDS distinct/restrict splice) is
+                    // a VALUE COLLECTION whatever its stamp — [1] is the
+                    // relation VALUE's mult, not the row count; the
+                    // correlated-scalar route serves [0..1] nav encodings
+                    boolean toMany = rel instanceof TypedDistinct
+                            || !(rel.info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded mb1
                             && mb1.isToOne());
