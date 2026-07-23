@@ -59,6 +59,10 @@ class CodeShapeGuardrailTest {
             "SpecParser.boundedDepth",
             // per-resolution frames + counters
             "StoreResolver.freshVarCounter", "StoreResolver.temporal",
+            // serialize(..., config) type-key config: set at the serialize
+            // arm, consumed at the envelope build — same per-resolution
+            // frame lifecycle as `temporal`
+            "StoreResolver.serializeTypeCfg",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
             // render mode toggle + import memo

@@ -48,7 +48,9 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   ExprType info,
                                   boolean inlineChild,
                                   List<SubTypePatch> subTypePatches,
-                                  List<TypedFuncCol> orderKeys) implements TypedSpec {
+                                  List<TypedFuncCol> orderKeys,
+                                  String typeKeyName,
+                                  boolean fqTypePath) implements TypedSpec {
 
     public TypedSerializeGraph {
         leaves = List.copyOf(leaves);
@@ -56,6 +58,16 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         subTypePatches = subTypePatches == null ? List.of()
                 : List.copyOf(subTypePatches);
         orderKeys = orderKeys == null ? List.of() : List.copyOf(orderKeys);
+    }
+
+    /** Type-key-free compat (includeType off — the common shape). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches,
+            List<TypedFuncCol> orderKeys) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, orderKeys, null, false);
     }
 
     /** Order-free compat: envelope row order = scan order. */

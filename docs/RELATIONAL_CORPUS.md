@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 101 | 6 | 29 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 38 | 12 | 91 | 2 |
+| graphFetch/tests | 143 | 39 | 12 | 90 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 81 | 0 | 32 | 11 |
+| tests/mapping/union | 124 | 80 | 1 | 32 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1369** | 62 | 472 | 635 |
+| **total** | 2538 | **1369** | 63 | 471 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6364,7 +6364,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: many-valued TDS cell in column 'b' — row explosion (engine union subselect) is not built yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6595,7 +6595,6 @@ in-process Alloy-shaped path).
 - ERROR testCheckedOneComplexProperty [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - ERROR testCheckedWithCircularConstraints [graphFetch/tests]: no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - ERROR testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: unknown function 'parseJSON'
-- ERROR testSubTypeAtRootLevelWithAlloySerializationConfig [graphFetch/tests]: serialize config flag 'includeType' is not supported yet (only the all-false NOP config)
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'
 - ERROR RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: unknown function 'meta::legend::compileLegendValueSpecification'
 - ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street): carrier column 'stc_meta__relational__graphFetch__tests__subType__Street___landmarkName' is not on the row (non-union subtype mapping) — not built yet
@@ -7272,6 +7271,7 @@ in-process Alloy-shaped path).
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: Binder Error: Values list "t10" does not have a column named "ID" |  | LINE 29: ) AS t10 ON t2.FirmID_0 = t10.ID OR t2.FirmID_1 = t10.ID |                                    ^
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum

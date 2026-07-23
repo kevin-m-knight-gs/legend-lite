@@ -951,28 +951,68 @@ final class GraphEmission {
                 node.subTypeFqn(), patch, member, patchChildren);
     }
 
-    /** serialize(..., config): the all-false/absent AlloySerializationConfig
-     * is a NOP; any flag that would CHANGE the envelope walls loudly —
-     * never a silently-ignored config. */
-    static void validateSerializeConfig(TypedSpec cfg) {
+    /** The supported serialize-config surface: includeType (+ typeKeyName,
+     * fullyQualifiedTypePath) emit the type key; every OTHER envelope-
+     * changing flag walls loudly — never a silently-ignored config. */
+    record SerializeTypeConfig(String typeKey, boolean fq) {
+    }
+
+    static SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
                 || !ni.classFqn().endsWith("AlloySerializationConfig")) {
             throw new NotImplementedException("serialize config of shape "
                     + cfg.getClass().getSimpleName() + " is not supported yet");
         }
+        boolean includeType = false;
+        boolean fq = false;
+        String key = "@type";
         for (var e : ni.properties().entrySet()) {
-            if (e.getKey().equals("typeKeyName")) {
-                continue;   // only meaningful when includeType is true
-            }
             TypedSpec v = e.getValue();
-            boolean nop = v instanceof com.legend.compiler.spec.typed
-                    .TypedCBoolean b && !b.value();
-            if (!nop) {
-                throw new NotImplementedException("serialize config flag '"
-                        + e.getKey() + "' is not supported yet (only the"
-                        + " all-false NOP config)");
+            switch (e.getKey()) {
+                case "typeKeyName" -> {
+                    if (v instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+                        key = cs.value();
+                    }
+                }
+                case "includeType" -> includeType =
+                        v instanceof com.legend.compiler.spec.typed
+                                .TypedCBoolean b && b.value();
+                case "fullyQualifiedTypePath" -> fq =
+                        v instanceof com.legend.compiler.spec.typed
+                                .TypedCBoolean b && b.value();
+                default -> {
+                    boolean nop = v instanceof com.legend.compiler.spec.typed
+                            .TypedCBoolean b && !b.value();
+                    if (!nop) {
+                        throw new NotImplementedException("serialize config"
+                                + " flag '" + e.getKey() + "' is not"
+                                + " supported yet");
+                    }
+                }
             }
         }
+        return includeType ? new SerializeTypeConfig(key, fq) : null;
+    }
+
+    /** Stamp the type-key config on EVERY node of a built envelope
+     * (nested + patch children) — one application at the serialize arm. */
+    static TypedSerializeGraph withTypeKey(TypedSerializeGraph g,
+            SerializeTypeConfig c) {
+        return new TypedSerializeGraph(g.source(), g.rowVar(), g.leaves(),
+                g.nested().stream().map(ch -> new TypedSerializeGraph.Child(
+                        ch.property(), withTypeKey(ch.node(), c))).toList(),
+                g.arrayWrap(), g.bareValue(), g.classFqn(), g.info(),
+                g.inlineChild(),
+                g.subTypePatches().stream().map(p ->
+                        new TypedSerializeGraph.SubTypePatch(p.subTypeFqn(),
+                                p.leaves(), p.member(),
+                                p.children().stream().map(ch ->
+                                        new TypedSerializeGraph.Child(
+                                                ch.property(),
+                                                withTypeKey(ch.node(), c)))
+                                        .toList()))
+                        .toList(),
+                g.orderKeys(), c.typeKey(), c.fq());
     }
 
     /** The serialized key: the tree alias when given, else the

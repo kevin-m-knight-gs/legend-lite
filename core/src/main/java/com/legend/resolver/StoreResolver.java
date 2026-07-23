@@ -80,6 +80,7 @@ public final class StoreResolver {
     private int freshVarCounter;
     /** Synthetic head registry ('#f'/'#d'/'#c') — append-only. */
     private final SyntheticHeads synthetics;
+    private GraphEmission.SerializeTypeConfig serializeTypeCfg;
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
     /** Association-route join material (stateless service). */
@@ -313,9 +314,8 @@ public final class StoreResolver {
             // serialize's tree governs the envelope.
             case TypedSerialize sz when containsGetAll(sz.source()) ->
                     resolveChain(sz, context);
-            // Relation-space wrappers over a getAll-bottomed chain rebuild
-            // with the resolved source (infos stable). `.rows` MARKER
-            // erases HERE so every lowering path sees it (audit 20c H1).
+            // Relation-space wrappers rebuild with the resolved source
+            // (infos stable); `.rows` MARKER erases here (audit 20c H1).
             case TypedPropertyAccess pa
                     when pa.property().equals(com.legend.compiler
                             .element.type.PlatformTypes.ROWS_MARKER)
@@ -416,8 +416,7 @@ public final class StoreResolver {
                     new com.legend.compiler.spec.typed.TypedCast(
                             resolveNode(tc.source(), context),
                             tc.target(), tc.info());
-            // BARE value read over a class chain — auto-map sugar: rebuild
-            // as ->map(v|$v.path) and re-enter (one value funnel)
+            // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when containsGetAll(vpa.source()) -> {
                 TypedSpec am = Pipelines.autoMapRead(vpa);
                 if (am == null) {
@@ -2440,7 +2439,8 @@ public final class StoreResolver {
         Context chainContext = context;     // an in-chain from() re-scopes
         TypedSpec cur;
         if (top instanceof TypedSerialize sz) {
-            sz.config().ifPresent(GraphEmission::validateSerializeConfig);
+            serializeTypeCfg = sz.config()
+                    .map(GraphEmission::serializeTypeConfig).orElse(null);
             tree = sz.tree();
             cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
         } else if (top instanceof TypedProject t) {
@@ -2918,11 +2918,12 @@ public final class StoreResolver {
             };
         }
 
-        // 4a. GRAPH terminal: the envelope — leaves substituted over the
-        //     row, children as correlated per-hop nodes (plan H4a SNAPSHOT).
+        // 4a. GRAPH terminal (plan H4a SNAPSHOT envelope).
         if (tree != null) {
-            return new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(),
+            TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(),
                     fresh, tree, context, /*arrayWrap*/ true, g.info());
+            return serializeTypeCfg == null ? env
+                    : GraphEmission.withTypeKey(env, serializeTypeCfg);
         }
 
         // 4. The relation-shaping boundary: info UNCHANGED.

@@ -614,14 +614,10 @@ public final class Lowerer {
         return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
     }
 
-    /**
-     * The GRAPH-serialize envelope (Phase H4a SNAPSHOT): one
-     * {@code json_object} per source row keyed by the fetch tree's leaves,
-     * nested children as CORRELATED scalar subqueries (the parent scope
-     * rides the enclosing-resolver channel — the EXISTS mechanism), and an
-     * {@code arrayWrap} node aggregates the objects into one JSON-array
-     * {@code result} value.
-     */
+    /** The GRAPH-serialize envelope (H4a SNAPSHOT): one json_object per
+     * row keyed by the tree's leaves; nested children = CORRELATED scalar
+     * subqueries (enclosing-resolver channel); arrayWrap aggregates into
+     * one JSON-array result value. */
     private SqlSelect serializeGraph(TypedSerializeGraph g) {
         SqlSelect src = relation(g.source());
         // json_group_array is an AGGREGATE and the envelope REPLACES the
@@ -658,15 +654,29 @@ public final class Lowerer {
                 enclosing.pop();
             }
         }
+        // includeType: (typeKey, concrete-type) leads each object
+        List<SqlExpr> baseKv = kv;
+        if (g.typeKeyName() != null && g.classFqn() != null && !g.bareValue()) {
+            baseKv = new ArrayList<>();
+            baseKv.add(new SqlExpr.StringLit(g.typeKeyName()));
+            baseKv.add(new SqlExpr.StringLit(typeName(g.classFqn(), g.fqTypePath())));
+            baseKv.addAll(kv);
+        }
         // bareValue: a to-many PRIMITIVE leaf aggregates raw values
-        SqlExpr obj = g.bareValue() ? kv.get(1) : new SqlExpr.JsonObject(kv);
+        SqlExpr obj = g.bareValue() ? kv.get(1) : new SqlExpr.JsonObject(baseKv);
         // ->subType views: DISJOINT members -> ONE CASE over the witnesses;
         // a member's branch serializes base + subtype fields IN FULL (engine
         // keeps "coordinate":null on member rows); non-members fall through
         if (!g.subTypePatches().isEmpty() && !g.bareValue()) {
             List<SqlExpr.Case.When> whens = new ArrayList<>();
             for (var p : g.subTypePatches()) {
-                List<SqlExpr> pkv = new ArrayList<>(kv);
+                List<SqlExpr> pkv = new ArrayList<>();
+                if (g.typeKeyName() != null) {
+                    pkv.add(new SqlExpr.StringLit(g.typeKeyName()));
+                    pkv.add(new SqlExpr.StringLit(
+                            typeName(p.subTypeFqn(), g.fqTypePath())));
+                }
+                pkv.addAll(kv);
                 for (TypedFuncCol leaf : p.leaves()) {
                     pkv.add(new SqlExpr.StringLit(leaf.name()));
                     switch (attempt(() -> scalar(last(leaf.fn()),
@@ -723,10 +733,15 @@ public final class Lowerer {
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
     }
 
+    /** Simple type name; the FQN when fullyQualifiedTypePath is set. */
+    private static String typeName(String classFqn, boolean fq) {
+        int cut = classFqn.lastIndexOf("::");
+        return fq || cut < 0 ? classFqn : classFqn.substring(cut + 2);
+    }
+
     /** An INLINE (embedded) child's json object over the parent select:
-     * leaves resolve strictly against the SAME base; nested inline
-     * children recurse; a correlated child inside an embedded one keeps
-     * the subquery emission. */
+     * leaves resolve strictly against the SAME base; inline children
+     * recurse; correlated-inside-embedded keeps the subquery. */
     private SqlExpr inlineChildObject(SqlSelect base, TypedSerializeGraph g) {
         List<SqlExpr> kv = new ArrayList<>(
                 2 * (g.leaves().size() + g.nested().size()));
@@ -1221,12 +1236,9 @@ public final class Lowerer {
         };
     }
 
-    /**
-     * Lower the predicate against this select's columns; null = a ref would
-     * not fold. Over a GROUPED select, refs resolve to the projection
-     * EXPRESSIONS themselves (group keys and aggregate calls are exactly what
-     * standard SQL admits in HAVING).
-     */
+    /** Lower the predicate against this select's columns; null = a ref
+     * would not fold. Over a GROUPED select, refs resolve to the projection
+     * EXPRESSIONS (what standard SQL admits in HAVING). */
     /** The isolate-terminal boundary: the select was JUST isolated, so an
      * unfoldable ref can never become foldable — LOUD, never a dropped
      * predicate (the ONE retry contract, shared by filter and whereLambda). */
@@ -1282,17 +1294,11 @@ public final class Lowerer {
         return resolved;
     }
 
-    /**
-     * A lambda-body resolver over {@code select} — the correlation channel
-     * for nested relation queries. VAR-AWARE: the lambda's OWN parameter
-     * resolves against the own select; any OTHER variable belongs to an
-     * ENCLOSING lambda and tries the outer scopes FIRST. Resolving outer
-     * vars own-select-first silently SELF-CORRELATES whenever the outer
-     * row's column name also exists on the inner row (same-named columns
-     * across joined tables, self-joins — the audit's two wrong-answer
-     * regressions). Non-own vars that miss every
-     * enclosing scope are UNFOLDABLE — never own-select-resolved.
-     */
+    /** Lambda-body resolver over {@code select} — the correlation channel.
+     * VAR-AWARE: the lambda's OWN param resolves against the own select;
+     * OTHER vars try ENCLOSING scopes FIRST (own-select-first silently
+     * self-correlates on same-named columns — audit's two wrong-answer
+     * regressions); non-own vars missing every scope are UNFOLDABLE. */
     private ColumnResolver scopedResolver(SqlSelect select, String ownVar) {
         // SNAPSHOT the enclosing scopes at creation: iterating the LIVE
         // deque includes this resolver itself once inner scopes run — any
@@ -1726,13 +1732,9 @@ public final class Lowerer {
         return true;
     }
 
-    /**
-     * A join side must be FROM-addressable: a bare scan joins directly;
-     * anything with clauses wraps. A bare JOIN-select may stay a bare join
-     * tree ONLY on the LEFT — SQL join syntax is left-associative, so
-     * {@code (a JOIN b) JOIN c} renders flat, while a join on the RIGHT would
-     * be ambiguous and must wrap.
-     */
+    /** A join side must be FROM-addressable: bare scans join directly,
+     * claused selects wrap; a bare JOIN-select stays a bare tree ONLY on
+     * the LEFT (SQL joins are left-associative). */
     /**
      * A join's LEFT side: a bare select unwraps to its source — including a
      * bare join TREE (SQL joins are left-associative, so chains stay flat).
