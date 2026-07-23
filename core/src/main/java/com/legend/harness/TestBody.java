@@ -760,8 +760,10 @@ public final class TestBody {
                         && al.size() == 1) {
                     actual = al.get(0);
                 }
-                return jsonDeepEquals(expected, actual) ? null
-                        : "assertJsonStringsEqual: expected "
+                String diff = jsonDiffPath(expected, actual, "$");
+                return diff == null ? null
+                        : "assertJsonStringsEqual: FIRST DIFF at " + diff
+                                + " | expected "
                                 + abbreviate(String.valueOf(expected))
                                 + ", got " + abbreviate(String.valueOf(actual));
             }
@@ -988,6 +990,55 @@ public final class TestBody {
      * purpose — an integer-typed expectation against a decimal wire value
      * is a typing bug this compare must catch, same stance as wireEquals'
      * int/fp split. */
+    /** First diverging path between parsed JSON structures, or null when
+     * deep-equal — the SAME semantics as {@link #jsonDeepEquals} (objects
+     * key-order-insensitive, arrays order-sensitive), reported as a
+     * dotted/indexed path with the local expected/actual values. */
+    private static String jsonDiffPath(Object e, Object a, String path) {
+        if (e instanceof java.math.BigDecimal be
+                && a instanceof java.math.BigDecimal ba) {
+            return be.compareTo(ba) == 0 ? null
+                    : path + " expected " + be + ", got " + ba;
+        }
+        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
+            for (Object k : em.keySet()) {
+                if (!am.containsKey(k)) {
+                    return path + " missing key '" + k + "'";
+                }
+            }
+            for (Object k : am.keySet()) {
+                if (!em.containsKey(k)) {
+                    return path + " unexpected key '" + k + "'";
+                }
+            }
+            for (Object k : em.keySet()) {
+                String d = jsonDiffPath(em.get(k), am.get(k),
+                        path + "." + k);
+                if (d != null) {
+                    return d;
+                }
+            }
+            return null;
+        }
+        if (e instanceof List<?> el && a instanceof List<?> al) {
+            if (el.size() != al.size()) {
+                return path + " expected " + el.size()
+                        + " element(s), got " + al.size();
+            }
+            for (int i = 0; i < el.size(); i++) {
+                String d = jsonDiffPath(el.get(i), al.get(i),
+                        path + "[" + i + "]");
+                if (d != null) {
+                    return d;
+                }
+            }
+            return null;
+        }
+        return java.util.Objects.equals(e, a) ? null
+                : path + " expected " + abbreviate(String.valueOf(e))
+                        + ", got " + abbreviate(String.valueOf(a));
+    }
+
     private static boolean jsonDeepEquals(Object e, Object a) {
         if (e instanceof java.math.BigDecimal be
                 && a instanceof java.math.BigDecimal ba) {

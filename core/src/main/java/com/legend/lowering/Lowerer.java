@@ -623,6 +623,7 @@ public final class Lowerer {
         // json_group_array is an AGGREGATE and the envelope REPLACES the
         // projection list — the groupBy folding constraints are exactly right.
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
+        SqlSelect envelope = base;
         ColumnResolver own = scopedResolver(base, g.rowVar());
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
         for (TypedFuncCol leaf : g.leaves()) {
@@ -724,14 +725,28 @@ public final class Lowerer {
                                     + "', unresolvable in the source");
                 }
             }
+            // UNION-MEMBER serial order (engine contract: union members
+            // serialize in BRANCH DECLARATION order — the engine's stitch
+            // is serial per member; json_group_array inherits scan order):
+            // a UNION ALL under pass-through selects gains a per-branch
+            // ordinal projection, NEGATED because the ordered-agg renders
+            // DESC (the witness TRUE-first contract). SQL-level only —
+            // the typed schema never sees the column.
+            SqlSelect withOrd = UnionSerialOrder.inject(base);
+            if (withOrd != null) {
+                envelope = withOrd;
+                okeys.add(0, resolveOrThrow(envelope, UnionSerialOrder.COLUMN));
+            }
             result = new SqlExpr.JsonArrayAgg(obj, okeys);
         } else {
             result = obj;
         }
-        return base.withProjections(
+        return envelope.withProjections(
                 List.of(new SqlSelect.Projection(result, "result")),
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
     }
+
+
 
     /** Simple type name; the FQN when fullyQualifiedTypePath is set. */
     private static String typeName(String classFqn, boolean fq) {
