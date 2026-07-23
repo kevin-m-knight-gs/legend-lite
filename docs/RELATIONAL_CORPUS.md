@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 149 | 2 | 31 | 42 |
+| milestoning/tests | 224 | 150 | 2 | 30 | 42 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1407** | 62 | 430 | 639 |
+| **total** | 2538 | **1408** | 62 | 429 | 639 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6202,6 +6202,7 @@ in-process Alloy-shaped path).
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- 6x only single-expression lambdas are supported yet
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -6209,7 +6210,6 @@ in-process Alloy-shaped path).
 - 5x unbound variable '$modelChainConnection'
 - 5x unknown function 'generateObjectReferences'
 - 5x resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- 5x only single-expression lambdas are supported yet
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
 - 4x Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                      ^
@@ -6690,8 +6690,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: assertEquals: expected ProductName2,GS-Mod-S1*GS-Mod-S2, got ProductName2,GS-Mod-S2*GS-Mod-S1
-- ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: filter predicate references column 'orderDetails', unresolvable even after isolation
-- ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDetails', unresolvable even after isolation
+- ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: only single-expression lambdas are supported yet
 - ERROR testBusinessDateInjectionFromParentVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
 - ERROR testBusinessDateInjectionFromVarReferenceWithUnion [milestoning/tests]: filter predicate references column 'time', unresolvable even after isolation
@@ -7125,7 +7124,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
