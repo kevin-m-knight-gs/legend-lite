@@ -721,24 +721,12 @@ final class UnionSynthesis {
                 // nav lifting (scalar columns only)
                 Variable rfRow = new Variable("rf_row");
                 Map<String, KeyExpression> rfFields = new LinkedHashMap<>();
-                for (ClassMapping.RelationFunction.Col c : rfm.columns()) {
-                    if (c.local()) {
-                        continue;
-                    }
-                    if (c.column() == null) {
-                        throw new com.legend.error.NotImplementedException(
-                                "union member '" + rfm.className() + "': relation"
-                                        + " column mapping for property '"
-                                        + c.property() + "' has no source column"
-                                        + " (unrecognized binding shape)");
-                    }
-                    ValueSpecification read = new AppliedProperty(rfRow, c.column());
-                    if (c.enumMappingId() != null) {
-                        read = MappingNormalizer.translateEnumeratedSource(c.property(),
-                                c.enumMappingId(), read, md, rfm.className(), model);
-                    }
-                    rfFields.put(c.property(), new KeyExpression(read, false, false));
-                }
+                // the SAME extraction the single-set Relation path uses —
+                // plain/enum/EMBEDDED/inline-embedded bindings all covered
+                // (the embedded ^Inner values then distribute per sub-field
+                // through the union's standard embedded machinery)
+                MappingNormalizer.putRelationCols(rfFields, rfm.columns(),
+                        rfRow, rfm.className(), md, model);
                 members.add(rfm);
                 parts.add(new MappingNormalizer.RelationalParts(
                         MappingNormalizer.relationFunctionPipeline(rfm, model), rfRow, rfFields));

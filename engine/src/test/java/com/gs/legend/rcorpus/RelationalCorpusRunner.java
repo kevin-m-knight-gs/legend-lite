@@ -253,7 +253,14 @@ public class RelationalCorpusRunner {
             runner.useFile(e.getKey().toString(), e.getValue());
             // Phase C: discovery through the REAL parser — stereotyped
             // functions off the parsed unit, body as AST
+            // -Drcorpus.test=<name-substring> narrows a scoped run to
+            // matching TEST functions (fast single-test iteration; the
+            // family model still assembles in full)
+            String onlyTest = System.getProperty("rcorpus.test", "").trim();
             for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
+                if (!onlyTest.isEmpty() && !t.fqn().contains(onlyTest)) {
+                    continue;
+                }
                 outcomes.add(runner.run(t));
             }
         }

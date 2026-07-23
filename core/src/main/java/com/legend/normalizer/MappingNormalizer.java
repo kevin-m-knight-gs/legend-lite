@@ -889,7 +889,7 @@ public final class MappingNormalizer {
      * ({@code prop ( sub: COL, ... )}) synthesize an inner instance over
      * the SAME row (the Relational-kind embedded emission's shape),
      * recursively. */
-    private static void putRelationCols(Map<String, KeyExpression> fields,
+    static void putRelationCols(Map<String, KeyExpression> fields,
             List<ClassMapping.RelationFunction.Col> cols, Variable row,
             String ownerClassFqn, LegacyMappingDefinition md,
             ModelBuilder model) {
