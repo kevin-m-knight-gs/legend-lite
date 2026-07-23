@@ -837,9 +837,7 @@ final class Scalars {
                         return new SqlExpr.ScalarSubquery(outer);
                     }
                     // wrap scalar-ENCODED args as singletons — stamps
-                    // are unreliable here (many-stamped reads stay scalar
-                    // after substitution; values readers return lists from
-                    // to-one-stamped subqueries): decide by SQL shape
+                    // are unreliable here: decide by SQL shape
                     SqlExpr sa = args.get(0);
                     return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(
                             ListShapes.listShaped(sa) ? sa
@@ -2112,27 +2110,29 @@ final class Scalars {
                                 RULES.get(Pure.keyIn()).apply(n, args),
                                 new SqlExpr.BoolLit(false)));
         RULES.put(Pure.keyIn(), (n, args) -> {
-            // TYPE-aware membership (real pure): a needle of a different
-            // KIND than the collection's elements is never a member — a
-            // static FALSE, not a DB conversion error (3 in [^Firm(...)]).
+            // TYPE-aware membership: a kind-mismatched needle is never a
+            // member — static FALSE, not a DB error.
             if (kindMismatch(n.args().get(0).info().type(),
                     n.args().get(1).info().type())) {
                 return new SqlExpr.BoolLit(false);
             }
-            // in(x, []) is FALSE in pure; the empty collection lowers to
-            // NULL in scalar position, and `x IN (NULL)` would be NULL —
-            // silently dropping rows under negation (audit finding).
+            // in(x, []) is FALSE in pure; empty lowers to NULL and
+            // `x IN (NULL)` would drop rows under negation (audit).
             if (args.get(1) instanceof SqlExpr.NullLit) {
                 return new SqlExpr.BoolLit(false);
             }
-            // A heterogeneous (Any) collection is variant-wrapped — wrap the
-            // needle the same way so IN compares JSON to JSON.
-            SqlExpr needle = PlatformTypes.isAny(n.args().get(1).info().type())
-                    ? SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(0))
-                    : args.get(0);
-            // A RELATION-shaped collection lowers to a LIST-aggregated
-            // scalar subquery — membership is list containment (NULL list =
-            // empty collection = FALSE), not an IN-list of one expression.
+            // Any-collection variant wrap decided by LOWERED shape
+            // (ListShapes rule): plain-lowered literal lists compare plain.
+            boolean collVariant = PlatformTypes.isAny(
+                    n.args().get(1).info().type())
+                    && !(args.get(1) instanceof SqlExpr.ArrayLit al
+                            && al.elements().stream().noneMatch(e ->
+                                    e instanceof SqlExpr.Call c2
+                                            && c2.fn() == SqlFn.TO_VARIANT));
+            SqlExpr needle = collVariant ? SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                    args.get(0)) : args.get(0);
+            // A RELATION-shaped collection = LIST-aggregated subquery;
+            // membership is list containment (NULL list = empty = FALSE).
             if (n.args().get(1).info().type()
                     instanceof Type.RelationType) {
                 return SqlExpr.Call.of(SqlFn.COALESCE,
