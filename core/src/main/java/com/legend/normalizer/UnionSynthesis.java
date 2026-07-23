@@ -803,7 +803,7 @@ final class UnionSynthesis {
         // values distribute (plain member-row reads / constants) — a sub
         // reading a hoisted join slot stays undistributed (loud downstream,
         // never a silently-wrong projection).
-        EmbDist emb = collectEmbeddedDistribution(parts);
+        EmbDist emb = collectEmbeddedDistribution(parts, owner, model);
         Map<String, LinkedHashSet<String>> embSubs = emb.subs();
         Map<String, String> embInner = emb.inner();
         LinkedHashSet<String> embTops = emb.tops();
@@ -1037,12 +1037,22 @@ final class UnionSynthesis {
     }
 
     private static EmbDist collectEmbeddedDistribution(
-            List<MappingNormalizer.RelationalParts> parts) {
+            List<MappingNormalizer.RelationalParts> parts,
+            ClassDefinition unionClass, ModelBuilder model) {
         Map<String, LinkedHashSet<String>> embSubs = new LinkedHashMap<>();
         Map<String, String> embInner = new LinkedHashMap<>();
         Set<String> poisoned = new LinkedHashSet<>();
         for (MappingNormalizer.RelationalParts pp : parts) {
             for (var fe : pp.fields().entrySet()) {
+                // SUBTYPE-only embedded props (a member ctor field the
+                // union class does not declare) belong to the stc subtype
+                // dispatch, never the base recompose — distributing them
+                // types ^Base(subProp=...) loudly (partial subtype family)
+                if (unionClass == null || MappingNormalizer
+                        .findPropertyTypeDeep(unionClass, fe.getKey(),
+                                model) == null) {
+                    continue;
+                }
                 NewInstance ni = ctorOf(fe.getValue().value());
                 if (ni != null) {
                     collectEmbLeaves(fe.getKey(), fe.getKey(), ni,
