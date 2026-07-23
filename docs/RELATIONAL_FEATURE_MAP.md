@@ -1,6 +1,6 @@
 # Relational Feature & Architecture Map — legend-engine vs legend-lite
 
-**Status: IN PROGRESS (skeleton + wave 1).** This document is the full-depth survey of
+**Status: COMPLETE (all 3 waves merged, 2026-07-23).** This document is the full-depth survey of
 every feature area in legend-engine's `core_relational` — the engine's semantic model per
 feature (with source refs), the behavioral contracts its tests pin, the legend-lite
 architecture piece that serves it, its corpus status, and a verdict:
@@ -921,22 +921,301 @@ extends 2 fail; modelJoin 8 err; multigrain 1 err). Named gaps to close from the
 
 ## 11. AggregationAware + calendar aggregation
 
-*(wave 3)*
+### 11.1 Engine model — aggregationAware (AA = core/store/aggregationAware/aggregationAware.pure — NOTE: the engine lives in legend-engine-core, NOT under core_relational; $E has only tests)
+
+A pre-aggregation REWRITE that runs before store planning:
+- Mapping = `~mainMapping` (fallback) + ordered `Views`, each `~aggregateMapping`
+  (relational set over the agg table) + `~modelOperation{~canAggregate,
+  ~groupByFunctions, ~aggregateValues(~mapFn/~aggregateFn over the magic $mapped var)}`.
+- **Only a top-level object `groupBy` triggers table switching** (AA:109); getAll/
+  filter/project reprocess but bind to the main table. The collection under the groupBy
+  must be exactly getAll(+filter) — anything else falls to main.
+- Matching: query dimensions/measures compiled to order-insensitive **ProjectPaths**
+  (qualified properties INLINED first; numeric aggregates canonicalised
+  Integer/Float→Number so sum(Float) matches sum(Number)); `groupByMatch` = every query
+  dim rewritable against view dims AND (canAggregate OR query grain == view grain);
+  `aggValueMatch` = each measure matches a view spec (mapFn AND aggregateFn separately —
+  max never matches a sum-only view) or is reachable as a dimension. **First matching
+  view wins (mapping order significant); no match → main table, never an error.**
+- `canAggregate=false` NARROWS a view to exact-grain queries; doesn't disable it.
+- Observability: AggregationAwareActivity carries the rewritten query string (the goldens
+  assert on it).
+
+### 11.2 Engine model — calendar aggregation (CF/CP/CS = calendarFunctions/PureToSQL/Store)
+
+34 grammar-stub functions `f(inputDate, calendarType, endDate, inputValue)` resolved ONLY
+by the relational store:
+- **A precomputed calendar DIMENSION table** per region (`NY_Calendar`, 24 columns:
+  fiscal ordinals, offsets, prior-week dates, previous-period columns…). All window
+  logic = table lookup on TWO LEFT OUTER self-joins: `calendar_0` keyed on the row's
+  inputDate, `calendar_1` keyed on the endDate expression. Emission =
+  `sum(case when <conditions over the two calendar rows> then value[/normFactor] else null end)`.
+- Families: current (cw/reportEndDay), to-date (wtd/mtd/qtd/ytd — `<=` on a fiscal
+  ordinal), previous-to-date (+prev-year rollover via precomputed columns, NOT
+  arithmetic), previous-whole-period, rolling nX (date-range, adjusted-date aware),
+  means (divide inside the case by 4/12/52 or a calendar ratio; pywa null outside
+  first-5-weeks). p12mtd is the ONLY function using SQL date arithmetic.
+- Fiscal week starts Saturday; weekend rollback differs per family (cw −1/0, pw −2/−1,
+  _fm variants ignore weekends).
+- Distinct endDates ⇒ distinct calendar_end aliases shared across sibling aggregates;
+  union-mapped classes take a different join-splice path (unionBase form).
+- The 27 date-range goldens ([min,max] of included dates per function @ 2022-11-16
+  anchor) are the perfect behavioral spec — they pin windows without pinning SQL.
+
+### 11.3 legend-lite side & verdict
+
+**Calendar: SOUND** (G1 burn landed the natives; corpus 0 err / 4 shape). Verify against
+the date-range window table: weekend variants (Sat/Sun endDates), start-of-year
+rollovers, different-endDates alias sharing, and the union splice path.
+**AggregationAware: PARTIAL.** We pass the current 11-shape family via targeted fixes
+(demand-aware milestoned-slot gate) but don't have the matching algorithm as a unit. The
+engine's is small and well-specified (≈250 lines of logic): ProjectPath + canRewrite +
+first-match fold + canAggregate gates. Port it as ONE resolver-side pre-pass (rewrite
+TypedGroupBy's source class → agg-view ClassSource when matched) with the
+positive/negative goldens as spec. Low urgency (6 err), high spec clarity — good
+bounded leg.
 
 ## 12. Execution plans, TDS & result contract
 
-*(wave 3)*
+### 12.1 Engine model (EP = executionPlan.pure; RME = relationalMappingExecution.pure; SC = storeContract.pure)
+
+**Plan node taxonomy**: `SQLExecutionNode` (sql string + `resultColumns` = (label,
+dataType-or-"") pairs + connection + RelationMetadata) wrapped by one of FOUR
+instantiation nodes (Tds/Class/RelationData/DataType — constraint-enforced result
+types); `CreateAndPopulateTempTableExecutionNode` for big in-lists (threshold
+DB-specific: H2=50, DB2=32767, plus Stream inputs — chosen at RUNTIME by a
+FreeMarkerConditionalExecutionNode); `RelationalBlockExecutionNode` (transactional,
+whole-subtree scan for temp-table nodes upgrades the wrapper); plan variables via
+Allocation/Constant/FunctionParametersValidation nodes.
+
+**TDS result contract** (the part that matters to any implementation):
+- TDSColumn = name (user's project alias) + Pure type (Primitive|Enumeration|
+  Variant/Map/List ONLY — else fail) + **offset** (positional, load-bearing) +
+  **sourceDataType** (DB-side type; TWO conflicting pureTypeToDataType overloads:
+  result-inference uses String→Varchar(8192)/Integer→BigInt; the generic map uses
+  Varchar(1024)/Integer) + enumMappingId/enumMapping.
+- Computed/derived columns legitimately have NO dataType (printed "") — tests assert
+  this; do not invent types.
+- **Enum decode is either result-side (enumMapping populated) OR SQL-side
+  (PUSH_DOWN_ENUM_TRANSFORM clears it) — never both.** Enum source values quoted iff
+  String-typed (numeric enum sources unquoted).
+- Nulls: TDS rows carry TDSNull instances (outer-join padding); real CSV null = EMPTY
+  field ('null' string is a test-harness display token only). Booleans: Bit sourceType;
+  boolean-valued SQL literals render 'true'/'false' strings.
+- Date/time: DateTime CONSTANTS fold the connection timezone into the literal at plan
+  time; VARIABLES defer to the GMTtoTZ FreeMarker function. StrictDate→Date,
+  Date/DateTime→Timestamp.
+- FreeMarker support-function library (renderCollection, optionalVarPlaceHolder
+  selector, per-enum enumMap_<path> functions; empty enum param ⇒ `0 = 1` predicate).
+
+**Routing**: StoreMappingRoutedValueSpecification wrappers carry .sets/.mapping/
+.propertyMapping; traversal through user functions is NOT routed; multi-expression
+lambdas produce multiple SQLs.
+
+### 12.2 legend-lite side & verdict
+
+**Plan MODEL: OUT OF SCOPE by design** — we execute directly (Compiler → SQL → DuckDB);
+no plan-node serialization. The executionPlan family's 100 SHAPE tests are mostly
+plan-string printing — runner-vocabulary work (#43), not architecture.
+**Result CONTRACT: RELEVANT and mostly aligned** — our Executor/TestBody honor row
+equality against engine expectations. Verify against the engine rules: (1) enum
+decode-once discipline (we push into SQL — matches PUSH_DOWN mode; ensure we never also
+decode result-side); (2) TDS column offset ordering; (3) null = empty CSV field vs
+TDSNull padding in outer joins (our TDSNull work already landed); (4) boolean literal
+'true'/'false' rendering in projection position; (5) timezone folding is a DEFERRED
+corner (no tz connections in corpus). In-list temp-table threshold: not needed for
+DuckDB (large IN-lists fine) — documented divergence.
 
 ## 13. Postprocessors
 
-*(wave 3)*
+### 13.1 Engine model (PP = postProcessor.pure; DPP = defaultPostProcessor.pure; FPD = pushFiltersDownToJoin.pure; RA = reAliasQuery.pure)
 
-## 14. Tooling features: lineage, testDataGeneration, mutation, autogeneration, constraints
+**Two pipeline phases** (plan-gen `postProcessSQLQuery` and execution `postProcessQuery` —
+different processor sets), built on two transform engines: `transform` (cached memo,
+identity-preserving — CTE dedup, mapper rewrites) vs `transformNonCached` (rebuilds join
+aliases/target wiring — re-alias, push-down). Empty-data select short-circuits everything.
 
-*(wave 3)*
+**Plan pipeline** = 5 ordered macro-processors: processInOperation (large IN → temp table,
+DB threshold) → processObjectReferenceIn → defaultProcessors [inner 5-pass: **CTE hoist →
+pushFiltersDownToJoins → removeUnionOrJoins → replaceAliasName → prependSQLComments**,
+then connection sqlQueryPostProcessors] → connectionAware → dbSpecific (aliasLimit trim +
+pre/finally SQL).
+
+**pushFiltersDownToJoins** (the semantically rich pass): strictly **ADDITIVE** — outer
+WHERE always preserved, predicates COPIED onto join ONs (rewritten across join-key
+equality, both directions) and into pushable subselects. Pushable = binary comparisons/
+startsWith/endsWith/contains/in with constant/parameter value side + null-tests; bails
+subtree-wide on ANY right/full outer join; subselect push blocked by window columns,
+LIMIT rows, >1 filtering/having op, or unknown node types (whitelist walk); group-by
+column → inner WHERE, non-group under groupBy → HAVING; aggregate columns never pushed.
+Duplicated predicates in one ON are legitimate golden behavior.
+
+**replaceAliasName**: case-insensitive basename grouping → deterministic `<name>_<i>`;
+reserved aliases root/unionBase/subselect never renamed; hard-asserts every alias mapped.
+**CTE hoist**: lift all nested commonTableExpressions to root, dedup by name.
+**prependSQLComments**: `-- "executionTraceID" : "${execID}"` tag only.
+**trimColumnName**: aliasLimit truncation to `<prefix>_<i>` (DB2 128).
+
+**Extension model**: connection-level `sqlQueryPostProcessors` (+ConnectionAware variant)
++ parameterized `PostProcessorWithParameter` triad — built-ins: Mapper (table/schema
+qualifier rewrites, temp tables exempt, last-match-wins), RelationalMapper (db-level),
+ExtractSubQueriesAsCTEs (level-indexed `subquery_cte_<level>_<idx>`, row-identical
+contract). Context-based hooks (FunctionActivator: timestamp casts, FreeMarker→
+table-function param rewrites). removeUnionOrJoins gated Snowflake-or-flag.
+
+### 13.2 legend-lite side & verdict
+
+**Layer: OUT OF SCOPE as architecture** — deliberately. Our leanness is at construction
+(NavPath dedup, Fold flatness, deterministic t0..tN aliases), which subsumes what
+replaceAliasName and CTE-hoist repair after the fact; pushFiltersDownToJoins is a
+row-equality-neutral optimization (DuckDB's optimizer does this), relevant only to golden
+SQL advisory. Named engine ideas worth keeping on file: reserved-alias discipline, the
+ADD-not-move contract if we ever emit an equivalent, temp-table-exempt mapper rule.
+**The corpus family** (13 err / 22 shape) tests the EXTENSION surface (table/schema
+remapping, connection PPs, CTE extraction row-identity). Serving those needs a minimal
+connection-postprocessor hook (a replaceTables-style rewrite applied to our SQL IR before
+rendering) — a small bounded feature, not a pipeline port. Classify as checklist-burn
+tier.
+
+## 14. Tooling features: lineage, testDataGeneration, constraints, mutation, autogeneration, contract
+
+### 14.1 Engine feature models (files under $E/lineage, /testDataGeneration, /validation, /mutation, /autogeneration, /mft, /contract, /extensions)
+
+- **Lineage** — static analyses over the property-path tree: `scanColumns` → flat
+  `ColumnWithContext[*]` (column + enclosing-SQL-node-class context; view columns
+  expanded via columnMappings); `scanRelations` → a `RelationTree` of tables/views +
+  joins (static form off the mapping; a runtime form reads relations off generated SQL
+  clusters — that variant needs the whole pipeline). scanRelations is a PREREQUISITE for
+  testDataGeneration.
+- **TestDataGeneration** (the XL feature) — from query + mapping + seed row identifiers:
+  scanRelations tree → per-relation column set (PKs ∪ non-nullable ∪ temporal dates ∪
+  referenced) → root SELECT top-20 with OR-of-AND identifier filter (+milestoning
+  filter) against a LIVE DB → per child join, materialize parent rows into
+  `testDataGen_Temp_*` temp tables and join-pull child rows → dedup → CSV bundle
+  (`schema\nname\ncsv` blocks). No identifiers and no default-PK flag → LOUD fail with
+  copy-pasteable example seed code. Views/unions/milestoning/plan-generation are staged
+  extensions.
+- **Constraint validation** — THIN GLUE: each class constraint becomes
+  `filter(x|not(body))->project(CONSTRAINT_ID, ENFORCEMENT_LEVEL, MESSAGE [+extras])`,
+  concatenated, run through the ORDINARY relational path (constraint bodies with exists/
+  aggregates/isDistinct compile like any query). Driver-table PK added to violations.
+  ~150 lines of AST synthesis; no new SQL machinery.
+- **Mutation** — plan-only: save/upsert (`RelationalSaveNode` + UpsertSQLQuery; only
+  single-root, direct-column mappings; graph tree must contain ALL PKs; processing-
+  temporal in/out sentinel injection) and relation write (INSERT…SELECT same-connection;
+  temp-table staging cross-connection).
+- **Autogeneration** — DB → Pure model reverse-generation (table→class, join→association
+  with PK-based multiplicities, column→property with nullability→multiplicity,
+  Bit→Boolean case-mapping). Self-contained graph transform; no execution deps.
+- **MFT** — harness wiring; one datum: `rowExplosion` is the declared unsupported
+  mapping feature.
+- **StoreContract/extensions** — the SPI checklist (planExecution/supports/
+  shouldStopRouting/resolveStore/executeStoreQuery/connectionEquality/…) + the
+  RelationalExtension plug-points (buildUniqueName, milestoning filter handlers,
+  post-processors, dialect node converters). For us: the interface inventory documents
+  what a full store integration means; our QueryService/Compiler seam is the equivalent.
+
+### 14.2 legend-lite verdicts
+
+All **DEFERRED with feature models now archived** — matching existing feature-track
+tasks: lineage (#44, 55 shape — start with scanColumns + static scanRelations, no
+pipeline dep), constraints (#45, 31 shape — cheap: pure AST synthesis over our existing
+resolver; good early win), testDataGen (#46, 68 shape — needs live-DB pulls + temp
+tables; LAST), autogen (self-contained; unscheduled), mutation (plan-only; unscheduled).
+Engine port order recommendation adopted: autogen/lineage-static → validation →
+relation-write → testDataGen.
 
 ---
 
 ## 15. Synthesis: the coherent-architecture plan
 
-*(written last: ranked redesign legs with designs, replacing ledger-chasing)*
+**The core diagnosis, confirmed across every area:** our failures cluster around FOUR
+missing engine calculi, not dozens of missing features. Each stopped burn-down leg
+(cycles 77–86) failed because we implemented at a fix site what the engine implements as
+a small closed system. The redesign program is those four systems plus one shared
+foundation, then feature-checklist burns.
+
+### 15.0 Shared foundation: one spec-processing path (from §5/§6/§10)
+
+The engine answers mainTable/filter/distinct/groupBy/primaryKey/propertyMappings through
+ONE polymorphic resolver over RelationalMappingSpecification + InstanceSetImplementation —
+views, class roots, embedded (via setMappingOwner), unions (member fold), extends
+(super-set walk) all included. Our equivalent: consolidate these answers into
+ClassSources/Pipelines as shared resolvers with the engine's rules (extends PK matrix,
+view no-synthetic-pks, embedded owner-chase). Several legs below assume this.
+
+### Leg 1 — Filter channels + isolation strategies (§2; unlocks legs 2, 4, and the
+qualifier tail)
+
+Introduce the resolver-level `DeferredFilter` channel (predicate + NavPath scope — our
+typed savedFilteringOperation) and ONE strategy chooser at materialization:
+fold-into-ON | correlated-subselect | hoist-on-top, with the engine's two rules:
+(a) projection threads prefer fold-into-ON else correlated; (b) hoist-on-top upgrades to
+correlated whenever an INNER join is present. Qualifier bodies accumulate filters to the
+CALLER's isolation decision (never partially applied — the cycle-86 lesson; and never
+LIMIT-1). Kills: chained filtered nav (#70), union filter hoist, size-over-aggregate
+routing, derived-leaf inline.
+
+### Leg 2 — Milestoning calculus port (§3; subsumes #40, #32)
+
+`TemporalCtx` value object (strategy, dates as SQL-able exprs, 8-state hop classifier,
+range bounds) + `deriveAtHop` (one propagation function) + `predicateFor` (builder table:
+exclusive/inclusive, range pair, snapshot equality, %latest infinity, union
+coalesce/isNull, bitemporal AND) + 5 injection sites + alias-cloning for two-dates.
+resolveMilestoningDateParams port makes the whole non-literal-date tail one resolver.
+Port testMilestoningContextPropagation as spec first. Replaces
+TemporalContext/TemporalFrame accretion.
+
+### Leg 3 — Union arm-factory discipline (§4; subsumes #41, finishes U4/#27)
+
+Make UnionSynthesis/Pipelines a faithful arm factory: PK-slot cross-product synthesis,
+raw/dedup ordinal discipline, NULL-fill, value-vocabulary alignment, and
+**re-exposure-on-wrap** (the U4 raw-key bug). Resolver gets the merge-vs-push predicate
+(ordered-subset of alias chains) with push-into-arm emission; aggregation-over-union
+re-injects real per-member PKs. Port V1–V5 goldens as spec. Fixes t18, N4 chains,
+the 36-err union family.
+
+### Leg 4 — Views as identity-carrying frames (§5)
+
+Delete the plain-view flatten arm; every view reached as a relation becomes a named
+frame processed by the SAME path as a class source (leg 15.0). Column substitution only
+as identity resolution. Honor: no synthetic pks + loud PK requirement, INNER ~filter
+hoist, milestoning-inside-body, per-instance aliases.
+
+### Leg 5 — H4 graph output (§7; biggest corpus block: 100 err graphFetch)
+
+Keep the single-query JSON-envelope design (documented divergence); port the engine's
+identity + serialization contracts: DISTINCT-by-PK per node, pk-not-null phantom
+suppression, key naming (qualifier signatures, milestone dates, aliases), null vs [],
+qualified-properties-as-child-computations, store distinct/groupBy forbidden,
+embedded/otherwise per-leaf dispatch in trees.
+
+### Checklist burns (feature inventory, not architecture)
+
+- functions family (75 err): burn against §9's catalog table family-by-family
+  (per [[batch-slices-target-big-buckets]]).
+- aggregationAware matching engine (§11): one bounded resolver pre-pass, ~250 lines.
+- tds family (32 err): §2 per-op inventory (pivot, window frames, variant, CTE,
+  paginated).
+- postprocessor family (§13): minimal connection-postprocessor hook (replaceTables-style
+  IR rewrite) — small bounded feature; the engine pipeline itself stays out of scope.
+- result-contract checks (§12): enum decode-once, boolean literal rendering, TDSNull
+  padding, offset ordering — verify-with-pins, not new machinery.
+- Engine-trap pins to add opportunistically: extends PK matrix corners, multigrain
+  suppression rule, modelJoin materialization condition, null-safe equality by
+  nullability, calendar weekend/rollover windows.
+
+### Deferred (feature models archived in §14, §7, §10)
+
+Cross-store, temp-table strategies/batching, alloy object references,
+removeUnionOrJoins, mutation, testDataGen (last; needs live-DB pulls), lineage
+(scanColumns first when scheduled), constraints (cheap early win when scheduled),
+autogeneration.
+
+### Ordering rationale
+
+Leg 1 first — it's the enabling mechanism for legs 2–4's emission decisions and directly
+unblocks the most stopped legs. Then 2 and 3 (largest divergent families, both now fully
+specified), 4 (small once 15.0 lands), 5 (biggest missing block, independent of 1–4).
+Checklist burns interleave as gate-cycle filler. The corpus ledger remains the
+VERIFIER; this map is the DRIVER.
