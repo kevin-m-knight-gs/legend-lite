@@ -60,7 +60,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
      * carrier columns, rendered as a JSON MERGE PATCH over the envelope —
      * NULL values (non-member rows) drop their keys (RFC 7386). */
     public record SubTypePatch(String subTypeFqn, List<TypedFuncCol> leaves,
-            TypedFuncCol member) {
+            TypedFuncCol member, List<Child> children) {
+        public SubTypePatch {
+            children = children == null ? List.of() : List.copyOf(children);
+        }
     }
 
     /** Patch-free compat (every pre-subType construction). */
@@ -109,6 +112,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         subTypePatches.forEach(p -> {
             p.leaves().forEach(l -> out.add(l.fn()));
             out.add(p.member().fn());
+            p.children().forEach(c -> out.add(c.node()));
         });
         return out;
     }

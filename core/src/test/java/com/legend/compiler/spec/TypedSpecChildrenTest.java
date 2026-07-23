@@ -145,7 +145,13 @@ class TypedSpecChildrenTest {
                     .SubTypePatch("t::Sub",
                             java.util.List.of((TypedFuncCol) dummy(
                                     TypedFuncCol.class, null)),
-                            (TypedFuncCol) dummy(TypedFuncCol.class, null));
+                            (TypedFuncCol) dummy(TypedFuncCol.class, null),
+                            java.util.List.of(
+                                    (com.legend.compiler.spec.typed
+                                            .TypedSerializeGraph.Child)
+                                    dummy(com.legend.compiler.spec.typed
+                                            .TypedSerializeGraph.Child.class,
+                                            null)));
         }
         if (type == com.legend.compiler.spec.typed.TypedSerializeGraph.Child.class) {
             // The child's envelope IS a TypedSpec — surfaced through

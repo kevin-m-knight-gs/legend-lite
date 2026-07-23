@@ -677,6 +677,16 @@ public final class Lowerer {
                                     + "', unresolvable in the envelope source");
                 }
             }
+            for (var child : p.children()) {
+                pkv.add(new SqlExpr.StringLit(child.property()));
+                enclosing.push(own);
+                try {
+                    pkv.add(new SqlExpr.ScalarSubquery(
+                            serializeGraph(child.node())));
+                } finally {
+                    enclosing.pop();
+                }
+            }
             SqlExpr member;
             switch (attempt(() -> scalar(last(p.member().fn()),
                     (v, name) -> resolveOrThrow(base, name)))) {

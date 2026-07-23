@@ -180,12 +180,24 @@ final class GraphEmission {
             // 7386): member rows gain the fields, others omit them.
             if (node.subTypeFqn() != null) {
                 List<TypedFuncCol> patch = new ArrayList<>();
+                List<TypedSerializeGraph.Child> patchChildren = new ArrayList<>();
                 for (TypedGraphTree sub : node.children()) {
                     if (!sub.children().isEmpty()) {
-                        throw new NotImplementedException("graph ->subType(@"
-                                + node.subTypeFqn() + ") with a class-typed"
-                                + " child '" + sub.property()
-                                + "' is not built yet");
+                        // CLASS-typed subtype child (coordinate{...}): a
+                        // correlated child against the SUBTYPE's own
+                        // ClassSource (its member pipeline holds the
+                        // binding); it rides INSIDE the member-gated patch,
+                        // so non-member rows never evaluate or emit it
+                        String skey = (context.explicitMapping() == null ? ""
+                                : context.explicitMapping()) + '\u0000'
+                                + (context.runtimeFqn() == null ? ""
+                                        : context.runtimeFqn());
+                        ClassSource subCs = sources.get(cs.mappingFqn(),
+                                node.subTypeFqn(),
+                                target -> dispatch.apply(context, target), skey);
+                        patchChildren.add(graphChild(subCs, sub, context,
+                                rowVar, rowType));
+                        continue;
                     }
                     String col = com.legend.model.ClassMapping.subTypeColumn(
                             node.subTypeFqn(), sub.property());
@@ -236,7 +248,7 @@ final class GraphEmission {
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)));
                 subTypePatches.add(new TypedSerializeGraph.SubTypePatch(
-                        node.subTypeFqn(), patch, member));
+                        node.subTypeFqn(), patch, member, patchChildren));
                 continue;
             }
             if (!node.children().isEmpty()
