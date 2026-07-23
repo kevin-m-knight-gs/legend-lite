@@ -48,7 +48,7 @@ in-process Alloy-shaped path).
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 |
-| tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
+| tests/mapping/association | 23 | 8 | 0 | 15 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 21 | 0 | 11 | 0 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 62 | 3 | 9 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 95 | 1 | 11 | 17 |
+| tests/mapping/union | 124 | 96 | 0 | 11 | 17 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 65 | 1 | 16 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1431** | 62 | 400 | 645 |
+| **total** | 2538 | **1433** | 61 | 399 | 645 |
 
 ### mapping walls (dropped at assembly)
 
@@ -2183,36 +2183,6 @@ in-process Alloy-shaped path).
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::testWithHardcodedDate_ViaNoArgMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-1.pure)
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::getNoArgMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-1.pure)
 - modelToModelToRelational/milestoned duplicate LegacyMappingDefinition::meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-1.pure)
-- modelToModelToRelational/milestoned meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::relationGrammarConfiguration => Unknown type: 'meta::pure::metamodel::serialization::grammar::Configuration' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
-- modelToModelToRelational/milestoned meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::test_ViaNoArgMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToNonMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-2.pure)
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testWithHardcodedDate_ViaNoArgMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToNonMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-2.pure)
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::test_ViaAllVersionsMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToNonMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-2.pure)
@@ -6197,9 +6167,9 @@ in-process Alloy-shaped path).
 
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x unbound variable '$dbRuntime'
+- 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
@@ -6208,7 +6178,8 @@ in-process Alloy-shaped path).
 - 5x unbound variable '$modelChainConnection'
 - 5x unknown function 'generateObjectReferences'
 - 5x resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- 5x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- 5x filter predicate references column 'ID', unresolvable even after isolation
+- 5x No value present
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
 - 4x Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                      ^
@@ -6224,7 +6195,6 @@ in-process Alloy-shaped path).
 - 3x class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::embedded::otherwiseMapping3' (Join 'Product_Synonym' references multiple non-source tables [productSchema.synonymTable, productSchema.productTable]; multi-table joins not supported. owner=synonyms, hop 1, mapping=meta::relational::tests::milestoning::embedded::otherwiseMapping3)
 - 3x filter predicate references column 'businessDate', unresolvable even after isolation
 - 3x unknown function 'meta::legend::compileLegendGrammar'
-- 3x unknown enumeration 'ProductSynonymType'
 
 ### per-test outcomes (non-passing)
 
@@ -6588,13 +6558,13 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
 - ERROR testMilestoningWithMultiLevelUnionMapping [graphFetch/tests/union]: class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap' (Join 'Order_Product' not found in db 'db'; PM='product', mapping=meta::relational::graphFetch::tests::union::relat
-- ERROR test1 [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping1' (Join 'firm1_person1_join' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping1)
-- ERROR test2 [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping2' (Join 'firmPersonSet1' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping2)
-- ERROR test3 [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping3' (Join 'firmPersonSet1' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping3)
-- ERROR test4 [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping4' (Join 'firm1_person1_join' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping4)
-- ERROR test5 [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping5' (Join 'firm1_person1_join' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping5)
-- ERROR test6 [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping6' (Join 'firm1_person1_join' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping6)
-- ERROR testUnionWithQualifiedProperty [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping1' (Join 'firm1_person1_join' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping1)
+- ERROR test1 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
+- ERROR test2 [graphFetch/tests/union]: filter predicate references column 'ADDRESSID', unresolvable even after isolation
+- ERROR test3 [graphFetch/tests/union]: filter predicate references column 'ADDRESSID', unresolvable even after isolation
+- ERROR test4 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
+- ERROR test5 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
+- ERROR test6 [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
+- ERROR testUnionWithQualifiedProperty [graphFetch/tests/union]: filter predicate references column 'ID', unresolvable even after isolation
 - ERROR testNestedUnion_SameStore [graphFetch/tests/union]: filter predicate references column 'productId', unresolvable even after isolation
 - ERROR testRootUnionWithOnePropertySet_SameStore [graphFetch/tests/union]: filter predicate references column 'productId', unresolvable even after isolation
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
@@ -6701,7 +6671,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6746,13 +6716,13 @@ in-process Alloy-shaped path).
 - SHAPE testProp3 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testProp4 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testPreeavalOnSort [modelToModelToRelational]: no execute(|...) call
-- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
-- ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: No value present
+- ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: No value present
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call
 - SHAPE testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: no execute(|...) call
-- ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
-- ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
-- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
+- ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: No value present
+- ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: No value present
+- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: No value present
 - ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
@@ -6859,7 +6829,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
@@ -7068,21 +7038,20 @@ in-process Alloy-shaped path).
 - FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
 - FAIL testQuery [tests/mapping]: assertSize: expected 1, got 2
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
-- ERROR testPersonToOrganisations [tests/mapping/association]: mapping 'meta::relational::tests::mapping::association::embedded::associationMapping' includes unknown mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
-- ERROR testFirmToOrganisations [tests/mapping/association]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded' (Join 'firmEmployees' not found in db 'myDB'; PM='employees', mapping=meta::relational::tests::mapping::association::embedded::as
-- ERROR testPersonToOrganisationsInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': unknown table 'PERSON_FIRM_DENORM' in database 'myDB'
-- ERROR testPersonToFirmAddressNestedInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': unknown table 'PERSON_FIRM_DENORM' in database 'myDB'
-- ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': unknown table 'PERSON_FIRM_DENORM' in database 'myDB'
-- ERROR testProjectTwoLambdas [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testGroupBy [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::assocMapping2$class$meta::relational::tests::model::inheritance::Vehicle': unknown table 'Car' in database 'myDB'
-- ERROR testQuery [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testFilterProject [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testGetAllFilterWithAssociation [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::assocMapping$class$meta::relational::tests::model::inheritance::RoadVehicle': unknown table 'Bicycle' in database 'myDB'
-- ERROR testSubTypeFilter [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::inheritence::assocMapping$class$meta::relational::tests::model::inheritance::RoadVehicle': unknown table 'Bicycle' in database 'myDB'
-- ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
+- ERROR testPersonToOrganisations [tests/mapping/association]: multi-hop navigation firm.organizations.name through an embedded/slot head is not supported yet [assocs=[]; head subNavs=-; head binding=TypedNewInstance]
+- ERROR testPersonToOrganisationsInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': relation has no column 'employees'
+- ERROR testPersonToFirmAddressNestedInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': relation has no column 'employees'
+- ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': relation has no column 'employees'
+- ERROR testProjectTwoLambdas [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testGroupBy [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::VehicleOwnerVehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping2'
+- ERROR testQuery [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testFilterProject [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testGetAllFilterWithAssociation [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testSubTypeFilter [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
+- ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/association]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets' (join chain [PersonBicycle] was never emitted on this pipeline — the expression navigates a join that was not ho
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation' (Join 'PersonSet1AddressSet1' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInne
 - ERROR testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: lowering not yet implemented for TypedVariable
@@ -7233,7 +7202,6 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::unionOfViews2$class$meta::relational::tests::model::simple::PersonExtension': unknown table 'midTableView1' in database 'meta::relational::tests::mapping::union::unionOfViewsDb'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum

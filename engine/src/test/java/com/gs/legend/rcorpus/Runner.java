@@ -679,6 +679,126 @@ public final class Runner {
      * extraction. The synthesized Runtime is one more source unit; its
      * connections come from the module's own parsed Database elements.
      */
+    /** Database names a mapping's PMs reference that resolve to NO
+     * Database in the module: qualified via the element's import scope
+     * against the estate index, each match pulls its defining file. */
+    private List<com.legend.Compiler.ModelSource> pullUnresolvedMappingStores(
+            com.legend.Compiler.ParsedModule pre,
+            java.util.Set<String> present) {
+        java.util.Set<String> moduleDbs = new java.util.HashSet<>();
+        for (com.legend.model.PackageableElement el : pre.model().elements()) {
+            if (el instanceof com.legend.model.DatabaseDefinition db) {
+                String q = db.qualifiedName();
+                moduleDbs.add(q);
+                moduleDbs.add(q.contains("::")
+                        ? q.substring(q.lastIndexOf("::") + 2) : q);
+            }
+        }
+        List<com.legend.Compiler.ModelSource> pulls = new ArrayList<>();
+        for (com.legend.model.PackageableElement el : pre.model().elements()) {
+            if (!(el instanceof com.legend.model.LegacyMappingDefinition md)) {
+                continue;
+            }
+            java.util.Set<String> refs = new java.util.LinkedHashSet<>();
+            collectMappingDbRefs(md, refs);
+            com.legend.model.ImportScope scope =
+                    pre.model().elementImports().get(md.qualifiedName());
+            for (String r : refs) {
+                if (r == null || moduleDbs.contains(r)) {
+                    continue;
+                }
+                String qualified = null;
+                if (r.contains("::")) {
+                    qualified = elementSource.containsKey(r) ? r : null;
+                } else if (scope != null) {
+                    for (String pkg : scope.wildcards()) {
+                        String cand = pkg + "::" + r;
+                        if (elementSource.containsKey(cand)) {
+                            qualified = cand;
+                            break;
+                        }
+                    }
+                }
+                if (qualified == null) {
+                    continue;
+                }
+                String defining = elementSource.get(qualified);
+                if (defining != null && present.add(defining)) {
+                    pulls.add(new com.legend.Compiler.ModelSource(
+                            "xdb-" + Integer.toHexString(defining.hashCode())
+                                    + ".pure", defining));
+                }
+            }
+        }
+        return pulls;
+    }
+
+    /** Every database name a mapping's class/association PMs spell
+     * ([db] mainTable / column / join-chain pointers) — structural walk
+     * over the parsed model, no text extraction. */
+    private static void collectMappingDbRefs(
+            com.legend.model.LegacyMappingDefinition md,
+            java.util.Set<String> out) {
+        for (com.legend.model.ClassMapping cm : md.classMappings()) {
+            if (!(cm instanceof com.legend.model.ClassMapping.Relational r)) {
+                continue;
+            }
+            if (r.mainTable() != null) {
+                out.add(r.mainTable().database());
+            }
+            for (com.legend.model.PropertyMapping pm : r.propertyMappings()) {
+                collectPmDbRefs(pm, out);
+            }
+        }
+        for (com.legend.model.AssociationMapping am : md.associationMappings()) {
+            if (am instanceof com.legend.model.AssociationMapping.Relational rel) {
+                for (com.legend.model.AssociationPropertyMapping apm
+                        : rel.propertyMappings()) {
+                    collectPmDbRefs(apm.body(), out);
+                }
+            }
+        }
+    }
+
+    private static void collectPmDbRefs(com.legend.model.PropertyMapping pm,
+            java.util.Set<String> out) {
+        switch (pm) {
+            case com.legend.model.PropertyMapping.Column c ->
+                    out.add(c.database());
+            case com.legend.model.PropertyMapping.Join j -> {
+                out.add(j.database());
+                for (com.legend.model.JoinChainElement e : j.joins()) {
+                    if (e.databaseName() != null) {
+                        out.add(e.databaseName());
+                    }
+                }
+            }
+            case com.legend.model.PropertyMapping.JoinTerminalColumn jtc -> {
+                out.add(jtc.database());
+                for (com.legend.model.JoinChainElement e : jtc.joins()) {
+                    if (e.databaseName() != null) {
+                        out.add(e.databaseName());
+                    }
+                }
+            }
+            case com.legend.model.PropertyMapping.Embedded emb -> {
+                for (com.legend.model.PropertyMapping sub
+                        : emb.propertyMappings()) {
+                    collectPmDbRefs(sub, out);
+                }
+            }
+            case com.legend.model.PropertyMapping.OtherwiseEmbedded oe -> {
+                for (com.legend.model.PropertyMapping sub : oe.embedded()) {
+                    collectPmDbRefs(sub, out);
+                }
+                collectPmDbRefs(oe.fallback(), out);
+            }
+            case com.legend.model.PropertyMapping.LocalProperty lp ->
+                    collectPmDbRefs(lp.body(), out);
+            default -> { }
+        }
+    }
+
     private com.legend.compiler.element.ModelContext moduleContextFor(
             List<String> mappingRefs) {
         return moduleContextFor(mappingRefs, List.of());
@@ -774,6 +894,26 @@ public final class Runner {
         }
         com.legend.Compiler.ParsedModule pre =
                 com.legend.Compiler.parseSources(parseable);
+        // CROSS-FAMILY STORE REFS: a family mapping's [db]@join pointers may
+        // name a Database defined in ANOTHER family (graphFetch
+        // union/propertyLevel imports tests::mapping::union::* and spells
+        // [myDB]) — qualify unresolved db names through the ELEMENT's own
+        // import scope and pull the single DEFINING FILE (the narrow
+        // vehicle; whole foreign families poison resolution), then reparse.
+        List<com.legend.Compiler.ModelSource> dbPulls =
+                pullUnresolvedMappingStores(pre, present);
+        if (!dbPulls.isEmpty()) {
+            for (com.legend.Compiler.ModelSource src : dbPulls) {
+                try {
+                    com.legend.parser.ElementParser.parse(src.text());
+                    parseable.add(src);
+                } catch (RuntimeException e) {
+                    wallOnce("file " + src.name() + " => "
+                            + String.valueOf(e.getMessage()).split("\n")[0]);
+                }
+            }
+            pre = com.legend.Compiler.parseSources(parseable);
+        }
         // the Runtime references every Database the MODULE declares —
         // enumerated from parsed elements, not regex
         StringBuilder conns = new StringBuilder();
