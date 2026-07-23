@@ -183,14 +183,50 @@ final class Pipelines {
                                     Set<String> demandedNavs, String classFqn,
                                     TargetResolver targets) {
         Set<String> all = slotAliases(pipeline);
-        if (all.isEmpty() && navSteps(pipeline).isEmpty()) {
+        Map<String, TypedNavigate> navs = navSteps(pipeline);
+        if (all.isEmpty() && navs.isEmpty()) {
             return new Materialized(pipeline, Map.of(), Set.of());
+        }
+        // Row-set-defining demand (engine: the class-mapping ~filter applies
+        // DURING getAll — a join the filter reads through is never cancelled,
+        // it is exempt from demand gating). Slot reads inside any pipeline
+        // TypedFilter predicate join the demand set; nav-step reads join it
+        // only when a target resolver exists to serve them — without one the
+        // stripped-read wall below stays the honest failure.
+        Set<String> filterSlots = new LinkedHashSet<>();
+        Set<String> filterNavs = new LinkedHashSet<>();
+        collectFilterDemand(pipeline, all, navs.keySet(), filterSlots, filterNavs);
+        if (!filterSlots.isEmpty()) {
+            Set<String> withFilters = new LinkedHashSet<>(demanded);
+            withFilters.addAll(filterSlots);
+            demanded = closeOverConditions(pipeline, withFilters);
+        }
+        if (!filterNavs.isEmpty() && targets != null) {
+            Set<String> withFilters = new LinkedHashSet<>(demandedNavs);
+            withFilters.addAll(filterNavs);
+            demandedNavs = withFilters;
         }
         Map<String, String> prefixes = new LinkedHashMap<>();
         Set<String> stripped = new LinkedHashSet<>();
         TypedSpec out = walk(pipeline, demanded, demandedNavs, targets,
                 prefixes, stripped, classFqn);
         return new Materialized(out, prefixes, stripped);
+    }
+
+    /** Slot/nav aliases read by any {@link TypedFilter} predicate in the
+     * pipeline (mapping ~filters and spliced below-hop filters alike). */
+    private static void collectFilterDemand(TypedSpec n, Set<String> slotUniverse,
+            Set<String> navUniverse, Set<String> outSlots, Set<String> outNavs) {
+        if (n instanceof TypedFilter f) {
+            String rv = f.predicate().parameters().get(0);
+            for (TypedSpec b : f.predicate().body()) {
+                collectSlotReads(b, rv, slotUniverse, outSlots);
+                collectSlotReads(b, rv, navUniverse, outNavs);
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            collectFilterDemand(c, slotUniverse, navUniverse, outSlots, outNavs);
+        }
     }
 
     private static TypedSpec walk(TypedSpec n, Set<String> demanded,
