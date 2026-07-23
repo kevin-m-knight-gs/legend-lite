@@ -277,18 +277,25 @@ final class Typer {
         // explodes it row-wise (engine TDSRow getters return T[1]) — so a
         // non-[1] column read conforms BY EMISSION (toOne; lowering is
         // erasure).
-        if (TDS_ROW_GETTERS.contains(af.function()) && af.parameters().size() == 2
-                && af.parameters().get(1) instanceof CString colName
+        if ((TDS_ROW_GETTERS.contains(af.function())
+                    || af.function().equals("getNullableString"))
+                && af.parameters().size() == 2
+                && literalColName(af.parameters().get(1)) != null
                 && synth(af.parameters().get(0), env).info().type()
                         instanceof Type.RelationType) {
+            String colRef = literalColName(af.parameters().get(1));
             TypedSpec cell = synth(new AppliedProperty(
-                    af.parameters().get(0), colName.value()), env);
-            if (cell.info().multiplicity() instanceof Multiplicity.Bounded b
-                    && Integer.valueOf(1).equals(b.upper()) && b.lower() == 1) {
+                    af.parameters().get(0), colRef), env);
+            // getNullableString returns String[0..1] (tds.pure:82/112) —
+            // the optional cell read IS the semantics, no strictening
+            if (af.function().equals("getNullableString")
+                    || (cell.info().multiplicity() instanceof Multiplicity.Bounded b
+                            && Integer.valueOf(1).equals(b.upper())
+                            && b.lower() == 1)) {
                 return cell;
             }
             return synth(new AppliedFunction("toOne", List.of(
-                    new AppliedProperty(af.parameters().get(0), colName.value()))), env);
+                    new AppliedProperty(af.parameters().get(0), colRef))), env);
         }
         // $r.isNotNull('COL') / isNull — TDSRow null tests on the named
         // cell (tds.pure); the cell read is optional-typed, so the tests
@@ -296,13 +303,13 @@ final class Typer {
         // spellings in RelOpTranslator)
         if ((af.function().equals("isNotNull") || af.function().equals("isNull"))
                 && af.parameters().size() == 2
-                && af.parameters().get(1) instanceof CString nullCol
+                && literalColName(af.parameters().get(1)) != null
                 && synth(af.parameters().get(0), env).info().type()
                         instanceof Type.RelationType) {
             return synth(new AppliedFunction(
                     af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
-                    List.of(new AppliedProperty(
-                            af.parameters().get(0), nullCol.value()))), env);
+                    List.of(new AppliedProperty(af.parameters().get(0),
+                            literalColName(af.parameters().get(1))))), env);
         }
         // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
         // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;
@@ -466,6 +473,31 @@ final class Typer {
     private static String stripQuotes(String name) {
         return name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")
                 ? name.substring(1, name.length() - 1) : name;
+    }
+
+    /** The LITERAL column name of a TDSRow accessor argument: a plain
+     * 'COL' string, or the TDSColumn-object spelling
+     * {@code $tds.columnByName('COL')[->toOne()]} (tds.pure:21/111-112 —
+     * the qualified property filters columns by name, so a literal
+     * argument IS the name; non-literal column expressions stay null and
+     * the caller's arm passes). */
+    private static String literalColName(ValueSpecification v) {
+        if (v instanceof CString cs) {
+            return cs.value();
+        }
+        if (v instanceof AppliedFunction tf
+                && (tf.function().equals("toOne") || tf.function().equals(
+                        "meta::pure::functions::multiplicity::toOne"))
+                && tf.parameters().size() == 1) {
+            return literalColName(tf.parameters().get(0));
+        }
+        if (v instanceof AppliedFunction cf
+                && tdsVocab(cf.function(), "columnByName")
+                && cf.parameters().size() == 2
+                && cf.parameters().get(1) instanceof CString name) {
+            return name.value();
+        }
+        return null;
     }
 
     /** The legacy TDSRow typed column accessors (getString('COL') et al). */
