@@ -234,6 +234,25 @@ final class AssociationJoins {
         return n;
     }
 
+    /** TARGET-SIDE join-key widening: a distinct-narrowed or UNION target
+     * must expose the key columns the association condition binds on
+     * (engine partial-union goldens); the union wall names its head. */
+    private static TypedSpec widenForConditionKeys(TypedLambda oriented,
+            TypedSpec pipeline, String head, ClassSource cs) {
+        Set<String> tgtReads = new LinkedHashSet<>();
+        for (TypedSpec b : oriented.body()) {
+            Pipelines.collectVarReads(b, oriented.parameters().get(1), tgtReads);
+        }
+        TypedSpec tPipe = Pipelines.widenDistinctForKeys(pipeline, tgtReads);
+        try {
+            return Pipelines.widenConcatenateForKeys(tPipe, tgtReads);
+        } catch (NotImplementedException e) {
+            throw new NotImplementedException(e.getMessage()
+                    + " [association head '" + head + "' on "
+                    + cs.classFqn() + "]");
+        }
+    }
+
     /** The chained-hop union arm: member-paired condition, else the
      * parent's ROUTED LIFT when it carries the head as a nav slot
      * (collectPairAssociationEntries put each per-pair route inside its
@@ -783,16 +802,8 @@ final class AssociationJoins {
                         target, tMat.slotPrefixes());
             }
         }
-        // TARGET-SIDE join-key collection: a distinct-narrowed target must
-        // expose the key columns the association condition binds on.
-        Set<String> tgtReads = new LinkedHashSet<>();
-        for (TypedSpec b : oriented.body()) {
-            Pipelines.collectVarReads(b, oriented.parameters().get(1), tgtReads);
-        }
-        TypedSpec tPipe = Pipelines.widenDistinctForKeys(tMat.pipeline(), tgtReads);
-        // UNION target: member threads carry the key columns the
-        // association condition binds on (engine partial-union goldens)
-        tPipe = Pipelines.widenConcatenateForKeys(tPipe, tgtReads);
+        TypedSpec tPipe = widenForConditionKeys(oriented, tMat.pipeline(),
+                head, cs);
         // audit 10: the target pipeline's OWN materialized slot joins to
         // milestoned tables filter by the temporal context too (every
         // milestoned table alias filters — the dead wall this replaces)

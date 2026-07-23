@@ -1076,83 +1076,25 @@ record CompositeChain(TypedSpec pipeline,
 
 
 CompositeChain compositeChainTarget(ClassSource cs,
-            TypedLambda navCond, TypedSpec targetPipe) {
+        TypedLambda navCond, TypedSpec targetPipe) {
         Set<String> parentSlots = Pipelines.slotAliases(cs.pipeline());
         if (parentSlots.isEmpty()) {
             return null;
         }
         String sParam = navCond.parameters().get(0);
         String tParam = navCond.parameters().get(1);
-        String slotRef = null;
+        boolean anySlot = false;
         for (String sl : parentSlots) {
             for (TypedSpec b : navCond.body()) {
-                if (Pipelines.referencesAliasOn(b, sParam, Set.of(sl))) {
-                    if (slotRef != null && !slotRef.equals(sl)) {
-                        throw new NotImplementedException(
-                                "navigate-step condition reads MULTIPLE"
-                                        + " sibling joinslots (" + slotRef
-                                        + ", " + sl + ") — the multi-slot"
-                                        + " composite is not built yet");
-                    }
-                    slotRef = sl;
-                }
+                anySlot |= Pipelines.referencesAliasOn(b, sParam, Set.of(sl));
             }
         }
-        if (slotRef == null) {
+        if (!anySlot) {
             return null;
         }
-        var js = Pipelines.joinSlots(cs.pipeline()).get(slotRef);
-        if (js == null
-                || !(js.target().info().type() instanceof Type.RelationType optRow)
-                || !(targetPipe.info().type() instanceof Type.RelationType tgtRow)) {
-            // NOT walled (audit 23 B6 probe): a sibling that is a NAVIGATE
-            // step (not a joinSlot) degrades to the flat form, which the
-            // chained-union V2 family pins as row-correct — the explosion
-            // risk is multiplicity-dependent, and the blanket wall
-            // over-fired on those passing shapes.
+        if (!(targetPipe.info().type() instanceof Type.RelationType tgtRow0)) {
             return null;
         }
-        // GUARDS (loud, never silent): the step condition must read the
-        // parent ONLY through the slot; hop-1's own condition must not
-        // read further slots.
-        for (TypedSpec b : navCond.body()) {
-            if (readsVarOutsideSlot(b, sParam, slotRef)) {
-                throw new NotImplementedException(
-                        "navigate-step condition mixes sibling-slot reads"
-                                + " with DIRECT parent reads — the mixed"
-                                + " composite is not built yet");
-            }
-        }
-        TypedLambda c1 = js.condition();
-        for (TypedSpec b : c1.body()) {
-            for (String sl : parentSlots) {
-                if (Pipelines.referencesAliasOn(b, c1.parameters().get(0),
-                        Set.of(sl))) {
-                    throw new NotImplementedException(
-                            "chained joinslot condition reads a further"
-                                    + " sibling slot — deep composite"
-                                    + " chains are not built yet");
-                }
-            }
-        }
-        String pfx = slotRef + "_";
-        boolean clash = true;
-        while (clash) {
-            clash = false;
-            for (Type.Column c : tgtRow.columns()) {
-                if (c.name().startsWith(pfx)) {
-                    pfx = "_" + pfx;
-                    clash = true;
-                }
-            }
-        }
-        List<Type.Column> compCols = new ArrayList<>(tgtRow.columns());
-        for (Type.Column c : optRow.columns()) {
-            compCols.add(new Type.Column(pfx + c.name(), c.type(),
-                    c.multiplicity()));
-        }
-        Type.RelationType compRow = new Type.RelationType(compCols);
-        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
         // audit 23 #75: a multi-statement join condition would silently
         // drop its leading statements (let-bound sub-expressions) — loud
         if (navCond.body().size() != 1) {
@@ -1160,47 +1102,208 @@ CompositeChain compositeChainTarget(ClassSource cs,
                     + " with " + navCond.body().size() + " statements"
                     + " (let-carrying bodies) is not supported yet");
         }
+        // The routed-union emission builds the condition as an OR of
+        // per-route terms; classify each disjunct — DIRECT parent reads
+        // stay on the outer correlation, single-slot disjuncts pull their
+        // slot table INTO the composite target (engine V4: subselect
+        // contains both tables, correlated outward by hop-1's condition).
+        List<TypedSpec> disjuncts = new ArrayList<>();
+        TypedNativeCall[] orCallee = {null};
+        flattenOrInto(navCond.body().get(0), disjuncts, orCallee);
+        List<TypedSpec> direct = new ArrayList<>();
+        Map<String, List<TypedSpec>> bySlot = new LinkedHashMap<>();
+        for (TypedSpec d : disjuncts) {
+            Set<String> slotsRead = new LinkedHashSet<>();
+            for (String sl : parentSlots) {
+                if (Pipelines.referencesAliasOn(d, sParam, Set.of(sl))) {
+                    slotsRead.add(sl);
+                }
+            }
+            if (slotsRead.isEmpty()) {
+                direct.add(d);
+                continue;
+            }
+            if (slotsRead.size() > 1) {
+                throw new NotImplementedException(
+                        "navigate-step condition disjunct reads MULTIPLE"
+                                + " sibling joinslots (" + slotsRead
+                                + ") — the multi-slot disjunct is not"
+                                + " built yet");
+            }
+            String sl = slotsRead.iterator().next();
+            if (readsVarOutsideSlot(d, sParam, sl)) {
+                throw new NotImplementedException(
+                        "navigate-step condition disjunct mixes"
+                                + " sibling-slot reads with DIRECT parent"
+                                + " reads — the mixed disjunct is not"
+                                + " built yet");
+            }
+            bySlot.computeIfAbsent(sl, k -> new ArrayList<>()).add(d);
+        }
+        if (bySlot.isEmpty()) {
+            return null;
+        }
+        var joinSlots = Pipelines.joinSlots(cs.pipeline());
+        for (String sl : bySlot.keySet()) {
+            var js = joinSlots.get(sl);
+            if (js == null || !(js.target().info().type()
+                    instanceof Type.RelationType)) {
+                // NOT walled (audit 23 B6 probe): a sibling that is a
+                // NAVIGATE step (not a joinSlot) degrades to the flat
+                // form, which the chained-union V2 family pins as
+                // row-correct — the explosion risk is multiplicity-
+                // dependent, and the blanket wall over-fired on those
+                // passing shapes.
+                return null;
+            }
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
         Set<String> takenLr = new LinkedHashSet<>();
         collectVarNamesInto(navCond.body().get(0), takenLr);
-        String lv = "_cl";
-        String rv = "_cr";
+        TypedSpec composite = targetPipe;
+        Type.RelationType compRow = tgtRow0;
+        Map<String, String> slotPfx = new LinkedHashMap<>();
         int lrOrd = 2;
-        while (takenLr.contains(lv) || takenLr.contains(rv)) {
-            lv = "_cl" + lrOrd;
-            rv = "_cr" + lrOrd;
-            lrOrd++;
+        for (var en : bySlot.entrySet()) {
+            String slotRef = en.getKey();
+            var js = joinSlots.get(slotRef);
+            Type.RelationType optRow =
+                    (Type.RelationType) js.target().info().type();
+            TypedLambda c1 = js.condition();
+            // GUARD (loud, never silent): hop-1's own condition must not
+            // read further slots.
+            for (TypedSpec b : c1.body()) {
+                for (String sl : parentSlots) {
+                    if (Pipelines.referencesAliasOn(b,
+                            c1.parameters().get(0), Set.of(sl))) {
+                        throw new NotImplementedException(
+                                "chained joinslot condition reads a further"
+                                        + " sibling slot — deep composite"
+                                        + " chains are not built yet");
+                    }
+                }
+            }
+            String pfx = slotRef + "_";
+            boolean clash = true;
+            while (clash) {
+                clash = false;
+                for (Type.Column c : compRow.columns()) {
+                    if (c.name().startsWith(pfx)) {
+                        pfx = "_" + pfx;
+                        clash = true;
+                    }
+                }
+            }
+            slotPfx.put(slotRef, pfx);
+            List<Type.Column> compCols = new ArrayList<>(compRow.columns());
+            for (Type.Column c : optRow.columns()) {
+                compCols.add(new Type.Column(pfx + c.name(), c.type(),
+                        c.multiplicity()));
+            }
+            Type.RelationType newRow = new Type.RelationType(compCols);
+            String lv = "_cl";
+            String rv = "_cr";
+            while (takenLr.contains(lv) || takenLr.contains(rv)) {
+                lv = "_cl" + lrOrd;
+                rv = "_cr" + lrOrd;
+                lrOrd++;
+            }
+            takenLr.add(lv);
+            takenLr.add(rv);
+            // inner cond: THIS slot's disjuncts — target reads land on the
+            // current composite row, slot reads on the slot table's row
+            TypedSpec inner = orJoin(en.getValue(), orCallee[0]);
+            final String lvF = lv;
+            final String rvF = rv;
+            final Type.RelationType lRow = compRow;
+            TypedSpec b1 = Pipelines.rewriteRowReads(inner, tParam, Map.of(),
+                    Set.of(), v -> new TypedVariable(lvF,
+                            new ExprType(lRow, one)));
+            TypedSpec b2 = Pipelines.rewriteRowReads(b1, sParam,
+                    Map.of(slotRef, ""), Set.of(),
+                    v -> new TypedVariable(rvF, new ExprType(optRow, one)));
+            TypedLambda joinCond = new TypedLambda(List.of(lvF, rvF),
+                    List.of(b2),
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(lRow, one),
+                                    new Type.Param(optRow, one)),
+                            new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+            composite = new TypedJoin(composite, js.target(),
+                    StoreResolver.leftKind(), joinCond, Optional.of(pfx),
+                    new ExprType(newRow, one));
+            compRow = newRow;
         }
-        TypedSpec b0 = navCond.body().get(0);
-        final String lvF = lv;
-        final String rvF = rv;
-        TypedSpec b1 = Pipelines.rewriteRowReads(b0, tParam, Map.of(),
-                Set.of(), v -> new TypedVariable(lvF,
-                        new ExprType(tgtRow, one)));
-        TypedSpec b2 = Pipelines.rewriteRowReads(b1, sParam,
-                Map.of(slotRef, ""), Set.of(),
-                v -> new TypedVariable(rvF, new ExprType(optRow, one)));
-        TypedLambda joinCond = new TypedLambda(List.of(lvF, rvF), List.of(b2),
+        final Type.RelationType finalRow = compRow;
+        // oriented outer condition: direct disjuncts keep their parent
+        // reads; each slot contributes hop-1's condition with the slot-
+        // table reads landing on ITS prefixed composite columns (NULL off
+        // the unmatched side keeps the OR exact).
+        List<TypedSpec> orientedTerms = new ArrayList<>();
+        for (TypedSpec d : direct) {
+            orientedTerms.add(Pipelines.rewriteRowReads(d, tParam, Map.of(),
+                    Set.of(), v -> new TypedVariable(tParam,
+                            new ExprType(finalRow, one))));
+        }
+        for (var en : bySlot.entrySet()) {
+            var js = joinSlots.get(en.getKey());
+            TypedLambda c1 = js.condition();
+            String pfx = slotPfx.get(en.getKey());
+            String c1t = c1.parameters().get(1);
+            TypedSpec oc = Pipelines.prefixColumns(
+                    c1.body().get(c1.body().size() - 1), c1t, pfx,
+                    v -> new TypedVariable(tParam,
+                            new ExprType(finalRow, one)));
+            String c1s = c1.parameters().get(0);
+            if (!c1s.equals(sParam)) {
+                oc = Pipelines.rewriteRowReads(oc, c1s, Map.of(), Set.of(),
+                        v -> new TypedVariable(sParam,
+                                new ExprType(cs.rowType(), one)));
+            }
+            orientedTerms.add(oc);
+        }
+        TypedSpec orientedBody = orJoin(orientedTerms, orCallee[0]);
+        TypedLambda oriented = new TypedLambda(List.of(sParam, tParam),
+                List.of(orientedBody),
                 new ExprType(new Type.FunctionType(
-                        List.of(new Type.Param(tgtRow, one),
-                                new Type.Param(optRow, one)),
-                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
-        TypedSpec composite = new TypedJoin(targetPipe, js.target(),
-                StoreResolver.leftKind(), joinCond, Optional.of(pfx),
-                new ExprType(compRow, one));
-        // hop-1's condition, its TARGET (slot-table) reads landing on the
-        // composite's prefixed columns
-        String c1t = c1.parameters().get(1);
-        TypedSpec oc = Pipelines.prefixColumns(
-                c1.body().get(c1.body().size() - 1), c1t, pfx,
-                v -> new TypedVariable(c1t, new ExprType(compRow, one)));
-        Type c1p0 = c1.info().type() instanceof Type.FunctionType cft
-                ? cft.params().get(0).type() : cs.rowType();
-        TypedLambda oriented = new TypedLambda(c1.parameters(), List.of(oc),
-                new ExprType(new Type.FunctionType(
-                        List.of(new Type.Param(c1p0, one),
-                                new Type.Param(compRow, one)),
+                        List.of(new Type.Param(cs.rowType(), one),
+                                new Type.Param(finalRow, one)),
                         new Type.Param(Type.Primitive.BOOLEAN, one)), one));
         return new CompositeChain(composite, oriented);
+    }
+
+    /** Flatten a {@code boolean::or} tree into its disjuncts, remembering
+     * one or-node to rebuild with (exact FQN — never a name suffix). */
+    private static void flattenOrInto(TypedSpec n, List<TypedSpec> out,
+            TypedNativeCall[] orCallee) {
+        if (n instanceof TypedNativeCall c && c.args().size() == 2
+                && "meta::pure::functions::boolean::or"
+                        .equals(c.callee().qualifiedName())) {
+            orCallee[0] = c;
+            flattenOrInto(c.args().get(0), out, orCallee);
+            flattenOrInto(c.args().get(1), out, orCallee);
+            return;
+        }
+        out.add(n);
+    }
+
+    /** OR-join terms with the captured or-node's callee; a single term
+     * passes through untouched. */
+    private static TypedSpec orJoin(List<TypedSpec> terms,
+            TypedNativeCall orCallee) {
+        if (terms.size() == 1) {
+            return terms.get(0);
+        }
+        if (orCallee == null) {
+            throw new IllegalStateException("resolver bug: multi-term"
+                    + " oriented condition without an or-node to rebuild"
+                    + " from");
+        }
+        TypedSpec acc = terms.get(0);
+        for (int i = 1; i < terms.size(); i++) {
+            acc = new TypedNativeCall(orCallee.callee(),
+                    List.of(acc, terms.get(i)), orCallee.info());
+        }
+        return acc;
     }
 
 

@@ -544,36 +544,7 @@ public final class MappingNormalizer {
      * join conditions are comparisons/boolean ops over column reads and
      * literals; anything else is a shape this route cannot suffix yet.
      */
-    static ValueSpecification suffixTargetReads(ValueSpecification n,
-            Variable t, int ord, Map<String, String> out) {
-        if (n instanceof AppliedProperty ap
-                && ap.receiver() instanceof Variable v
-                && v.name().equals(t.name())) {
-            String suffixed = ap.property() + "_" + ord;
-            out.put(ap.property(), suffixed);
-            return new AppliedProperty(v, suffixed);
-        }
-        return switch (n) {
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    af.parameters().stream().map(x ->
-                            suffixTargetReads(x, t, ord, out)).toList());
-            case AppliedProperty ap -> new AppliedProperty(
-                    suffixTargetReads(ap.receiver(), t, ord, out), ap.property());
-            case Variable v -> v;
-            case CString ignored -> n;
-            case CInteger ignored -> n;
-            case CFloat ignored -> n;
-            case CDecimal ignored -> n;
-            case CBoolean ignored -> n;
-            case CDate ignored -> n;
-            case PureCollection pc -> new PureCollection(pc.values().stream()
-                    .map(x -> suffixTargetReads(x, t, ord, out)).toList());
-            default -> throw new NotImplementedException(
-                    "partial-union route join condition carries a "
-                    + n.getClass().getSimpleName()
-                    + " — not suffixable yet");
-        };
-    }
+
 
     /**
      * The ordinal of {@code setId} among the member sets of the Union

@@ -36,6 +36,8 @@ import com.legend.model.SynthHat;
 import com.legend.model.spec.AppliedFunction;
 import com.legend.model.spec.AppliedProperty;
 import com.legend.model.spec.CBoolean;
+import com.legend.model.spec.CDate;
+import com.legend.model.spec.CDecimal;
 import com.legend.model.spec.CFloat;
 import com.legend.model.spec.CInteger;
 import com.legend.model.spec.CString;
@@ -240,6 +242,16 @@ final class UnionSynthesis {
                                 .count() == 1);
                 if (ord >= 0) {
                     routes.add(new UnionRoute(ord, j));
+                } else if (memberIds != null) {
+                    // the TARGET class is union-mapped and this route's set
+                    // is not among the members: the set is unreachable from
+                    // the union extent — engine consults only member
+                    // routes, so the entry is DEAD, never a root route and
+                    // never a poison (multipleChainedJoins V4: included
+                    // y2/y3 sets beside a (y0, y1) union; root/sole-ness
+                    // judged in the requesting mapping's scope would
+                    // misread them as roots)
+                    continue;
                 } else if (rootOrSole) {
                     routes.add(new UnionRoute(-1, j));
                 } else {
@@ -254,49 +266,15 @@ final class UnionSynthesis {
                     && routes.stream().anyMatch(r -> r.targetOrdinal() < 0)) {
                 poison = "MIXED root-set and union-member routes";
             }
-            // CHAINED member routes (employeesExt[e1]: @A > @B_e1): the
-            // shared PREFIX hops (all but last) emit as ordinary physical
-            // joins once, the FINAL hop dispatches per member (engine
-            // unionOfViews golden: midTableView joined outside the union
-            // subselect, `person = id_0 or person = id_1`). Requires every
-            // member route to walk the IDENTICAL prefix — routes diverging
-            // before the final hop (unionOfViews2's non-overlapping join
-            // sequences push mid hops INSIDE each member thread) stay a
-            // roadmap wall.
-            if (poison == null && routes.stream()
-                    .filter(r -> r.targetOrdinal() >= 0)
-                    .anyMatch(r -> r.join().joins().size() > 1)) {
-                List<PropertyMapping.Join> memberJs = routes.stream()
-                        .filter(r -> r.targetOrdinal() >= 0)
-                        .map(UnionRoute::join).toList();
-                PropertyMapping.Join first = memberJs.get(0);
-                for (PropertyMapping.Join j : memberJs) {
-                    if (j.joins().size() != first.joins().size()) {
-                        poison = "chained union-member routes of DIFFERENT"
-                                + " lengths — not supported yet";
-                        break;
-                    }
-                    for (int h = 0; h + 1 < j.joins().size(); h++) {
-                        JoinChainElement a = first.joins().get(h);
-                        JoinChainElement b = j.joins().get(h);
-                        String dbA = a.databaseName() != null
-                                ? a.databaseName() : first.database();
-                        String dbB = b.databaseName() != null
-                                ? b.databaseName() : j.database();
-                        if (!a.joinName().equals(b.joinName())
-                                || !java.util.Objects.equals(dbA, dbB)) {
-                            poison = "chained union-member routes with"
-                                    + " NON-OVERLAPPING join sequences —"
-                                    + " per-member mid hops are not"
-                                    + " supported yet";
-                            break;
-                        }
-                    }
-                    if (poison != null) {
-                        break;
-                    }
-                }
-            }
+            // CHAINED member routes come in two engine shapes, both
+            // accepted here: SHARED-PREFIX (unionOfViews golden — the
+            // identical prefix hops emit ONCE as physical joins, the final
+            // hop dispatches per member) and PER-ARM (V4 pair routes /
+            // unionOfViews2 — routes diverge, each route's mid hops
+            // materialize INSIDE the owning member's thread and the ONE
+            // navigate reads each route's FIRST hop). The split is decided
+            // by uniformChainedRoutes at the emitter AND the inbound key
+            // collector — the same predicate, never allowed to drift.
             if (poison != null) {
                 p.droppedRoutedProps.add(prop);
                 model.mappingPoisons.merge(
@@ -870,7 +848,7 @@ final class UnionSynthesis {
         // the NULL thread)
         collectInboundRouteKeys(md, model,
                 members.stream().map(MappingNormalizer::setIdOf).toList(),
-                members, srcKeysByOrdinal);
+                members, srcKeysByOrdinal, chainsByOrdinal);
         Map<String, LinkedHashSet<String>> subTypeProps =
                 subTypeDispatchProps(className, members, parts, model);
         ValueSpecification union = null;
@@ -1202,6 +1180,143 @@ final class UnionSynthesis {
 
     /** The MID hops of a chained lift entry as physical join steps,
      * prevAlias-scoped conditions composing hop to hop. */
+    static ValueSpecification suffixTargetReads(ValueSpecification n,
+            Variable t, int ord, Map<String, String> out) {
+        return suffixTargetReads(n, t, "_" + ord, out);
+    }
+
+    /** Explicit-suffix variant: chained lifts scope their key names by
+     * PROPERTY ({@code col__prop_ord}) so two chains of one member whose
+     * mid tables share a column name never collide (V4: aT.fk1 vs
+     * gT.fk1). All consumers read the names through {@code out} /
+     * colspec-body provenance, never by pattern. */
+    static ValueSpecification suffixTargetReads(ValueSpecification n,
+            Variable t, String suffix, Map<String, String> out) {
+        if (n instanceof AppliedProperty ap
+                && ap.receiver() instanceof Variable v
+                && v.name().equals(t.name())) {
+            String suffixed = ap.property() + suffix;
+            out.put(ap.property(), suffixed);
+            return new AppliedProperty(v, suffixed);
+        }
+        return switch (n) {
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream().map(x ->
+                            suffixTargetReads(x, t, suffix, out)).toList());
+            case AppliedProperty ap -> new AppliedProperty(
+                    suffixTargetReads(ap.receiver(), t, suffix, out), ap.property());
+            case Variable v -> v;
+            case CString ignored -> n;
+            case CInteger ignored -> n;
+            case CFloat ignored -> n;
+            case CDecimal ignored -> n;
+            case CBoolean ignored -> n;
+            case CDate ignored -> n;
+            case PureCollection pc -> new PureCollection(pc.values().stream()
+                    .map(x -> suffixTargetReads(x, t, suffix, out)).toList());
+            default -> throw new NotImplementedException(
+                    "partial-union route join condition carries a "
+                    + n.getClass().getSimpleName()
+                    + " — not suffixable yet");
+        };
+    }
+
+    /**
+     * THE chained-route classification (shared by the emitter and the
+     * inbound key collector): TRUE when every member route walks the
+     * IDENTICAL prefix (all hops but the last) — the shared-prefix model
+     * where the prefix emits once as physical joins. FALSE (per-arm /
+     * push-into-arm) when member routes diverge in length or mid joins:
+     * each route's mids then live INSIDE the owning member's thread and
+     * the navigate reads each route's FIRST hop.
+     */
+    static boolean uniformChainedRoutes(List<PropertyMapping.Join> memberJs) {
+        if (memberJs.isEmpty()
+                || memberJs.stream().noneMatch(j -> j.joins().size() > 1)) {
+            return true;
+        }
+        PropertyMapping.Join first = memberJs.get(0);
+        for (PropertyMapping.Join j : memberJs) {
+            if (j.joins().size() != first.joins().size()) {
+                return false;
+            }
+            for (int h = 0; h + 1 < j.joins().size(); h++) {
+                JoinChainElement a = first.joins().get(h);
+                JoinChainElement b = j.joins().get(h);
+                String dbA = a.databaseName() != null
+                        ? a.databaseName() : first.database();
+                String dbB = b.databaseName() != null
+                        ? b.databaseName() : j.database();
+                if (!a.joinName().equals(b.joinName())
+                        || !java.util.Objects.equals(dbA, dbB)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** The union-member routes of a routed property (root/sole routes carry ordinal -1). */
+    static List<PropertyMapping.Join> memberJoins(List<UnionRoute> routes) {
+        return routes.stream().filter(r -> r.targetOrdinal() >= 0)
+                .map(UnionRoute::join).toList();
+    }
+
+    /**
+     * PER-ARM inbound mid steps (push-into-arm, engine
+     * unionOfViews2/JoinSequenceInProperty behavior): the route's chain
+     * walked from the TARGET member's table BACK through the mids (all
+     * hops but the FIRST, reversed), each joined inside the member
+     * thread. The route key the navigate reads is the FIRST hop's
+     * landing-table columns, exposed under the PROPERTY-SCOPED suffixed
+     * name ({@code col__prop_ord} — deterministic on BOTH the emission
+     * and registration sides, and collision-free across a member's
+     * chains) off the last emitted mid alias — the exact mirror of
+     * {@link #liftMidSteps} for outbound lifts.
+     */
+    static List<LiftMidStep> inboundArmSteps(PropertyMapping.Join j,
+            String prop, String memberTable, LegacyMappingDefinition md,
+            ModelBuilder model) {
+        List<LiftMidStep> steps = new ArrayList<>();
+        String prevTable = memberTable;
+        String prevAlias = null;
+        for (int h = j.joins().size() - 1; h >= 1; h--) {
+            JoinChainElement midHop = j.joins().get(h);
+            String midDb = midHop.databaseName() != null
+                    ? midHop.databaseName() : j.database();
+            DatabaseDefinition.JoinDefinition mjd =
+                    model.findJoin(midDb, midHop.joinName()).orElseThrow(() ->
+                            new ModelException(
+                                    LegendCompileException
+                                            .Phase.NORMALIZE,
+                                    "Join '" + midHop.joinName() + "' not"
+                                    + " found in db '" + midDb + "'; PM='"
+                                    + prop + "', mapping="
+                                    + md.qualifiedName()));
+            String midTgt = MappingNormalizer.determineTargetTable(mjd.operation(),
+                    prevTable, midHop.joinName(), prop, h,
+                    md.qualifiedName());
+            Variable ms = new Variable("s");
+            Variable mt = new Variable("t");
+            Map<String, ValueSpecification> midScope = new LinkedHashMap<>();
+            midScope.put(prevTable, prevAlias == null ? ms
+                    : new AppliedProperty(ms, prevAlias));
+            if (!midTgt.equals(prevTable)) {
+                midScope.put(midTgt, mt);
+            }
+            ValueSpecification midCond = RelOpTranslator.translate(
+                    mjd.operation(), midScope, mt, null,
+                    RelOpTranslator.PipelineView.NONE);
+            String midAlias = "nl__" + prop + "__inb__" + midHop.joinName();
+            steps.add(new LiftMidStep(midAlias, midDb, midTgt,
+                    new LambdaFunction(List.of(ms, mt),
+                            List.of(midCond))));
+            prevTable = midTgt;
+            prevAlias = midAlias;
+        }
+        return steps;
+    }
+
     static List<LiftMidStep> liftMidSteps(PropertyMapping.Join j,
             String prop, String srcTable, LegacyMappingDefinition md,
             ModelBuilder model) {
@@ -1261,6 +1376,43 @@ final class UnionSynthesis {
     }
 
     /** Collect the member class-typed Join PMs liftable onto the union. */
+    /** Routed-lift target key typing colspecs: a key whose base column is
+     * absent on the FIRST landing table types as a NULL cast of ITS OWN
+     * landing table's column kind (audit 11: heterogeneous target key
+     * names across routed members). */
+    private static List<ColSpec> routedLiftKeySpecs(
+            Map<String, String[]> tgtKeyCols, String landingDb,
+            String landingTable, LegacyMappingDefinition md,
+            ModelBuilder model) {
+        List<ColSpec> keySpecs = new ArrayList<>();
+        for (var en2 : tgtKeyCols.entrySet()) {
+            Variable kr = new Variable("kr");
+            String base = en2.getValue()[0];
+            ValueSpecification read;
+            if (ViewRelation.columnPureKind(landingDb, landingTable,
+                    base, model) != null) {
+                read = new AppliedProperty(kr, base);
+            } else {
+                String kind = ViewRelation.columnPureKind(
+                        en2.getValue()[1], en2.getValue()[2], base, model);
+                if (kind == null) {
+                    throw new NotImplementedException(
+                            "routed lift key column '" + base
+                            + "' has no derivable pure kind on table '"
+                            + en2.getValue()[2] + "'; mapping="
+                            + md.qualifiedName());
+                }
+                read = new AppliedFunction("cast", List.of(
+                        new PureCollection(List.of()),
+                        new TypeAnnotation.Named(
+                                new TypeExpression.NameRef(kind))));
+            }
+            keySpecs.add(new ColSpec(en2.getKey(), new LambdaFunction(
+                    List.of(kr), List.of(read)), null));
+        }
+        return keySpecs;
+    }
+
     /** MERGED target reads resolve against the union's PROJECTED row —
      * valid only when every read column IS a projected name (a mapped
      * value column like the partiallyMilestoning golden's {@code id}). A
@@ -1437,7 +1589,9 @@ final class UnionSynthesis {
             Variable s = new Variable("s");
             Variable t = new Variable("t");
             ValueSpecification orCond = null;
-            Map<String, String> tgtKeyCols = new LinkedHashMap<>(); // suffixed -> base
+            // suffixed -> [base column, its route's db, its route's landing
+            // table] (heterogeneous target key typing needs the provenance)
+            Map<String, String[]> tgtKeyCols = new LinkedHashMap<>();
             String landingDb = null;
             String landingTable = null;
             Map<Integer, Map<String, String>> srcKeys = new LinkedHashMap<>();
@@ -1485,7 +1639,13 @@ final class UnionSynthesis {
                         jd.operation(), scope, t, null,
                         RelOpTranslator.PipelineView.NONE);
                 Map<String, String> srcOut = new LinkedHashMap<>();
-                cond = MappingNormalizer.suffixTargetReads(cond, s, memberOrd, srcOut);
+                // chained lifts: property-scoped key names (col__prop_ord)
+                // — two chains of ONE member may land on mid tables sharing
+                // a column name (V4: aT.fk1 vs gT.fk1)
+                cond = midSteps.isEmpty()
+                        ? suffixTargetReads(cond, s, memberOrd, srcOut)
+                        : suffixTargetReads(cond, s,
+                                "__" + prop + "_" + memberOrd, srcOut);
                 if (midSteps.isEmpty()) {
                     srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
                             .putAll(srcOut);
@@ -1502,9 +1662,10 @@ final class UnionSynthesis {
                         : null;
                 if (tgtOrd != null && tgtOrd >= 0) {
                     Map<String, String> tgtOut = new LinkedHashMap<>();
-                    cond = MappingNormalizer.suffixTargetReads(cond, t, tgtOrd, tgtOut);
+                    cond = suffixTargetReads(cond, t, tgtOrd, tgtOut);
                     for (var en2 : tgtOut.entrySet()) {
-                        tgtKeyCols.put(en2.getValue(), en2.getKey());
+                        tgtKeyCols.put(en2.getValue(),
+                                new String[]{en2.getKey(), hopDb, tgtTable});
                     }
                 }
                 orCond = orCond == null ? cond
@@ -1514,13 +1675,8 @@ final class UnionSynthesis {
                     List.of(new PackageableElementPtr(landingDb),
                             new CString(landingTable)));
             if (!tgtKeyCols.isEmpty()) {
-                List<ColSpec> keySpecs = new ArrayList<>();
-                for (var en2 : tgtKeyCols.entrySet()) {
-                    Variable kr = new Variable("kr");
-                    keySpecs.add(new ColSpec(en2.getKey(), new LambdaFunction(
-                            List.of(kr), List.of(new AppliedProperty(kr,
-                                    en2.getValue()))), null));
-                }
+                List<ColSpec> keySpecs = routedLiftKeySpecs(tgtKeyCols,
+                        landingDb, landingTable, md, model);
                 targetRows = new AppliedFunction("project",
                         List.of(targetRows, new ColSpecArray(keySpecs)));
             }
@@ -1542,6 +1698,14 @@ final class UnionSynthesis {
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink) {
+        collectInboundRouteKeys(md, model, memberIds, members, sink, null);
+    }
+
+    static void collectInboundRouteKeys(LegacyMappingDefinition md,
+            ModelBuilder model, List<String> memberIds,
+            List<ClassMapping> members,
+            Map<Integer, Map<String, String>> sink,
+            Map<Integer, List<LiftChain>> chainsSink) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
         for (LegacyMappingDefinition m : closure) {
@@ -1549,43 +1713,35 @@ final class UnionSynthesis {
                 if (!(cm instanceof ClassMapping.Relational rcm)) {
                     continue;
                 }
+                // group per property: chained-route shape (shared-prefix
+                // vs per-arm) is a PER-PROPERTY judgment over its member
+                // routes — the same uniformChainedRoutes predicate the
+                // emitter applies
+                Map<String, List<PropertyMapping.Join>> byProp =
+                        new LinkedHashMap<>();
                 for (PropertyMapping pm : rcm.propertyMappings()) {
-                    if (!(pm instanceof PropertyMapping.Join j)
-                            || j.targetSetId() == null) {
-                        continue;
+                    if (pm instanceof PropertyMapping.Join j
+                            && j.targetSetId() != null) {
+                        byProp.computeIfAbsent(j.propertyName(),
+                                k -> new ArrayList<>()).add(j);
                     }
-                    int ord = memberOrdinalOf(memberIds, md, model,
-                            j.targetSetId());
-                    if (ord < 0) {
-                        continue;
+                }
+                for (List<PropertyMapping.Join> group : byProp.values()) {
+                    Map<PropertyMapping.Join, Integer> ords =
+                            new LinkedHashMap<>();
+                    for (PropertyMapping.Join j : group) {
+                        int ord = memberOrdinalOf(memberIds, md, model,
+                                j.targetSetId());
+                        if (ord >= 0) {
+                            ords.put(j, ord);
+                        }
                     }
-                    // CHAINED routes dispatch on their FINAL hop (the
-                    // prefix hops join outside the union) — the key the
-                    // navigate's OR condition reads is the last hop's
-                    // member-table column, exactly like the association
-                    // arm below.
-                    JoinChainElement hop = j.joins().get(j.joins().size() - 1);
-                    String db = hop.databaseName() != null
-                            ? hop.databaseName() : j.database();
-                    DatabaseDefinition.JoinDefinition jd =
-                            model.findJoin(db, hop.joinName()).orElse(null);
-                    if (jd == null) {
-                        continue;   // loud at the route's own emission
-                    }
-                    if (!(members.get(ord)
-                            instanceof ClassMapping.Relational routedMember)) {
-                        continue;   // routes into Relation(~func) members
-                                    // have no physical key table (loud at
-                                    // navigation if demanded)
-                    }
-                    String memberTable = routedMember.mainTable().table();
-                    Set<String> cols = new LinkedHashSet<>();
-                    MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
-                    // self-join hops spell the member side {target}.col
-                    MappingNormalizer.collectTargetColumns(jd.operation(), cols);
-                    for (String c : cols) {
-                        sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
-                                .put(c, c + "_" + ord);
+                    boolean uniform = uniformChainedRoutes(
+                            List.copyOf(ords.keySet()));
+                    for (var en : ords.entrySet()) {
+                        registerInboundEntry(en.getKey(), en.getValue(),
+                                members, uniform, md, model, sink,
+                                chainsSink);
                     }
                 }
             }
@@ -1597,6 +1753,11 @@ final class UnionSynthesis {
                 if (!(am instanceof AssociationMapping.Relational rel)) {
                     continue;
                 }
+                // group per (source set, property): pair entries of ONE
+                // navigation judge chain-shape together, exactly like the
+                // class-PM arm above
+                Map<String, Map<PropertyMapping.Join, Integer>> byProp =
+                        new LinkedHashMap<>();
                 for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                     if (!(apm.body() instanceof PropertyMapping.Join j)) {
                         continue;
@@ -1607,29 +1768,90 @@ final class UnionSynthesis {
                         continue;
                     }
                     int ord = memberOrdinalOf(memberIds, md, model, tgtSet);
-                    if (ord < 0 || !(members.get(ord)
-                            instanceof ClassMapping.Relational routedMember)) {
+                    if (ord < 0) {
                         continue;
                     }
-                    JoinChainElement hop = j.joins().get(j.joins().size() - 1);
-                    String db = hop.databaseName() != null
-                            ? hop.databaseName() : j.database();
-                    DatabaseDefinition.JoinDefinition jd =
-                            model.findJoin(db, hop.joinName()).orElse(null);
-                    if (jd == null) {
-                        continue;   // loud at the route's own emission
-                    }
-                    String memberTable = routedMember.mainTable().table();
-                    Set<String> cols = new LinkedHashSet<>();
-                    MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
-                    // self-join hops spell the member side {target}.col
-                    MappingNormalizer.collectTargetColumns(jd.operation(), cols);
-                    for (String c : cols) {
-                        sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
-                                .put(c, c + "_" + ord);
+                    byProp.computeIfAbsent(apm.sourceSetId() + "\u0000"
+                            + apm.propertyName(), k -> new LinkedHashMap<>())
+                            .put(j, ord);
+                }
+                for (Map<PropertyMapping.Join, Integer> ords
+                        : byProp.values()) {
+                    boolean uniform = uniformChainedRoutes(
+                            List.copyOf(ords.keySet()));
+                    for (var en : ords.entrySet()) {
+                        registerInboundEntry(en.getKey(), en.getValue(),
+                                members, uniform, md, model, sink,
+                                chainsSink);
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * One inbound routed entry's key registration: EVERY route (uniform
+     * shared-prefix AND per-arm) dispatches on its FINAL hop — the navigate
+     * reads the last hop's member-table columns suffixed, and per-arm
+     * routes join their own mid prefix OUTSIDE the union on the SOURCE
+     * side (engine V4 golden: A/G joined outside, member keys plain).
+     */
+    private static void registerInboundEntry(PropertyMapping.Join j, int ord,
+            List<ClassMapping> members, boolean uniform,
+            LegacyMappingDefinition md, ModelBuilder model,
+            Map<Integer, Map<String, String>> sink,
+            Map<Integer, List<LiftChain>> chainsSink) {
+        if (!(members.get(ord) instanceof ClassMapping.Relational routedMember)) {
+            return;     // routes into Relation(~func) members have no
+                        // physical key table (loud at navigation if demanded)
+        }
+        String memberTable = routedMember.mainTable().table();
+        if (!uniform && j.joins().size() > 1 && chainsSink != null) {
+            List<LiftMidStep> steps = inboundArmSteps(j, j.propertyName(),
+                    memberTable, md, model);
+            LiftMidStep landing = steps.get(steps.size() - 1);
+            JoinChainElement firstHop = j.joins().get(0);
+            String fdb = firstHop.databaseName() != null
+                    ? firstHop.databaseName() : j.database();
+            DatabaseDefinition.JoinDefinition fjd =
+                    model.findJoin(fdb, firstHop.joinName()).orElse(null);
+            if (fjd == null) {
+                return;     // loud at the route's own emission
+            }
+            Set<String> fcols = new LinkedHashSet<>();
+            MappingNormalizer.collectColumnsOfTable(fjd.operation(),
+                    landing.table(), fcols);
+            Map<String, String> keys = new LinkedHashMap<>();
+            for (String c : fcols) {
+                keys.put(c, c + "__" + j.propertyName() + "_" + ord);
+            }
+            List<LiftChain> have = chainsSink.computeIfAbsent(ord,
+                    k -> new ArrayList<>());
+            // the closure may surface the same route twice (class PM +
+            // association pair) — one projection per suffixed key
+            boolean dup = have.stream().anyMatch(ch -> ch.keys().values()
+                    .stream().anyMatch(keys.values()::contains));
+            if (!dup && !keys.isEmpty()) {
+                have.add(new LiftChain(steps, landing.alias(), landing.db(),
+                        landing.table(), keys));
+            }
+            return;
+        }
+        JoinChainElement hop = j.joins().get(j.joins().size() - 1);
+        String db = hop.databaseName() != null
+                ? hop.databaseName() : j.database();
+        DatabaseDefinition.JoinDefinition jd =
+                model.findJoin(db, hop.joinName()).orElse(null);
+        if (jd == null) {
+            return;     // loud at the route's own emission
+        }
+        Set<String> cols = new LinkedHashSet<>();
+        MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
+        // self-join hops spell the member side {target}.col
+        MappingNormalizer.collectTargetColumns(jd.operation(), cols);
+        for (String c : cols) {
+            sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
+                    .put(c, c + "_" + ord);
         }
     }
 }

@@ -79,15 +79,60 @@ final class AssociationSynthesis {
      */
     static LegacyMappingDefinition injectMultiHopAssociationPMs(LegacyMappingDefinition md,
                                                                  ModelBuilder model) {
-        if (md.associationMappings().isEmpty()) return md;
-        Map<String, List<PropertyMapping>> injected = new LinkedHashMap<>();
-        for (AssociationMapping am : md.associationMappings()) {
-            if (!(am instanceof AssociationMapping.Relational rel)) continue;
-            AssociationDefinition ad = model.findAssociation(am.associationName()).orElse(null);
+        // INCLUDE-CLOSURE: the association entries, the owning class
+        // mappings and the target unions may live in DIFFERENT mapping
+        // definitions (multipleChainedJoins V4: top mapping = unions only,
+        // includes carry the class sets and the pair entries). Navigation
+        // behavior depends on the REQUESTING mapping's context, so the
+        // top-level normalization injects — hoisting an included owner
+        // set into this definition when needed (the hoisted copy shadows
+        // the included one for this mapping's synthesis).
+        List<LegacyMappingDefinition> closure = new ArrayList<>();
+        MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
+        List<AssociationMapping.Relational> rels = new ArrayList<>();
+        for (LegacyMappingDefinition m : closure) {
+            for (AssociationMapping am : m.associationMappings()) {
+                if (am instanceof AssociationMapping.Relational r) {
+                    rels.add(r);
+                }
+            }
+        }
+        if (rels.isEmpty()) return md;
+        // className -> unqualified injections; className -> setId -> per-set
+        // injections (pair entries bind to their SOURCE set only)
+        Map<String, List<PropertyMapping>> byClass = new LinkedHashMap<>();
+        Map<String, Map<String, List<PropertyMapping>>> bySet = new LinkedHashMap<>();
+        for (AssociationMapping.Relational rel : rels) {
+            AssociationDefinition ad = model.findAssociation(rel.associationName()).orElse(null);
             if (ad == null) continue;
+            // per (source set, property): a pair group whose TARGET class
+            // is union-mapped and which carries ANY chained entry is a
+            // ROUTED-UNION group — ALL its entries (single-hop included)
+            // inject as target-stamped Join PMs so classifyUnionRoutes
+            // sees the full route set and dispatches per arm (V4
+            // push-into-arm). Pure single-hop groups stay on the
+            // predicate path (U3).
+            Map<String, Boolean> routedUnionGroups = new LinkedHashMap<>();
+            for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+                if (!(apm.body() instanceof PropertyMapping.Join join)
+                        || apm.sourceSetId() == null) {
+                    continue;
+                }
+                String target = associationTargetClass(ad, apm.propertyName());
+                if (target == null
+                        || UnionSynthesis.unionForClass(md, model, target) == null) {
+                    continue;
+                }
+                routedUnionGroups.merge(apm.sourceSetId() + "\u0000"
+                        + apm.propertyName(), join.joins().size() > 1,
+                        Boolean::logicalOr);
+            }
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                 if (!(apm.body() instanceof PropertyMapping.Join join)) continue;
-                if (join.joins().size() < 2) {
+                boolean routedUnion = apm.sourceSetId() != null
+                        && Boolean.TRUE.equals(routedUnionGroups.get(
+                                apm.sourceSetId() + "\u0000" + apm.propertyName()));
+                if (join.joins().size() < 2 && !routedUnion) {
                     continue;   // single-hop -> predicate path
                 }
                 String owner = associationOwnerClass(ad, apm.propertyName());
@@ -99,26 +144,74 @@ final class AssociationSynthesis {
                     // (collectPairAssociationEntries, include-closure aware)
                     continue;
                 }
-                injected.computeIfAbsent(owner, k -> new ArrayList<>()).add(join);
+                String tgtSet = join.targetSetId() != null
+                        ? join.targetSetId() : apm.targetSetId();
+                PropertyMapping.Join stamped = routedUnion && tgtSet != null
+                        && join.targetSetId() == null
+                        ? new PropertyMapping.Join(join.propertyName(),
+                                join.database(), join.joins(), tgtSet)
+                        : join;
+                if (apm.sourceSetId() != null) {
+                    bySet.computeIfAbsent(owner, k -> new LinkedHashMap<>())
+                            .computeIfAbsent(apm.sourceSetId(),
+                                    k -> new ArrayList<>()).add(stamped);
+                } else {
+                    byClass.computeIfAbsent(owner, k -> new ArrayList<>())
+                            .add(stamped);
+                }
             }
         }
-        if (injected.isEmpty()) return md;
+        if (byClass.isEmpty() && bySet.isEmpty()) return md;
         List<ClassMapping> rewritten = new ArrayList<>(md.classMappings().size());
+        Set<String> ownClasses = new HashSet<>();
         for (ClassMapping cm : md.classMappings()) {
-            List<PropertyMapping> add = injected.get(cm.className());
-            if (add != null && cm instanceof ClassMapping.Relational rcm) {
-                List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings());
-                pms.addAll(add);
-                rewritten.add(new ClassMapping.Relational(
-                        rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
-                        rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
-                        rcm.primaryKey(), pms, rcm.sourceUrl(),
-                        rcm.propertyTargetSets()));
-            } else {
-                rewritten.add(cm);
+            ownClasses.add(cm.className());
+            ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet);
+            rewritten.add(injectedCm != null ? injectedCm : cm);
+        }
+        // HOIST: an owner set that lives only in an INCLUDED definition is
+        // copied up with its injections (skipped when this definition
+        // already maps the class — notably union-rooted classes, whose
+        // routes land at union synthesis instead)
+        Set<String> hoisted = new HashSet<>();
+        for (LegacyMappingDefinition m : closure) {
+            if (m == md) continue;
+            for (ClassMapping cm : m.classMappings()) {
+                if (ownClasses.contains(cm.className())
+                        || !hoisted.add(MappingNormalizer.setIdOf(cm))) {
+                    continue;
+                }
+                ClassMapping.Relational injectedCm = withInjectedPMs(cm, byClass, bySet);
+                if (injectedCm != null) {
+                    rewritten.add(injectedCm);
+                }
             }
         }
         return md.withClassMappings(rewritten);
+    }
+
+    /** The class mapping with this class's/set's pending injections
+     * appended; null when none apply. */
+    private static ClassMapping.Relational withInjectedPMs(ClassMapping cm,
+            Map<String, List<PropertyMapping>> byClass,
+            Map<String, Map<String, List<PropertyMapping>>> bySet) {
+        if (!(cm instanceof ClassMapping.Relational rcm)) return null;
+        List<PropertyMapping> add = new ArrayList<>();
+        List<PropertyMapping> forClass = byClass.get(rcm.className());
+        if (forClass != null) add.addAll(forClass);
+        Map<String, List<PropertyMapping>> sets = bySet.get(rcm.className());
+        if (sets != null) {
+            List<PropertyMapping> forSet = sets.get(MappingNormalizer.setIdOf(rcm));
+            if (forSet != null) add.addAll(forSet);
+        }
+        if (add.isEmpty()) return null;
+        List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings());
+        pms.addAll(add);
+        return new ClassMapping.Relational(
+                rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
+                rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
+                rcm.primaryKey(), pms, rcm.sourceUrl(),
+                rcm.propertyTargetSets());
     }
 
     /**
@@ -175,6 +268,18 @@ final class AssociationSynthesis {
      * class {@code p2} points at (and vice versa). Returns {@code null} if
      * {@code propName} is neither end, or the opposite end is non-NameRef.
      */
+    /** The property's OWN end class (the navigation target), mirror of
+     * {@link #associationOwnerClass}. */
+    static String associationTargetClass(AssociationDefinition ad, String propName) {
+        if (ad.property1().propertyName().equals(propName)) {
+            return MappingNormalizer.nameRefOrNull(ad.property1().targetClass());
+        }
+        if (ad.property2().propertyName().equals(propName)) {
+            return MappingNormalizer.nameRefOrNull(ad.property2().targetClass());
+        }
+        return null;
+    }
+
     static String associationOwnerClass(AssociationDefinition ad, String propName) {
         if (ad.property1().propertyName().equals(propName)) {
             return MappingNormalizer.nameRefOrNull(ad.property2().targetClass());

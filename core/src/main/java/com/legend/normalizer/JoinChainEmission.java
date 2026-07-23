@@ -157,6 +157,26 @@ final class JoinChainEmission {
     }
 
     /**
+     * PER-ARM routed chains (push-into-arm): the member routes diverge, so
+     * NO shared prefix exists to emit physically — each route's mid hops
+     * live INSIDE the owning member's thread (union synthesis inbound
+     * chains) and the ONE navigate reads each route's FIRST hop. The
+     * representative hop for the slot is the primary route's first hop
+     * (the one touching the main table).
+     */
+    private static List<JoinChainElement> perArmHops(Pipeline p,
+            String propName, String targetClassFqn,
+            List<JoinChainElement> hops) {
+        if (targetClassFqn == null || hops.size() < 2) {
+            return hops;
+        }
+        List<UnionSynthesis.UnionRoute> rr = p.unionRoutes.get(propName);
+        return rr != null && !UnionSynthesis.uniformChainedRoutes(
+                UnionSynthesis.memberJoins(rr))
+                ? List.of(hops.get(0)) : hops;
+    }
+
+    /**
      * Emit one join chain. Intermediate hops are clean-sheet
      * {@code join} steps. The final hop is a {@code legacyNavigate}
      * iff {@code classTypedTerminus} is true AND the property's
@@ -176,6 +196,7 @@ final class JoinChainEmission {
         if (classTypedTerminus && propName != null) {
             targetClassFqn = classTypedTargetIfMapped(ownerClassFqn, propName, model);
         }
+        hops = perArmHops(p, propName, targetClassFqn, hops);
         int lastIdx = hops.size() - 1;
         List<String> prefixPath = new ArrayList<>();
         String prevAlias = null;
@@ -300,13 +321,22 @@ final class JoinChainEmission {
                     // suffixed name -> [base column, its route's db, its
                     // route's landing table] (the typing arg needs the kind)
                     Map<String, String[]> keyCols = new LinkedHashMap<>();
+                    boolean perArm = !UnionSynthesis.uniformChainedRoutes(
+                            UnionSynthesis.memberJoins(routes));
                     for (UnionSynthesis.UnionRoute route : routes) {
-                        // CHAINED routes walk a SHARED prefix (validated at
-                        // classification) — the prefix hops already emitted
-                        // as physical joins above, so each route contributes
-                        // only its FINAL hop, sourced at the last mid table.
+                        // SHARED-PREFIX chains contribute their FINAL hop
+                        // sourced at the shared landing (prefix emitted as
+                        // physical joins above). PER-ARM chains contribute
+                        // their FIRST hop sourced at the main table — the
+                        // mids live INSIDE the owning member's thread
+                        // (push-into-arm) and the target side reads the
+                        // property-scoped chain keys that thread projects.
                         List<JoinChainElement> rChain = route.join().joins();
-                        JoinChainElement rHop = rChain.get(rChain.size() - 1);
+                        boolean rInArm = perArm && rChain.size() > 1;
+                        JoinChainElement rHop = rInArm ? rChain.get(0)
+                                : rChain.get(rChain.size() - 1);
+                        String rPrevTable = prevTable;
+                        String rPrevAlias = prevAlias;
                         String rDb = rHop.databaseName() != null
                                 ? rHop.databaseName() : route.join().database();
                         DatabaseDefinition.JoinDefinition rJd =
@@ -320,16 +350,16 @@ final class JoinChainEmission {
                                                 + md.qualifiedName()));
                         Set<String> rCondTables = new LinkedHashSet<>();
                         RelOpTranslator.collectTablesIn(rJd.operation(), rCondTables);
-                        rCondTables.remove(prevTable);
+                        rCondTables.remove(rPrevTable);
                         String rTgt = rCondTables.size() == 1
                                 && model.findView(rDb, rCondTables.iterator().next()).isPresent()
                                 ? rCondTables.iterator().next()
                                 : MappingNormalizer.determineTargetTable(rJd.operation(),
-                                        prevTable, rHop.joinName(), propName,
+                                        rPrevTable, rHop.joinName(), propName,
                                         rChain.size(), md.qualifiedName());
                         Map<String, ValueSpecification> rScope = new LinkedHashMap<>();
-                        rScope.put(prevTable, prevAlias == null
-                                ? s : new AppliedProperty(s, prevAlias));
+                        rScope.put(rPrevTable, rPrevAlias == null
+                                ? s : new AppliedProperty(s, rPrevAlias));
                         if (!rTgt.equals(prevTable)) {
                             rScope.put(rTgt, t);
                         }
@@ -337,7 +367,14 @@ final class JoinChainEmission {
                                 rJd.operation(), rScope, t, null,
                                 RelOpTranslator.PipelineView.NONE);
                         Map<String, String> out = new LinkedHashMap<>();
-                        rCond = MappingNormalizer.suffixTargetReads(rCond, t, route.targetOrdinal(), out);
+                        // in-arm chained routes read the PROPERTY-SCOPED
+                        // chain keys the member thread projects
+                        rCond = rInArm
+                                ? UnionSynthesis.suffixTargetReads(rCond, t,
+                                        "__" + propName + "_"
+                                                + route.targetOrdinal(), out)
+                                : UnionSynthesis.suffixTargetReads(rCond, t,
+                                        route.targetOrdinal(), out);
                         for (var en : out.entrySet()) {
                             keyCols.put(en.getValue(),
                                     new String[]{en.getKey(), rDb, rTgt});
