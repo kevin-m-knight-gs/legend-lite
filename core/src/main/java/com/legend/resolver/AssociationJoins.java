@@ -157,49 +157,81 @@ final class AssociationJoins {
      * absent (engine sqlQueryMerging/V-family goldens; off-member NULLs
      * make same-member pairing exact). Null when not applicable — the
      * caller keeps its wall. */
-    /** Widen a PARENT hop's union pipe so the NEXT hop's condition can
-     * read its chained-lift key columns through the union projection
-     * (V4 mid-key demand: y_Y1_G_fk1). Null when nothing to widen. */
-    static AssocJoin widenParentForChainedReads(AssocJoin parentAj,
-            AssocJoin next) {
-        String v = next.condition().parameters().get(0);
-        Set<String> flats = new LinkedHashSet<>();
-        for (TypedSpec b : next.condition().body()) {
-            collectFlatChainedReads(b, v, flats);
+    /** Rewrite {@code $v.<alias>.<col>} two-hop reads in {@code cond} to
+     * the parent pipe's PROJECTED names — recovered from the member
+     * project colspecs whose bodies read {@code toOne($row.alias.col)}
+     * (the chained-lift emission). Null when nothing rewrote. */
+    static TypedLambda rewriteChainedLiftReads(TypedLambda cond,
+            TypedSpec parentPipe) {
+        Map<String, String> byAliasCol = new java.util.LinkedHashMap<>();
+        collectLiftColspecNames(parentPipe, byAliasCol);
+        if (byAliasCol.isEmpty()) {
+            return null;
         }
-        Set<String> aliases = new LinkedHashSet<>();
-        for (String f : flats) {
-            aliases.add(f.substring(0, f.lastIndexOf('_')));
-        }
-        Set<String> reads = new LinkedHashSet<>();
-        for (TypedSpec b : next.condition().body()) {
-            Pipelines.collectVarReads(b, v, reads);
-        }
-        reads.removeAll(aliases);   // alias-only inners of two-hop reads
-        reads.addAll(flats);
-        TypedSpec widened = Pipelines.widenConcatenateForKeys(
-                parentAj.targetPipeline(), reads);
-        return widened == parentAj.targetPipeline() ? null
-                : parentAj.withTargetPipeline(widened);
+        String v = cond.parameters().get(0);
+        boolean[] hit = {false};
+        List<TypedSpec> body = cond.body().stream()
+                .map(b -> rewriteTwoHop(b, v, byAliasCol, hit)).toList();
+        return hit[0] ? new TypedLambda(cond.parameters(), body, cond.info())
+                : null;
     }
 
-    /** {@code $v.<alias>.<col>} two-hop reads flattened to the union's
-     * chained-lift projection name {@code <alias>_<col>}. */
-    private static void collectFlatChainedReads(TypedSpec n, String var,
-            Set<String> out) {
+    private static void collectLiftColspecNames(TypedSpec n,
+            Map<String, String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedProject pr) {
+            for (var col : pr.columns()) {
+                TypedSpec b = Pipelines.unwrapToOne(col.fn().body()
+                        .get(col.fn().body().size() - 1));
+                if (b instanceof TypedPropertyAccess pa
+                        && pa.source() instanceof TypedPropertyAccess inner
+                        && inner.source() instanceof
+                                com.legend.compiler.spec.typed.TypedVariable) {
+                    out.put(inner.property() + "\u0000" + pa.property(),
+                            col.name());
+                    // the generic slot rewriter's alias_col flattening —
+                    // depth-1 reads under that spelling rename too
+                    out.put(inner.property() + "_" + pa.property(),
+                            col.name());
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            collectLiftColspecNames(c, out);
+        }
+    }
+
+    private static TypedSpec rewriteTwoHop(TypedSpec n, String var,
+            Map<String, String> byAliasCol, boolean[] hit) {
         if (n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedPropertyAccess inner
                 && inner.source() instanceof
                         com.legend.compiler.spec.typed.TypedVariable tv
                 && tv.name().equals(var)) {
-            out.add(inner.property() + "_" + pa.property());
+            String flat = byAliasCol.get(
+                    inner.property() + "\u0000" + pa.property());
+            if (flat != null) {
+                hit[0] = true;
+                return new TypedPropertyAccess(tv, flat, pa.info());
+            }
+        }
+        if (n instanceof TypedPropertyAccess pd
+                && pd.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable tv2
+                && tv2.name().equals(var)
+                && byAliasCol.containsKey(pd.property())) {
+            hit[0] = true;
+            return new TypedPropertyAccess(tv2,
+                    byAliasCol.get(pd.property()), pd.info());
         }
         if (n instanceof TypedLambda l && l.parameters().contains(var)) {
-            return;
+            return n;
         }
-        for (TypedSpec c : n.children()) {
-            collectFlatChainedReads(c, var, out);
+        if (n instanceof TypedNativeCall c) {
+            List<TypedSpec> args = c.args().stream()
+                    .map(a -> rewriteTwoHop(a, var, byAliasCol, hit)).toList();
+            return new TypedNativeCall(c.callee(), args, c.info());
         }
+        return n;
     }
 
     /** The chained-hop union arm: member-paired condition, else the
@@ -213,14 +245,19 @@ final class AssociationJoins {
             List<AssocJoin> assocJoins) {
         AssocJoin out = chainedUnionHopInner(temporal, parent, aj, head,
                 chainKey, context, leaves);
-        // V4 mid-key demand: the hop condition's parent-side chained-lift
-        // reads survive the PARENT union's projection
+        // V4 mid-key reads: the hop condition's two-hop parent reads
+        // ($s.Y1_G.fk1) rewrite to the PARENT union's PROJECTED chained-
+        // lift names (fk1_1 — already in every member thread; the colspec
+        // bodies ARE the mapping).
         AssocJoin paj = joinsByChain.get(parentKey);
-        AssocJoin paj2 = paj == null ? null
-                : widenParentForChainedReads(paj, out);
-        if (paj2 != null) {
-            joinsByChain.put(parentKey, paj2);
-            assocJoins.set(assocJoins.indexOf(paj), paj2);
+        if (paj != null) {
+            // RAW pipeline: colspec bodies still carry the two-hop reads
+            // the (alias,col)->projName mapping is recovered from
+            TypedLambda rw = rewriteChainedLiftReads(out.condition(),
+                    paj.target().pipeline());
+            if (rw != null) {
+                out = out.withCondition(rw);
+            }
         }
         return out;
     }
