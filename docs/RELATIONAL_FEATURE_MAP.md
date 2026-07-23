@@ -295,6 +295,66 @@ Secondary gaps (feature inventory, not architecture): pivot, window frames beyon
 coverage, variant/semi-structured family, CTE-from-lets, paginated — enumerate against
 the dispatch-table inventory when burning the `functions`/`tds` families.
 
+## 2a. The GENERAL mapping→SQL path (plain class mappings, end to end)
+
+The verdict the rest of the map rests on: for a plain class mapping — column PMs,
+dynafunction PMs, enum PMs, ~filter/~distinct/~groupBy/~primaryKey, association
+navigation, project/filter/sort/take — how does our architecture compare to the engine's,
+end to end?
+
+### 2a.1 The two architectures are genuinely different — ours by design
+
+The engine INTERPRETS the mapping metamodel at query time: processGetAll →
+processRelationalMappingSpecification builds the root, resolves each PM on demand
+(findPropertyMapping → processPropertyMapping per hop), and mutates a SelectWithCursor
+whose tree-node identity survives rewrites only via re-search (findNode/validate + five
+live pointers). We COMPILE the mapping once: MappingNormalizer synthesizes typed pure
+bodies (tableReference → ~filter → map(^Class(...))) that G type-checks like any user
+code (conform-by-emission), ClassSources strips the terminal into a binding table, and
+the resolver β-substitutes bindings into user lambdas over an immutable tree.
+
+**Verdict: our general path is SOUND and structurally superior on four axes** — each an
+engine trap class made unrepresentable:
+1. Mutable-tree identity (engine traps: re-search, __iso/csq semantic prefixes, alias
+   re-pointing, both-direction alias pairs) — impossible: immutable rewrite, NavPath
+   identity, fresh trees.
+2. inFilter leaf dichotomy (~80 engine sites route output by a state flag) — impossible:
+   typed nodes make position structural.
+3. PM-resolution drift (engine resolves per hop with router-supplied vs incoming PM
+   precedence) — resolved ONCE at extraction into bindings; dynafunction PMs inline by
+   β-transitivity instead of a special "rebuild the function over resolved params" arm.
+4. Type/string leakage — strings die at the parser; SqlType + dialect wall (the engine's
+   emission is entangled through the 11k file; our I-layer is a real seam, and §9
+   confirmed our two-registry dialect model matches the engine's own split).
+
+Corpus evidence: 1403 passing including the join-torture and whole-chain-one-SELECT
+families; the residue clusters in the four feature calculi (§15), NOT in the plain path.
+
+### 2a.2 What the general path still owes (all already captured in legs, listed here as
+the general-path view)
+
+- **Identity/distinct discipline** (the one genuinely general gap): engine rules —
+  pk_N injected only when addPk && no groupBy && !distinct; ~distinct forces
+  all-properties materialization; and **navigation INTO a distinct/groupBy class
+  re-materializes the target as a subselect** (never joins the raw table). That
+  re-materialization rule is the same rule as views-as-frames (§5) and modelJoin target
+  materialization (§10) — one shared resolver rule, three consumers (leg 15.0/leg 4).
+- **The filter/isolation calculus** (leg 1) is a GENERAL-path mechanism, not a feature:
+  plain queries hit it whenever a filter crosses a to-many hop or an INNER mapping
+  ~filter composes with navigation. The classMappingFilterWithInnerJoin family (11 err)
+  sits here.
+- **Per-op inventory completeness** (pivot, window frames, paginated, variant/CTE) —
+  feature coverage on top of a sound spine, burned as checklists.
+- **Normalizer risk to keep pinned**: rules the engine applies lazily per query
+  (set-qualified PM selection, extends override elimination, otherwise per-leaf
+  dispatch) must survive INTO binding tables rather than being baked flat at synthesis.
+  Our ObjectValue per-leaf dispatch and per-member ClassSources are the mechanisms;
+  §10's PM-selection rules are their spec.
+
+Net: general mapping/lowering needs no redesign leg of its own. It is the foundation the
+legs build on — which is precisely why the legs are worth doing as calculi rather than
+patches: the spine can carry them.
+
 ## 3. Milestoning (temporal)
 
 ### 3.1 Engine model (milestoning.pure "M", PSQL = pureToSQLQuery.pure)
