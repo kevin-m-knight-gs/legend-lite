@@ -1128,12 +1128,17 @@ public final class TestBody {
 
         /** A collection-literal root arrives as an ARRAY-valued scalar. */
         private static List<Object> flatten(Object v) {
+            if (v == null) {
+                return new ArrayList<>();   // SQL NULL = pure empty
+            }
             if (v instanceof List<?> l) {
                 return new ArrayList<>(l);
             }
             if (v instanceof java.sql.Array arr) {
                 try {
-                    return new ArrayList<>(List.of((Object[]) arr.getArray()));
+                    // Arrays.asList: NULL ELEMENTS survive (SQL NULL cells)
+                    return new ArrayList<>(java.util.Arrays.asList(
+                            (Object[]) arr.getArray()));
                 } catch (java.sql.SQLException e) {
                     throw new IllegalStateException(e);
                 }
