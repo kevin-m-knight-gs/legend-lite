@@ -253,6 +253,4 @@ final class Fold {
         }
         return outputs.stream().anyMatch(c -> c.name().equals(column));
     }
-
-
 }
