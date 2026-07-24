@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 151 | 6 | 23 | 44 |
+| milestoning/tests | 224 | 151 | 6 | 22 | 45 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1446** | 70 | 375 | 647 |
+| **total** | 2538 | **1446** | 70 | 374 | 648 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6703,7 +6703,6 @@ in-process Alloy-shaped path).
 - 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -6712,8 +6711,10 @@ in-process Alloy-shaped path).
 - 5x unknown function 'generateObjectReferences'
 - 5x resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - 5x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- 5x no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
+- 4x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 4x Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                      ^
 - 4x no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - 4x in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -6727,7 +6728,6 @@ in-process Alloy-shaped path).
 - 3x unknown enumeration 'ProductSynonymType'
 - 3x no overload of 'func' matches 2 argument(s) of these shapes
 - 3x ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
-- 3x in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': relation has no column 'employees'
 
 ### per-test outcomes (non-passing)
 
@@ -6888,8 +6888,8 @@ in-process Alloy-shaped path).
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 4 candidates); class-query dispatch needs exactly one
-- ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
-- ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
+- ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: execute() whose query argument is not a lambda
+- ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: execute() whose query argument is not a lambda
 - FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
 - SHAPE testFilterBeforeAndAfterGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterBeforeAndAfterProject [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7191,11 +7191,11 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
-- ERROR testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: in function 'meta::relational::milestoning::concatenateTemporalTdsQueries': unknown class 'SimpleFunctionExpression' in ^SimpleFunctionExpression(…)
+- ERROR testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: in function 'meta::relational::milestoning::concatenateTemporalTdsQueries': unknown class 'SimpleFunctionExpression' in ^SimpleFunctionExpression(…)
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFilterOnView [milestoning/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
@@ -7220,7 +7220,7 @@ in-process Alloy-shaped path).
 - ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: Conversion Error: Type VARCHAR with value 'SRCE' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ....out_z > DATE '2015-10-16' AND t0.kerberos = t1.kerberos AND t1.name = ['SRCE']) |                                                                    
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet [assocs=[processingTemporalProduct]; head subNavs=[]; head binding=TypedNativeCall]
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: filter predicate references column 'businessDate', unresolvable even after isolation
+- SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: assertEquals: expected [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], got [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 - ERROR testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: multi-hop navigation biTemporalProduct.biTemporalClassification.description through an embedded/slot head is not supported yet [assocs=[biTemporalProduct]; head subNavs=[]; head binding=TypedPropertyAccess]
 - FAIL testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: assertEquals: expected [1, 1, 1, 1, 1, 1, 1, 1], got [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -7404,14 +7404,14 @@ in-process Alloy-shaped path).
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call
 - ERROR columnValueDifferenceTest [tds/tests]: ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR columnValueDifferenceWithoutPrevalTest [tds/tests]: ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR columnValueDifference_DupeJoinKeys_Test [tds/tests]: in call to 'meta::pure::tds::extensions::columnValueDifference', argument 1: expected meta::pure::tds::TabularDataSet, got (tradeDate:Date[1], quantity:Float[1], count:Integer[1])
-- ERROR columnValueDifferenceWithoutPreval_DupeJoinKeys_Test [tds/tests]: in call to 'meta::pure::tds::extensions::columnValueDifference', argument 1: expected meta::pure::tds::TabularDataSet, got (tradeDate:Date[1], quantity:Float[1], count:Integer[1])
-- ERROR columnValueDifference_ExtraCols_Test [tds/tests]: in call to 'meta::pure::tds::extensions::columnValueDifference', argument 1: expected meta::pure::tds::TabularDataSet, got (tradeDate:Date[1], leftQty:Float[1], count:Integer[1])
-- ERROR columnValueDifferenceWithoutPreval_ExtraCols_Test [tds/tests]: in call to 'meta::pure::tds::extensions::columnValueDifference', argument 1: expected meta::pure::tds::TabularDataSet, got (tradeDate:Date[1], leftQty:Float[1], count:Integer[1])
+- ERROR columnValueDifference_DupeJoinKeys_Test [tds/tests]: no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
+- ERROR columnValueDifferenceWithoutPreval_DupeJoinKeys_Test [tds/tests]: no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
+- ERROR columnValueDifference_ExtraCols_Test [tds/tests]: no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
+- ERROR columnValueDifferenceWithoutPreval_ExtraCols_Test [tds/tests]: no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
 - ERROR rowValueDifferenceTest [tds/tests]: ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testFirstNotNull [tds/tests]: no execute(|...) call
 - SHAPE testExtendDigest_InMemory [tds/tests]: no execute(|...) call
-- ERROR testExtendDigest_Relational [tds/tests]: in call to 'meta::pure::tds::extensions::extendWithDigestOnColumns', argument 1: expected meta::pure::tds::TabularDataSet, got (Trade ID:Integer[1], Quantity:Float[1])
+- ERROR testExtendDigest_Relational [tds/tests]: no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
 - SHAPE testRenameColumnsWithQuotes [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call
 - SHAPE testConstant [testDataGeneration/tests]: no execute(|...) call
@@ -7612,7 +7612,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
