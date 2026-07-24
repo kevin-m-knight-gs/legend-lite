@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 150 | 6 | 26 | 42 |
+| milestoning/tests | 224 | 151 | 6 | 24 | 43 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -37,7 +37,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 199 | 2 | 32 | 33 |
+| tds/tests | 266 | 200 | 2 | 31 | 33 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 40 | 1 | 7 | 20 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1445** | 69 | 379 | 645 |
+| **total** | 2538 | **1447** | 69 | 376 | 646 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6725,9 +6725,9 @@ in-process Alloy-shaped path).
 - 3x class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - 3x unknown function 'meta::legend::compileLegendGrammar'
 - 3x unknown enumeration 'ProductSynonymType'
-- 3x no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
 - 3x no overload of 'func' matches 2 argument(s) of these shapes
 - 3x ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
+- 3x in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': relation has no column 'employees'
 
 ### per-test outcomes (non-passing)
 
@@ -7167,8 +7167,7 @@ in-process Alloy-shaped path).
 - SHAPE testConstraintUsageOfThisMilestoningContext2WithNonTemporalStore [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
-- ERROR testMilestonedThisBusinessDateWithNestedDerivedProperty [milestoning/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
+- SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessedMilestonedExchangeNameConstraint [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: filter predicate references column 'businessDate', unresolvable even after isolation
@@ -7356,7 +7355,6 @@ in-process Alloy-shaped path).
 - ERROR testGroupByWithWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - ERROR testGroupByWithMultipleWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testSimpleSortAscWithPreval [tds/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
