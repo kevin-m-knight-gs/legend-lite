@@ -264,6 +264,61 @@ final class StatementExecutor {
                         .equals(pv.callee().qualifiedName())) {
             q = letBound(pv.args().get(0), letPrefix);
         }
+        // concatenateTemporalTdsQueries(lfs): the real body folds the
+        // queries into concatenate SFEs (reflection metamodel) — the SAME
+        // semantics BY EMISSION: fold the lambdas' result expressions
+        // into a TypedConcatenate chain under one zero-arg lambda.
+        if (q instanceof com.legend.compiler.spec.typed.TypedNativeCall cq
+                && "meta::relational::milestoning::concatenateTemporalTdsQueries"
+                        .equals(cq.callee().qualifiedName())) {
+            TypedSpec lfsArg = letBound(cq.args().get(0), letPrefix);
+            // evaluateAndDeactivate may wrap the WHOLE collection
+            // ([...]->evaluateAndDeactivate()) — identity, peel first
+            while (lfsArg instanceof com.legend.compiler.spec.typed
+                    .TypedNativeCall ow
+                    && ow.args().size() == 1
+                    && "meta::pure::functions::meta::evaluateAndDeactivate"
+                            .equals(ow.callee().qualifiedName())) {
+                lfsArg = letBound(ow.args().get(0), letPrefix);
+            }
+            java.util.List<TypedSpec> els =
+                    lfsArg instanceof com.legend.compiler.spec.typed
+                            .TypedCollection tc
+                    ? tc.elements() : java.util.List.of(lfsArg);
+            java.util.List<TypedSpec> queries = new java.util.ArrayList<>();
+            for (TypedSpec e : els) {
+                TypedSpec le = letBound(e, letPrefix);
+                while (le instanceof com.legend.compiler.spec.typed
+                        .TypedNativeCall w
+                        && w.args().size() == 1
+                        && "meta::pure::functions::meta::evaluateAndDeactivate"
+                                .equals(w.callee().qualifiedName())) {
+                    le = letBound(w.args().get(0), letPrefix);
+                }
+                if (!(le instanceof com.legend.compiler.spec.typed
+                        .TypedLambda ql) || !ql.parameters().isEmpty()) {
+                    throw new com.legend.error.NotImplementedException(
+                            "concatenateTemporalTdsQueries over a non-literal"
+                            + " lambda collection is not supported yet");
+                }
+                queries.add(ql.body().get(ql.body().size() - 1));
+            }
+            TypedSpec folded = queries.get(0);
+            for (int qi = 1; qi < queries.size(); qi++) {
+                folded = new com.legend.compiler.spec.typed.TypedConcatenate(
+                        folded, queries.get(qi), folded.info());
+            }
+            q = new com.legend.compiler.spec.typed.TypedLambda(
+                    java.util.List.of(), java.util.List.of(folded),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type
+                                    .FunctionType(java.util.List.of(),
+                                    new com.legend.compiler.element.type.Type
+                                            .Param(folded.info().type(),
+                                            folded.info().multiplicity())),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE));
+        }
         if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)
                 || !lam.parameters().isEmpty()) {
             throw new com.legend.error.NotImplementedException(

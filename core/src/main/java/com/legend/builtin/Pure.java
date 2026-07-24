@@ -1050,6 +1050,16 @@ public final class Pure {
     public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
     public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY__DEBUG_1 = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::tools::DebugContext[1]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
 
+    // concatenateTemporalTdsQueries (REAL milestoning.pure:753 —
+    // (lfs:LambdaFunction<{->TabularDataSet[1]}>[*]):LambdaFunction<...>
+    // [1]): its real body folds the queries into concatenate
+    // SimpleFunctionExpressions — reflection metamodel this platform
+    // lacks, so the corpus copy is signature-broken and drops at
+    // overload collection. This native carries the TYPE; the harness
+    // splices the SAME semantics by EMISSION (TypedConcatenate fold in
+    // StatementExecutor.buildFrame).
+    public static final NativeFunctionDefinition CONCATENATE_TEMPORAL_TDS_QUERIES = signature("native function meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::metamodel::function::Function<{->T[*]}>[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
+
     // relationalExtensions(): the corpus's own definition is signature-
     // broken in this platform (the Extension metamodel class), so it never
     // enters the module — this native exists for TYPING the context

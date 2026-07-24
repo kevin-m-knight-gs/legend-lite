@@ -816,18 +816,26 @@ final class Typer {
 
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] == null) {
-                if (raw.get(i) instanceof LambdaFunction lam) {
+                if (raw.get(i) instanceof LambdaFunction
+                        || (isLambdaCollection(raw.get(i))
+                                && chosen.parameters().get(i).type()
+                                        instanceof Type.TypeVar)) {
                     if (chosen.parameters().get(i).type()
                             instanceof Type.TypeVar) {
                         // self-typable lambda against T: synthesize
                         // standalone, bind the variable to its type
-                        typed[i] = synth(lam, env);
+                        typed[i] = synth(raw.get(i), env);
                         kernel.unify(chosen.parameters().get(i).type(),
                                 typed[i].info().type(), b);
                         kernel.unifyMult(chosen.parameters().get(i).multiplicity(),
                                 typed[i].info().multiplicity(),
                                 typed[i].info().type(), b);
                         continue;
+                    }
+                    if (!(raw.get(i) instanceof LambdaFunction lam)) {
+                        throw new IllegalStateException("typer bug: lambda"
+                                + " collection against a non-variable"
+                                + " non-function param slipped the shape gate");
                     }
                     typed[i] = typeLambda(lam, chosen.parameters().get(i).type(), b, env);
                 } else if (isLambdaCollection(raw.get(i))) {
@@ -932,9 +940,14 @@ final class Typer {
                 // (evaluateAndDeactivate<T|m>(var:T[m]) over {|...}).
                 case LambdaFunction lf -> isFunctionTyped(t)
                         || (t instanceof Type.TypeVar
-                                && (lf.parameters().isEmpty()
-                                        || lf.parameters().stream()
-                                                .allMatch(pv -> pv.type() != null)));
+                                && selfTypable(lf));
+                // a collection of SELF-TYPABLE lambdas also matches a bare
+                // type-variable param ([{|q1},{|q2}]->evaluateAndDeactivate())
+                case PureCollection pc0
+                        when t instanceof Type.TypeVar
+                        && pc0.values().stream().allMatch(v ->
+                                v instanceof LambdaFunction plf
+                                        && selfTypable(plf)) -> true;
                 case PureCollection ignored -> isFunctionTyped(t);
                 case ColSpec cs -> genericRawIs(t,
                         cs.function2() != null ? Pure.AGG_COL_SPEC : Pure.FUNC_COL_SPEC);
@@ -952,6 +965,13 @@ final class Typer {
             }
         }
         return true;
+    }
+
+    /** A lambda literal that can type WITHOUT an expected signature:
+     * zero-arg, or every parameter annotated (Typer's standalone arm). */
+    private static boolean selfTypable(LambdaFunction lf) {
+        return lf.parameters().isEmpty()
+                || lf.parameters().stream().allMatch(pv -> pv.type() != null);
     }
 
     private static boolean isFunctionTyped(Type t) {

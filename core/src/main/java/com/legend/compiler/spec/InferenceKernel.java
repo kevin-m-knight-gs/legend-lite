@@ -784,8 +784,22 @@ public final class InferenceKernel {
                     + "' structurally matches the argument types");
         }
         if (winners.size() > 1) {
-            throw new TypeInferenceException("ambiguous overload of '" + name + "': "
-                    + winners.size() + " candidates tie for the argument types");
+            // DUPLICATE-SIGNATURE tolerance: distinct FQNs registering the
+            // SAME parameter signature (mapping::execute vs
+            // router::execute — one execution semantics, two real-pure
+            // entry spellings) are interchangeable at the type level; the
+            // first wins deterministically. Genuinely different signatures
+            // still throw.
+            boolean allSameShape = winners.stream().allMatch(w ->
+                    w.parameters().equals(winners.get(0).parameters())
+                            && w.returnType().equals(
+                                    winners.get(0).returnType())
+                            && w.returnMultiplicity().equals(
+                                    winners.get(0).returnMultiplicity()));
+            if (!allSameShape) {
+                throw new TypeInferenceException("ambiguous overload of '" + name + "': "
+                        + winners.size() + " candidates tie for the argument types");
+            }
         }
         return resolveChosen(winners.get(0), args, name);
     }
