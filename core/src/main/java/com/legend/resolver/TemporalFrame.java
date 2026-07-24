@@ -1740,6 +1740,22 @@ final class TemporalFrame {
                 return ctxD;
             }
         }
+        // COMPUTED date ($this.businessDate->adjust(1, DAYS)): the context
+        // read normalizes INSIDE the computation and the computation itself
+        // rides to SQL (engine golden: dateadd(DAY, 1, '<ctx-date>')).
+        if (d instanceof com.legend.compiler.spec.typed.TypedNativeCall call) {
+            List<TypedSpec> na = new ArrayList<>(call.args().size());
+            boolean changed = false;
+            for (TypedSpec a : call.args()) {
+                TypedSpec r = normalizeContextDate(a);
+                changed |= r != a;
+                na.add(r);
+            }
+            if (changed) {
+                return new com.legend.compiler.spec.typed.TypedNativeCall(
+                        call.callee(), na, call.info());
+            }
+        }
         return d;
     }
 
