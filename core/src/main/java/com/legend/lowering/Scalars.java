@@ -1289,6 +1289,16 @@ final class Scalars {
         // RegexpParameter enums translated to RE2 option chars —
         // CASE_SENSITIVE 'c', CASE_INSENSITIVE 'i', MULTILINE 'm',
         // NON_NEWLINE_SENSITIVE 's' (POSIX '.' matches newline).
+        // assert in VALUE position: TRUE or raise (real asserts.pure —
+        // the failure message keeps the pure spelling)
+        for (String f : Pure.nativeKeysAt("assert")) {
+            RULES.put(f, (n, args) -> new SqlExpr.Case(
+                    List.of(new SqlExpr.Case.When(args.get(0),
+                            new SqlExpr.BoolLit(true))),
+                    SqlExpr.Call.of(SqlFn.ERROR,
+                            args.size() > 1 ? args.get(1)
+                                    : new SqlExpr.StringLit("assert failed"))));
+        }
         for (String f : Pure.nativeKeysAt("regexpLike")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
                     args.get(0),

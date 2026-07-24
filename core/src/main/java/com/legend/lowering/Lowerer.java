@@ -2715,6 +2715,8 @@ public final class Lowerer {
                     // relation VALUE's mult, not the row count; the
                     // correlated-scalar route serves [0..1] nav encodings
                     boolean toMany = rel instanceof TypedDistinct
+                            || rel instanceof com.legend.compiler.spec.typed
+                                    .TypedSort
                             || !(rel.info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded mb1
