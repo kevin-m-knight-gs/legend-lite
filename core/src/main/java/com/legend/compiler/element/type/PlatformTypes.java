@@ -103,6 +103,12 @@ public final class PlatformTypes {
      * orchestration handle, never a host object graph; reads over it
      * splice into SQL-bound typed queries in the statement executor). */
     public static final String EXECUTE = "meta::pure::mapping::execute";
+    /** Both execute spellings — the MAPPING entry and the ROUTER entry
+     * (router_entry.pure) share one execution semantics. */
+    public static boolean isExecuteFqn(String fqn) {
+        return EXECUTE.equals(fqn)
+                || "meta::pure::router::execute".equals(fqn);
+    }
 
     /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition

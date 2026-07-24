@@ -1032,6 +1032,13 @@ public final class Pure {
     public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
     public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
     public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");
+    // The ROUTER entry spelling (REAL pure router_entry.pure:20/:47 —
+    // execute<T|y>(f:FunctionDefinition<{->T[y]}>[1], m:Mapping[1],
+    // runtime:Runtime[1], extensions:Extension[*])[, debug]):Result —
+    // same execution semantics as mapping::execute; the harness
+    // recognizes both FQNs (PlatformTypes.isExecuteFqn).
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");
 
     // preval: the engine's PLAN-TIME pre-evaluation pass (REAL pure
     // preeval.pure:53/:58 — preval<T>(f:FunctionDefinition<T>[1],

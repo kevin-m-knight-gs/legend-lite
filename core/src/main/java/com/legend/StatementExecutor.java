@@ -91,8 +91,8 @@ final class StatementExecutor {
                     rhs = rf.source();
                 }
                 if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                        && com.legend.compiler.element.type.PlatformTypes.EXECUTE
-                                .equals(ec.callee().qualifiedName())) {
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isExecuteFqn(ec.callee().qualifiedName())) {
                     // EAGER run (engine parity, audit 16 F1): a broken
                     // pipeline surfaces AT the let even when nothing reads
                     // the frame.
@@ -166,8 +166,8 @@ final class StatementExecutor {
             // (the Result envelope is typing-only — the chain's rows are what
             // a reader observes).
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall xc
-                    && com.legend.compiler.element.type.PlatformTypes.EXECUTE
-                            .equals(xc.callee().qualifiedName())) {
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .isExecuteFqn(xc.callee().qualifiedName())) {
                 result = buildFrame(xc, letPrefix, true, specs, env).result();
                 continue;
             }
@@ -508,8 +508,8 @@ final class StatementExecutor {
                 src = sf.source();
             }
             if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                    && com.legend.compiler.element.type.PlatformTypes.EXECUTE
-                            .equals(ec.callee().qualifiedName())) {
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .isExecuteFqn(ec.callee().qualifiedName())) {
                 try {
                     // inline read: the value is observed where it stands —
                     // no separate eager run (it would execute twice)
