@@ -16,14 +16,14 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
 | functions/tests | 258 | 188 | 7 | 47 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
+| functions/tests/projection | 155 | 108 | 6 | 22 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 49 | 14 | 78 | 2 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 152 | 6 | 19 | 47 |
+| milestoning/tests | 224 | 152 | 6 | 18 | 48 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1455** | 69 | 363 | 651 |
+| **total** | 2538 | **1459** | 69 | 358 | 652 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6701,7 +6701,6 @@ in-process Alloy-shaped path).
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x unbound variable '$dbRuntime'
 - 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
-- 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
@@ -6714,8 +6713,8 @@ in-process Alloy-shaped path).
 - 5x no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
-- 4x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 4x Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                      ^
+- 4x unbound variable '$jsonConnection'
 - 4x no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
 - 4x in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - 4x unknown function 'assertEquals'
@@ -6726,6 +6725,7 @@ in-process Alloy-shaped path).
 - 3x class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - 3x unknown function 'meta::legend::compileLegendGrammar'
 - 3x unknown enumeration 'ProductSynonymType'
+- 3x a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
 - 3x no overload of 'func' matches 2 argument(s) of these shapes
 - 3x ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
 
@@ -6886,8 +6886,8 @@ in-process Alloy-shaped path).
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 4 candidates); class-query dispatch needs exactly one
-- ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: execute() whose query argument is not a lambda
-- ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: execute() whose query argument is not a lambda
+- ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: no overload of 'meta::pure::mapping::execute' structurally matches the argument types
+- ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: no overload of 'meta::pure::mapping::execute' structurally matches the argument types
 - FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
 - SHAPE testFilterBeforeAndAfterGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterBeforeAndAfterProject [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -6940,10 +6940,6 @@ in-process Alloy-shaped path).
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: Index 1 out of bounds for length 1
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
-- ERROR testConcatenationOfTdsQueries [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
-- ERROR testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
-- ERROR testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
-- ERROR testConcatenationOfTdsQueriesWithFilterAndGroupBy [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - SHAPE testFirstDayOfWeek [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFirstDayOfThisMonth [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7042,10 +7038,10 @@ in-process Alloy-shaped path).
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_Checked [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
-- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: unbound variable '$jsonConnection'
+- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: unbound variable '$jsonConnection'
+- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: unbound variable '$jsonConnection'
+- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: unbound variable '$jsonConnection'
 - ERROR testIsolationOfPropertyTargetFilter [graphFetch/tests]: filter predicate references column 'firmTable_personFirmBridgeTable_personId', unresolvable even after isolation
 - ERROR testSimpleOrderedCrossStoreGraphFetchMissingProperty [graphFetch/tests]: unbound variable '$dbRuntime'
 - ERROR testSimpleOrderedCrossStoreGraphFetchRightOrder [graphFetch/tests]: unbound variable '$dbRuntime'
@@ -7184,13 +7180,13 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: in function 'meta::relational::milestoning::concatenateTemporalTdsQueries': unknown class 'SimpleFunctionExpression' in ^SimpleFunctionExpression(…)
-- ERROR testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: in function 'meta::relational::milestoning::concatenateTemporalTdsQueries': unknown class 'SimpleFunctionExpression' in ^SimpleFunctionExpression(…)
+- ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'meta::relational::milestoning::concatenateTemporalTdsQueries' structurally matches the argument types
+- ERROR testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: no overload of 'meta::relational::milestoning::concatenateTemporalTdsQueries' structurally matches the argument types
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testFilterOnView [milestoning/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: unbound variable '$businessDate'
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7538,8 +7534,8 @@ in-process Alloy-shaped path).
 - SHAPE testMultipleIsolationWithSameProp [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR relationalResultSourcingOfList [tests/advanced]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- ERROR relationalResultSourcingOfDateList [tests/advanced]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- ERROR relationalResultSourcingOfList [tests/advanced]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
+- ERROR relationalResultSourcingOfDateList [tests/advanced]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
 - FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
@@ -7604,7 +7600,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -7713,7 +7709,7 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
