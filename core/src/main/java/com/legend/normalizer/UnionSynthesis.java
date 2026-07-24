@@ -1545,18 +1545,13 @@ final class UnionSynthesis {
                 continue;
             }
             String targetClassFqn = pnr.name();
-            // BITEMPORAL GATE (narrowed from the audit-11 full temporal
-            // gate): single-dimension temporal unions lift correctly
-            // (member threads filter per capability; 5 corpus families
-            // pass). BITEMPORAL unions with per-member capability mixes
-            // still over-match (hybridMilestoningUnionMap expects 12,
-            // ungated lift returns 18 — a member capability subset goes
-            // unfiltered under the two-date context) — LOUD until the
-            // per-member capability x two-date filtering lands.
-            if (MappingNormalizer.isBitemporalClass(className, model)
-                    || MappingNormalizer.isBitemporalClass(targetClassFqn, model)) {
-                continue;
-            }
+            // BITEMPORAL UNGATE (Leg 2): the per-dimension stampers
+            // (milestonedPipeByStrategy walks only tables CARRYING each
+            // dimension) are capability-aware by construction after the
+            // temporal-frame arc — the audit-11 gate that protected the
+            // hybrid over-match (12 vs 18) is retired; the hybrid family
+            // gates the rows.
+
             ClassMapping.Union targetUnion = unionForClass(md, model, targetClassFqn);
             // Pre-validate the property's entries: any unsupported or
             // unresolvable entry SKIPS the whole property's lift (poison
