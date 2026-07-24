@@ -281,6 +281,33 @@ final class StatementExecutor {
                             .equals(ow.callee().qualifiedName())) {
                 lfsArg = letBound(ow.args().get(0), letPrefix);
             }
+            // MAP-BUILT collections ($bds->map(bd|{|...}->eAD())): β-expand
+            // the map over the literal elements — one TypedEval per element,
+            // reduced by the inliner (the full β-substitution engine)
+            if (lfsArg instanceof com.legend.compiler.spec.typed
+                            .TypedMap mapC
+                    && letBound(mapC.mapper(), letPrefix)
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedLambda mapLam
+                    && mapLam.parameters().size() == 1
+                    && letBound(mapC.source(), letPrefix)
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedCollection dc) {
+                java.util.List<TypedSpec> expanded =
+                        new java.util.ArrayList<>(dc.elements().size());
+                for (TypedSpec d : dc.elements()) {
+                    expanded.add(new com.legend.compiler.spec.UserCallInliner(
+                            specs).inlineBody(java.util.List.of(
+                                    new com.legend.compiler.spec.typed.TypedEval(
+                                            mapLam, java.util.List.of(d),
+                                            mapLam.body().get(
+                                                    mapLam.body().size() - 1)
+                                                    .info())))
+                            .get(0));
+                }
+                lfsArg = new com.legend.compiler.spec.typed.TypedCollection(
+                        expanded, lfsArg.info());
+            }
             java.util.List<TypedSpec> els =
                     lfsArg instanceof com.legend.compiler.spec.typed
                             .TypedCollection tc
@@ -299,7 +326,10 @@ final class StatementExecutor {
                         .TypedLambda ql) || !ql.parameters().isEmpty()) {
                     throw new com.legend.error.NotImplementedException(
                             "concatenateTemporalTdsQueries over a non-literal"
-                            + " lambda collection is not supported yet");
+                            + " lambda collection is not supported yet"
+                            + " (element " + le.getClass().getSimpleName()
+                            + ", carrier " + lfsArg.getClass().getSimpleName()
+                            + ")");
                 }
                 queries.add(ql.body().get(ql.body().size() - 1));
             }

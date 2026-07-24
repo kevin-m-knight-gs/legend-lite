@@ -797,8 +797,19 @@ public final class InferenceKernel {
                             && w.returnMultiplicity().equals(
                                     winners.get(0).returnMultiplicity()));
             if (!allSameShape) {
-                throw new TypeInferenceException("ambiguous overload of '" + name + "': "
-                        + winners.size() + " candidates tie for the argument types");
+                // NATIVE-over-module tie-break: a registered native carries
+                // the PLATFORM's semantics for the name (the emission-level
+                // implementation); a module copy tying with it is the same
+                // real-pure function whose reflection body this platform
+                // cannot run (concatenateTemporalTdsQueries). A tie among
+                // module definitions alone stays loud.
+                List<TypedFunction> nativeWinners = winners.stream()
+                        .filter(TypedFunction::isNative).toList();
+                if (nativeWinners.size() != 1) {
+                    throw new TypeInferenceException("ambiguous overload of '" + name + "': "
+                            + winners.size() + " candidates tie for the argument types");
+                }
+                return resolveChosen(nativeWinners.get(0), args, name);
             }
         }
         return resolveChosen(winners.get(0), args, name);
