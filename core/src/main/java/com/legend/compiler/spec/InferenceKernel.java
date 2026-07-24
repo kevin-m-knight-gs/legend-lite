@@ -603,13 +603,45 @@ public final class InferenceKernel {
             case Type.RelationType r -> new Type.RelationType(
                     resolveColumns(r.columns(), b), r.dynamicColumns());
 
+            // A function-typed OUTPUT carries solved variables inside its
+            // params/result (preval's Function<{->T[*]}> — the identity
+            // wrapper's T must leave as the query's concrete type, or the
+            // raw variable escapes into execute's Result<T>). Unbound
+            // inner variables ride through untouched (the pre-descent
+            // leaf behavior, kept for higher-order shapes solved later).
+            case Type.FunctionType f -> {
+                List<Type.Param> ps = new ArrayList<>(f.params().size());
+                for (Type.Param p : f.params()) {
+                    ps.add(new Type.Param(resolveIfSolvable(p.type(), b),
+                            resolveMultIfBound(p.multiplicity(), b)));
+                }
+                yield new Type.FunctionType(ps, new Type.Param(
+                        resolveIfSolvable(f.result().type(), b),
+                        resolveMultIfBound(f.result().multiplicity(), b)));
+            }
+
             // Leaves: no variables to substitute.
             case Type.Primitive ignored -> t;
             case Type.PrecisionDecimal ignored -> t;
             case Type.ClassType ignored -> t;
             case Type.EnumType ignored -> t;
-            case Type.FunctionType ignored -> t;
         };
+    }
+
+    /** {@link #resolve} that leaves an UNBOUND variable in place instead of
+     * throwing — inside a function type an open variable is legal (it binds
+     * at the eventual application site). */
+    private Type resolveIfSolvable(Type t, Bindings b) {
+        if (t instanceof Type.TypeVar v && !isUnknown(v)
+                && b.type(v.name()).isEmpty()) {
+            return t;
+        }
+        return resolve(t, b);
+    }
+
+    private Multiplicity resolveMultIfBound(Multiplicity m, Bindings b) {
+        return m instanceof Multiplicity.Var v
+                ? b.mult(v.name()).orElse(m) : m;
     }
 
     private List<Type.Column> resolveColumns(List<Type.Column> columns, Bindings b) {

@@ -256,6 +256,14 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) throws java.sql.SQLException {
         TypedSpec q = letBound(ec.args().get(0), letPrefix);
+        // preval(query, extensions) is the engine's PLAN-TIME
+        // pre-evaluation — identity for row semantics: read through to
+        // the wrapped query lambda.
+        if (q instanceof com.legend.compiler.spec.typed.TypedNativeCall pv
+                && "meta::pure::router::preeval::preval"
+                        .equals(pv.callee().qualifiedName())) {
+            q = letBound(pv.args().get(0), letPrefix);
+        }
         if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)
                 || !lam.parameters().isEmpty()) {
             throw new com.legend.error.NotImplementedException(

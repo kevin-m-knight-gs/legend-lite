@@ -296,16 +296,7 @@ public final class TestBody {
                     }
                 }
                 if (inner == null) {
-                    for (ValueSpecification arg : wrap.parameters()) {
-                        ValueSpecification a2 = arg instanceof Variable av
-                                && lets.get(av.name()) != null
-                                ? lets.get(av.name()) : arg;
-                        if (a2 instanceof LambdaFunction lf0
-                                && lf0.parameters().isEmpty()) {
-                            inner = lf0;
-                            break;
-                        }
-                    }
+                    inner = zeroArgLambdaArg(wrap, lets);
                 }
                 if (inner != null) {
                     List<ValueSpecification> bodyStmts =
@@ -479,6 +470,35 @@ public final class TestBody {
     /** Fold {@code if(<literal>, |a, |b)} (zero-param thunks, one body
      * expression each) to the chosen branch — the checked/unchecked
      * helper idiom resolves to a plain query lambda. */
+    /** The first zero-arg lambda among {@code wrap}'s arguments, looking
+     * through let-bound variables and through
+     * {@code meta::pure::router::preeval::preval(query, extensions)} — the
+     * engine's PLAN-TIME pre-evaluation, identity for row semantics: the
+     * wrapped query IS the query. */
+    private static LambdaFunction zeroArgLambdaArg(
+            AppliedFunction wrap, Map<String, ValueSpecification> lets) {
+        for (ValueSpecification arg : wrap.parameters()) {
+            ValueSpecification a2 = arg instanceof Variable av
+                    && lets.get(av.name()) != null
+                    ? lets.get(av.name()) : arg;
+            if (a2 instanceof AppliedFunction pf
+                    && pf.function().equals(
+                            "meta::pure::router::preeval::preval")
+                    && !pf.parameters().isEmpty()) {
+                a2 = pf.parameters().get(0);
+                if (a2 instanceof Variable av2
+                        && lets.get(av2.name()) != null) {
+                    a2 = lets.get(av2.name());
+                }
+            }
+            if (a2 instanceof LambdaFunction lf0
+                    && lf0.parameters().isEmpty()) {
+                return lf0;
+            }
+        }
+        return null;
+    }
+
     private static ValueSpecification foldLiteralIf(ValueSpecification v) {
         while (v instanceof AppliedFunction f && f.function().equals("if")
                 && f.parameters().size() == 3

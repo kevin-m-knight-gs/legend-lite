@@ -1025,6 +1025,16 @@ public final class Pure {
     public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
     public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");
 
+    // preval: the engine's PLAN-TIME pre-evaluation pass (REAL pure
+    // preeval.pure:53/:58 — preval<T>(f:FunctionDefinition<T>[1],
+    // extensions:Extension[*])[, debug:DebugContext[1]]:FunctionDefinition
+    // <T>[1]). IDENTITY for row semantics; f spelled with this platform's
+    // execute convention (Function<{->T[*]}>) so the wrapped query
+    // composes through execute with the same T. Never evaluated — the
+    // harness reads through it to the query lambda.
+    public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
+    public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY__DEBUG_1 = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::tools::DebugContext[1]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
+
     // relationalExtensions(): the corpus's own definition is signature-
     // broken in this platform (the Extension metamodel class), so it never
     // enters the module — this native exists for TYPING the context
