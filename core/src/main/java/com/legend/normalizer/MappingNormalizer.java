@@ -1876,16 +1876,14 @@ public final class MappingNormalizer {
                                                             DatabaseDefinition.ViewDefinition view,
                                                             ModelBuilder model) {
         String mainDb = rcm.mainTable().database();
-        // A GROUPED view cannot flatten into the class mapping: the merged
-        // ~groupBy would run AFTER navigate injection and discard the
-        // navigation slots (V1b, probe-confirmed on AccountPnl). The view
-        // is a ROW-DEFINING SUBSELECT — it becomes the pipeline SOURCE
-        // (columns projected by NAME, ~filter/~groupBy/~distinct inside),
-        // PMs read view columns VERBATIM, and the view name is the source
-        // row scope. Plain views keep the flattening path below (it also
-        // handles join-navigating view columns, which the subselect
-        // expansion walls loudly).
-        if (!view.groupByColumns().isEmpty()) {
+        // Leg 4 (feature map §5): a view reached as a relation is an
+        // IDENTITY-CARRYING FRAME — a row-defining subselect as pipeline
+        // SOURCE (~filter/~groupBy/~distinct inside), PMs read view
+        // columns VERBATIM (engine: ViewSelectSQLQuery extends TABLE; a
+        // view NEVER flattens). Column substitution below is only the
+        // MIGRATION fallback for shapes the frame walls on (frameable).
+        if (!view.groupByColumns().isEmpty()
+                || ViewRelation.frameable(view, rcm)) {
             ValueSpecification viewSource = ViewRelation.viewRelationExpr(
                     view, rcm.mainTable().table(), mainDb, model, md);
             ClassMapping.Relational overView = new ClassMapping.Relational(

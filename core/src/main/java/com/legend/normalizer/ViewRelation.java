@@ -4,10 +4,12 @@ import com.legend.compiler.ModelBuilder;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
+import com.legend.model.ClassMapping;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.FilterMapping;
 import com.legend.model.FilterPointer;
 import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.PropertyMapping;
 import com.legend.model.RelationalOperation;
 import com.legend.model.spec.AppliedFunction;
 import com.legend.model.spec.AppliedProperty;
@@ -223,6 +225,52 @@ final class ViewRelation {
             src = new AppliedFunction("distinct", List.of(src));
         }
         return src;
+    }
+
+    /** Whether a PLAIN view-backed class mapping can take the FRAME path
+     * today: every property mapping reads a DECLARED view column (plain
+     * Column / LocalProperty / enumerated-over-column) and the view's
+     * ~filter is direct. Join/JTC/embedded PMs still speak the physical
+     * root's row — they stay on the substitution fallback until the frame
+     * path resolves them through the view row (Leg 4 remainder). */
+    static boolean frameable(DatabaseDefinition.ViewDefinition view,
+            ClassMapping.Relational rcm) {
+        if (view.filter() != null
+                && !(view.filter() instanceof FilterMapping.Direct)) {
+            return false;
+        }
+        // A MAPPING-level ~filter/~groupBy speaks the PHYSICAL table's
+        // row (Filter declared on T_PERSON) — under a frame the row is
+        // the view's declared columns, so translation throws and the
+        // tolerant module build silently DROPS the mapping. Fallback
+        // until identity resolution reads physical refs through the
+        // frame (engine findTableForColumnInAlias).
+        if (rcm.filter() != null || !rcm.groupBy().isEmpty()) {
+            return false;
+        }
+        java.util.Set<String> declared = new java.util.HashSet<>();
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
+                : view.columnMappings()) {
+            declared.add(vc.name());
+        }
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            if (!pmReadsViewColumns(pm, declared)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean pmReadsViewColumns(PropertyMapping pm,
+            java.util.Set<String> declared) {
+        return switch (pm) {
+            case PropertyMapping.Column col -> declared.contains(col.column());
+            case PropertyMapping.EnumeratedColumn ec ->
+                    declared.contains(ec.column());
+            case PropertyMapping.LocalProperty lp ->
+                    pmReadsViewColumns(lp.body(), declared);
+            default -> false;
+        };
     }
 
     /** The pure kind of {@code col} on {@code table}: a physical column's

@@ -4050,29 +4050,30 @@ class MappingNormalizerTest {
                         + ")");
         FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
-        // Pipeline: tableReference(db::DB, T_PERSON) -> distinct() -> map.
+        // Leg 4 (feature map §5): the view is an IDENTITY-CARRYING FRAME —
+        // map( distinct( project(tableReference(T_PERSON), [pname]) ), λ );
+        // ~distinct lives INSIDE the frame, the PM reads the DECLARED view
+        // column VERBATIM off the frame row (never the physical column).
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         assertEquals("map", mapCall.function());
         AppliedFunction distinctCall = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("distinct", distinctCall.function(),
-                "view-level ~distinct merges into the pipeline as distinct()");
-        AppliedFunction select = (AppliedFunction) distinctCall.parameters().get(0);
-        assertEquals("select", select.function(),
-                "~distinct dedups the MAPPED columns: select narrows first");
-        AppliedFunction tableRef = (AppliedFunction) select.parameters().get(0);
+                "view-level ~distinct rides inside the frame");
+        AppliedFunction frame = (AppliedFunction) distinctCall.parameters().get(0);
+        assertEquals("project", frame.function(),
+                "the view frames as its own projection (row-defining subselect)");
+        AppliedFunction tableRef = (AppliedFunction) frame.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
                 ((com.legend.model.spec.CString) tableRef.parameters().get(1)).value(),
-                "source is the view's inferred underlying physical table, not the view name");
+                "the frame's source is the view's physical root table");
 
-        // The PM rewrote through the view column: name reads the underlying
-        // physical column NAME off the (view) row.
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
         NewInstance ni = (NewInstance) ((AppliedFunction) sole(projectLambda.body()))
                 .parameters().get(1);
         AppliedProperty nameVal = (AppliedProperty) toOneInner(ni.properties().get("name").value());
-        assertEquals("NAME", nameVal.property(),
-                "view column pname rewrote to its underlying physical column NAME");
+        assertEquals("pname", nameVal.property(),
+                "the PM reads the DECLARED view column off the frame row");
         assertEquals(new Variable("row"), nameVal.receiver());
     }
 
@@ -4158,28 +4159,28 @@ class MappingNormalizerTest {
                         + ")");
         FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
 
-        // Pipeline: join(tableReference(T_PERSON), ~Person_Firm: ..., cond) -> map.
+        // Leg 4: the frame carries the join INSIDE its body —
+        // map( project( join(tableReference(T_PERSON), ...), cols ), λ );
+        // the PM reads the declared view column VERBATIM off the frame row.
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         assertEquals("map", mapCall.function());
-        AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
+        AppliedFunction frame = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals("project", frame.function(),
+                "the view frames as its own projection");
+        AppliedFunction joinCall = (AppliedFunction) frame.parameters().get(0);
         assertEquals("join", joinCall.function(),
-                "join-backed view column emits a join() step over the root table");
+                "the join-backed view column's join lives INSIDE the frame");
         AppliedFunction tableRef = (AppliedFunction) joinCall.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
                 ((com.legend.model.spec.CString) tableRef.parameters().get(1)).value(),
-                "source is the inferred physical root table");
+                "the frame's source is the physical root table");
 
-        // firmName reads the terminal column off the joined sub-row:
-        // $row.Person_Firm.LEGAL_NAME.
         NewInstance ni = ctorOf(fn);
         AppliedProperty firmVal = (AppliedProperty) toOneInner(ni.properties().get("firmName").value());
-        assertEquals("LEGAL_NAME", firmVal.property(),
-                "firmName rewrote to the join terminal column");
-        AppliedProperty subRow = (AppliedProperty) firmVal.receiver();
-        assertEquals("Person_Firm", subRow.property(),
-                "terminal column is read off the join sub-row slot");
-        assertEquals(new Variable("row"), subRow.receiver());
+        assertEquals("pfirmName", firmVal.property(),
+                "the PM reads the DECLARED view column off the frame row");
+        assertEquals(new Variable("row"), firmVal.receiver());
     }
 
     @Test
