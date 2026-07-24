@@ -800,7 +800,137 @@ final class GraphEmission {
                 return nav;
             }
         }
-        return derivedLeaf(cs.bindings(), cs.classFqn(), node);
+        return derivedLeaf(cs.bindings(), cs.classFqn(), node,
+                new SubqueryEnv(cs, context, rowVar, rowType));
+    }
+
+    /** The enclosing-frame material the inline route needs to fall back
+     * to a CORRELATED SCALAR SUBQUERY for a navigation SUB-EXPRESSION
+     * (map §7 contract 4: qualified properties are child computations).
+     * Null on paths without a frame (embedded ctor leaves). */
+    record SubqueryEnv(ClassSource cs, StoreResolver.Context context,
+            String rowVar, Type.RelationType rowType) {
+    }
+
+    /** The corr-filtered TARGET RELATION for a navigation HEAD read off
+     * {@code $this} — the shared spine of the qualifier-as-child-
+     * computation emissions (scalar leaf subquery, emptiness). Null when
+     * the head shape does not match. */
+    private record HeadRel(ClassSource target, Type.RelationType targetRow,
+            TypedSpec rel) {
+    }
+
+    private HeadRel navHeadRelation(SubqueryEnv env, TypedSpec hop,
+            String thisVar) {
+        ClassSource cs = env.cs();
+        StoreResolver.Context context = env.context();
+        while (hop instanceof TypedNativeCall w && w.args().size() == 1
+                && (w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first"))) {
+            hop = w.args().get(0);
+        }
+        String headProp;
+        List<TypedSpec> hopDates = List.of();
+        boolean hopSweep = false;
+        if (hop instanceof TypedPropertyAccess hpa
+                && hpa.source() instanceof TypedVariable hv
+                && hv.name().equals(thisVar)
+                && hpa.info().type() instanceof Type.ClassType) {
+            headProp = hpa.property();
+        } else if (hop instanceof com.legend.compiler.spec.typed
+                        .TypedMilestonedAccess hma
+                && hma.source() instanceof TypedVariable hv2
+                && hv2.name().equals(thisVar)) {
+            // a DATED head registers its dates as the head's temporal spec
+            // (the same channel query-position property functions use).
+            // Generated-date reads ($this.businessDate from the inlined
+            // qualifier) NORMALIZE against the fetch's root context — the
+            // literal date the local subquery can actually spell (the
+            // cycle-71 nested-cursor rule; a dateless root keeps the raw
+            // read and its honest lowering wall).
+            headProp = hma.property();
+            hopDates = temporal.normalizeContextDates(hma.dates());
+            hopSweep = hma.sweep();
+        } else {
+            return null;
+        }
+        ClassSource target;
+        TypedSpec targetPipeline;
+        Type.RelationType targetRow;
+        TypedLambda cond;
+        TemporalFrame tf = hopDates.isEmpty() && !hopSweep ? temporal
+                : temporal.withSpecs(Map.of(headProp,
+                        new TemporalFrame.TemporalSpec(hopDates, hopSweep)));
+        AssociationJoins.AssocJoin aj = null;
+        try {
+            aj = assocMaterial.associationJoin(tf, cs, headProp,
+                    context, /*forExists*/ true);
+        } catch (RuntimeException notAnAssoc) {
+            aj = null;
+        }
+        if (aj != null) {
+            target = aj.target();
+            targetPipeline = aj.targetPipeline();
+            targetRow = aj.targetRow();
+            cond = aj.condition();
+        } else {
+            // NAVIGATE-SLOT-backed head (join PM): the slot's TypedNavigate
+            // carries the raw target and the predicate — navSlotChild's
+            // route, scalar-shaped
+            TypedSpec bindingRead = cs.bindings().get(headProp);
+            // conform-by-emission wrappers (toOne over the slot read) unwrap
+            while (bindingRead instanceof TypedNativeCall bw
+                    && bw.args().size() == 1
+                    && (bw.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                        || bw.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::first"))) {
+                bindingRead = bw.args().get(0);
+            }
+            TypedNavigate nav = null;
+            if (bindingRead instanceof TypedPropertyAccess bpa
+                    && bpa.source() instanceof TypedVariable bvv
+                    && bvv.name().equals(cs.rowVar())) {
+                nav = Pipelines.outerNavSteps(cs.pipeline()).get(bpa.property());
+            }
+            if (nav == null) {
+                return null;
+            }
+            String key = (context.explicitMapping() == null ? ""
+                    : context.explicitMapping()) + '\u0000'
+                    + (context.runtimeFqn() == null ? ""
+                            : context.runtimeFqn());
+            String rawTarget = ((TypedGetAll) nav.target()).classFqn();
+            target = sources.get(dispatch.apply(context, rawTarget), rawTarget,
+                    t -> dispatch.apply(context, t), key);
+            Pipelines.Materialized cMat = Pipelines.materialize(
+                    target.pipeline(), Set.of(), rawTarget);
+            targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
+                    cMat.pipeline());
+            targetRow = (Type.RelationType) targetPipeline.info().type();
+            cond = nav.pairedPredicate().orElse(nav.predicate());
+        }
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        List<TypedSpec> corrBody = cond.body().stream().map(cb ->
+                Pipelines.rewriteRowReads(cb, pVar, Map.of(), Set.of(),
+                        v -> new TypedVariable(env.rowVar(),
+                                new ExprType(env.rowType(),
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))))
+                .toList();
+        var boolFn = new Type.FunctionType(
+                List.of(new Type.Param(targetRow,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                new Type.Param(Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new ExprType(boolFn,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        return new HeadRel(target, targetRow,
+                new TypedFilter(targetPipeline, corr, targetPipeline.info()));
     }
 
     /**
@@ -1028,6 +1158,11 @@ final class GraphEmission {
 
     private TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
             String classFqn, TypedGraphTree node) {
+        return derivedLeaf(bindings, classFqn, node, null);
+    }
+
+    private TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
+            String classFqn, TypedGraphTree node, SubqueryEnv env) {
         String prop = node.property();
         var p = ctx.findProperty(classFqn, prop).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
@@ -1048,7 +1183,7 @@ final class GraphEmission {
                     node.args().get(i));
         }
         return inlineThis(cf.body().get(0), thisVar, binds, bindings,
-                classFqn, prop);
+                classFqn, prop, env);
     }
 
     /** Substitute {@code $this.<stored>} reads with the row bindings.
@@ -1059,6 +1194,12 @@ final class GraphEmission {
     private TypedSpec inlineThis(TypedSpec n, String thisVar,
             Map<String, TypedSpec> binds, Map<String, TypedSpec> bindings,
             String classFqn, String prop) {
+        return inlineThis(n, thisVar, binds, bindings, classFqn, prop, null);
+    }
+
+    private TypedSpec inlineThis(TypedSpec n, String thisVar,
+            Map<String, TypedSpec> binds, Map<String, TypedSpec> bindings,
+            String classFqn, String prop, SubqueryEnv env) {
         if (n instanceof TypedVariable bv && binds.containsKey(bv.name())) {
             return binds.get(bv.name());
         }
@@ -1081,30 +1222,63 @@ final class GraphEmission {
                     + "' uses $" + thisVar + " as a whole value —"
                     + " not supported yet");
         }
+        // EMPTINESS over a navigation head ($this.assoc->isEmpty()): the
+        // corr-filtered target relation feeds the emptiness native — the
+        // §133 lowering renders [NOT] EXISTS (engine qualifier goldens)
+        if (env != null && n instanceof TypedNativeCall ec
+                && ec.args().size() == 1
+                && (ec.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::isEmpty")
+                    || ec.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::isNotEmpty"))
+                && containsVar(ec.args().get(0), thisVar)) {
+            HeadRel hr = navHeadRelation(env, ec.args().get(0), thisVar);
+            if (hr != null) {
+                return new TypedNativeCall(ec.callee(),
+                        List.of(hr.rel()), n.info());
+            }
+        }
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = new ArrayList<>(c.args().size());
             for (TypedSpec a : c.args()) {
-                args.add(inlineThis(a, thisVar, binds, bindings, classFqn, prop));
+                args.add(inlineThis(a, thisVar, binds, bindings, classFqn, prop, env));
             }
             return new TypedNativeCall(c.callee(), args, c.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedIf i) {
             return new com.legend.compiler.spec.typed.TypedIf(
-                    inlineThis(i.condition(), thisVar, binds, bindings, classFqn, prop),
-                    inlineThis(i.thenBranch(), thisVar, binds, bindings, classFqn, prop),
+                    inlineThis(i.condition(), thisVar, binds, bindings, classFqn, prop, env),
+                    inlineThis(i.thenBranch(), thisVar, binds, bindings, classFqn, prop, env),
                     i.elseBranch().map(e ->
-                            inlineThis(e, thisVar, binds, bindings, classFqn, prop)),
+                            inlineThis(e, thisVar, binds, bindings, classFqn, prop, env)),
                     n.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedCollection tc) {
             List<TypedSpec> els = new ArrayList<>(tc.elements().size());
             for (TypedSpec e : tc.elements()) {
-                els.add(inlineThis(e, thisVar, binds, bindings, classFqn, prop));
+                els.add(inlineThis(e, thisVar, binds, bindings, classFqn, prop, env));
             }
             return new com.legend.compiler.spec.typed.TypedCollection(
                     els, tc.info());
         }
         if (containsVar(n, thisVar)) {
+            // NAVIGATION SUB-EXPRESSION fallback: a nav+leaf chain inside
+            // a larger expression emits as its own correlated scalar
+            // subquery (map §7 contract 4 — the engine computes qualifier
+            // expressions with navigations as embedded scalar subqueries).
+            // TO-ONE reads only: the subquery LIMITs 1, so a to-many chain
+            // (feeding an aggregate) would silently drop rows — stays loud.
+            if (env != null
+                    && n.info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded mb
+                    && mb.upper() != null && mb.upper() <= 1) {
+                TypedSpec sub = navLeafSubquery(env.cs(), n, thisVar,
+                        env.context(), env.rowVar(), env.rowType());
+                if (sub != null) {
+                    return sub;
+                }
+            }
             throw new NotImplementedException("derived graph leaf '" + prop
                     + "' body node " + n.getClass().getSimpleName()
                     + " referencing $" + thisVar
