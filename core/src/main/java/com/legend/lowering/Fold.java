@@ -56,7 +56,12 @@ final class Fold {
      * &mdash; plain ORDER BY may reference source columns in the same select).
      */
     static boolean projectionFolds(SqlSelect s) {
-        return !s.distinct() && s.limit() == null && s.offset() == null;
+        // an UNNEST projection is ROW-MULTIPLYING: replacing the
+        // projections in place would drop the explosion (a narrowed read
+        // over an exploded project must see the multiplied rows) —
+        // isolate instead
+        return !s.distinct() && s.limit() == null && s.offset() == null
+                && !unnestInProjections(s);
     }
 
     /**
@@ -252,5 +257,50 @@ final class Fold {
                             + column + "' (stamp outputs at construction)");
         }
         return outputs.stream().anyMatch(c -> c.name().equals(column));
+    }
+
+    /**
+     * MANY-VALUED primitive projection column (scalar-stream concatenate:
+     * {@code [t | $t.id->concatenate($t.id+18)]}): the engine EXPLODES
+     * ROWS (union subselect per element, row-major) — the select-list
+     * UNNEST is the same semantics on DuckDB. ONE such column only:
+     * multiple would zip, which is not the engine rule (those keep the
+     * executor's honest wall).
+     */
+    static SqlSelect explodeManyColumn(SqlSelect out,
+            java.util.List<com.legend.compiler.element.type.ExprType> bodyInfos) {
+        java.util.List<Integer> manyCols = new java.util.ArrayList<>();
+        for (int ci = 0; ci < bodyInfos.size(); ci++) {
+            var bi = bodyInfos.get(ci);
+            if (bi.type() instanceof
+                            com.legend.compiler.element.type.Type.Primitive
+                    && bi.multiplicity() instanceof
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded mb
+                    && (mb.upper() == null || mb.upper() > 1)) {
+                manyCols.add(ci);
+            }
+        }
+        if (manyCols.size() != 1) {
+            return out;
+        }
+        int ci = manyCols.get(0);
+        java.util.List<SqlSelect.Projection> ps =
+                new java.util.ArrayList<>(out.projections());
+        // an EMPTY list must keep the parent row with a NULL cell (the
+        // engine's union subselect LEFT-joins back; UNNEST([]) would drop
+        // the row): explode [NULL] instead
+        SqlExpr list = ps.get(ci).expr();
+        SqlExpr kept = new SqlExpr.Case(
+                java.util.List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL,
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
+                                new SqlExpr.IntLit(0)),
+                        new SqlExpr.ArrayLit(java.util.List.of(
+                                new SqlExpr.NullLit())))),
+                list);
+        ps.set(ci, new SqlSelect.Projection(
+                SqlExpr.Call.of(SqlFn.UNNEST, kept), ps.get(ci).alias()));
+        return out.withProjections(ps, out.outputs());
     }
 }
