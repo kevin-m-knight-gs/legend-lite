@@ -856,7 +856,7 @@ final class Substitution {
                                             q.column(),
                                             new ExprType(qc.type(),
                                                     qc.multiplicity())),
-                                    rewrite(needle)),
+                                    rewrite(singletonNeedle(needle))),
                             new ExprType(Type.Primitive.BOOLEAN,
                                     Multiplicity.Bounded.ONE));
                     TypedLambda qPred = new TypedLambda(List.of(qv),
@@ -1719,6 +1719,15 @@ final class Substitution {
      * EXISTS(child WHERE assoc-corr AND leaf = v) — the correlated child
      * extent filtered by the equality; outer reads in the needle stay
      * correlated through this substitution. */
+    /** The contains/in {@code val:[1]} slot: a SINGLETON literal IS the
+     * to-one value (pure InstanceValue semantics — contains(['SRCE'])
+     * compares the STRING; Scalars' list rule unwraps identically, this
+     * is the membership-EXISTS route's copy of the same law). */
+    private static TypedSpec singletonNeedle(TypedSpec v) {
+        return v instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                && tc.elements().size() == 1 ? tc.elements().get(0) : v;
+    }
+
     private TypedSpec rewriteMembershipExists(ExistsSub ex, String leaf,
             TypedSpec needle) {
         TypedLambda cond = ex.orientedCond();
@@ -1754,7 +1763,7 @@ final class Substitution {
                     + "' (membership crossing leaf)", ex.targetClassFqn());
         }
         TypedSpec eq = new TypedNativeCall(target.equalCallee(),
-                List.of(leafBinding, rewrite(needle)),
+                List.of(leafBinding, rewrite(singletonNeedle(needle))),
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
         TypedLambda memberPred = new TypedLambda(List.of(ex.targetRowVar()),
                 List.of(eq), predType);
