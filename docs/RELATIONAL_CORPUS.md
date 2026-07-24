@@ -14,9 +14,9 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 190 | 12 | 40 | 16 |
+| functions/tests | 258 | 189 | 13 | 40 | 16 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 97 | 6 | 33 | 19 |
+| functions/tests/projection | 155 | 108 | 6 | 22 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 49 | 14 | 78 | 2 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
@@ -37,10 +37,10 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 179 | 2 | 52 | 33 |
+| tds/tests | 266 | 200 | 2 | 31 | 33 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 68 | 38 | 1 | 9 | 20 |
+| tests/advanced | 68 | 40 | 1 | 7 | 20 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1429** | 74 | 383 | 652 |
+| **total** | 2538 | **1462** | 75 | 349 | 652 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6700,23 +6700,18 @@ in-process Alloy-shaped path).
 
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x unbound variable '$dbRuntime'
-- 9x Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
 - 9x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- 7x Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE... |                                                       ^
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x Binder Error: subqueries in lambda expressions are not supported
 - 5x unbound variable '$modelChainConnection'
 - 5x unknown function 'generateObjectReferences'
-- 5x Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE... |                                                                 ^
 - 5x resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - 5x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
-- 5x Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE... |                                                       ^
 - 5x no overload of 'meta::pure::functions::relation::sort' structurally matches the argument types
 - 4x relation has no column 'name' in scalar read
-- 4x Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t4.value) FROM ( SELECT UNNEST(CASE... |                                                                 ^
 - 4x Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                      ^
 - 4x unbound variable '$jsonConnection'
 - 4x no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes
@@ -6726,8 +6721,13 @@ in-process Alloy-shaped path).
 - 3x unbound variable '$connectionStore'
 - 3x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 3x a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- 3x Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE... |                                                                 ^
 - 3x class query under TypedLambda is not resolvable yet (H2 vocabulary)
+- 3x unknown function 'meta::legend::compileLegendGrammar'
+- 3x unknown enumeration 'ProductSynonymType'
+- 3x a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
+- 3x no overload of 'func' matches 2 argument(s) of these shapes
+- 3x ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
+- 3x in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': relation has no column 'employees'
 
 ### per-test outcomes (non-passing)
 
@@ -6868,6 +6868,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
+- FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testComplexOrExistsToManyProperty [functions/tests]: unknown function 'assert'
@@ -6936,14 +6937,8 @@ in-process Alloy-shaped path).
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: Index 1 out of bounds for length 1
-- ERROR testAssociationToManyColumnProtocol [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t2.value) FROM ( SELECT U
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
-- ERROR testAssociationToMany [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t2.value) FROM ( SELECT U
-- ERROR testAssociationToManyWithQuery [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t3.value) FROM ( SELECT U
-- ERROR testAssociationToManyDeepTwo [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t4.value) FROM ( SELECT U
-- ERROR testAssociationToOne [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t2.value) FROM ( SELECT U
-- ERROR testAssociationToOneWithQuery [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t2.value) FROM ( SELECT U
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - SHAPE testFirstDayOfWeek [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFirstDayOfThisMonth [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -6976,16 +6971,11 @@ in-process Alloy-shaped path).
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: Conversion Error: Could not convert string 'something' to BOOL |  | LINE 3: ... = 'Y' THEN 'true' ELSE 'false' END AS BOOLEAN) IN ('false', 'something') AND CAST(t0.ID AS VARCHAR) = 4 |                                                                         ^
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
-- ERROR testSimpleDerived [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t2.value) FROM ( SELECT U
 - FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
-- ERROR testDerivedWithFiltering [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t3.value) FROM ( SELECT U
-- ERROR testDerivedWithFilteringTwoProperties [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t4.value) FROM ( SELECT U
-- ERROR testQualifierWithFilteringAndParameters [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t3.value) FROM ( SELECT U
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testQualifierBeforeProject [functions/tests/projection]: embedded class hop 'product' in CHAIN position without a scalar consumer is not supported yet
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
-- ERROR testAllTwoSimpleProperties [functions/tests/projection]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t1.value) FROM ( SELECT U
 - ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testJoinToView [functions/tests/projection]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testJoinThroughView [functions/tests/projection]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
@@ -7351,18 +7341,6 @@ in-process Alloy-shaped path).
 - ERROR testGroupByWithWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - ERROR testGroupByWithMultipleWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testDoubleSortAsc1 [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortAsc1Helper [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortAsc1Chain [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortDesc1Helper [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortDesc1Chain [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortAsc2 [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortAsc2Helper [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortAsc2Chain [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortDesc2Helper [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortDesc2Chain [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortMixed [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t2.value) FROM ( SELECT UNNEST(CASE
-- ERROR testDoubleSortMixedChain [tds/tests]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(flatten((SELECT LIST(t3.value) FROM ( SELECT UNNEST(CASE
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
@@ -7374,15 +7352,6 @@ in-process Alloy-shaped path).
 - SHAPE testExtendWithQuotedColumnWithTableToTDS [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testExtendsWithInClause [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
-- ERROR testFilterTwoExpressions [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterTwoExpressions_chain [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterMultipleExpressions1 [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterMultipleExpressions1_chain [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterMultipleExpressions2 [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterBeforeAndFilterAfter [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterBeforeWithOrAndFilterAfter [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testFilterUsingFunction [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
-- ERROR testEvalInFilter [tds/tests]: Binder Error: UNNEST() can only be applied to lists, structs and NULL, not VARCHAR |  | LINE 1: SELECT UNNEST(t1.value) AS value |                ^
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testChainPostFilter [tds/tests]: unknown class 'meta::external::store::model::ModelChainConnection' in ^meta::external::store::model::ModelChainConnection(…)
@@ -7539,8 +7508,6 @@ in-process Alloy-shaped path).
 - SHAPE testRelationalMapperTwoDBs [tests]: no execute(|...) call
 - SHAPE test1 [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE test2 [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR failMoveFilterInOnClauseJoin [tests/advanced]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t4.value) FROM ( SELECT U
-- ERROR failMoveFilterInOnClauseModel [tests/advanced]: Binder Error: No function matches the given name and argument types 'flatten(VARCHAR[])'. You might need to add explicit type casts. | 	Candidate functions: | 	flatten(T[][]) -> T[] |  |  | LINE 1: SELECT coalesce(list_aggregate(list_transform(list_sort(flatten((SELECT LIST(t4.value) FROM ( SELECT U
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
 - SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
@@ -7558,7 +7525,7 @@ in-process Alloy-shaped path).
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
 - SHAPE testQualifierWithIsolationForced [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testQualifierWithIsolationForced2 [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testIfIncludingQualifiers [tests/advanced]: Binder Error: Cannot mix values of type VARCHAR and "NULL"[] in CASE expression - an explicit cast is required |  | LINE 1: SELECT UNNEST(CASE WHEN len(CASE WHEN TRUE THEN t2.LASTNAME ELSE t4.LASTNAME... |                       ^
+- ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::removeDuplicates' in relation position)
 - SHAPE testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMultipleIsolationWithSameProp [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
