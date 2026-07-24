@@ -2599,6 +2599,12 @@ public final class Lowerer {
                 }
                 yield Scalars.lower(n, args);
             }
+            // removeDuplicates/sort over a single-column RELATION read
+            // rewrite to RELATION space (ValueCollectionOps — list-space
+            // rules would re-embed the list subquery in a SQL lambda)
+            case TypedNativeCall n
+                    when ValueCollectionOps.relationSpaceRewrite(n) != null ->
+                    scalar(ValueCollectionOps.relationSpaceRewrite(n), columns);
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the
