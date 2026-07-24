@@ -18,8 +18,8 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 104 | 6 | 26 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 47 | 14 | 80 | 2 |
-| graphFetch/tests/union | 15 | 12 | 1 | 2 | 0 |
+| graphFetch/tests | 143 | 49 | 14 | 78 | 2 |
+| graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1452** | 69 | 366 | 651 |
+| **total** | 2538 | **1455** | 69 | 363 | 651 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7015,7 +7015,6 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].firstName expected Peter, got Anthony | expected [{firstName=Peter, lastName=Firm X, nameWithTitle=Mr Peter Firm X}, {firstName=John, lastName=Firm X, nameWithTitle=Mr John Firm X}, {firstName=John, lastNam..., got [{firstName=Anthony, lastName=Firm X, name
 - ERROR testInnerJoinFilterClassMappingAsTarget [graphFetch/tests]: graph leaf 'lastName' of class 'meta::relational::tests::model::simple::Person' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - ERROR testEmbeddedToRootMapping [graphFetch/tests]: embedded graph child 'firm.employees' is class-typed through a non-ctor binding — not supported yet
-- ERROR testEmbeddedMappingQualifiedPropertyAccess [graphFetch/tests]: derived graph leaf 'nameAndAddress' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testWithAssociationFromRootMappingWithFilter [graphFetch/tests]: property 'bondClassification' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedParent'
 - FAIL testOtherwiseEmbeddedMapping [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].bondDetails.description expected P 1, got Bond 1 | expected [{name=Product 1, bondDetails={description=P 1}}, {name=Product 2, bondDetails={description=P 2}}, {name=Product 3, bondDetails={description=P 3}}], got [{name=Product 1, bondDetails={description=B
 - ERROR testOtherwiseEmbeddedMappingBothOtherwiseAndJoinProperty [graphFetch/tests]: property 'type' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise'
@@ -7031,7 +7030,6 @@ in-process Alloy-shaped path).
 - ERROR testMultiLevelMilestoning [graphFetch/tests]: Binder Error: Referenced table "t1" not found! | Candidate tables: "t0" |  | LINE 1: ...', t1.type))), '[]') AS result FROM ProductTable AS t1 WHERE t1.from_z IS NOT NULL AND t1.from_z <= DATE '2015-10-16... |                                                                         ^
 - ERROR testMilestonedClassAtRootWithQualifierBD [graphFetch/tests]: derived graph leaf 'classificationTypeStr' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testMilestonedClassAtRootWithQualifierNormal [graphFetch/tests]: Binder Error: Table "t0" does not have a column named "from_z" |  | Candidate bindings: : "productId" |  | LINE 3: WHERE t0.from_z IS NOT NULL AND t0.from_z <= DATE '2015-10-16... |               ^
-- ERROR testMilestonedClassAtRootQualifierWithBD [graphFetch/tests]: derived graph leaf 'classificationExchangeName1' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testMilestonedProperty [graphFetch/tests]: no overload of 'meta::pure::executionPlan::executionPlan' matches 4 argument(s) of these shapes
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - ERROR testMultiLevelMilestoning [graphFetch/tests]: serialize tree: class meta::relational::tests::milestoning::Product has no property 'businessDate'
@@ -7082,7 +7080,6 @@ in-process Alloy-shaped path).
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'
 - ERROR RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: unknown function 'meta::legend::compileLegendValueSpecification'
 - ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street): carrier column 'stc_meta__relational__graphFetch__tests__subType__Street___landmarkName' is not on the row (non-union subtype mapping) — not built yet
-- ERROR testMilestoningWithComplexQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: derived graph leaf 'classificationExchangeName1' body node TypedPropertyAccess referencing $this is not inlinable yet
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=S
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
@@ -7187,7 +7184,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: in function 'meta::relational::milestoning::concatenateTemporalTdsQueries': unknown class 'SimpleFunctionExpression' in ^SimpleFunctionExpression(…)
 - ERROR testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: in function 'meta::relational::milestoning::concatenateTemporalTdsQueries': unknown class 'SimpleFunctionExpression' in ^SimpleFunctionExpression(…)
@@ -7607,7 +7604,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -7716,7 +7713,7 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
