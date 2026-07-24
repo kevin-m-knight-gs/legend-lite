@@ -1007,111 +1007,83 @@ final class GraphEmission {
             extraPred = hf.predicate();
             hop = inner;
         }
-        String headProp;
-        List<TypedSpec> hopDates = List.of();
-        boolean hopSweep = false;
-        if (hop instanceof TypedPropertyAccess hpa
-                && hpa.source() instanceof TypedVariable hv
-                && hv.name().equals(thisVar)
-                && hpa.info().type() instanceof Type.ClassType) {
-            headProp = hpa.property();
-        } else if (hop instanceof com.legend.compiler.spec.typed
-                        .TypedMilestonedAccess hma
-                && hma.source() instanceof TypedVariable hv2
-                && hv2.name().equals(thisVar)) {
-            // a DATED head registers its dates as the head's temporal spec
-            // (the same channel query-position property functions use).
-            // Generated-date reads ($this.businessDate from the inlined
-            // qualifier) NORMALIZE against the fetch's root context — the
-            // literal date the local subquery can actually spell (the
-            // cycle-71 nested-cursor rule; a dateless root keeps the raw
-            // read and its honest lowering wall).
-            headProp = hma.property();
-            hopDates = temporal.normalizeContextDates(hma.dates());
-            hopSweep = hma.sweep();
-        } else {
-            return null;
-        }
-        ClassSource target;
-        TypedSpec targetPipeline;
-        Type.RelationType targetRow;
-        TypedLambda cond;
-        TemporalFrame tf = hopDates.isEmpty() && !hopSweep ? temporal
-                : temporal.withSpecs(Map.of(headProp,
-                        new TemporalFrame.TemporalSpec(hopDates, hopSweep)));
-        AssociationJoins.AssocJoin aj = null;
-        try {
-            aj = assocMaterial.associationJoin(tf, cs, headProp,
-                    context, /*forExists*/ true);
-        } catch (RuntimeException notAnAssoc) {
-            aj = null;
-        }
-        if (aj != null) {
-            target = aj.target();
-            targetPipeline = aj.targetPipeline();
-            targetRow = aj.targetRow();
-            cond = aj.condition();
-        } else {
-            // NAVIGATE-SLOT-backed head (join PM): the slot's TypedNavigate
-            // carries the raw target and the predicate — navSlotChild's
-            // route, scalar-shaped
-            TypedSpec bindingRead = cs.bindings().get(headProp);
-            // conform-by-emission wrappers (toOne over the slot read) unwrap
-            while (bindingRead instanceof TypedNativeCall bw
-                    && bw.args().size() == 1
-                    && (bw.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
-                        || bw.callee().qualifiedName().equals(
-                            "meta::pure::functions::collection::first"))) {
-                bindingRead = bw.args().get(0);
-            }
-            TypedNavigate nav = null;
-            if (bindingRead instanceof TypedPropertyAccess bpa
-                    && bpa.source() instanceof TypedVariable bvv
-                    && bvv.name().equals(cs.rowVar())) {
-                nav = Pipelines.outerNavSteps(cs.pipeline()).get(bpa.property());
-            }
-            if (nav == null) {
+        SubqueryEnv env = new SubqueryEnv(cs, context,
+                parentRowVar, parentRowType);
+        HeadRel hr = navHeadRelation(env, hop, thisVar);
+        if (hr == null) {
+            // DEPTH-2+ chain ($this.classification(bd).exchange(d).name):
+            // resolve the INNER chain to its frame, then the remaining
+            // hop+leaf recurse AS a nested correlated subquery projected
+            // over the inner frame's row (the engine chains the joins;
+            // nesting keeps each hop's window on its own alias)
+            TypedSpec innerSrc = switch (hop) {
+                case TypedPropertyAccess hp -> hp.source();
+                case com.legend.compiler.spec.typed.TypedMilestonedAccess hm ->
+                        hm.source();
+                default -> null;
+            };
+            HeadRel ih = innerSrc == null ? null
+                    : navHeadRelation(env, innerSrc, thisVar);
+            if (ih == null) {
                 return null;
             }
-            String key = (context.explicitMapping() == null ? ""
-                    : context.explicitMapping()) + '\u0000'
-                    + (context.runtimeFqn() == null ? ""
-                            : context.runtimeFqn());
-            String rawTarget = ((TypedGetAll) nav.target()).classFqn();
-            target = sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                    t -> dispatch.apply(context, t), key);
-            Pipelines.Materialized cMat = Pipelines.materialize(
-                    target.pipeline(), Set.of(), rawTarget);
-            targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
-                    cMat.pipeline());
-            targetRow = (Type.RelationType) targetPipeline.info().type();
-            cond = nav.pairedPredicate().orElse(nav.predicate());
+            String iVar = ih.target().rowVar();
+            TypedVariable iRow = new TypedVariable(iVar,
+                    new ExprType(ih.targetRow(),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE));
+            TypedSpec rebuiltHop = switch (hop) {
+                case TypedPropertyAccess hp -> new TypedPropertyAccess(
+                        iRow, hp.property(), hp.info());
+                case com.legend.compiler.spec.typed.TypedMilestonedAccess hm ->
+                        new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                                iRow, hm.property(), hm.dates(), hm.sweep(),
+                                hm.info());
+                default -> null;
+            };
+            TypedSpec nested = navLeafSubquery(ih.target(),
+                    new TypedPropertyAccess(rebuiltHop, leaf.property(),
+                            leaf.info()),
+                    iVar, context, iVar, ih.targetRow());
+            if (nested == null) {
+                return null;
+            }
+            var nFn = new Type.FunctionType(
+                    List.of(new Type.Param(ih.targetRow(),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE)),
+                    new Type.Param(leaf.info().type(),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ZERO_ONE));
+            Type.RelationType nCol = new Type.RelationType(List.of(
+                    new Type.Column(leaf.property(), leaf.info().type(),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ZERO_ONE)));
+            TypedSpec nProj = new com.legend.compiler.spec.typed.TypedProject(
+                    ih.rel(),
+                    List.of(new TypedFuncCol(leaf.property(),
+                            new TypedLambda(List.of(iVar), List.of(nested),
+                                    new ExprType(nFn,
+                                            com.legend.compiler.element.type
+                                                    .Multiplicity.Bounded.ONE)))),
+                    new ExprType(nCol,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ZERO_MANY));
+            return new com.legend.compiler.spec.typed.TypedLimit(nProj,
+                    new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                            ExprType.one(Type.Primitive.INTEGER)),
+                    new ExprType(nCol,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ZERO_ONE));
         }
+        ClassSource target = hr.target();
+        Type.RelationType targetRow = hr.targetRow();
         TypedSpec leafBind = target.bindings().get(leaf.property());
         if (leafBind == null
                 || leafBind.info().type() instanceof Type.ClassType) {
             return null;
         }
-        String pVar = cond.parameters().get(0);
-        String tVar = cond.parameters().get(1);
-        List<TypedSpec> corrBody = cond.body().stream().map(cb ->
-                Pipelines.rewriteRowReads(cb, pVar, Map.of(), Set.of(),
-                        v -> new TypedVariable(parentRowVar,
-                                new ExprType(parentRowType,
-                                        com.legend.compiler.element.type
-                                                .Multiplicity.Bounded.ONE))))
-                .toList();
-        var boolFn = new Type.FunctionType(
-                List.of(new Type.Param(targetRow,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                new Type.Param(Type.Primitive.BOOLEAN,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
-                new ExprType(boolFn,
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        TypedSpec rel = new TypedFilter(targetPipeline, corr,
-                targetPipeline.info());
+        TypedSpec rel = hr.rel();
         if (extraPred != null) {
             TypedSpec pb;
             try {
@@ -1122,9 +1094,18 @@ final class GraphEmission {
             } catch (NotImplementedException unsupported) {
                 return null;   // the inline route's louder wall takes over
             }
+            var predFn = new Type.FunctionType(
+                    List.of(new Type.Param(targetRow,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE)),
+                    new Type.Param(Type.Primitive.BOOLEAN,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE));
             rel = new TypedFilter(rel,
                     new TypedLambda(List.of(target.rowVar()),
-                            List.of(pb), corr.info()),
+                            List.of(pb), new ExprType(predFn,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE)),
                     rel.info());
         }
         // project the leaf binding over the TARGET's own row var
@@ -1191,6 +1172,19 @@ final class GraphEmission {
      * an UNHANDLED node still CONTAINING {@code $this} throws loud —
      * never silent (an unreplaced var would only error later at the
      * lowering, far from its cause). */
+    /** toOne/first wrappers drop for SHAPE matching (the value they wrap
+     * is the read). */
+    private static TypedSpec unwrapToOneFirst(TypedSpec v) {
+        while (v instanceof TypedNativeCall w && w.args().size() == 1
+                && (w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first"))) {
+            v = w.args().get(0);
+        }
+        return v;
+    }
+
     private TypedSpec inlineThis(TypedSpec n, String thisVar,
             Map<String, TypedSpec> binds, Map<String, TypedSpec> bindings,
             String classFqn, String prop) {
@@ -1202,6 +1196,32 @@ final class GraphEmission {
             String classFqn, String prop, SubqueryEnv env) {
         if (n instanceof TypedVariable bv && binds.containsKey(bv.name())) {
             return binds.get(bv.name());
+        }
+        // EMBEDDED mid-hop ($this.address.name where 'address' binds to
+        // an embedded ctor): the leaf is the ctor's own sub-binding — a
+        // parent-row read, no join (the engine's embedded per-leaf rule)
+        TypedSpec eSrc = n instanceof TypedPropertyAccess epa0
+                ? unwrapToOneFirst(epa0.source()) : null;
+        if (n instanceof TypedPropertyAccess epa
+                && eSrc instanceof TypedPropertyAccess mid
+                && mid.source() instanceof TypedVariable emv
+                && emv.name().equals(thisVar)) {
+            TypedSpec mb = bindings.get(mid.property());
+            while (mb instanceof TypedNativeCall mw && mw.args().size() == 1
+                    && (mw.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                        || mw.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::first"))) {
+                mb = mw.args().get(0);
+            }
+            if (mb instanceof com.legend.compiler.spec.typed
+                    .TypedNewInstance eni) {
+                TypedSpec lb = eni.properties().get(epa.property());
+                if (lb != null
+                        && !(lb.info().type() instanceof Type.ClassType)) {
+                    return lb;
+                }
+            }
         }
         if (n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
