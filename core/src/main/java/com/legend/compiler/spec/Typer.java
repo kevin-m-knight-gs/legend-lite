@@ -1083,8 +1083,17 @@ final class Typer {
         // The body's MULTIPLICITY must satisfy the declared return too — a many-valued
         // body cannot serve a to-one slot (engine rejects sortBy on a to-many key:
         // {T[1]->U[1]} with a [*] body is a type error, not a silent acceptance).
-        kernel.unifyMult(ftype.result().multiplicity(), body.info().multiplicity(),
-                body.info().type(), b);
+        // EXCEPT a NIL-typed body (println side effects: Nil[0] is the
+        // bottom VALUE and conforms to any return slot — real pure
+        // compiles rows->map(r|println(...)); corpus testWithFilterGroupBy).
+        boolean nilBody = body.info().type()
+                instanceof Type.ClassType nbc
+                && com.legend.compiler.element.type.PlatformTypes.NIL
+                        .equals(nbc.fqn());
+        if (!nilBody) {
+            kernel.unifyMult(ftype.result().multiplicity(), body.info().multiplicity(),
+                    body.info().type(), b);
+        }
 
         ExprType info = new ExprType(
                 new Type.FunctionType(ftype.params(),

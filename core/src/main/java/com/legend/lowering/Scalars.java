@@ -1285,6 +1285,16 @@ final class Scalars {
         // registered by the EXACT collection overload key.
         RULES.put(Pure.DISTINCT_COLLECTION_KEY,
                 (n, args) -> orderedDedup(args.get(0)));
+        // print/println inside an expression (map(r|println(...))): the
+        // NO-OP doctrine (StatementExecutor's print arm) — the value is
+        // the Nil[0] cell, NULL; the argument is pure SQL computation and
+        // drops with it (effectful args cannot type into scalar position)
+        for (String f : Pure.nativeKeysAt("print")) {
+            RULES.put(f, (n, args) -> new SqlExpr.NullLit());
+        }
+        for (String f : Pure.nativeKeysAt("println")) {
+            RULES.put(f, (n, args) -> new SqlExpr.NullLit());
+        }
         // regexp family (real regex/*.pure): DuckDB regexp_* with the
         // RegexpParameter enums translated to RE2 option chars —
         // CASE_SENSITIVE 'c', CASE_INSENSITIVE 'i', MULTILINE 'm',
@@ -1303,19 +1313,19 @@ final class Scalars {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
                     args.get(0),
                     n.args().size() > 2
-                            ? inlineFlags(args.get(1), regexpFlags(n.args().get(2)))
+                            ? RegexpRules.inlineFlags(args.get(1), RegexpRules.regexpFlags(n.args().get(2)))
                             : args.get(1))));
         }
         for (String f : Pure.nativeKeysAt("regexpCount")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LIST_LENGTH,
-                    regexpAll(n, args, 2)));
+                    RegexpRules.regexpAll(n, args, 2)));
         }
         for (String f : Pure.nativeKeysAt("regexpExtract")) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(2) instanceof SqlExpr.BoolLit all)) {
                     throw new IllegalStateException("regexpExtract extractAll must be literal");
                 }
-                SqlExpr allMatches = regexpAll(n, args, 3);
+                SqlExpr allMatches = RegexpRules.regexpAll(n, args, 3);
                 // extract-one stays LIST-shaped ([first] / []) — the String[*]
                 // result contract unnests it
                 return all.value() ? allMatches
@@ -1339,7 +1349,7 @@ final class Scalars {
                     if (args.get(i) instanceof SqlExpr.IntLit g) {
                         group = (int) g.value();
                     } else {
-                        flags = regexpFlags(n.args().get(i));
+                        flags = RegexpRules.regexpFlags(n.args().get(i));
                     }
                 }
                 if (!(args.get(1) instanceof SqlExpr.StringLit pat)) {
@@ -1352,7 +1362,7 @@ final class Scalars {
                 String p = args.get(1) instanceof SqlExpr.StringLit lit ? lit.value() : null;
                 String before = "", from = null;
                 if (group > 0) {
-                    int idx = capturingParen(p, group);
+                    int idx = RegexpRules.capturingParen(p, group);
                     before = p.substring(0, idx);
                     from = p.substring(idx);
                 }
@@ -1362,12 +1372,12 @@ final class Scalars {
                         : cat(new SqlExpr.StringLit("(?s)^((?:.*?))(?:"),
                                 args.get(1), new SqlExpr.StringLit(")"));
                 SqlExpr prefix = new SqlExpr.Call(SqlFn.REGEXP_EXTRACT, List.of(
-                        args.get(0), inlineFlags(prefixPattern, flags),
+                        args.get(0), RegexpRules.inlineFlags(prefixPattern, flags),
                         new SqlExpr.IntLit(1)));
                 // a match where the GROUP did not participate is -1 in real
                 // pure (Matcher.start(group)); regexp_extract yields '' there
                 SqlExpr matched = SqlExpr.Call.of(SqlFn.LIST_GET,
-                        regexpAll(n, args, 2), new SqlExpr.IntLit(1));
+                        RegexpRules.regexpAll(n, args, 2), new SqlExpr.IntLit(1));
                 return new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(
                                 SqlExpr.Call.of(SqlFn.OR,
@@ -1382,8 +1392,8 @@ final class Scalars {
                 if (!(args.get(3) instanceof SqlExpr.BoolLit all)) {
                     throw new IllegalStateException("regexpReplace replaceAll must be literal");
                 }
-                String flags = n.args().size() > 4 ? regexpFlags(n.args().get(4)) : "";
-                SqlExpr pattern = inlineFlags(args.get(1), flags);
+                String flags = n.args().size() > 4 ? RegexpRules.regexpFlags(n.args().get(4)) : "";
+                SqlExpr pattern = RegexpRules.inlineFlags(args.get(1), flags);
                 // 'g' (global) is a true OPTION, not an inline flag
                 return new SqlExpr.Call(SqlFn.REGEXP_REPLACE, List.of(
                         args.get(0), pattern, args.get(2),
@@ -3349,99 +3359,15 @@ final class Scalars {
                 + arg.getClass().getSimpleName());
     }
 
-    /** The enum VALUE of a literal enum argument; loud on anything else. */
-    /**
-     * RegexpParameter enum values (single or list) as RE2 INLINE flag chars —
-     * prepended to the pattern as {@code (?ims)}; DuckDB's option-argument
-     * chars have different semantics, inline flags are the portable spelling.
-     */
-    private static String regexpFlags(TypedSpec arg) {
-        List<TypedSpec> params =
-                arg instanceof TypedCollection c
-                        ? c.elements() : List.of(arg);
-        StringBuilder flags = new StringBuilder();
-        for (var pm : params) {
-            flags.append(switch (enumName(pm)) {
-                case "CASE_SENSITIVE" -> "";   // the default
-                case "CASE_INSENSITIVE" -> "i";
-                case "MULTILINE" -> "m";
-                case "NON_NEWLINE_SENSITIVE" -> "s";
-                default -> throw new IllegalStateException(
-                        "unknown RegexpParameter " + enumName(pm));
-            });
-        }
-        return flags.toString();
-    }
 
-    /** {@code pattern} -> {@code '(?<flags>)' || pattern}; identity when no flags. */
-    private static SqlExpr inlineFlags(SqlExpr pattern, String flags) {
-        if (flags.isEmpty()) {
-            return pattern;
-        }
-        String prefix = "(?" + flags + ")";
-        return pattern instanceof SqlExpr.StringLit lit
-                ? new SqlExpr.StringLit(prefix + lit.value())
-                : SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(prefix), pattern);
-    }
 
-    /**
-     * {@code regexp_extract_all(subject, pattern, group, flags)} for a regexp
-     * call whose OPTIONAL group/params begin at {@code tailStart} in the
-     * lowered args (group defaults 0; flags default '').
-     */
-    private static SqlExpr regexpAll(TypedNativeCall n,
-                                     List<SqlExpr> args, int tailStart) {
-        SqlExpr group = new SqlExpr.IntLit(0);
-        String flags = "";
-        for (int i = tailStart; i < n.args().size(); i++) {
-            if (args.get(i) instanceof SqlExpr.IntLit g) {
-                group = g;
-            } else {
-                flags = regexpFlags(n.args().get(i));
-            }
-        }
-        return new SqlExpr.Call(SqlFn.REGEXP_EXTRACT_ALL, List.of(
-                args.get(0), inlineFlags(args.get(1), flags), group));
-    }
 
-    /** Char index of the {@code k}-th CAPTURING paren in a literal pattern. */
-    private static int capturingParen(String pattern, int k) {
-        int count = 0;
-        boolean inClass = false;
-        for (int i = 0; i < pattern.length(); i++) {
-            char c = pattern.charAt(i);
-            if (c == '\\') {
-                i++;
-                continue;
-            }
-            // a '(' inside a character class ([...]) is a literal, not a group
-            if (c == '[' && !inClass) {
-                inClass = true;
-                continue;
-            }
-            if (c == ']' && inClass) {
-                inClass = false;
-                continue;
-            }
-            if (inClass) {
-                continue;
-            }
-            if (c == '(' && (i + 1 >= pattern.length() || pattern.charAt(i + 1) != '?')) {
-                count++;
-                if (count == k) {
-                    return i;
-                }
-            }
-        }
-        throw new IllegalStateException("pattern '" + pattern
-                + "' has no capturing group " + k);
-    }
 
     /** ISO day numbers of the pure {@code DayOfWeek} enum (Monday=1). */
         /** {@code mostRecentDayOfWeek}/{@code previousDayOfWeek}: the anchored
      * shift per the engine H2 formula. {@code strict} excludes the anchor
      * day itself (previous). */
-        private static String enumName(TypedSpec arg) {
+        static String enumName(TypedSpec arg) {
         if (arg instanceof TypedEnumValue ev) {
             return ev.value();
         }
