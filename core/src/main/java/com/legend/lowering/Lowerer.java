@@ -1165,10 +1165,7 @@ public final class Lowerer {
     private SqlSelect project(SqlSelect src, List<TypedFuncCol> columns,
                               ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
-        SqlSelect out = computedColumns(base, columns, info, false);
-        java.util.List<com.legend.compiler.element.type.ExprType> bodyInfos =
-                columns.stream().map(c -> last(c.fn()).info()).toList();
-        return Fold.explodeManyColumn(out, bodyInfos);
+        return computedColumns(base, columns, info, false);
     }
 
     /**
