@@ -76,7 +76,13 @@ final class NavMaterializer {
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
-        ClassSource t = sources.get(mappingFqn, targetClassFqn);
+        // H5 SET-ID DISPATCH: a route naming a specific set of a
+        // (possibly rootless) multi-set target resolves through the
+        // set-discriminated binding (ClassSources.getForNav).
+        ClassSource t = sources.getForNav(mappingFqn, targetClassFqn,
+                chainPrefix.contains(".")
+                        ? chainPrefix.substring(chainPrefix.lastIndexOf('.') + 1)
+                        : chainPrefix);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
         // (engine: one context object per cursor, explicit dates override

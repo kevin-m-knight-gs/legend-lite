@@ -69,6 +69,11 @@ public interface ModelContext {
      */
     Optional<com.legend.model.MappingDefinition> findMapping(String fqn);
 
+    /** H5 set-ID dispatch hint: the SOLE set id property {@code head}
+     * routes to across the mapping closure — see
+     * {@code ModelBuilder.routedTargetSetOf}. */
+    Optional<String> routedTargetSetOf(String mappingFqn, String head);
+
     /**
      * The association whose end {@code propName} injects onto
      * {@code ownerClassFqn}, and that end itself &mdash; the Phase-H

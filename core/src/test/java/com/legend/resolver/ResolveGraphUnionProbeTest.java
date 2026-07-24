@@ -212,6 +212,57 @@ class ResolveGraphUnionProbeTest {
             Runtime g::RT5 { mappings: [g::M5]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
+    private static final String MODEL_NAMED_SET = ("""
+            Class g::NOrder { oid: Integer[1]; }
+            Class g::NProduct { pname: String[1]; }
+            Association g::NOP { order: g::NOrder[0..1]; product: g::NProduct[0..1]; }
+            Database g::DB7 (
+              Table NOT1 (oid INTEGER PRIMARY KEY)
+              Table NOT2 (oid INTEGER PRIMARY KEY, pfk INTEGER)
+              Table NPT1 (pid INTEGER PRIMARY KEY, pname VARCHAR)
+              Table NPT2 (pid INTEGER PRIMARY KEY, pname VARCHAR)
+              Join N_OP (NOT2.pfk = NPT2.pid)
+            )
+            Mapping g::M7 (
+              *g::NOrder : Operation { %s(no1, no2) }
+              g::NOrder[no1] : Relational { ~mainTable [g::DB7] NOT1
+                oid: NOT1.oid }
+              g::NOrder[no2] : Relational { ~mainTable [g::DB7] NOT2
+                oid: NOT2.oid,
+                product[np2]: [g::DB7] @N_OP }
+              g::NProduct[np1] : Relational { ~mainTable [g::DB7] NPT1
+                pname: NPT1.pname }
+              g::NProduct[np2] : Relational { ~mainTable [g::DB7] NPT2
+                pname: NPT2.pname }
+            )
+            Runtime g::RT7 { mappings: [g::M7]; }
+            """).formatted(UNION_FQN);
+
+    @Test
+    @DisplayName("union member routes to a NAMED SET of a multi-set non-union class")
+    void namedSetRoute() throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE NOT1 (oid INTEGER)");
+            st.execute("CREATE TABLE NOT2 (oid INTEGER, pfk INTEGER)");
+            st.execute("CREATE TABLE NPT1 (pid INTEGER, pname VARCHAR)");
+            st.execute("CREATE TABLE NPT2 (pid INTEGER, pname VARCHAR)");
+            st.execute("INSERT INTO NOT1 VALUES (1)");
+            st.execute("INSERT INTO NOT2 VALUES (2, 20)");
+            // the same key exists in NPT1 — the navigate must read ONLY
+            // the ROUTE-NAMED set's table (np2 -> NPT2)
+            st.execute("INSERT INTO NPT1 VALUES (20, 'WRONG')");
+            st.execute("INSERT INTO NPT2 VALUES (20, 'def2')");
+        }
+        ExecutionResult r = Compiler.execute(MODEL_NAMED_SET,
+                "g::NOrder.all()->filter(o|$o.product.pname == 'def2')"
+                        + "->project([o|$o.oid], ['id'])->from(g::M7, g::RT7)",
+                "g::RT7", conn);
+        System.out.println("[named-set] " + r);
+        assertEquals(true,
+                String.valueOf(r).contains("rows=[Row[values=[2]]]"),
+                String.valueOf(r));
+    }
+
     private static final String MODEL_TEMPORAL = """
             Class g::TOrder { oid: Integer[1]; }
             Class <<temporal.businesstemporal>> g::TProduct { pname: String[1]; }

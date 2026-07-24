@@ -62,6 +62,23 @@ public final class ClassSources {
     private final Map<String, ClassSource> memo = new LinkedHashMap<>();
     private final LinkedHashSet<String> resolving = new LinkedHashSet<>();
 
+    /** The model context (H5 set-ID hint lookups ride it). */
+    ModelContext ctx() {
+        return ctx;
+    }
+
+    /** Navigate-target resolution with the H5 SET-ID DISPATCH hint baked
+     * in: the head's sole routed set (mapping-closure table) selects the
+     * set-discriminated binding when present; class-level serves
+     * otherwise (union targets always fall back — member set ids never
+     * bind class-level). */
+    ClassSource getForNav(String mappingFqn, String classFqn, String head) {
+        return get(mappingFqn, classFqn,
+                ctx.routedTargetSetOf(mappingFqn,
+                        SyntheticHeads.realHead(head)).orElse(null),
+                null, "");
+    }
+
     public ClassSources(ModelContext ctx, SpecCompiler specs) {
         this.ctx = Objects.requireNonNull(ctx, "ctx");
         this.specs = Objects.requireNonNull(specs, "specs");
@@ -95,11 +112,23 @@ public final class ClassSources {
     public ClassSource get(String mappingFqn, String classFqn,
             UnaryOperator<String> upstreamMapping,
             String contextKey) {
+        return get(mappingFqn, classFqn, null, upstreamMapping, contextKey);
+    }
+
+    /** {@code setId} non-null = H5 SET-ID DISPATCH: the navigate's route
+     * names a specific set of a (possibly rootless) multi-set class — that
+     * set's binding realizes the target; absent, the class-level lookup
+     * serves (union targets: member set ids never bind class-level, the
+     * fallback lands on the union). */
+    public ClassSource get(String mappingFqn, String classFqn, String setId,
+            UnaryOperator<String> upstreamMapping,
+            String contextKey) {
         // The context key participates in memoization because an M2M
         // composition resolves its UPSTREAM through the runtime dispatch —
         // the same mapping::class composed under different runtimes reads
         // different stores (audit F1: memo poisoning was silent wrong data).
-        String key = mappingFqn + '\u0000' + classFqn + '\u0000' + contextKey;
+        String key = mappingFqn + '\u0000' + classFqn + '\u0000' + contextKey
+                + (setId == null ? "" : '\u0000' + setId);
         ClassSource cached = memo.get(key);
         if (cached != null) {
             return cached;
@@ -110,7 +139,8 @@ public final class ClassSources {
                     + " (association targets mid-cycle must take the SHALLOW path)");
         }
         try {
-            ClassSource built = build(mappingFqn, classFqn, upstreamMapping, contextKey);
+            ClassSource built = build(mappingFqn, classFqn, setId,
+                    upstreamMapping, contextKey);
             memo.put(key, built);
             return built;
         } finally {
@@ -119,13 +149,18 @@ public final class ClassSources {
     }
 
     private ClassSource build(String mappingFqn, String classFqn,
+            String setId,
             UnaryOperator<String> upstreamMapping,
             String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
                         "unknown mapping '" + mappingFqn + "'", mappingFqn));
-        MappingDefinition.ClassBinding binding = findBinding(mapping, classFqn,
-                new LinkedHashSet<>());
+        MappingDefinition.ClassBinding binding = setId != null
+                ? findBinding(mapping, classFqn, setId, new LinkedHashSet<>())
+                : null;
+        if (binding == null) {
+            binding = findBinding(mapping, classFqn, new LinkedHashSet<>());
+        }
         if (binding == null) {
             throw new MappingResolutionException("class '" + classFqn
                     + "' is not mapped in mapping '" + mappingFqn + "'"
@@ -641,17 +676,39 @@ public final class ClassSources {
     private MappingDefinition.ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        LinkedHashSet<String> visited) {
+        return findBinding(mapping, classFqn, null, visited);
+    }
+
+    /** {@code setId} non-null = H5 SET-ID DISPATCH: a route naming a set
+     * resolves to THAT set's binding, root-ness irrelevant. Null = the
+     * class-level lookup: the ROOT binding wins among a class's set
+     * bindings (engine .all() = root only); a rootless multi-set class
+     * yields no class-level binding (the normalizer's implicit-union
+     * poison explains the 0-binder error). */
+    private MappingDefinition.ClassBinding findBinding(MappingDefinition mapping,
+                                                       String classFqn,
+                                                       String setId,
+                                                       LinkedHashSet<String> visited) {
         List<MappingDefinition.ClassBinding> local = new ArrayList<>();
         for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-            if (cb.classFqn().equals(classFqn)) {
+            if (cb.classFqn().equals(classFqn)
+                    && (setId == null || setId.equals(cb.setId()))) {
                 local.add(cb);
             }
         }
-        if (local.size() > 1) {
-            throw new NotImplementedException("class '" + classFqn
-                    + "' has " + local.size() + " set-id bindings in mapping '"
-                    + mapping.qualifiedName()
-                    + "'; multi-set-ID dispatch is not supported yet (H5)");
+        if (setId == null && local.size() > 1) {
+            List<MappingDefinition.ClassBinding> roots = local.stream()
+                    .filter(MappingDefinition.ClassBinding::root).toList();
+            if (roots.size() == 1) {
+                local = roots;
+            } else if (roots.isEmpty()) {
+                local = List.of();   // rootless multi-set: 0-binder + poison
+            } else {
+                throw new MappingResolutionException("class '" + classFqn
+                        + "' has " + roots.size() + " ROOT set bindings in"
+                        + " mapping '" + mapping.qualifiedName() + "'",
+                        classFqn);
+            }
         }
         if (local.size() == 1) {
             // local shadows included — DELIBERATELY more permissive than
@@ -672,7 +729,7 @@ public final class ClassSources {
             MappingDefinition inner = ctx.findMapping(inc.mappingPath()).orElseThrow(() ->
                     new MappingResolutionException("mapping '" + mapping.qualifiedName()
                             + "' includes unknown mapping '" + inc.mappingPath() + "'"));
-            MappingDefinition.ClassBinding found = findBinding(inner, classFqn, visited);
+            MappingDefinition.ClassBinding found = findBinding(inner, classFqn, setId, visited);
             if (found != null) {
                 included.add(found);
                 sources.add(inc.mappingPath());

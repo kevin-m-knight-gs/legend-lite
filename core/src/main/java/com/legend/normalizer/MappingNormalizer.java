@@ -242,16 +242,12 @@ public final class MappingNormalizer {
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
         md = resolveExtends(md, model);
 
-        // Pre-pass: IMPORT-SCOPE store-ref qualification — [db] under
-        // `import a::b::*` means a::b::db; global unique-simple-name
-        // resolution silently picks a same-named shared store instead
-        // (the graph milestoning-union trio vs the corpus tests::db).
+        // Pre-pass: IMPORT-SCOPE store-ref qualification (see
+        // StoreSubstitutionRewrite.qualifyStoreRefs).
         md = StoreSubstitutionRewrite.qualifyStoreRefs(md, model);
 
-        // Pre-pass: inject MULTI-HOP association ends as class-typed Join PMs
-        // into their owning class mappings (Option A; see
-        // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b). Single-hop ends keep the
-        // §5.6.1 standalone predicate.
+        // Pre-pass: inject MULTI-HOP association ends as class-typed Join
+        // PMs (Option A, docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b).
         md = AssociationSynthesis.injectMultiHopAssociationPMs(md, model);
 
         // A class mapped through MULTIPLE set IDs synthesizes its ROOT set
@@ -273,14 +269,33 @@ public final class MappingNormalizer {
         for (ClassMapping cm : md.classMappings()) {
             if (mappingsPerClass.get(cm.className()) > 1 && !cm.root()) {
                 if (!unionRooted.contains(cm.className())) {
-                    // multi-set class without a UNION root: .all() dispatch
-                    // is undefined — recorded as a poison so the 0-binder
-                    // error explains itself, never silent
+                    // multi-set class without a UNION root: .all() is
+                    // undefined (poisoned); the SET itself still realizes
+                    // (H5) via the set-discriminated binding below.
                     model.mappingPoisons.putIfAbsent(
                             md.qualifiedName() + "::" + cm.className(),
                             "class is mapped through multiple set IDs; .all() over"
                                     + " multi-set mappings (implicit union) is a"
                                     + " roadmap feature");
+                    try {
+                        FunctionDefinition setFn =
+                                synthesizeClassMapping(md, cm, model, true);
+                        lifted.add(setFn);
+                        classBindings.add(new MappingDefinition.ClassBinding(
+                                cm.className(),
+                                cm instanceof ClassMapping.Pure
+                                        ? MappingDefinition.Kind.PURE
+                                        : MappingDefinition.Kind.RELATIONAL,
+                                cm.setId(), cm.extendsSetId(), /*root*/ false,
+                                new Realization.Ref(setFn.qualifiedName()),
+                                declaredPrimaryKeyColumns(cm)));
+                    } catch (NotImplementedException | ModelException e) {
+                        // per-SET fault isolation, same trade as per-class
+                        model.mappingPoisons.putIfAbsent(
+                                md.qualifiedName() + "::" + cm.className()
+                                        + "[" + setIdOf(cm) + "]",
+                                String.valueOf(e.getMessage()));
+                    }
                 }
                 continue;
             }
@@ -411,7 +426,8 @@ public final class MappingNormalizer {
                 classBindings,
                 assocBindings,
                 md.enumerationMappings(),
-                md.testSuitesSource());
+                md.testSuitesSource(),
+                SetDispatch.routedTargetSets(md, model));
     }
 
     // ====================================================================
@@ -845,6 +861,13 @@ public final class MappingNormalizer {
     private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model) {
+        return synthesizeClassMapping(md, cm, model, false);
+    }
+
+    private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
+                                                            ClassMapping cm,
+                                                            ModelBuilder model,
+                                                            boolean setDiscriminated) {
         // prop[setId] routing is classified PER-PM (Join.targetSetId) inside
         // synthTableBackedParts — the name-keyed propertyTargetSets map
         // cannot distinguish same-named duplicates (audit 11: textual PM
@@ -858,7 +881,10 @@ public final class MappingNormalizer {
             case ClassMapping.RelationFunction rf -> synthRelationFunction(md, rf, model);
         };
         return new FunctionDefinition(
-                SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
+                setDiscriminated
+                        ? SynthFqn.mappingClassSet(md.qualifiedName(),
+                                cm.className(), setIdOf(cm))
+                        : SynthFqn.mappingClass(md.qualifiedName(), cm.className()),
                 List.of(), List.of(), List.of(),
                 new TypeExpression.NameRef(cm.className()),
                 Multiplicity.Concrete.ZERO_MANY,

@@ -1469,7 +1469,8 @@ public final class StoreResolver {
                     liftedHead.lastIndexOf('.') + 1);
             if (synthetics.hasPred(predKey)
                     && synthetics.correlatedPred(predKey) == null) {
-                ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+                ClassSource target = sources.getForNav(cs.mappingFqn(),
+                        targetClass, navHeadByAlias.getOrDefault(alias, alias));
                 NavMaterializer.NavMat mat = navMats.get(alias);
                 navMats.put(alias, new NavMaterializer.NavMat(
                         synthetics.applyToPipe(predKey, mat.pipeline(),
@@ -1483,7 +1484,8 @@ public final class StoreResolver {
             var nav = navSteps.get(alias);
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
-            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            ClassSource target = sources.getForNav(cs.mappingFqn(),
+                    targetClass, navHeadByAlias.getOrDefault(alias, alias));
             // SUB-navigation material: for each 3-hop tail, the mid
             // property's minted sub-alias, its materialized prefix, and the
             // SUB-TARGET's binding table (leaves resolve through it —
@@ -2014,7 +2016,8 @@ public final class StoreResolver {
                         || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
                     continue;
                 }
-                ClassSource t = sources.get(cs.mappingFqn(), tg.classFqn());
+                ClassSource t = sources.getForNav(cs.mappingFqn(),
+                        tg.classFqn(), head);
                 Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
                 Set<String> tDemand0 = new LinkedHashSet<>();
                 Set<String> innerLeaves = new LinkedHashSet<>(
@@ -2130,14 +2133,10 @@ public final class StoreResolver {
                                 .Multiplicity.Bounded bb
                                 && Integer.valueOf(1).equals(bb.upper()))
                         .isPresent());
-                // #70 COMPOSITE chain-backed target (the tree family): the
-                // navigate step's condition reads a SIBLING JOINSLOT
-                // sub-row on the parent — unresolvable on the outer
-                // correlation row (parent-level slot demand explodes 1:N,
-                // probed). ENGINE: subselect contains BOTH tables,
-                // correlated OUTWARD by hop-1's condition; the composite
-                // joins the slot table INTO the target pipeline, target
-                // reads land on the composite's prefixed slot columns.
+                // #70 COMPOSITE chain-backed target: a navigate condition
+                // reading a SIBLING JOINSLOT pulls the slot table INTO the
+                // target pipeline, correlated outward by hop-1's condition
+                // (see CorrelatedSubselects.compositeChainTarget).
                 TypedSpec chainPipe = tMat.pipeline();
                 if (corrNav == null && navCond.parameters().size() == 2) {
                     CorrelatedSubselects.CompositeChain cc =

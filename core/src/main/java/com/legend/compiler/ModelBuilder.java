@@ -5,7 +5,11 @@ import com.legend.model.ParsedModel;
 import com.legend.model.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;
+import com.legend.model.AssociationMapping;
+import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassMapping;
+import com.legend.model.MappingInclude;
+import com.legend.model.PropertyMapping;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.DatabaseDefinition.FilterDefinition;
@@ -685,6 +689,73 @@ public final class ModelBuilder {
     /** O(1). Returns {@link ProfileDefinition} for {@code fqn}, if any. */
     public Optional<ProfileDefinition> findProfile(String fqn) {
         return Optional.ofNullable(idGet(profiles, symbols.resolveId(fqn)));
+    }
+
+    /**
+     * H5 SET-ID DISPATCH hint: the SOLE target set id that property
+     * {@code head} routes to across the mapping closure's class-PM routes
+     * and association pair entries — null when unrouted, ambiguous, or the
+     * mapping is unknown. The consumer resolves the navigate TARGET through
+     * the set-discriminated binding when the class-level one is absent
+     * (rootless multi-set classes).
+     */
+    public java.util.Optional<String> routedTargetSetOf(String mappingFqn,
+            String head) {
+        LegacyMappingDefinition md = null;
+        for (LegacyMappingDefinition m : legacyMappings) {
+            if (m != null && m.qualifiedName().equals(mappingFqn)) {
+                md = m;
+                break;
+            }
+        }
+        if (md == null) {
+            return java.util.Optional.empty();
+        }
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<LegacyMappingDefinition> q = new java.util.ArrayDeque<>();
+        q.add(md);
+        while (!q.isEmpty()) {
+            LegacyMappingDefinition m = q.poll();
+            if (!seen.add(m.qualifiedName())) {
+                continue;
+            }
+            for (ClassMapping cm : m.classMappings()) {
+                if (!(cm instanceof ClassMapping.Relational r)) {
+                    continue;
+                }
+                for (PropertyMapping pm : r.propertyMappings()) {
+                    if (pm instanceof PropertyMapping.Join j
+                            && head.equals(j.propertyName())
+                            && j.targetSetId() != null) {
+                        out.add(j.targetSetId());
+                    }
+                }
+            }
+            for (AssociationMapping am : m.associationMappings()) {
+                if (!(am instanceof AssociationMapping.Relational rel)) {
+                    continue;
+                }
+                for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+                    String tgt = apm.body() instanceof PropertyMapping.Join j
+                            && j.targetSetId() != null
+                            ? j.targetSetId() : apm.targetSetId();
+                    if (head.equals(apm.propertyName()) && tgt != null) {
+                        out.add(tgt);
+                    }
+                }
+            }
+            for (MappingInclude inc : m.includes()) {
+                for (LegacyMappingDefinition m2 : legacyMappings) {
+                    if (m2 != null && m2.qualifiedName().equals(inc.mappingPath())) {
+                        q.add(m2);
+                    }
+                }
+            }
+        }
+        return out.size() == 1
+                ? java.util.Optional.of(out.iterator().next())
+                : java.util.Optional.empty();
     }
 
     /** O(1). Returns {@link DatabaseDefinition} for {@code fqn}, if any. */

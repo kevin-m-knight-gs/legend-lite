@@ -65,6 +65,15 @@ public final class SynthFqn {
         return hatFqn(mappingFqn, SynthHat.CLASS, classFqn);
     }
 
+    /** {@code <mapping>$class$<classFqn>$set$<setId>} — the §3 set-ID
+     * discriminator (H5 set-ID dispatch): a NON-ROOT set of a multi-set
+     * class realizes under its own name; the undiscriminated name stays
+     * the root's. Injective: setIds are unique within a mapping. */
+    public static String mappingClassSet(String mappingFqn, String classFqn,
+            String setId) {
+        return hatFqn(mappingFqn, SynthHat.CLASS, classFqn) + "$set$" + setId;
+    }
+
     /**
      * {@code <mapping>$assoc$<associationFqn>} &mdash; a lifted
      * association-mapping predicate function

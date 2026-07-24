@@ -35,8 +35,20 @@ public record MappingDefinition(
         List<ClassBinding> classBindings,
         List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
-        String testSuitesSource)
+        String testSuitesSource,
+        java.util.Map<String, String> routedTargetSets)
         implements PackageableElement {
+
+    /** The common form: no per-property set-dispatch table. */
+    public MappingDefinition(String qualifiedName,
+            List<MappingInclude> includes,
+            List<ClassBinding> classBindings,
+            List<AssociationBinding> associationBindings,
+            List<EnumerationMapping> enumerationMappings,
+            String testSuitesSource) {
+        this(qualifiedName, includes, classBindings, associationBindings,
+                enumerationMappings, testSuitesSource, java.util.Map.of());
+    }
 
     public MappingDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -44,6 +56,8 @@ public record MappingDefinition(
         classBindings = classBindings == null ? List.of() : List.copyOf(classBindings);
         associationBindings = associationBindings == null ? List.of() : List.copyOf(associationBindings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
+        routedTargetSets = routedTargetSets == null
+                ? java.util.Map.of() : java.util.Map.copyOf(routedTargetSets);
     }
 
     /** Class-mapping kind tag. Both kinds realize {@code Class[*]}; the tag is a

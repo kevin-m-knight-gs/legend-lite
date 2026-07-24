@@ -524,10 +524,12 @@ final class GraphEmission {
         boolean toMany = !(prop.multiplicity()
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
+        String setHint = ctx.routedTargetSetOf(cs.mappingFqn(),
+                node.property()).orElse(null);
         ClassSource child = childClass.equals(rawTarget)
                 ? sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                        target -> dispatch.apply(context, target), key)
-                : sources.get(cs.mappingFqn(), childClass,
+                        setHint, target -> dispatch.apply(context, target), key)
+                : sources.get(cs.mappingFqn(), childClass, setHint,
                         target -> dispatch.apply(context, target), key);
         // The slot predicate's right side reads the RAW TARGET's physical
         // columns — the child's composed pipeline must bottom at that same

@@ -1583,6 +1583,16 @@ final class UnionSynthesis {
                     if (rootOrSole) {
                         continue;
                     }
+                    // H5 SET-ID DISPATCH: a route naming a NON-root set of
+                    // a multi-set non-union target is a single-target
+                    // navigation to THAT set — the landing table below is
+                    // already the set's own table, and the resolver's
+                    // routedTargetSetOf hint materializes the set's
+                    // binding (engine inclusive-milestoning union goldens
+                    // join the named set's table directly).
+                    if (set instanceof ClassMapping.Relational) {
+                        continue;
+                    }
                     skipReason = "route '[" + j0.targetSetId() + "]' that is"
                             + " not a member of the target class's union";
                     break;
