@@ -324,16 +324,32 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "execute() whose query argument is not a lambda");
         }
-        if (!(letBound(ec.args().get(1), letPrefix)
-                instanceof com.legend.compiler.spec.typed.TypedPackageableRef mref)) {
-            throw new com.legend.error.NotImplementedException(
-                    "execute() mapping argument must be a mapping reference");
+        TypedSpec mArg = letBound(ec.args().get(1), letPrefix);
+        // the EMPTY-MAPPING SENTINEL ^Mapping(name='') (testFrom.pure:30):
+        // every branch carries its own ->from() — no explicit mapping to
+        // attach; the chain's from() walls stay the honest failure
+        boolean sentinelMapping = mArg
+                instanceof com.legend.compiler.spec.typed.TypedNewInstance sni
+                && "meta::pure::mapping::Mapping".equals(sni.classFqn());
+        com.legend.compiler.spec.typed.TypedPackageableRef mref = null;
+        if (!sentinelMapping) {
+            if (!(mArg instanceof
+                    com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
+                throw new com.legend.error.NotImplementedException(
+                        "execute() mapping argument must be a mapping reference");
+            }
+            mref = mr;
         }
         java.util.List<TypedSpec> qb = new java.util.ArrayList<>(letPrefix);
         qb.addAll(lam.body());
         TypedSpec chain = new com.legend.compiler.spec.UserCallInliner(specs)
                 .inlineBody(qb).get(0);
         if (!containsTypedFrom(chain)) {
+            if (mref == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "execute() with the empty-mapping sentinel requires"
+                        + " ->from() context inside the query");
+            }
             java.util.Optional<com.legend.compiler.spec.typed.TypedPackageableRef>
                     runtime = env.runtimeFqn() == null ? java.util.Optional.empty()
                             : java.util.Optional.of(

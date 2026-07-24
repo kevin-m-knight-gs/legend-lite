@@ -453,6 +453,9 @@ class NativeFunctionTest {
      * pairs — second map, same contract). */
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(
+                    // real m3: name rides PackageableElement (the corpus
+                    // constructs the empty sentinel ^Mapping(name = ''))
+                    "meta::pure::mapping::Mapping", List.of("name"),
                     // core/pure/tds/tds.pure:18-23
                     "meta::pure::tds::TabularDataSet", List.of("columns", "rows"),
                     // tds.pure:25-45

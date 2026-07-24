@@ -888,6 +888,15 @@ public final class InferenceKernel {
 
     /** Type specificity: exact=2, subtype=1, type-var/Any=0, no match=-1. */
     private int paramTypeScore(Type formal, Type actual) {
+        // Function<{...}> vs bare FunctionType: normalize BOTH sides the
+        // way unify() does — the two kernel halves must agree, or scoring
+        // rejects what unification accepts (map-built lambda collections
+        // against a Function<...>[*] param).
+        Type nf = unwrapFunction(formal);
+        Type na = unwrapFunction(actual);
+        if (nf != formal || na != actual) {
+            return paramTypeScore(nf, na);
+        }
         return switch (formal) {
             case Type.ClassType c when c.fqn().equals(ANY_FQN) -> 0;
             case Type.TypeVar ignored -> 0;

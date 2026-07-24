@@ -238,7 +238,10 @@ public final class Pure {
     /** Real relationalRuntimeExtension.pure:15-27 (constraints noDuplicates/knownFeatures not ported). */
     public static final ClassDefinition GENERATION_FEATURES_CONFIG = nativeClass("native Class meta::external::store::relational::runtime::GenerationFeaturesConfig extends meta::external::store::relational::runtime::RelationalQueryGenerationConfig { enabled: meta::pure::metamodel::type::String[*]; disabled: meta::pure::metamodel::type::String[*]; }");
     /** Real platform_dsl_mapping/grammar/mapping.pure:26 (extends PackageableElement, Testable — ModelElement analog). The mapping METACLASS: a mapping reference is a value of this type. */
-    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::ModelElement {}");
+    // name rides PackageableElement in real m3 (grammar/mapping.pure:26 —
+    // Mapping extends PackageableElement); the corpus constructs the
+    // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
+    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
     public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::pure::metamodel::ModelElement {}");
     /** Real core/pure/tds/tds.pure:18-23. */
