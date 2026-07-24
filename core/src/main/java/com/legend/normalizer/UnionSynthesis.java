@@ -899,14 +899,19 @@ final class UnionSynthesis {
             // last mid slot; other threads project a typed NULL of the mid
             // table's column kind (engine 3-sets golden: fk1_1 from a_0)
             ValueSpecification threadPipe = pp.pipeline();
+            // two chained entries may share a mid hop (two lifted props
+            // navigating through the same mid join): ONE slot serves both
+            Set<String> wrapped = new LinkedHashSet<>();
             for (LiftChain ch : chainsByOrdinal.getOrDefault(ordinal,
                     Collections.emptyList())) {
                 for (LiftMidStep st : ch.steps()) {
+                    if (!wrapped.add(st.alias())) {
+                        continue;
+                    }
                     threadPipe = new AppliedFunction("join", List.of(threadPipe,
                             new ColSpec(st.alias(), new LambdaFunction(List.of(),
-                                    List.of(new AppliedFunction("tableReference",
-                                            List.of(new PackageableElementPtr(st.db()),
-                                                    new CString(st.table()))))),
+                                    List.of(ViewRelation.relationExpr(
+                                            st.db(), st.table(), model, md))),
                                     null),
                             st.cond()));
                 }
@@ -998,9 +1003,15 @@ final class UnionSynthesis {
             Map<Integer, List<LiftChain>> chainsByOrdinal, int ordinal,
             MappingNormalizer.RelationalParts pp, LegacyMappingDefinition md,
             ModelBuilder model, List<ColSpec> cols) {
+        // two chains may demand the same suffixed key column (two lifted
+        // props sharing one mid hop): ONE projection serves both
+        Set<String> projected = new LinkedHashSet<>();
         for (var en : chainsByOrdinal.entrySet()) {
             for (LiftChain ch : en.getValue()) {
                 for (var key : ch.keys().entrySet()) {
+                    if (!projected.add(key.getValue())) {
+                        continue;
+                    }
                     ValueSpecification read;
                     if (en.getKey() == ordinal) {
                         read = new AppliedProperty(new AppliedProperty(
@@ -1730,9 +1741,8 @@ final class UnionSynthesis {
                     tgtKeyCols.putIfAbsent(v[0], new String[]{v[0], v[1], v[2]});
                 }
             }
-            ValueSpecification targetRows = new AppliedFunction("tableReference",
-                    List.of(new PackageableElementPtr(landingDb),
-                            new CString(landingTable)));
+            ValueSpecification targetRows = ViewRelation.relationExpr(
+                    landingDb, landingTable, model, md);
             if (!tgtKeyCols.isEmpty()) {
                 List<ColSpec> keySpecs = routedLiftKeySpecs(tgtKeyCols,
                         landingDb, landingTable, md, model);

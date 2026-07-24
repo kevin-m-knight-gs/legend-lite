@@ -273,6 +273,19 @@ final class ViewRelation {
         };
     }
 
+    /** The RELATION expression for a {@code (db, table)} target: a VIEW
+     * frames as its own relation (Leg 4 — a view NEVER emits as a raw
+     * tableReference), a physical table is a tableReference. */
+    static ValueSpecification relationExpr(String db, String table,
+            ModelBuilder model, LegacyMappingDefinition md) {
+        DatabaseDefinition.ViewDefinition v =
+                model.findView(db, table).orElse(null);
+        return v != null ? viewRelationExpr(v, table, db, model, md)
+                : new AppliedFunction("tableReference",
+                        List.of(new PackageableElementPtr(db),
+                                new CString(table)));
+    }
+
     /** The pure kind of {@code col} on {@code table}: a physical column's
      * kind directly, or a VIEW's declared column resolved through its
      * plain ColumnRef expression — recursively, since the referenced
