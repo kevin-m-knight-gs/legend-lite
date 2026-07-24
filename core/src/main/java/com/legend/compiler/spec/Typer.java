@@ -817,6 +817,18 @@ final class Typer {
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] == null) {
                 if (raw.get(i) instanceof LambdaFunction lam) {
+                    if (chosen.parameters().get(i).type()
+                            instanceof Type.TypeVar) {
+                        // self-typable lambda against T: synthesize
+                        // standalone, bind the variable to its type
+                        typed[i] = synth(lam, env);
+                        kernel.unify(chosen.parameters().get(i).type(),
+                                typed[i].info().type(), b);
+                        kernel.unifyMult(chosen.parameters().get(i).multiplicity(),
+                                typed[i].info().multiplicity(),
+                                typed[i].info().type(), b);
+                        continue;
+                    }
                     typed[i] = typeLambda(lam, chosen.parameters().get(i).type(), b, env);
                 } else if (isLambdaCollection(raw.get(i))) {
                     // pure [f] ≡ f in call position — each element types
@@ -914,7 +926,15 @@ final class Typer {
             }
             Type t = c.parameters().get(i).type();
             boolean ok = switch (p) {
-                case LambdaFunction ignored -> isFunctionTyped(t);
+                // A SELF-TYPABLE lambda (zero-arg, or fully annotated)
+                // also matches a bare type-variable param — it synthesizes
+                // standalone and T binds to its function type
+                // (evaluateAndDeactivate<T|m>(var:T[m]) over {|...}).
+                case LambdaFunction lf -> isFunctionTyped(t)
+                        || (t instanceof Type.TypeVar
+                                && (lf.parameters().isEmpty()
+                                        || lf.parameters().stream()
+                                                .allMatch(pv -> pv.type() != null)));
                 case PureCollection ignored -> isFunctionTyped(t);
                 case ColSpec cs -> genericRawIs(t,
                         cs.function2() != null ? Pure.AGG_COL_SPEC : Pure.FUNC_COL_SPEC);

@@ -7,6 +7,7 @@ import com.legend.compiler.element.TypedClass;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 
 import java.util.ArrayDeque;
@@ -87,6 +88,11 @@ public final class InferenceKernel {
                     throw fail(formal, actual);
                 }
             }
+            // TabularDataSet in CLASS-TYPE spelling (resolved through the
+            // corpus module's own m3 class): same schema-erasing nominal.
+            case Type.ClassType c
+                    when c.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
+                    && relationRow(actual) != null -> { }
             case Type.ClassType c -> {
                 // SUBTYPE conformance (a Person flows into an Employee-typed
                 // param's superclass) — matching what overload SCORING already
@@ -114,6 +120,13 @@ public final class InferenceKernel {
                 }
                 unify(g.arguments().get(0), row, b);
             }
+            // TabularDataSet is the SCHEMA-ERASING nominal over the relation
+            // carrier (CastChecker's cast(@TabularDataSet) doctrine): any
+            // relation-shaped actual conforms (a corpus function declared
+            // over TDS receives the platform's typed row-struct).
+            case Type.GenericType g
+                    when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
+                    && relationRow(actual) != null -> { }
             case Type.GenericType g -> {
                 if (!(actual instanceof Type.GenericType ag
                         && ag.rawFqn().equals(g.rawFqn())
@@ -868,6 +881,9 @@ public final class InferenceKernel {
             case Type.Primitive ignored -> primitiveTypeScore(actual, formal);
             case Type.PrecisionDecimal ignored -> primitiveTypeScore(actual, formal);
 
+            case Type.ClassType fc
+                    when fc.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
+                    && relationRow(actual) != null -> 1;
             case Type.ClassType fc -> {
                 if (!(actual instanceof Type.ClassType ac)) {
                     yield -1;
@@ -879,6 +895,11 @@ public final class InferenceKernel {
 
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) ->
                     relationRow(actual) != null ? 1 : -1;
+            // TDS = schema-erasing relation nominal (must agree with the
+            // unify arm; score as a subtype-grade match).
+            case Type.GenericType g
+                    when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
+                    && relationRow(actual) != null -> 1;
             case Type.GenericType g -> {
                 if (!(actual instanceof Type.GenericType ag)
                         || !ag.rawFqn().equals(g.rawFqn())) {
@@ -1055,9 +1076,20 @@ public final class InferenceKernel {
     }
 
     /** {@code Function<{sig}>} unwraps to its bare {@code FunctionType}; everything else passes through. */
+    /** The function-carrier nominals of real pure's m3 hierarchy —
+     * LambdaFunction&lt;T&gt; extends FunctionDefinition&lt;T&gt; extends
+     * Function&lt;T&gt;; each is a wrapper spelling of the bare
+     * FunctionType it carries. */
+    private static final java.util.Set<String> FUNCTION_CARRIER_FQNS =
+            java.util.Set.of(
+                    com.legend.compiler.element.type.PlatformTypes.FUNCTION,
+                    "meta::pure::metamodel::function::FunctionDefinition",
+                    "meta::pure::metamodel::function::LambdaFunction",
+                    "meta::pure::metamodel::function::ConcreteFunctionDefinition");
+
     private static Type unwrapFunction(Type t) {
         if (t instanceof Type.GenericType g
-                && g.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.FUNCTION)
+                && FUNCTION_CARRIER_FQNS.contains(g.rawFqn())
                 && g.arguments().size() == 1
                 && g.arguments().get(0) instanceof Type.FunctionType inner) {
             return inner;

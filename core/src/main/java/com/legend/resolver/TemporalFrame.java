@@ -383,10 +383,37 @@ final class TemporalFrame {
         }
         TypedSpec b = cs.bindings().get(pa.property());
         b = b == null ? null : unwrapToOne(b);
-        return b instanceof TypedPropertyAccess pb
+        if (b instanceof TypedPropertyAccess pb
                 && pb.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable
-                ? pb.property() : null;
+                        com.legend.compiler.spec.typed.TypedVariable) {
+            return pb.property();
+        }
+        // VERSION SWEEP: a GENERATED-date hop arg ($this.businessDate
+        // under allVersions/allVersionsInRange — the root context has no
+        // point date, or normalizeContextDate would have replaced the
+        // read) means each version row's OWN validity start — the
+        // engine's golden joins on parent.from_z (testTemporalRangeQuery:
+        // classificationTypeStr over allVersionsInRange).
+        if ((pa.property().equals("businessDate")
+                        || pa.property().equals("processingDate"))
+                && b == null
+                && root.dateFor(temporalStrategy(cs.classFqn())) == null) {
+            TypedTableReference rt = rootTable(cs.pipeline());
+            var ms = rt == null ? null
+                    : ctx.findTableMilestoning(rt.store(), rt.table())
+                            .orElse(null);
+            if (pa.property().equals("businessDate") && ms != null
+                    && ms.business() != null
+                    && ms.business().snapshotDate() == null) {
+                return ms.business().from();
+            }
+            if (pa.property().equals("processingDate") && ms != null
+                    && ms.processing() != null
+                    && ms.processing().snapshotDate() == null) {
+                return ms.processing().in();
+            }
+        }
+        return null;
     }
 
     /** The chain-spec date's SOURCE-ROW physical column for {@code head},

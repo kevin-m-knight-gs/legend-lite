@@ -259,6 +259,14 @@ public final class Pure {
 
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
+    // The m3 definition hierarchy under it (real pure: LambdaFunction<F>
+    // extends FunctionDefinition<F> extends Function<F>) — corpus code
+    // annotates with these (LambdaFunction<{->TabularDataSet[1]}>), and
+    // the kernel's unwrapFunction treats all carriers as wrapper
+    // spellings of the bare FunctionType.
+    public static final ClassDefinition FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::FunctionDefinition<F> extends meta::pure::metamodel::function::Function<F> {}");
+    public static final ClassDefinition CONCRETE_FUNCTION_DEFINITION = nativeClass("native Class meta::pure::metamodel::function::ConcreteFunctionDefinition<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
+    public static final ClassDefinition LAMBDA_FUNCTION = nativeClass("native Class meta::pure::metamodel::function::LambdaFunction<F> extends meta::pure::metamodel::function::FunctionDefinition<F> {}");
 
     // ---- Metaclass ----
     // Pure exposes the metaclass as `Class<T>` (parameterized over the

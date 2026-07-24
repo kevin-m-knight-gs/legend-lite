@@ -408,7 +408,10 @@ class NativeFunctionTest {
         //     the schema()/table() metamodel navigation pair).
         // 64: +AlloySerializationConfig (graphFetch.pure:89 — serialize's
         //     config carrier; all-false = NOP, flags wall in the resolver).
-        assertEquals(64, Pure.allNativeClasses().size(),
+        // 67: +FunctionDefinition/ConcreteFunctionDefinition/LambdaFunction
+        //     (the m3 function-carrier hierarchy under Function<F> — corpus
+        //     annotations like LambdaFunction<{->TabularDataSet[1]}>).
+        assertEquals(67, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
