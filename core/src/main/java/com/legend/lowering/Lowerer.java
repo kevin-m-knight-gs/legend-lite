@@ -1636,6 +1636,11 @@ public final class Lowerer {
             // (audit blocker: rename->join lost its rename silently).
             leftCarry = leftSel.projections();
             left = leftSel.from();
+            if (System.getenv("LEGEND_LITE_CARRY_TRACE") != null) {
+                System.err.println("[carry] prefix=" + j.prefix().get()
+                        + " carry=" + leftCarry.stream()
+                                .map(SqlSelect.Projection::alias).toList());
+            }
         } else {
             left = asLeftJoinSide(leftSel);
         }

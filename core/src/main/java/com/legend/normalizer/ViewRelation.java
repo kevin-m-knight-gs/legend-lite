@@ -270,6 +270,11 @@ final class ViewRelation {
                     declared.contains(ec.column());
             case PropertyMapping.LocalProperty lp ->
                     pmReadsViewColumns(lp.body(), declared, viewName, model);
+            // an EMBEDDED block whose leaves all read declared view columns
+            // frames too (scope(View)( firm(legalName: firm_name) ) — the
+            // engine keeps the view a subselect and the leaves read its row)
+            case PropertyMapping.Embedded em -> em.propertyMappings().stream()
+                    .allMatch(p -> pmReadsViewColumns(p, declared, viewName, model));
             // a join PM whose FIRST hop departs FROM the view (condition
             // spells <view>.<col>) resolves against the frame row — the
             // frame IS the join's left side (OrderPnl's order:
