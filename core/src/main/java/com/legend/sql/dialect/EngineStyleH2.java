@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * replaceAliasName pass), source/output aliases double-quoted, physical
  * column names bare, parenthesized ON clauses.
  */
-public final class EngineStyleH2 extends AnsiSqlRenderer {
+public class EngineStyleH2 extends AnsiSqlRenderer {
 
     private final Map<String, String> renames = new LinkedHashMap<>();
 

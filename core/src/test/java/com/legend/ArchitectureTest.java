@@ -154,9 +154,15 @@ final class ArchitectureTest {
             .that().resideOutsideOfPackage("com.legend")
             .and().resideOutsideOfPackage("com.legend.harness")
             .and().resideInAPackage("com.legend..")
+            // the engine-style FAMILY (H2 + DB2 golden-text renderers)
+            // may compose internally; the quarantine is against the
+            // execution path, not against sibling dialects
+            .and().doNotBelongToAnyOf(
+                    com.legend.sql.dialect.EngineStyleDB2.class)
             .should().dependOnClassesThat().belongToAnyOf(
-                    com.legend.sql.dialect.EngineStyleH2.class)
-            .as("Invariant 4d: EngineStyleH2 is a golden-text renderer, root"
+                    com.legend.sql.dialect.EngineStyleH2.class,
+                    com.legend.sql.dialect.EngineStyleDB2.class)
+            .as("Invariant 4d: engine-style golden-text renderers are root"
                     + " layer only — audit 19")
             .check(CORE_PROD_CLASSES);
     }

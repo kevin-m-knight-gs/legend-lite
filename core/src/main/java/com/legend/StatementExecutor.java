@@ -213,11 +213,13 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         String db = typedEnumTail(call.args().get(2));
-        if (!"H2".equals(db)) {
-            throw new com.legend.error.NotImplementedException(
+        com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
+            case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
+            case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
+            default -> throw new com.legend.error.NotImplementedException(
                     "toSQLString for DatabaseType." + db
-                    + " — only the H2 engine-style renderer is built");
-        }
+                    + " — only the H2/DB2 engine-style renderers are built");
+        };
         if (!(call.args().get(0)
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
@@ -239,7 +241,7 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent()).lower(body);
         return new ExecutionResult.Scalar(
-                new com.legend.sql.dialect.EngineStyleH2().render(plan),
+                renderer.render(plan),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
