@@ -488,7 +488,15 @@ final class GraphEmission {
                     + " embedded/join-slot/otherwise/M2M binding — only"
                     + " association children are supported yet (H4b/H5c)");
         }
-        AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, cs, node.property(), context, /*forExists*/ true);
+        // the child tree's LEAF property names ride as demanded leaves —
+        // a leaf mapped through the target's own join slots needs them
+        // CONVERTED, not stripped (H4b; same rule as leafSlotDemand)
+        java.util.Set<String> childLeaves = new java.util.LinkedHashSet<>();
+        for (TypedGraphTree c0 : node.children()) {
+            childLeaves.add(c0.property());
+        }
+        AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal,
+                cs, node.property(), context, /*forExists*/ true, childLeaves);
         var assoc = ctx.findAssociationOf(cs.classFqn(), node.property()).orElseThrow();
         var end = assoc.property1().propertyName().equals(node.property())
                 ? assoc.property1() : assoc.property2();
