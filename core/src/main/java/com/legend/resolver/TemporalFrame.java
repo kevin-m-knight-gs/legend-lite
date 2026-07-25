@@ -196,8 +196,14 @@ final class TemporalFrame {
                 // the same window, not a dropped filter
                 TypedSpec dd = unwrapToOne(c.dateFor(dim));
                 if (dd instanceof TypedPropertyAccess dpa
-                        && dpa.source() instanceof
-                                com.legend.compiler.spec.typed.TypedVariable) {
+                        && (dpa.source() instanceof
+                                com.legend.compiler.spec.typed.TypedVariable
+                            // NAV-READ dates (#32) defer identically:
+                            // the composed column lives on the OUTER row
+                            || (unwrapToOne(dpa.source())
+                                        instanceof TypedPropertyAccess dpb
+                                && dpb.source() instanceof com.legend
+                                        .compiler.spec.typed.TypedVariable))) {
                     continue;
                 }
                 out = milestonedPipeByStrategy(out, c.dateFor(dim), dim, label);
@@ -300,13 +306,25 @@ final class TemporalFrame {
     }
 
     /** The property name of an outer-row date read ({@code $o.orderDate},
-     * toOne-wrapped or bare); null for any other shape. */
+     * toOne-wrapped or bare) — or the COMPOSED column candidate of a
+     * NAV-READ date ({@code $o.orderDetails.settlementDate} &rarr;
+     * {@code orderDetails_settlementDate}, #32: the sunk navigate step
+     * exposes it on the head's left row; a wrong candidate dies loud at
+     * the window's column lookup, never silently). Null otherwise. */
     private String outerRead(TypedSpec d) {
         TypedSpec d0 = d == null ? null : unwrapToOne(d);
-        return d0 instanceof TypedPropertyAccess p0
+        if (d0 instanceof TypedPropertyAccess p0
                 && p0.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable
-                ? p0.property() : null;
+                        com.legend.compiler.spec.typed.TypedVariable) {
+            return p0.property();
+        }
+        if (d0 instanceof TypedPropertyAccess p1
+                && unwrapToOne(p1.source()) instanceof TypedPropertyAccess p2
+                && p2.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable) {
+            return p2.property() + "_" + p1.property();
+        }
+        return null;
     }
 
     /** Register the deferred window for one dimension; false when the
@@ -549,6 +567,40 @@ final class TemporalFrame {
         return outerReadColumn(spec.dates().get(0), cs);
     }
 
+    /** Join-walk overload: the NAV-READ date arm probes the JOIN's actual
+     * left row (materialized — the ClassSource row still holds raw
+     * slots), so a date living on an already-joined row resolves to its
+     * composed column and rides the ordinary outer-date calculus. */
+    private String outerColumnDate(TemporalSpec spec, ClassSource cs,
+            Type.RelationType leftRow) {
+        String own = outerColumnDate(spec, cs);
+        if (own != null || spec == null || spec.sweep()
+                || spec.dates().size() != 1) {
+            return own;
+        }
+        TypedSpec d = unwrapToOne(spec.dates().get(0));
+        if (d instanceof TypedPropertyAccess pa2
+                && unwrapToOne(pa2.source()) instanceof TypedPropertyAccess pb2
+                && pb2.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable) {
+            for (String cand : new String[]{
+                    pb2.property() + "_" + pa2.property(),
+                    pb2.property() + "_nav_" + pa2.property()}) {
+                if (leftRow.columns().stream()
+                        .anyMatch(c -> c.name().equalsIgnoreCase(cand))) {
+                    return cand;
+                }
+            }
+            if (System.getenv("LEGEND_LITE_NAVDATE_TRACE") != null) {
+                System.err.println("[navdate] left row lacks composed column "
+                        + pb2.property() + "." + pa2.property() + ": "
+                        + leftRow.columns().stream()
+                                .map(Type.Column::name).toList());
+            }
+        }
+        return null;
+    }
+
     /** [processing, business] dates for a bi-temporal hop: an explicit
      * 2-date spec; else both root-context slots (through a temporal
      * parent); else the engine-generated 1-DATE form (the param is the
@@ -668,6 +720,31 @@ final class TemporalFrame {
      * when the date is not a direct outer-row read. */
     private String outerReadColumn(TypedSpec d, ClassSource cs) {
         d = unwrapToOne(d);
+        // NAV-READ date (#32): $o.<hop1>.<leaf> — the date lives on a
+        // JOINED row; usable when the parent's materialized row already
+        // carries the composed column (the hop1 join was demanded), same
+        // outer-date calculus from there (engine: the frame exposes the
+        // date column and every window reads it)
+        if (d instanceof TypedPropertyAccess pa2
+                && unwrapToOne(pa2.source()) instanceof TypedPropertyAccess pb2
+                && pb2.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable) {
+            for (String cand : new String[]{
+                    pb2.property() + "_" + pa2.property(),
+                    pb2.property() + "_nav_" + pa2.property()}) {
+                if (cs.rowType().columns().stream()
+                        .anyMatch(c -> c.name().equalsIgnoreCase(cand))) {
+                    return cand;
+                }
+            }
+            if (System.getenv("LEGEND_LITE_NAVDATE_TRACE") != null) {
+                System.err.println("[navdate] no composed column for "
+                        + pb2.property() + "." + pa2.property() + " on row: "
+                        + cs.rowType().columns().stream()
+                                .map(Type.Column::name).toList());
+            }
+            return null;
+        }
         if (!(d instanceof TypedPropertyAccess pa)
                 || !(pa.source() instanceof
                         com.legend.compiler.spec.typed.TypedVariable)) {
@@ -1060,6 +1137,15 @@ final class TemporalFrame {
                 System.err.println("[stamp] BYSTRAT OUTER-READ date $"
                         + v0.name() + "." + p0.property() + " cls=" + classFqn);
                 Thread.dumpStack();
+            } else if (d0 instanceof TypedPropertyAccess p0
+                    && unwrapToOne(p0.source())
+                            instanceof TypedPropertyAccess p1
+                    && p1.source() instanceof
+                            com.legend.compiler.spec.typed.TypedVariable v1) {
+                System.err.println("[stamp] BYSTRAT NAV-READ date $"
+                        + v1.name() + "." + p1.property() + "."
+                        + p0.property() + " cls=" + classFqn);
+                Thread.dumpStack();
             }
         }
         // HYBRID union (across-tables milestoning): each member filters by
@@ -1376,7 +1462,8 @@ final class TemporalFrame {
                     // <= root.orderDate and thru_z > root.orderDate));
                     // filtering the target pipe would read the outer var
                     // out of scope (task #32)
-                    String outerCol = outerColumnDate(specs.get(chainHead), cs);
+                    String outerCol = outerColumnDate(specs.get(chainHead), cs,
+                            (Type.RelationType) j.left().info().type());
                     if (outerCol != null) {
                         TypedSpec processedLeft = applyJoinTemporalFilters(
                                 j.left(), cs, navPrefixToClass,

@@ -756,7 +756,7 @@ public final class StoreResolver {
         // ROUTE by the hop's MAPPING: a class-typed Join PM is a NAVIGATE
         // SLOT (pipeline carries its TypedNavigate step); an
         // AssociationMapping end routes via the association predicate.
-        Set<String> heads = downstreamHeads(ops, top);
+        Set<String> heads = FlattenOps.downstreamHeads(ops, top);
         heads.addAll(extraHeads);
         // MULTI-HOP: a hop the PREVIOUS flatten already materialized (its
         // navigate join rides the composed pipeline; provOut carries the
@@ -854,29 +854,6 @@ public final class StoreResolver {
         ClassSource t = sources.get(src.mappingFqn(), pre.targetClassFqn());
         return new ClassSource(src.mappingFqn(), pre.targetClassFqn(),
                 t.setId(), innerized, src.rowVar(), bindings, row);
-    }
-
-    /** Heads read off the RE-ROOTED target class in the chain's lambdas —
-     * the flatten's downstream demand (task #63: the hop target must
-     * materialize WITH the nav/slot steps those heads dispatch through). */
-    private static Set<String> downstreamHeads(List<TypedSpec> ops,
-            TypedSpec top) {
-        Set<String> heads = new LinkedHashSet<>();
-        collectLambdaHeads(ops == null ? List.of() : ops, heads);
-        if (top != null) {
-            collectLambdaHeads(List.of(top), heads);
-        }
-        return heads;
-    }
-
-    private static void collectLambdaHeads(List<TypedSpec> nodes,
-            Set<String> out) {
-        for (TypedSpec n : nodes) {
-            if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
-                collectParamPathHeads(lam, lam.parameters().get(0), out);
-            }
-            collectLambdaHeads(n.children(), out);
-        }
     }
 
     private static Type sourceClassType(TypedSpec chain) {
@@ -1705,9 +1682,11 @@ public final class StoreResolver {
     private RootPipe materializeRoot(ClassSource cs, TypedGetAll g,
             Set<String> demanded, Set<String> demandedNavs,
             Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias,
-            Map<String, Substitution.AssocSub> parentAssocs) {
+            Map<String, Substitution.AssocSub> parentAssocs,
+            Set<String> dateAliases) {
         Set<String> corrComposed = new LinkedHashSet<>();
-        TypedSpec csPipe = augmentNavPredicates(cs.pipeline(), cs,
+        TypedSpec csPipe = augmentNavPredicates(
+                Pipelines.sinkNavSteps(cs.pipeline(), dateAliases), cs,
                 navHeadByAlias, demandedNavs, corrComposed, parentAssocs,
                 navMats);
         // audit 21b F1 backstop: a demanded navigate head carrying a
@@ -2774,10 +2753,21 @@ public final class StoreResolver {
         Set<List<String>> paths = new LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
 
-        temporal = temporal.withSpecs(collectChainSpecs(ops, top, tree));
+        Map<String, TemporalFrame.TemporalSpec> chainSpecs =
+                collectChainSpecs(ops, top, tree);
+        temporal = temporal.withSpecs(chainSpecs);
+
+        // NAV-DATE (#32): a spec date that READS A NAVIGATION off the
+        // parent ($o.product($o.orderDetails.settlementDate)) demands
+        // that chain like any other read; its step SINKS below every
+        // consuming head join (materializeRoot) so the composed date
+        // column sits on the head's LEFT row for the outer-date window.
+        paths = InnerDemand.withNavDatePaths(paths, chainSpecs.values());
 
         NavPlan navPlan = registerNavigations(cs, paths,
                 InnerDemand.occurrenceSplitChains(filterPaths, projectionPaths));
+        Set<String> dateAliases = InnerDemand.navDateAliases(
+                chainSpecs.values(), navPlan.navHeadByAlias());
         Set<String> demanded = navPlan.demanded();
         Set<String> demandedNavs = navPlan.demandedNavs();
         Map<String, Substitution.AssocSub> assocs = navPlan.assocs();
@@ -2797,7 +2787,7 @@ public final class StoreResolver {
         // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
         // Properties: name-only projection must keep BOTH 'IF 2' rows).
         RootPipe rootPipe = materializeRoot(cs, g, demanded, demandedNavs,
-                navMats, navHeadByAlias, assocs);
+                navMats, navHeadByAlias, assocs, dateAliases);
         Pipelines.Materialized m = rootPipe.m();
         final TypedSpec materializedPipe = rootPipe.materializedPipe();
 

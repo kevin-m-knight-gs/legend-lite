@@ -78,6 +78,30 @@ final class FlattenOps {
         return p;
     }
 
+    /** Heads read off the RE-ROOTED target class in the chain's lambdas —
+     * the flatten's downstream demand (task #63: the hop target must
+     * materialize WITH the nav/slot steps those heads dispatch through). */
+    static java.util.Set<String> downstreamHeads(List<TypedSpec> ops,
+            TypedSpec top) {
+        java.util.Set<String> heads = new java.util.LinkedHashSet<>();
+        collectLambdaHeads(ops == null ? List.of() : ops, heads);
+        if (top != null) {
+            collectLambdaHeads(List.of(top), heads);
+        }
+        return heads;
+    }
+
+    private static void collectLambdaHeads(List<TypedSpec> nodes,
+            java.util.Set<String> out) {
+        for (TypedSpec n : nodes) {
+            if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
+                StoreResolver.collectParamPathHeads(lam,
+                        lam.parameters().get(0), out);
+            }
+            collectLambdaHeads(n.children(), out);
+        }
+    }
+
     /** Re-stamp the join carrying {@code prefix} INNER (audit 21b F3 —
      * the flatten's row-set contract). Walks the materialized spine
      * (joins + filters); not finding the join is a loud resolver bug,

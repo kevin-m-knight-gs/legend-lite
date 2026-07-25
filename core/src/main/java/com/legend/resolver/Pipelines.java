@@ -56,6 +56,59 @@ import java.util.regex.Pattern;
  */
 final class Pipelines {
 
+    /** Rotate the given navigate steps to the BOTTOM of the step spine
+     * (just above the base segment): a NAV-READ temporal date's chain
+     * must materialize BELOW every head join whose window reads its
+     * composed column (#32 — the engine's frame exposes the date the
+     * same way). Steps are independent hops off the parent row, so the
+     * rotation is row-neutral. Returns the pipe unchanged when none of
+     * the aliases sit on the spine. */
+    static TypedSpec sinkNavSteps(TypedSpec pipe, java.util.Set<String> aliases) {
+        List<TypedSpec> steps = new ArrayList<>();   // top-first
+        TypedSpec cur = pipe;
+        while (true) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedNavigate nv) {
+                steps.add(cur);
+                cur = nv.source();
+            } else if (cur instanceof
+                    com.legend.compiler.spec.typed.TypedJoinSlot js) {
+                steps.add(cur);
+                cur = js.source();
+            } else {
+                break;
+            }
+        }
+        List<TypedSpec> sunk = steps.stream()
+                .filter(s -> s instanceof
+                                com.legend.compiler.spec.typed.TypedNavigate nv
+                        && nv.alias().map(aliases::contains).orElse(false))
+                .toList();
+        if (sunk.isEmpty() || sunk.size() == steps.size()) {
+            return pipe;
+        }
+        List<TypedSpec> rest = new ArrayList<>(steps);
+        rest.removeAll(sunk);
+        List<TypedSpec> topFirst = new ArrayList<>(rest);
+        topFirst.addAll(sunk);           // sunk steps end up DEEPEST
+        TypedSpec p = cur;
+        for (int i = topFirst.size() - 1; i >= 0; i--) {
+            TypedSpec s = topFirst.get(i);
+            p = s instanceof com.legend.compiler.spec.typed.TypedNavigate nv
+                    ? new com.legend.compiler.spec.typed.TypedNavigate(p,
+                            nv.alias(), nv.target(), nv.predicate(),
+                            nv.form(), nv.info())
+                    : new com.legend.compiler.spec.typed.TypedJoinSlot(p,
+                            ((com.legend.compiler.spec.typed.TypedJoinSlot) s)
+                                    .alias(),
+                            ((com.legend.compiler.spec.typed.TypedJoinSlot) s)
+                                    .target(),
+                            ((com.legend.compiler.spec.typed.TypedJoinSlot) s)
+                                    .condition(),
+                            s.info());
+        }
+        return p;
+    }
+
     /** One {@code toOne()} look-through — the multiplicity coercion is
      * transparent to structure (audit 23: this idiom had ~12 hand copies;
      * new code calls THIS). Returns the argument when {@code n} is

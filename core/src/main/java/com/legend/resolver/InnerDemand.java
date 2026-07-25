@@ -46,6 +46,63 @@ final class InnerDemand {
     private InnerDemand() {
     }
 
+    /** NAV-DATE demand (#32): temporal spec dates that READ A NAVIGATION
+     * off the parent row ({@code $o.orderDetails.settlementDate}) demand
+     * that chain like any other read — the composed date column must
+     * materialize for the outer-date calculus to window against it. */
+    static Set<List<String>> navDatePaths(
+            java.util.Collection<TemporalFrame.TemporalSpec> specs) {
+        Set<List<String>> out = new LinkedHashSet<>();
+        for (TemporalFrame.TemporalSpec sp : specs) {
+            for (TypedSpec dexp : sp.dates()) {
+                List<String> path = new java.util.ArrayList<>();
+                TypedSpec cur = Pipelines.unwrapToOne(dexp);
+                while (cur instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess pa) {
+                    path.add(0, pa.property());
+                    cur = Pipelines.unwrapToOne(pa.source());
+                }
+                if (cur instanceof com.legend.compiler.spec.typed.TypedVariable
+                        && path.size() >= 2) {
+                    out.add(path);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** {@code paths} with the NAV-DATE chains PREPENDED (registration
+     * order matters: the date chain must precede its consuming head). */
+    static Set<List<String>> withNavDatePaths(Set<List<String>> paths,
+            java.util.Collection<TemporalFrame.TemporalSpec> specs) {
+        Set<List<String>> datePaths = navDatePaths(specs);
+        if (datePaths.isEmpty()) {
+            return paths;
+        }
+        Set<List<String>> merged = new LinkedHashSet<>(datePaths);
+        merged.addAll(paths);
+        return merged;
+    }
+
+    /** The nav-step aliases carrying NAV-DATE chains — these steps SINK
+     * below every consuming head join ({@link Pipelines#sinkNavSteps}):
+     * the composed date column must sit on the head's LEFT row. */
+    static Set<String> navDateAliases(
+            java.util.Collection<TemporalFrame.TemporalSpec> specs,
+            java.util.Map<String, String> navHeadByAlias) {
+        Set<String> heads = new LinkedHashSet<>();
+        for (List<String> dp : navDatePaths(specs)) {
+            heads.add(dp.get(0));
+        }
+        Set<String> aliases = new LinkedHashSet<>();
+        for (var e : navHeadByAlias.entrySet()) {
+            if (heads.contains(e.getValue())) {
+                aliases.add(e.getKey());
+            }
+        }
+        return aliases;
+    }
+
     /** The target-property HEADS the head's inner predicates read. */
     static Set<String> leaves(List<TypedSpec> ops, String head) {
         Set<String> out = new LinkedHashSet<>();
