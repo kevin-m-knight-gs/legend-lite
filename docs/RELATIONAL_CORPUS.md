@@ -74,8 +74,8 @@ in-process Alloy-shaped path).
 | tests/query | 83 | 71 | 0 | 9 | 3 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
-| validation/tests | 23 | 1 | 0 | 15 | 7 |
-| **total** | 2538 | **1538** | 69 | 296 | 635 |
+| validation/tests | 23 | 2 | 0 | 14 | 7 |
+| **total** | 2538 | **1539** | 69 | 295 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7342,7 +7342,7 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].timestamp expected 2003-07-19T00:00:00.000000000, got 2003-07-19 00:00:00 | expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tiny
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
 - FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
 - FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
@@ -8025,8 +8025,7 @@ in-process Alloy-shaped path).
 - SHAPE validateMultiplesConstraintWithPostTDSOperation1 [validation/showcase]: no execute(|...) call
 - SHAPE validateAllConstraintsWithPostTDSOperation2 [validation/showcase]: no execute(|...) call
 - ERROR validateAllConstraintsWithInnerJoinInFilter [validation/showcase]: validate(...) argument #3 (AppliedFunction) is not supported yet
-- ERROR validateComplexValidation1 [validation/tests]: duplicate column 'addresses_location_ID' in relation type
-- ERROR validateComplexValidation2 [validation/tests]: duplicate column 'addresses_location_ID' in relation type
+- ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - SHAPE validateComplexValidation3 [validation/tests]: no execute(|...) call
 - ERROR validateComplexValidation4 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR validateComplexValidation5 [validation/tests]: unknown function 'tdsRows'

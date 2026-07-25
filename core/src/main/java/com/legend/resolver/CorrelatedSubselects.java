@@ -1009,6 +1009,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             }
             ClassSource parent = baseAj.target();
             String parentPrefix = baseAj.prefix();
+            Type.RelationType parentRow = baseAj.targetRow();
             String chainKey = p3.get(0);
             for (int hop = 1; hop + 1 < p3.size(); hop++) {
                 String seg = p3.get(hop);
@@ -1017,7 +1018,33 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 if (known != null) {
                     parent = known.target();
                     parentPrefix = known.prefix();
+                    parentRow = known.targetRow();
                     continue;
+                }
+                // W4 ALREADY COMPOSED this hop inside the head's target
+                // pipeline (its materialized row carries '<seg>_*') —
+                // RE-POINT instead of a second join (the chain-pair
+                // re-root rule; a second join collides: 'duplicate column
+                // addresses_location_ID'). The dispatch AssocSub keys the
+                // composed prefix over the SUB class's own bindings.
+                final String segPfx = seg + "_";
+                if (parentRow != null && parentRow.columns().stream()
+                        .anyMatch(c -> c.name().startsWith(segPfx))) {
+                    ClassSource sub = navSubSource(parent, seg);
+                    if (sub != null) {
+                        String composed = parentPrefix + segPfx;
+                        nestedAssocs.put(chainKey, new Substitution.AssocSub(
+                                composed, sub.rowVar(), sub.bindings(),
+                                sub.classFqn(),
+                                Pipelines.slotAliases(sub.pipeline())));
+                        byChain.put(chainKey, new AssociationJoins.AssocJoin(
+                                composed, sub, sub.pipeline(),
+                                sub.rowType(), null, Map.of()));
+                        parent = sub;
+                        parentPrefix = composed;
+                        parentRow = null;   // deeper composition: fold route
+                        continue;
+                    }
                 }
                 AssociationJoins.AssocJoin aj3 = assocMaterial.aggJoinMaterial(
                         temporal, parent, seg, context,
@@ -1066,9 +1093,26 @@ private static boolean referencesVar(TypedSpec n, String var) {
                         Map.of(), aj3.targetSubNavs()));
                 parent = aj3.target();
                 parentPrefix = chainPrefix;
+                parentRow = aj3.targetRow();
             }
         }
         return pipe;
+    }
+
+    /** The SUB class source a navigate-slot property of {@code parent}
+     * targets, or null when the property is not a nav-slot binding. */
+    private ClassSource navSubSource(ClassSource parent, String seg) {
+        TypedSpec b = parent.bindings().get(seg);
+        var navSteps = Pipelines.navSteps(parent.pipeline());
+        String alias = b == null ? null
+                : StoreResolver.navSlotAlias(b, parent.rowVar(),
+                        navSteps.keySet());
+        if (alias == null) {
+            return null;
+        }
+        return navSteps.get(alias).target()
+                instanceof com.legend.compiler.spec.typed.TypedGetAll g
+                ? sources.get(parent.mappingFqn(), g.classFqn()) : null;
     }
 
 record CompositeChain(TypedSpec pipeline,
