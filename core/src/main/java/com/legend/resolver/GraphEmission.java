@@ -333,11 +333,23 @@ final class GraphEmission {
             }
             TypedSpec body = Pipelines.rewriteRowReads(binding, cs.rowVar(),
                     slotPrefixes, stripped, toRow);
+            // the leaf's RESULT type is the MODEL property's for the
+            // DATE family: DateTime -> full instant, StrictDate -> bare,
+            // abstract Date -> by the PHYSICAL value's precision (the
+            // wrap dispatches at runtime; setup DDL can diverge from
+            // the store declaration the binding is typed by)
+            Type resultType = body.info().type();
+            var mprop = ctx.findProperty(cs.classFqn(), node.property())
+                    .orElse(null);
+            if (mprop != null && isDateFamily(mprop.type())
+                    && isDateFamily(resultType)) {
+                resultType = mprop.type();
+            }
             var fnType = new Type.FunctionType(
                     List.of(new Type.Param(rowType,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                     new Type.Param(
-                            body.info().type(), body.info().multiplicity()));
+                            resultType, body.info().multiplicity()));
             leaves.add(new TypedFuncCol(keyOf(node),
                     new TypedLambda(List.of(rowVar), List.of(body),
                             new ExprType(fnType,
@@ -1439,6 +1451,11 @@ final class GraphEmission {
      * the child pipeline's materialization demand (H4b: a leaf mapped
      * through the class's own join slots needs those slots CONVERTED,
      * not stripped; empty demand left them stripped and the leaf walled). */
+    private static boolean isDateFamily(Type t) {
+        return t == Type.Primitive.DATE || t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.STRICT_DATE;
+    }
+
     private static java.util.Set<String> leafSlotDemand(ClassSource child,
             TypedGraphTree node) {
         java.util.Set<String> universe =

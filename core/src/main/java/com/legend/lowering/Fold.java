@@ -277,7 +277,11 @@ final class Fold {
     /** A DATETIME-family serialize leaf renders the engine's ISO wire
      * form ({@code 2015-08-26T00:00:00.000000000} — 'T' separator +
      * 9-digit nanos; DuckDB's raw json timestamp text is
-     * space-separated). NULL propagates (CONCAT would swallow it). */
+     * space-separated). Abstract Date formats by the PHYSICAL value's
+     * precision, the engine's JDBC value-class dispatch (java.sql.Date
+     * -> bare day, Timestamp -> full instant): setup DDL can diverge
+     * from the store declaration, so the dispatch must be runtime
+     * ({@code typeof}). NULL propagates (CONCAT would swallow it). */
     static SqlExpr jsonDateWrap(SqlExpr e,
             com.legend.compiler.element.type.Type t) {
         if (t != com.legend.compiler.element.type.Type.Primitive.DATE_TIME
@@ -288,9 +292,30 @@ final class Fold {
                 SqlExpr.Call.of(SqlFn.STRFTIME, e,
                         new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
                 new SqlExpr.StringLit("000"));
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                new SqlExpr.NullLit())), iso);
+        List<SqlExpr.Case.When> arms = new java.util.ArrayList<>();
+        arms.add(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, e), new SqlExpr.NullLit()));
+        if (t == com.legend.compiler.element.type.Type.Primitive.DATE) {
+            arms.add(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL,
+                            SqlExpr.Call.of(SqlFn.TYPEOF, e),
+                            new SqlExpr.StringLit("DATE")),
+                    SqlExpr.Call.of(SqlFn.STRFTIME, e,
+                            new SqlExpr.StringLit("%Y-%m-%d"))));
+        }
+        return new SqlExpr.Case(arms, iso);
+    }
+
+
+    /** The serialize leaf's DECLARED result type (the lambda's
+     * FunctionType result — the resolver stamps the MODEL property type
+     * there; the body's own info is column-typed). */
+    static com.legend.compiler.element.type.Type leafResultType(
+            com.legend.compiler.spec.typed.TypedFuncCol leaf) {
+        return leaf.fn().info().type()
+                instanceof Type.FunctionType ft
+                ? ft.result().type() : leaf.fn().body().get(leaf.fn().body().size() - 1)
+                        .info().type();
     }
 
 
