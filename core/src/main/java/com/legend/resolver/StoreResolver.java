@@ -2047,38 +2047,10 @@ public final class StoreResolver {
                 // (empty children).
                 TypedLambda corrNav0 = synthetics.correlatedPred(head);
                 Map<String, String> predNavAliases = new LinkedHashMap<>();
-                Set<String> tNavDemand = new LinkedHashSet<>();
-                {
-                    var tNavSteps = Pipelines.navSteps(t.pipeline());
-                    Set<List<String>> predPaths0 = new LinkedHashSet<>();
-                    if (corrNav0 != null) {
-                        for (TypedSpec b : corrNav0.body()) {
-                            consumedPaths(b, corrNav0.parameters().get(0),
-                                    predPaths0);
-                        }
-                    }
-                    // CLOSED parked preds read target navs too (Fork
-                    // family): demand their steps for SubNav dispatch
-                    // (identity dedup keeps join count engine-equal).
-                    for (TypedLambda cp : synthetics.allPreds(head)) {
-                        for (TypedSpec b : cp.body()) {
-                            consumedPaths(b, cp.parameters().get(0),
-                                    predPaths0);
-                        }
-                    }
-                    for (List<String> pp : predPaths0) {
-                        if (pp.size() < 2) {
-                            continue;
-                        }
-                        TypedSpec hb = t.bindings().get(pp.get(0));
-                        String al = hb == null ? null
-                                : navSlotAlias(hb, t.rowVar(), tNavSteps.keySet());
-                        if (al != null) {
-                            tNavDemand.add(al);
-                            predNavAliases.put(pp.get(0), al);
-                        }
-                    }
-                }
+                Set<String> tNavDemand = InnerDemand.navStepDemand(t,
+                        Pipelines.navSteps(t.pipeline()).keySet(), corrNav0,
+                        synthetics.allPreds(head),
+                        InnerDemand.leafChains(ops, head), predNavAliases);
                 Pipelines.Materialized tMat0 = tNavDemand.isEmpty()
                         ? Pipelines.materialize(
                                 t.pipeline(), tDemand0, t.classFqn())
@@ -2158,7 +2130,8 @@ public final class StoreResolver {
                         navNs.row(),
                         t.classFqn(), Pipelines.slotAliases(t.pipeline()),
                         tMat0.slotPrefixes(), navToMany)
-                        .withInnerRegs(navNs.regs()));
+                        .withInnerRegs(navNs.regs())
+                        .withSubNavs(tSubNavs));
                 continue;
             }
             var assocOpt = ctx.findAssociationOf(cs.classFqn(), SyntheticHeads.realHead(head));

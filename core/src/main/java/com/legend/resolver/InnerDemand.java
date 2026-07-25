@@ -108,6 +108,112 @@ final class InnerDemand {
         return out;
     }
 
+    /** Nav-step demand for an ExistsSub target (#69/#70): pred paths
+     * (correlated + closed parked — the Fork family) and CONTINUED leaf
+     * chains all demand the target's OWN class-typed navigate steps; the
+     * materialization joins them and the SubNav dispatch reads through
+     * the prefixes. Fills {@code aliasOut} (prop &rarr; alias), returns
+     * the demanded alias set. Identity dedup keeps join count
+     * engine-equal. */
+    static Set<String> navStepDemand(ClassSource t, Set<String> navStepKeys,
+            TypedLambda corrPred, List<TypedLambda> parkedPreds,
+            Set<List<String>> chains, java.util.Map<String, String> aliasOut) {
+        Set<String> demand = new LinkedHashSet<>();
+        Set<List<String>> paths = new LinkedHashSet<>();
+        if (corrPred != null) {
+            for (TypedSpec b : corrPred.body()) {
+                StoreResolver.consumedPaths(b, corrPred.parameters().get(0),
+                        paths);
+            }
+        }
+        for (TypedLambda cp : parkedPreds) {
+            for (TypedSpec b : cp.body()) {
+                StoreResolver.consumedPaths(b, cp.parameters().get(0), paths);
+            }
+        }
+        for (List<String> pp : paths) {
+            if (pp.size() >= 2) {
+                demandStep(t, navStepKeys, pp.get(0), demand, aliasOut);
+            }
+        }
+        for (List<String> lc : chains) {
+            demandStep(t, navStepKeys, lc.get(0), demand, aliasOut);
+        }
+        return demand;
+    }
+
+    private static void demandStep(ClassSource t, Set<String> navStepKeys,
+            String prop, Set<String> demand,
+            java.util.Map<String, String> aliasOut) {
+        TypedSpec hb = t.bindings().get(prop);
+        String al = hb == null ? null
+                : StoreResolver.navSlotAlias(hb, t.rowVar(), navStepKeys);
+        if (al != null) {
+            demand.add(al);
+            aliasOut.put(prop, al);
+        }
+    }
+
+    /** CONTINUED leaf chains past a value-position filtered navigation:
+     * a read {@code <head>->filter(..)->toOne().p1...pn} yields
+     * {@code [p1..pn]} — the class hops the ExistsSub target must
+     * materialize (nav-step demand) so the scalar leaf projects through
+     * the joined row (the orgByName('X').parent.name family). */
+    static Set<List<String>> leafChains(List<TypedSpec> ops, String head) {
+        Set<List<String>> out = new LinkedHashSet<>();
+        for (TypedSpec op : ops) {
+            scanForChains(op, head, out);
+        }
+        return out;
+    }
+
+    private static void scanForChains(TypedSpec n, String head,
+            Set<List<String>> out) {
+        if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
+            for (TypedSpec b : lam.body()) {
+                collectChains(b, lam.parameters().get(0), head, out);
+            }
+        }
+        for (TypedSpec ch : n.children()) {
+            scanForChains(ch, head, out);
+        }
+    }
+
+    private static void collectChains(TypedSpec n, String userVar,
+            String head, Set<List<String>> out) {
+        if (n instanceof TypedPropertyAccess) {
+            java.util.LinkedList<String> chain = new java.util.LinkedList<>();
+            TypedSpec src = n;
+            while (src instanceof TypedPropertyAccess p) {
+                chain.addFirst(p.property());
+                src = p.source();
+            }
+            while (src instanceof TypedNativeCall w && w.args().size() == 1
+                    && (w.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                        || w.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::first")
+                        || w.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::head"))) {
+                src = w.args().get(0);
+            }
+            boolean sawFilter = false;
+            while (src instanceof TypedFilter tf) {
+                sawFilter = true;
+                src = tf.source();
+            }
+            if (sawFilter && chain.size() >= 2) {
+                List<String> hp = Substitution.pathOf(src, userVar);
+                if (hp != null && hp.size() == 1 && hp.get(0).equals(head)) {
+                    out.add(List.copyOf(chain));
+                }
+            }
+        }
+        for (TypedSpec ch : n.children()) {
+            collectChains(ch, userVar, head, out);
+        }
+    }
+
     /** The inner lambdas (predicates over the head's target rows). */
     static List<TypedLambda> lambdas(List<TypedSpec> ops, List<String> path) {
         List<TypedLambda> found = new ArrayList<>();

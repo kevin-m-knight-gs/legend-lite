@@ -239,7 +239,7 @@ final class Substitution {
                      Set<String> targetSlotAliases,
                      Map<String, String> targetSlotPrefixes, boolean toMany,
                      TypedSpec scalarPipeline, Type.RelationType scalarRow,
-                     Registries innerRegs) {
+                     Registries innerRegs, Map<String, SubNav> subNavs) {
 
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                   String targetRowVar, Map<String, TypedSpec> targetBindings,
@@ -250,7 +250,7 @@ final class Substitution {
             this(targetPipeline, orientedCond, targetRowVar, targetBindings,
                     targetRow, targetClassFqn, targetSlotAliases,
                     targetSlotPrefixes, toMany, scalarPipeline, scalarRow,
-                    Registries.NONE);
+                    Registries.NONE, Map.of());
         }
 
         /** R1 (recursive scope demand): nested predicate scopes carry
@@ -259,7 +259,17 @@ final class Substitution {
             return new ExistsSub(targetPipeline, orientedCond, targetRowVar,
                     targetBindings, targetRow, targetClassFqn,
                     targetSlotAliases, targetSlotPrefixes, toMany,
-                    scalarPipeline, scalarRow, r);
+                    scalarPipeline, scalarRow, r, subNavs);
+        }
+
+        /** Materialized target nav steps by PROPERTY name — the leaf-side
+         * dispatch for continued chains past the filtered head
+         * ({@code orgByName('X').parent.name}, #70). */
+        ExistsSub withSubNavs(Map<String, SubNav> sn) {
+            return new ExistsSub(targetPipeline, orientedCond, targetRowVar,
+                    targetBindings, targetRow, targetClassFqn,
+                    targetSlotAliases, targetSlotPrefixes, toMany,
+                    scalarPipeline, scalarRow, innerRegs, sn);
         }
 
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
@@ -1954,6 +1964,15 @@ final class Substitution {
         TypedSpec src = pa.source();
         boolean firstRow = false;
         boolean unwrapped = true;
+        // CONTINUED CLASS HOPS between the leaf and the filtered head
+        // (orgByName('X').parent.name — #70): peel them; the leaf then
+        // dispatches through the ExistsSub's materialized SubNav.
+        java.util.List<String> hops = new java.util.ArrayList<>();
+        while (src instanceof TypedPropertyAccess hp
+                && hp.info().type() instanceof Type.ClassType) {
+            hops.add(0, hp.property());
+            src = hp.source();
+        }
         // multiplicity wrappers STACK (a qualifier body's own ->first()
         // under the call site's ->toOne(): toOne(first(filter(...)))) —
         // unwrap the whole chain; any first()/head() in it means the
@@ -2070,15 +2089,49 @@ final class Substitution {
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
         rel = new TypedFilter(rel, innerOuter, rel.info());
-        // 3. project the leaf binding
-        TypedSpec leafBinding = ex.targetBindings().get(pa.property());
+        // 3. project the leaf binding. A CONTINUED chain dispatches
+        // through the registered SubNav (the hop's nav step materialized
+        // into the scalar pipeline): the leaf is the HOP TARGET's binding
+        // re-pointed onto the composed prefix (same idiom as
+        // rewriteMultiHop's SubNav walk).
+        SubNav hopNav = null;
+        if (!hops.isEmpty()) {
+            hopNav = ex.subNavs().get(hops.get(0));
+            int h = 1;
+            while (hopNav != null && h < hops.size()) {
+                hopNav = hopNav.children().get(hops.get(h));
+                h++;
+            }
+            if (hopNav == null) {
+                throw new NotImplementedException("filtered-navigation read '"
+                        + String.join(".", hops) + "." + pa.property()
+                        + "' continues through a hop of '"
+                        + ex.targetClassFqn()
+                        + "' whose nav step is not materialized yet");
+            }
+        }
+        TypedSpec leafBinding = (hopNav != null ? hopNav.bindings()
+                : ex.targetBindings()).get(pa.property());
+        if (dbg) {
+            System.err.println("[fnlr] leaf '" + pa.property() + "' hops="
+                    + hops + " type=" + pa.info().type()
+                    + " binding=" + leafBinding
+                    + " slotPrefixes=" + ex.targetSlotPrefixes());
+        }
         if (leafBinding == null) {
             throw new MappingResolutionException("property '" + pa.property()
                     + "' of class '" + ex.targetClassFqn()
+                    + (hops.isEmpty() ? "" : "' via '" + String.join(".", hops))
                     + "' has no binding in mapping '" + target.mappingFqn()
                     + "' (filtered-navigation leaf)", ex.targetClassFqn());
         }
-        if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
+        if (hopNav != null) {
+            final SubNav hn = hopNav;
+            leafBinding = Pipelines.prefixColumns(leafBinding, hn.rowVar(),
+                    hn.prefix(), v -> new TypedVariable(ex.targetRowVar(),
+                            new ExprType(ex.targetRow(),
+                                    Multiplicity.Bounded.ONE)));
+        } else if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
                 ex.targetSlotAliases())) {
             throw new NotImplementedException("filtered-navigation leaf '"
                     + pa.property() + "' reads a join slot of '"
