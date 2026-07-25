@@ -262,40 +262,84 @@ final class TemporalFrame {
             String classFqn, String chain) {
         String strat = temporalStrategy(classFqn);
         if (strat != null && !"bitemporal".equals(strat) && !c.isEmpty()
-                && !c.rangeAppliesTo(strat) && chain != null) {
-            TypedSpec d = c.dateFor(strat);
-            TypedSpec d0 = d == null ? null : unwrapToOne(d);
-            if (d0 instanceof TypedPropertyAccess p0
-                    && p0.source() instanceof
-                            com.legend.compiler.spec.typed.TypedVariable) {
-                var rt0 = rootTable(pipe);
-                var ms0 = rt0 == null ? null
-                        : ctx.findTableMilestoning(rt0.store(), rt0.table())
-                                .orElse(null);
-                String f0 = null;
-                String t0 = null;
-                boolean inc0 = false;
-                if ("businesstemporal".equals(strat) && ms0 != null
-                        && ms0.business() != null
-                        && ms0.business().snapshotDate() == null) {
-                    f0 = ms0.business().from();
-                    t0 = ms0.business().thru();
-                    inc0 = ms0.business().thruIsInclusive();
-                } else if ("processingtemporal".equals(strat) && ms0 != null
-                        && ms0.processing() != null
-                        && ms0.processing().snapshotDate() == null) {
-                    f0 = ms0.processing().in();
-                    t0 = ms0.processing().out();
-                    inc0 = ms0.processing().outIsInclusive();
+                && !c.rangeAppliesTo(strat) && chain != null
+                && outerRead(c.dateFor(strat)) != null
+                && deferWindow(chain, strat, pipe, c.dateFor(strat))) {
+            return pipe;
+        }
+        // BITEMPORAL: per-dimension — the LITERAL dimension stamps
+        // in-pipe, the OUTER-read dimension defers ITS window
+        if ("bitemporal".equals(strat) && !c.isEmpty() && chain != null
+                && c.processing() != null && c.business() != null) {
+            boolean pOuter = outerRead(c.processing()) != null;
+            boolean bOuter = outerRead(c.business()) != null;
+            if (pOuter || bOuter) {
+                TypedSpec out = pipe;
+                if (pOuter) {
+                    if (!deferWindow(chain, "processingtemporal", pipe,
+                            c.processing())) {
+                        return stampForClass(pipe, c, classFqn);
+                    }
+                } else {
+                    out = milestonedPipeByStrategy(out, c.processing(),
+                            "processingtemporal", classFqn);
                 }
-                if (f0 != null && t0 != null) {
-                    deferredOuterSubWindows.put(chain,
-                            new String[]{f0, t0, String.valueOf(inc0)});
-                    return pipe;
+                if (bOuter) {
+                    if (!deferWindow(chain, "businesstemporal", pipe,
+                            c.business())) {
+                        return stampForClass(pipe, c, classFqn);
+                    }
+                } else {
+                    out = milestonedPipeByStrategy(out, c.business(),
+                            "businesstemporal", classFqn);
                 }
+                return out;
             }
         }
         return stampForClass(pipe, c, classFqn);
+    }
+
+    /** The property name of an outer-row date read ({@code $o.orderDate},
+     * toOne-wrapped or bare); null for any other shape. */
+    private String outerRead(TypedSpec d) {
+        TypedSpec d0 = d == null ? null : unwrapToOne(d);
+        return d0 instanceof TypedPropertyAccess p0
+                && p0.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable
+                ? p0.property() : null;
+    }
+
+    /** Register the deferred window for one dimension; false when the
+     * sub table's block is underivable (caller keeps the loud stamp). */
+    private boolean deferWindow(String chain, String strat, TypedSpec pipe,
+            TypedSpec date) {
+        var rt0 = rootTable(pipe);
+        var ms0 = rt0 == null ? null
+                : ctx.findTableMilestoning(rt0.store(), rt0.table())
+                        .orElse(null);
+        String f0 = null;
+        String t0 = null;
+        boolean inc0 = false;
+        if ("businesstemporal".equals(strat) && ms0 != null
+                && ms0.business() != null
+                && ms0.business().snapshotDate() == null) {
+            f0 = ms0.business().from();
+            t0 = ms0.business().thru();
+            inc0 = ms0.business().thruIsInclusive();
+        } else if ("processingtemporal".equals(strat) && ms0 != null
+                && ms0.processing() != null
+                && ms0.processing().snapshotDate() == null) {
+            f0 = ms0.processing().in();
+            t0 = ms0.processing().out();
+            inc0 = ms0.processing().outIsInclusive();
+        }
+        if (f0 == null || t0 == null) {
+            return false;
+        }
+        deferredOuterSubWindows.put(chain + "#" + strat,
+                new String[]{f0, t0, String.valueOf(inc0),
+                        outerRead(date) == null ? "" : outerRead(date)});
+        return true;
     }
 
     /** AND the DEFERRED sub-hop windows for {@code chainHead} onto the
@@ -310,7 +354,14 @@ final class TemporalFrame {
                 continue;
             }
             String subProp = de.getKey().substring(chainHead.length() + 1);
+            // per-dimension entries key '<chain>#<strategy>' (bitemp split)
+            if (subProp.indexOf('#') >= 0) {
+                subProp = subProp.substring(0, subProp.indexOf('#'));
+            }
             String[] w = de.getValue();
+            // the entry's own outer column (a bitemp dimension's date can
+            // differ from the head's) wins over the head's odc
+            String entryOuter = w.length > 3 && !w[3].isEmpty() ? w[3] : outerCol;
             Type.RelationType rRow = (Type.RelationType) right.info().type();
             String pfx = null;
             for (String cand : new String[]{subProp + "_", subProp + "_nav_"}) {
@@ -329,7 +380,7 @@ final class TemporalFrame {
                         + " compose (would fan versions silently)");
             }
             cond = outerDatedWindowCond(cond, left, right, pfx + w[0],
-                    pfx + w[1], Boolean.parseBoolean(w[2]), outerCol,
+                    pfx + w[1], Boolean.parseBoolean(w[2]), entryOuter,
                     navClass);
         }
         return cond;
