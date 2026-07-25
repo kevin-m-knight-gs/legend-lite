@@ -579,8 +579,14 @@ final class GraphEmission {
                         + "' — cross-source children are not supported yet");
             }
         }
+        // demand CLOSES over join-condition prerequisites: a chained
+        // composite slot (A__B) rides its base slot (A) — stripping the
+        // base breaks the composite (same rule as the flatten route)
         Pipelines.Materialized cMat = Pipelines.materialize(
-                child.pipeline(), leafSlotDemand(child, node), childClass);
+                child.pipeline(),
+                Pipelines.closeOverConditions(child.pipeline(),
+                        leafSlotDemand(child, node)),
+                childClass);
         // MILESTONED child: the tree node's date arg registered as the
         // hop's temporal spec (collectTreeSweeps) — the child pipeline
         // filters by its window here, exactly like the relational
