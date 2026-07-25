@@ -506,7 +506,10 @@ public final class Runner {
                                 || simple.equals("toSQLString")
                                 // validate(func, MAPPING, runtime, ...) —
                                 // #45: desugars to execute at TestBody
-                                || simple.equals("validate"))
+                                || simple.equals("validate")
+                                // scanColumns(tree, MAPPING) — #44: the
+                                // lineage form routes at TestBody
+                                || simple.equals("scanColumns"))
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;

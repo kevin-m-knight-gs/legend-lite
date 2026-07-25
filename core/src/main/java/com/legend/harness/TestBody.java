@@ -242,24 +242,11 @@ public final class TestBody {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.List<String> seedFailures)
             throws java.sql.SQLException {
-        // validate(...) desugars to the engine's own synthesized query
-        // over the ORDINARY execute path (#45) — before routing, so the
-        // exec-frame machinery sees the execute binding. A body where the
-        // desugar fired runs with the engine's addDriverTablePkForProject
-        // execution option (set FRESH every run — true or false).
-        {
-            java.util.List<ValueSpecification> desugared =
-                    new ArrayList<>(statements.size());
-            boolean fired = false;
-            for (ValueSpecification s : statements) {
-                ValueSpecification r = com.legend.validation.ValidateDesugar
-                        .rewrite(s, ctx, imports.wildcards());
-                desugared.add(r);
-                fired |= r != s;
-            }
-            statements = desugared;
-            com.legend.validation.DriverPkOption.set(fired);
+        Preamble pre = preamble(ctx, statements, imports, runtimeFqn);
+        if (pre.lineage() != null) {
+            return pre.lineage();
         }
+        statements = pre.statements();
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(statements);
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
@@ -483,6 +470,34 @@ public final class TestBody {
                     + stmt.getClass().getSimpleName());
         }
         return new Outcome.Ran(verified, advisory, executed, List.of());
+    }
+
+    private record Preamble(java.util.List<ValueSpecification> statements,
+            Outcome lineage) {
+    }
+
+    /** FEATURE-TRACK preprocessing before statement routing:
+     * validate(...) desugars to the engine's own synthesized query over
+     * the ORDINARY execute path (#45 — before routing, so the exec-frame
+     * machinery sees the execute binding; a fired desugar runs the body
+     * with the addDriverTablePkForProject option, set FRESH every run),
+     * and the canonical scanColumns lineage form (#44) routes whole to
+     * the real analyzer (see LineageForm's why-not-K-natives note). */
+    private static Preamble preamble(ModelContext ctx,
+            java.util.List<ValueSpecification> statements,
+            ImportScope imports, String runtimeFqn) {
+        java.util.List<ValueSpecification> desugared =
+                new ArrayList<>(statements.size());
+        boolean fired = false;
+        for (ValueSpecification s : statements) {
+            ValueSpecification r = com.legend.validation.ValidateDesugar
+                    .rewrite(s, ctx, imports.wildcards());
+            desugared.add(r);
+            fired |= r != s;
+        }
+        com.legend.validation.DriverPkOption.set(fired);
+        return new Preamble(desugared,
+                LineageForm.tryRun(ctx, desugared, imports, runtimeFqn));
     }
 
     /** Fold {@code if(<literal>, |a, |b)} (zero-param thunks, one body
