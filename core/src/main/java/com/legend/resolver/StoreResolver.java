@@ -715,7 +715,7 @@ public final class StoreResolver {
         // reader null-skip. materialize emits the navigate join LEFT;
         // unchanged it serialized a phantom all-null object (->size()
         // counted it). Re-stamp the hop's join INNER, like the assoc arm.
-        TypedSpec innerized = innerizeFlattenJoin(m.pipeline(), prefix);
+        TypedSpec innerized = FlattenOps.innerizeFlattenJoin(m.pipeline(), prefix);
         m = new Pipelines.Materialized(innerized, m.slotPrefixes(),
                 m.stripped());
         Type.RelationType row =
@@ -732,72 +732,11 @@ public final class StoreResolver {
                 b = Pipelines.rewriteRowReads(b, t.rowVar(), innerSlotOnly,
                         Set.of(), java.util.function.UnaryOperator.identity());
             }
-            bindings.put(e.getKey(), prefixBinding(b,
+            bindings.put(e.getKey(), FlattenOps.prefixBinding(b,
                     t.rowVar(), prefix, src.rowVar(), rowInfo));
         }
         return new ClassSource(src.mappingFqn(), targetClass, t.setId(),
                 m.pipeline(), src.rowVar(), bindings, row);
-    }
-
-    /** Re-stamp the join carrying {@code prefix} INNER (audit 21b F3 —
-     * the flatten's row-set contract). Walks the materialized spine
-     * (joins + filters); not finding the join is a loud resolver bug,
-     * never a silent LEFT. */
-    private static TypedSpec innerizeFlattenJoin(TypedSpec pipe, String prefix) {
-        TypedSpec out = innerizeOrNull(pipe, prefix);
-        if (out == null) {
-            throw new IllegalStateException("resolver bug: flatten inner-stamp"
-                    + " did not find the navigate join '" + prefix
-                    + "' in the materialized pipeline");
-        }
-        return out;
-    }
-
-    /** {@code pipe} with the prefix-matching join INNER, or null if the
-     * spine holds no such join. */
-    private static TypedSpec innerizeOrNull(TypedSpec pipe, String prefix) {
-        if (pipe instanceof TypedJoin j) {
-            if (j.prefix().isPresent() && j.prefix().get().equals(prefix)) {
-                return new TypedJoin(j.left(), j.right(), innerKind(),
-                        j.condition(), j.prefix(), j.info());
-            }
-            TypedSpec left = innerizeOrNull(j.left(), prefix);
-            return left == null ? null
-                    : new TypedJoin(left, j.right(), j.kind(), j.condition(),
-                            j.prefix(), j.info());
-        }
-        if (pipe instanceof TypedFilter f) {
-            TypedSpec src = innerizeOrNull(f.source(), prefix);
-            return src == null ? null
-                    : new TypedFilter(src, f.predicate(), f.info());
-        }
-        return null;
-    }
-
-    /** One re-pointed binding for the flatten's composed source: scalar
-     * bindings ride {@link Pipelines#prefixColumns}; an EMBEDDED binding
-     * (TypedNewInstance ctor over parent-alias columns) re-points each
-     * inner property expression, keeping the ctor. */
-    private static TypedSpec prefixBinding(TypedSpec b, String targetRowVar,
-            String prefix, String newRowVar, ExprType rowInfo) {
-        TypedSpec inner = b;
-        if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
-                && c.args().get(0) instanceof TypedNewInstance) {
-            inner = c.args().get(0);
-        }
-        if (inner instanceof TypedNewInstance ctor) {
-            Map<String, TypedSpec> props = new LinkedHashMap<>();
-            for (var pe : ctor.properties().entrySet()) {
-                props.put(pe.getKey(), prefixBinding(pe.getValue(),
-                        targetRowVar, prefix, newRowVar, rowInfo));
-            }
-            return new TypedNewInstance(ctor.classFqn(), props, ctor.info());
-        }
-        return Pipelines.prefixColumns(b, targetRowVar, prefix,
-                v -> new com.legend.compiler.spec.typed.TypedVariable(
-                        newRowVar, rowInfo));
     }
 
     /**
@@ -811,22 +750,31 @@ public final class StoreResolver {
      */
     private ClassSource flattenSource(ClassSource src, String hop,
             Context context, List<TypedSpec> ops, TypedSpec top,
+            Set<String> extraHeads,
             Map<String, Substitution.AssocSub> provOut,
             List<TypedSpec> belowOps) {
         // ROUTE by the hop's MAPPING: a class-typed Join PM is a NAVIGATE
         // SLOT (pipeline carries its TypedNavigate step); an
         // AssociationMapping end routes via the association predicate.
+        Set<String> heads = downstreamHeads(ops, top);
+        heads.addAll(extraHeads);
+        // MULTI-HOP: a hop the PREVIOUS flatten already materialized (its
+        // navigate join rides the composed pipeline; provOut carries the
+        // dispatch route) re-roots onto the joined columns — no second join.
+        Substitution.AssocSub pre = provOut.remove(hop);
+        if (pre != null) {
+            return flattenMaterializedNav(src, pre, belowOps);
+        }
         TypedSpec hopBinding = src.bindings().get(hop);
         var navSteps = Pipelines.navSteps(src.pipeline());
         String alias = hopBinding == null ? null
                 : navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
             return flattenNavSlot(src, alias, navSteps.get(alias),
-                    downstreamHeads(ops, top), provOut, belowOps);
+                    heads, provOut, belowOps);
         }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
-                temporal, src, hop, context, false,
-                downstreamHeads(ops, top));
+                temporal, src, hop, context, false, heads);
         Pipelines.Materialized m = Pipelines.materialize(
                 src.pipeline(), java.util.Set.of(), src.classFqn());
         String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
@@ -860,11 +808,52 @@ public final class StoreResolver {
                         aj.targetSlotPrefixes(), Set.of(),
                         java.util.function.UnaryOperator.identity());
             }
-            bindings.put(e.getKey(), prefixBinding(b,
+            bindings.put(e.getKey(), FlattenOps.prefixBinding(b,
                     aj.target().rowVar(), aj.prefix(), src.rowVar(), rowInfo));
         }
         return new ClassSource(src.mappingFqn(), aj.target().classFqn(),
                 aj.target().setId(), joined, src.rowVar(), bindings, row);
+    }
+
+    /** MULTI-HOP flatten re-root (#63 testChainedFiltersGet): the hop's
+     * target columns already ride the composed pipeline under the
+     * provenance AssocSub's prefix — splice the segment below, stamp the
+     * hop's join INNER (flatten row-set contract), re-point the target's
+     * bindings through the composed prefix. */
+    private ClassSource flattenMaterializedNav(ClassSource src,
+            Substitution.AssocSub pre, List<TypedSpec> belowOps) {
+        TypedSpec spliced = src.pipeline();
+        if (!belowOps.isEmpty()) {
+            Pipelines.Materialized m0 = Pipelines.materialize(
+                    src.pipeline(), java.util.Set.of(), src.classFqn());
+            String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
+                    src.pipeline(), List.of(), List.of(), Map.of(),
+                    () -> freshVarCounter++);
+            spliced = FlattenOps.spliceBelow(src.pipeline(), belowOps,
+                    fn -> substitution(src, m0, Map.of(), Set.of(), Map.of(),
+                            Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
+        }
+        TypedSpec innerized = FlattenOps.innerizeFlattenJoin(spliced,
+                pre.prefix());
+        Type.RelationType row =
+                (Type.RelationType) innerized.info().type();
+        ExprType rowInfo = new ExprType(row,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
+        for (var e : pre.targetBindings().entrySet()) {
+            TypedSpec b = e.getValue();
+            if (!pre.targetSlotPrefixes().isEmpty()
+                    && !(Pipelines.unwrapToOne(b) instanceof TypedNewInstance)) {
+                b = Pipelines.rewriteRowReads(b, pre.targetRowVar(),
+                        pre.targetSlotPrefixes(), Set.of(),
+                        java.util.function.UnaryOperator.identity());
+            }
+            bindings.put(e.getKey(), FlattenOps.prefixBinding(b,
+                    pre.targetRowVar(), pre.prefix(), src.rowVar(), rowInfo));
+        }
+        ClassSource t = sources.get(src.mappingFqn(), pre.targetClassFqn());
+        return new ClassSource(src.mappingFqn(), pre.targetClassFqn(),
+                t.setId(), innerized, src.rowVar(), bindings, row);
     }
 
     /** Heads read off the RE-ROOTED target class in the chain's lambdas —
@@ -2496,8 +2485,10 @@ public final class StoreResolver {
         }
         // 1. Collect the below-boundary op chain (top-down) to the getAll.
         List<TypedSpec> ops = new ArrayList<>();
-        List<TypedSpec> belowOps = new ArrayList<>();
-        String flattenHop = null;
+        // flatten hops TOPMOST-FIRST; flatSegs.get(i) = ops BELOW hop i
+        // (between hop i and the next-deeper hop, or down to the getAll)
+        List<String> flattenHops = new ArrayList<>();
+        List<List<TypedSpec>> flatSegs = new ArrayList<>();
         while (!(cur instanceof TypedGetAll)) {
             // Normalize collection natives with relation shapes BEFORE
             // collecting: first()/head() IS limit 1; class-space
@@ -2568,25 +2559,19 @@ public final class StoreResolver {
             if (cur instanceof TypedPropertyAccess hp
                     && hp.info().type() instanceof Type.ClassType
                     && hp.source().info().type() instanceof Type.ClassType oc) {
-                if (ctx.findAssociationOf(oc.fqn(), hp.property()).isEmpty()) {
-                    throw new NotImplementedException("embedded class hop '"
-                            + hp.property() + "' in CHAIN position without a"
-                            + " scalar consumer is not supported yet");
-                }
-                if (flattenHop != null) {
-                    throw new NotImplementedException("multi-hop class flatten ('"
-                            + hp.property() + "." + flattenHop
-                            + "') is not supported yet");
-                }
-                flattenHop = hp.property();
+                // ASSOCIATION hops and NAVIGATE-SLOT-mapped class properties
+                // both flatten (flattenSource routes by the hop's mapping);
+                // a genuinely EMBEDDED hop falls to the association route's
+                // own loud wall downstream (#63: testChainedFiltersGet's
+                // 'locations' is a plain Join-PM class property, not an
+                // association — the old guard rejected it here).
+                flattenHops.add(hp.property());
+                flatSegs.add(new ArrayList<>());
                 cur = hp.source();
                 continue;
             }
-            if (flattenHop != null) {
-                belowOps.add(cur);
-            } else {
-                ops.add(cur);
-            }
+            (flattenHops.isEmpty() ? ops
+                    : flatSegs.get(flattenHops.size() - 1)).add(cur);
             cur = switch (cur) {
                 case TypedFilter f -> f.source();
                 case TypedLimit l -> l.source();
@@ -2635,9 +2620,16 @@ public final class StoreResolver {
                         + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn()));
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
-        if (flattenHop != null) {
-            cs = flattenSource(cs, flattenHop, fctx, ops, top, flattenAssocs,
-                    belowOps);
+        // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
+        // accumulated source after applying the segment below it; the hop
+        // ABOVE reads off the re-rooted class, so its name joins the demand
+        // heads (the target must materialize with that nav/slot step).
+        for (int i = flattenHops.size() - 1; i >= 0; i--) {
+            cs = flattenSource(cs, flattenHops.get(i), fctx,
+                    i == 0 ? ops : flatSegs.get(i - 1),
+                    i == 0 ? top : null,
+                    i == 0 ? Set.<String>of() : Set.of(flattenHops.get(i - 1)),
+                    flattenAssocs, flatSegs.get(i));
         }
         return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
                 flattenAssocs);

@@ -77,4 +77,87 @@ final class FlattenOps {
         }
         return p;
     }
+
+    /** Re-stamp the join carrying {@code prefix} INNER (audit 21b F3 —
+     * the flatten's row-set contract). Walks the materialized spine
+     * (joins + filters); not finding the join is a loud resolver bug,
+     * never a silent LEFT. */
+    static TypedSpec innerizeFlattenJoin(TypedSpec pipe, String prefix) {
+        TypedSpec out = innerizeOrNull(pipe, prefix, "");
+        if (out == null) {
+            throw new IllegalStateException("resolver bug: flatten inner-stamp"
+                    + " did not find the navigate join '" + prefix
+                    + "' in the materialized pipeline");
+        }
+        return out;
+    }
+
+    /** {@code pipe} with the join whose COMPOSED prefix (outer join
+     * prefixes concatenated down the right spine) matches {@code prefix}
+     * stamped INNER, or null when absent. The composed walk serves the
+     * multi-hop flatten: an inner hop's navigate join nests inside the
+     * previous hop's join-right with only its local prefix. */
+    private static TypedSpec innerizeOrNull(TypedSpec pipe, String prefix,
+            String acc) {
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedJoin j) {
+            String composed = j.prefix().map(p -> acc + p).orElse(null);
+            if (composed != null && composed.equals(prefix)) {
+                return new com.legend.compiler.spec.typed.TypedJoin(
+                        j.left(), j.right(), StoreResolver.innerKind(),
+                        j.condition(), j.prefix(), j.info());
+            }
+            TypedSpec left = innerizeOrNull(j.left(), prefix, acc);
+            if (left != null) {
+                return new com.legend.compiler.spec.typed.TypedJoin(
+                        left, j.right(), j.kind(), j.condition(),
+                        j.prefix(), j.info());
+            }
+            if (composed != null && prefix.startsWith(composed)) {
+                TypedSpec right = innerizeOrNull(j.right(), prefix, composed);
+                if (right != null) {
+                    return new com.legend.compiler.spec.typed.TypedJoin(
+                            j.left(), right, j.kind(), j.condition(),
+                            j.prefix(), j.info());
+                }
+            }
+            return null;
+        }
+        if (pipe instanceof TypedFilter f) {
+            TypedSpec src = innerizeOrNull(f.source(), prefix, acc);
+            return src == null ? null
+                    : new TypedFilter(src, f.predicate(), f.info());
+        }
+        return null;
+    }
+
+    /** One re-pointed binding for the flatten's composed source: scalar
+     * bindings ride {@link Pipelines#prefixColumns}; an EMBEDDED binding
+     * (TypedNewInstance ctor over parent-alias columns) re-points each
+     * inner property expression, keeping the ctor. */
+    static TypedSpec prefixBinding(TypedSpec b, String targetRowVar,
+            String prefix, String newRowVar,
+            com.legend.compiler.element.type.ExprType rowInfo) {
+        TypedSpec inner = b;
+        if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                && c.args().get(0) instanceof
+                        com.legend.compiler.spec.typed.TypedNewInstance) {
+            inner = c.args().get(0);
+        }
+        if (inner instanceof com.legend.compiler.spec.typed.TypedNewInstance ctor) {
+            java.util.Map<String, TypedSpec> props =
+                    new java.util.LinkedHashMap<>();
+            for (var pe : ctor.properties().entrySet()) {
+                props.put(pe.getKey(), prefixBinding(pe.getValue(),
+                        targetRowVar, prefix, newRowVar, rowInfo));
+            }
+            return new com.legend.compiler.spec.typed.TypedNewInstance(
+                    ctor.classFqn(), props, ctor.info());
+        }
+        return Pipelines.prefixColumns(b, targetRowVar, prefix,
+                v -> new com.legend.compiler.spec.typed.TypedVariable(
+                        newRowVar, rowInfo));
+    }
 }
