@@ -166,6 +166,11 @@ public final class ValidateDesugar {
             tds = tds == null ? one
                     : new AppliedFunction("concatenate", List.of(tds, one));
         }
+        // engine parity note: the engine passes ^exeCtx(
+        // addDriverTablePkForProject=true) to execute; that metamodel
+        // class is unloadable in PARTIAL corpus modules (its file drags
+        // the relational metamodel), so the flag travels as a Java-side
+        // execution option instead (TestBody -> ExecEnv -> DriverPkAppend)
         return new AppliedFunction("execute", List.of(
                 new LambdaFunction(List.of(), List.of(tds)),
                 mapping, runtime, extensions));
@@ -205,12 +210,24 @@ public final class ValidateDesugar {
                 new LambdaFunction(
                         List.of(new Variable("this", null, null)),
                         List.of(negated))));
+        // ~message is an EXPRESSION over $this (engine: the message
+        // function IS the projection lambda); absent = empty string.
+        // ~enforcementLevel defaults Error (the engine's own default).
+        LambdaFunction messageCol = c.message() == null
+                ? constLambda("")
+                : c.message() instanceof CString cs
+                        ? constLambda(cs.value())
+                        : new LambdaFunction(
+                                List.of(new Variable("this", null, null)),
+                                List.of(c.message()));
+        String level = c.enforcementLevel() == null
+                ? "Error" : c.enforcementLevel();
         return new AppliedFunction("project", List.of(
                 filtered,
                 new PureCollection(List.of(
                         constLambda(c.name()),
-                        constLambda("Error"),
-                        constLambda(""))),
+                        constLambda(level),
+                        messageCol)),
                 new PureCollection(List.of(
                         new CString("CONSTRAINT_ID"),
                         new CString("ENFORCEMENT_LEVEL"),

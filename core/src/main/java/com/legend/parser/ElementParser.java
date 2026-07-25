@@ -625,24 +625,46 @@ public final class ElementParser implements TokenStreamCursor {
                 advance();
             }
             ValueSpecification fn = SpecParser.parse(tokens.slice(fnStart, pos));
-            // consume remaining ~key: value sections up to the closing paren
-            int dd = 0;
-            while (!atEnd()) {
-                TokenType t = peek();
-                if (t == TokenType.PAREN_CLOSE && dd == 0) {
-                    break;
+            // trailing ~key: value sections — ~message (an EXPRESSION over
+            // $this) and ~enforcementLevel feed the validation projection
+            // (#45); others parse and drop (engine: instantiation concerns)
+            ValueSpecification message = null;
+            String level = null;
+            while (!atEnd() && peek() == TokenType.TILDE) {
+                expect(TokenType.TILDE);
+                String kw2 = parseIdentifier();
+                expect(TokenType.COLON);
+                int vStart = pos;
+                int vd = 0;
+                while (!atEnd()) {
+                    TokenType t = peek();
+                    if (t == TokenType.TILDE && vd == 0) {
+                        break;
+                    }
+                    if (t == TokenType.BRACKET_OPEN || t == TokenType.PAREN_OPEN
+                            || t == TokenType.BRACE_OPEN) {
+                        vd++;
+                    } else if (t == TokenType.BRACKET_CLOSE
+                            || t == TokenType.PAREN_CLOSE
+                            || t == TokenType.BRACE_CLOSE) {
+                        if (vd == 0) {
+                            break;
+                        }
+                        vd--;
+                    }
+                    advance();
                 }
-                if (t == TokenType.BRACKET_OPEN || t == TokenType.PAREN_OPEN
-                        || t == TokenType.BRACE_OPEN) {
-                    dd++;
-                } else if (t == TokenType.BRACKET_CLOSE || t == TokenType.PAREN_CLOSE
-                        || t == TokenType.BRACE_CLOSE) {
-                    dd--;
+                if (kw2.equals("message")) {
+                    message = SpecParser.parse(tokens.slice(vStart, pos));
+                } else if (kw2.equals("enforcementLevel")) {
+                    ValueSpecification lv =
+                            SpecParser.parse(tokens.slice(vStart, pos));
+                    level = enforcementLevelName(lv);
                 }
-                advance();
             }
             expect(TokenType.PAREN_CLOSE);
-            return new ConstraintDefinition(name, realizationOf(List.of(fn)));
+            return new ConstraintDefinition(name, realizationOf(List.of(fn)),
+                    message, level);
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
@@ -672,6 +694,26 @@ public final class ElementParser implements TokenStreamCursor {
         // Door 4: `[name: some::fn]` binds the constraint to a predicate
         // function; any other expression is the sugar (inline) predicate.
         return new ConstraintDefinition(name, realizationOf(List.of(expression)));
+    }
+
+    /** The bare level name of a parsed ~enforcementLevel value —
+     * {@code Error} / {@code Warn} spellings arrive as refs or enum-style
+     * accesses; the projection wants the simple name. */
+    private static String enforcementLevelName(ValueSpecification lv) {
+        if (lv instanceof com.legend.model.spec.PackageableElementPtr p) {
+            String f = p.fullPath();
+            return f.contains("::") ? f.substring(f.lastIndexOf("::") + 2) : f;
+        }
+        if (lv instanceof com.legend.model.spec.CString cs) {
+            return cs.value();
+        }
+        if (lv instanceof com.legend.model.spec.AppliedProperty ap) {
+            return ap.property();
+        }
+        if (lv instanceof com.legend.model.spec.Variable v) {
+            return v.name();
+        }
+        return null;
     }
 
     /** {@code Primitive fqn extends Base} with an optional dropped constraint block. */

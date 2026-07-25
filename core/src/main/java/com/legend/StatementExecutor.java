@@ -36,7 +36,8 @@ final class StatementExecutor {
             throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
         ExecEnv env = new ExecEnv(ctx, runtimeFqn, dialect, connection,
-                rawSqlFailureSink);
+                rawSqlFailureSink,
+                com.legend.validation.DriverPkOption.get());
         return executeStatements(specs.typeQueryBody(resolved),
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
@@ -44,12 +45,14 @@ final class StatementExecutor {
 
     /** The K-phase execution environment: ONE ambient connection, ONE
      * dialect (audit 17: recomputing it per arm invited a future
-     * mixed-dialect bug), the driver runtime, and the optional raw-SQL
-     * failure sink. */
+     * mixed-dialect bug), the driver runtime, the optional raw-SQL
+     * failure sink, and the addDriverTablePkForProject execution option
+     * (#45 — see {@link com.legend.validation.DriverPkOption}). */
     record ExecEnv(ModelContext ctx, String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            java.util.function.Consumer<String> rawSqlFailureSink) {
+            java.util.function.Consumer<String> rawSqlFailureSink,
+            boolean addDriverTablePk) {
     }
 
     /**
@@ -173,6 +176,13 @@ final class StatementExecutor {
             }
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                     .resolve(body, env.runtimeFqn());                     // Phase H
+            if (env.addDriverTablePk()) {
+                // the engine's addDriverTablePkForProject option (#45):
+                // projections gain driver-table PK columns; non-projection
+                // statements pass through unchanged
+                body = com.legend.validation.DriverPkAppend.apply(
+                        body, env.ctx());
+            }
             result = executeTyped(body, env);
         }
         return result;
@@ -404,6 +414,12 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body =
                     new com.legend.resolver.StoreResolver(env.ctx(), specs)
                             .resolve(java.util.List.of(chain), env.runtimeFqn());
+            // the engine's RelationalExecutionContext option: driver-table
+            // PK columns join every projection (#45 validation)
+            if (env.addDriverTablePk()) {
+                body = com.legend.validation.DriverPkAppend.apply(
+                        body, env.ctx());
+            }
             run = executeTyped(body, env);
         }
         return new ExecFrame(chain, relationRooted, run);

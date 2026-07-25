@@ -244,15 +244,21 @@ public final class TestBody {
             throws java.sql.SQLException {
         // validate(...) desugars to the engine's own synthesized query
         // over the ORDINARY execute path (#45) — before routing, so the
-        // exec-frame machinery sees the execute binding
+        // exec-frame machinery sees the execute binding. A body where the
+        // desugar fired runs with the engine's addDriverTablePkForProject
+        // execution option (set FRESH every run — true or false).
         {
             java.util.List<ValueSpecification> desugared =
                     new ArrayList<>(statements.size());
+            boolean fired = false;
             for (ValueSpecification s : statements) {
-                desugared.add(com.legend.validation.ValidateDesugar
-                        .rewrite(s, ctx, imports.wildcards()));
+                ValueSpecification r = com.legend.validation.ValidateDesugar
+                        .rewrite(s, ctx, imports.wildcards());
+                desugared.add(r);
+                fired |= r != s;
             }
             statements = desugared;
+            com.legend.validation.DriverPkOption.set(fired);
         }
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(statements);

@@ -68,14 +68,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 62 | 3 | 8 | 1 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 98 | 2 | 6 | 18 |
+| tests/mapping/union | 124 | 99 | 1 | 6 | 18 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 71 | 0 | 9 | 3 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
-| validation/showcase | 8 | 0 | 2 | 3 | 3 |
-| validation/tests | 23 | 0 | 1 | 15 | 7 |
-| **total** | 2538 | **1534** | 73 | 296 | 635 |
+| validation/showcase | 8 | 2 | 0 | 3 | 3 |
+| validation/tests | 23 | 1 | 0 | 15 | 7 |
+| **total** | 2538 | **1538** | 69 | 296 | 635 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7342,9 +7342,9 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].timestamp expected 2003-07-19T00:00:00.000000000, got 2003-07-19 00:00:00 | expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tiny
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7612,7 +7612,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
@@ -7957,7 +7957,6 @@ in-process Alloy-shaped path).
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8021,8 +8020,6 @@ in-process Alloy-shaped path).
 - ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
 - ERROR testHashFunctions [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
 - ERROR validateAllConstraints [validation/showcase]: validate(...) argument #3 (AppliedFunction) is not supported yet
-- FAIL validateSingleConstraint [validation/showcase]: assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\netiNotEmpty,Error,External Trade ID is not valid,2\n, got [etiNotEmpty, Error, ]
-- FAIL validateMultipleConstraints [validation/showcase]: assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\netiNotEmpty,Error,External Trade ID is not valid,2\nvalidLocation,Error,,3\nvalidLocation,Error,,4\n, got [etiNotEmpty, Error, , validLocation, Error, , validLocation, Error, ]
 - ERROR validateMultiplesConstraintWithConstraintInformation [validation/showcase]: validate(...) argument #4 (AppliedFunction) is not supported yet
 - SHAPE validateMultiplesConstraintWithAdditionalProjections [validation/showcase]: no execute(|...) call
 - SHAPE validateMultiplesConstraintWithPostTDSOperation1 [validation/showcase]: no execute(|...) call
@@ -8035,7 +8032,6 @@ in-process Alloy-shaped path).
 - ERROR validateComplexValidation5 [validation/tests]: unknown function 'tdsRows'
 - ERROR validateComplexValidation6 [validation/tests]: filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::complex::Address' — slot-demanding leaves under value-position filters are not supported yet
 - ERROR validateComplexValidation7 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- FAIL validateComplexValidation8 [validation/tests]: assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\nconstraint6,Error,,3\nconstraint6,Error,,4\n, got [constraint6, Error, , constraint6, Error, ]
 - ERROR validateComplexValidation9 [validation/tests]: negated 'meta::pure::functions::collection::isDistinct' over a to-many crossing — the engine null-compensates only equal/in; this operator's emission is not transcribed yet
 - ERROR validateComplexValidation10 [validation/tests]: navigation through class-typed slot property 'employees' is not supported yet [assocs=[]; inner=TypedPropertyAccess; leaf=name]
 - ERROR testAggregationOnRootClass [validation/tests]: class meta::relational::validation::tests::milestoning::ProductClassification has no property 'type'

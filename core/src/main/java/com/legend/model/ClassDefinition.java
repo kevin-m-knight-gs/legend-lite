@@ -175,15 +175,21 @@ public record ClassDefinition(
      * @param name       constraint name
      * @param expression parsed expression AST that must evaluate to true
      */
-    public record ConstraintDefinition(String name, Realization realization) {
+    public record ConstraintDefinition(String name, Realization realization,
+            ValueSpecification message, String enforcementLevel) {
         public ConstraintDefinition {
             Objects.requireNonNull(name, "Constraint name cannot be null");
             Objects.requireNonNull(realization, "Constraint realization cannot be null");
         }
 
+        /** The common form: no ~message / ~enforcementLevel clauses. */
+        public ConstraintDefinition(String name, Realization realization) {
+            this(name, realization, null, null);
+        }
+
         /** Convenience: the sugar (inline-predicate) form. */
         public ConstraintDefinition(String name, ValueSpecification expression) {
-            this(name, new Realization.Inline(List.of(expression)));
+            this(name, new Realization.Inline(List.of(expression)), null, null);
         }
 
         /**
