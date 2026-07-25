@@ -381,7 +381,7 @@ final class TemporalFrame {
             }
             cond = outerDatedWindowCond(cond, left, right, pfx + w[0],
                     pfx + w[1], Boolean.parseBoolean(w[2]), entryOuter,
-                    navClass);
+                    navClass, /*nullTolerant*/ true);
         }
         return cond;
     }
@@ -821,7 +821,7 @@ final class TemporalFrame {
                     + rt.table() + "' has no FROM/THRU pair");
         }
         return outerDatedWindowCond(cond, left, right, fromCol, thruCol,
-                inclusive, outerCol, navClass);
+                inclusive, outerCol, navClass, false);
     }
 
     /** The window {@code r.<from> <= l.<outerCol> AND r.<thru> > l.<outerCol>}
@@ -830,7 +830,8 @@ final class TemporalFrame {
      * composed prefixed spellings). */
     private TypedLambda outerDatedWindowCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String fromCol, String thruCol,
-            boolean inclusive, String outerCol, String navClass) {
+            boolean inclusive, String outerCol, String navClass,
+            boolean nullTolerant) {
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
         Type.RelationType lRow = (Type.RelationType) left.info().type();
@@ -869,6 +870,44 @@ final class TemporalFrame {
                         dateCmpCall("meta::pure::functions::boolean::"
                                 + "greaterThan",
                                 rcol.apply(thruCol), dExpr, boolT), boolT);
+        if (nullTolerant) {
+            // a DEFERRED sub-hop window rides the HEAD's LEFT-join ON —
+            // an ABSENT sub row (its milestone column NULL) must not kill
+            // the whole match (engine: the window sits on the sub's OWN
+            // join, only the sub columns NULL out). Residual divergence:
+            // a PRESENT sub row failing its window drops the head match
+            // where the engine keeps head + NULL sub — closing that needs
+            // flat joins (the sub window on its own ON with the outer
+            // date in scope), the flatten rung.
+            var isEmptyFn = ctx.findFunction(
+                    "meta::pure::functions::collection::isEmpty").stream()
+                    .filter(f -> f.parameters().size() == 1)
+                    .findFirst().orElseThrow(() -> new IllegalStateException(
+                            "resolver bug: no 1-arg isEmpty"));
+            TypedSpec absent = new TypedNativeCall(isEmptyFn,
+                    List.of(rcol.apply(fromCol)), boolT);
+            win = cmpCall("meta::pure::functions::boolean::or", win, absent,
+                    boolT);
+        }
+        if (nullTolerant) {
+            // a DEFERRED sub-hop window rides the HEAD's LEFT-join ON —
+            // an ABSENT sub row (its milestone column NULL) must not kill
+            // the whole match (engine: the window sits on the sub's OWN
+            // join, only the sub columns NULL out). Residual divergence:
+            // a PRESENT sub row failing its window drops the head match
+            // where the engine keeps head + NULL sub — closing that needs
+            // flat joins (the sub window on its own ON with the outer
+            // date in scope), the flatten rung.
+            var isEmptyFn = ctx.findFunction(
+                    "meta::pure::functions::collection::isEmpty").stream()
+                    .filter(f -> f.parameters().size() == 1)
+                    .findFirst().orElseThrow(() -> new IllegalStateException(
+                            "resolver bug: no 1-arg isEmpty"));
+            TypedSpec absent = new TypedNativeCall(isEmptyFn,
+                    List.of(rcol.apply(fromCol)), boolT);
+            win = cmpCall("meta::pure::functions::boolean::or", win, absent,
+                    boolT);
+        }
         TypedSpec merged = cmpCall("meta::pure::functions::boolean::and",
                 cond.body().get(cond.body().size() - 1), win, boolT);
         return new TypedLambda(cond.parameters(), List.of(merged),
