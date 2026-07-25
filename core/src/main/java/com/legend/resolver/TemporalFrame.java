@@ -668,8 +668,27 @@ final class TemporalFrame {
      * Null when underivable. */
     private List<TypedSpec> biTemporalDatesFor(TemporalSpec spec,
             ClassSource parent) {
+        return biTemporalDatesFor(spec, parent, null);
+    }
+
+    private List<TypedSpec> biTemporalDatesFor(TemporalSpec spec,
+            ClassSource parent, TemporalSpec parentSpec) {
         if (spec != null && !spec.sweep() && spec.dates().size() == 2) {
             return spec.dates();
+        }
+        // BITEMP UNDER BITEMP: the parent chain's own PAIR is the
+        // inherited context (engine testBiTemporalDateInjection...: the
+        // sub inherits both dimensions; a 1-date sub spec is the BUSINESS
+        // dimension, processing rides the parent's — result2 golden)
+        if (parentSpec != null && !parentSpec.sweep()
+                && parentSpec.dates().size() == 2) {
+            if (spec == null || spec.sweep() || spec.dates().isEmpty()) {
+                return parentSpec.dates();
+            }
+            if (spec.dates().size() == 1) {
+                return List.of(parentSpec.dates().get(0),
+                        spec.dates().get(0));
+            }
         }
         String parentStrat = temporalStrategy(parent.classFqn());
         if (root.processing() != null && root.business() != null
@@ -1988,20 +2007,30 @@ final class TemporalFrame {
             return pipe;   // propAllVersions(): the RAW extent, any dimension
         }
         if (strat.equals("bitemporal")) {
-            List<TypedSpec> dates = biTemporalDatesFor(spec, parent);
+            TemporalSpec parentSpec = head.contains(".")
+                    ? specs.get(head.substring(0, head.lastIndexOf('.')))
+                    : null;
+            List<TypedSpec> dates = biTemporalDatesFor(spec, parent,
+                    parentSpec);
             if (dates == null) {
                 throw new MappingResolutionException("navigation '" + head
                         + "' to bi-temporal class '" + target.classFqn()
                         + "' requires processing and business dates",
                         target.classFqn());
             }
-            if (outerReadColumn(dates.get(0), parent) != null
-                    || outerReadColumn(dates.get(1), parent) != null) {
-                // any OUTER-ROW dimension date: BOTH windows compose into
-                // the join ON (engine testBiTemporalDateMilestoning:279 —
-                // in_z/out_z AND from_z/thru_z against "root".orderDate;
-                // mixed literal+outer keeps the literal in the ON too).
-                return pipe;
+            if (singleVarChain(dates.get(0)) != null
+                    || singleVarChain(dates.get(1)) != null) {
+                // any OUTER-ROW dimension date (rooted at ANY outer var,
+                // not just the immediate parent's bindings): per-dimension
+                // split — outer dims DEFER (composed at the head's join
+                // ON / hoisted sibling), literal dims stamp in-pipe
+                // (engine testBiTemporalDateInjectionFromVarReference:
+                // mixed literal+outer keeps the literal in the sub's
+                // WHERE and the outer pair on the ON).
+                return stampForClassOrDefer(pipe,
+                        TemporalContext.bitemporal(dates.get(0),
+                                dates.get(1)),
+                        target.classFqn(), head);
             }
             return milestonedPipeByStrategy(
                     milestonedPipeByStrategy(pipe, dates.get(0),
