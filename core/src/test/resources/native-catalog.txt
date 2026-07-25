@@ -287,6 +287,7 @@ meta::pure::router::execute<T>(f:meta::pure::metamodel::function::Function<{->T[
 meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1]
 meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::tools::DebugContext[1]):meta::pure::metamodel::function::Function<{->T[*]}>[1]
 meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::metamodel::function::Function<{->T[*]}>[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1]
+meta::pure::executionPlan::featureFlag::withFeatureFlags<T>(object:T[*], e:meta::pure::metamodel::type::Any[*]):T[*]
 meta::relational::extension::relationalExtensions():meta::pure::metamodel::type::Any[*]
 meta::alloy::service::execution::setUpDataSQLsV2(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[1], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*]
 meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]

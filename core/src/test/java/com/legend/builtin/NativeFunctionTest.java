@@ -640,7 +640,9 @@ class NativeFunctionTest {
     void nativeEnumCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native enums.
         // 13: +DatabaseType (relationalRuntime.pure:21).
-        assertEquals(13, Pure.allNativeEnums().size(),
+        // 14: +executionPlan features::Feature (executionPlanFeature.pure:21
+        //     — withFeatureFlags is identity; the flag enum types the call).
+        assertEquals(14, Pure.allNativeEnums().size(),
                 "Pure.allNativeEnums() size pin: review the catalog if this changes");
     }
 

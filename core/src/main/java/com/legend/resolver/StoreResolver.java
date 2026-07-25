@@ -200,8 +200,28 @@ public final class StoreResolver {
     // The context walk
     // =====================================================================
 
+    /** if() over class queries: the condition must be STATICALLY
+     * decidable — the chosen branch's thunk body resolves. */
+    private TypedSpec resolveStaticIf(TypedIf i, Context context) {
+        Boolean cond = staticBool(i.condition());
+        if (cond == null) {
+            throw new NotImplementedException("class query under if()"
+                    + " with a runtime condition is not resolvable yet");
+        }
+        TypedSpec branch = cond ? i.thenBranch()
+                : i.elseBranch().orElseThrow(() -> new NotImplementedException(
+                        "class query under if() without an else branch"));
+        return resolveNode(unthunk(branch), context);
+    }
+
     private TypedSpec resolveNode(TypedSpec n, Context context) {
         return switch (n) {
+            // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27)
+            case TypedNativeCall wf
+                    when "meta::pure::executionPlan::featureFlag::withFeatureFlags"
+                            .equals(wf.callee().qualifiedName())
+                    && !wf.args().isEmpty() ->
+                    resolveNode(wf.args().get(0), context);
             case TypedFrom from -> {
                 Context inner = from.mapping().map(m -> Context.ofMapping(m.fullPath()))
                         .orElseGet(() -> from.runtime()
@@ -241,16 +261,13 @@ public final class StoreResolver {
                     && zc.args().size() == 2 ->
                     CorrelatedSubselects.zipPairMap(zm, zc,
                             n2 -> resolveNode(n2, context));
-            // a BARE object-space chain HEADED by toOne/first/at/distinct
-            // (the eager run of a class-typed let: filter(...)->toOne()):
-            // the chain resolver owns these in-pipeline (toOne = the
-            // documented pass-through stand-in; at(k) = slice) — routing
-            // here keeps the eager run off the envelope-in-scalar wall.
+            // BARE object-space chain headed by toOne/first/at/distinct:
+            // the chain resolver owns these in-pipeline (keeps the eager
+            // run off the envelope-in-scalar wall)
             case TypedNativeCall nc when isObjectSpace(nc) ->
                     resolveChain(nc, context);
             // project DISTRIBUTES over a class-collection concatenate
-            // (UNION ALL semantics): each side resolves as its own
-            // object-space chain, sharing the projection columns.
+            // (UNION ALL): each side is its own object-space chain
             case TypedProject p when classConcatOf(p.source()) != null -> {
                 TypedNativeCall c = classConcatOf(p.source());
                 yield new TypedConcatenate(
@@ -260,24 +277,10 @@ public final class StoreResolver {
                                 p.info()), context),
                         p.info());
             }
-            // if() over class queries: the condition must be STATICALLY
-            // decidable (literal, or equal/eq over literals) — the chosen
-            // branch's thunk body resolves; a truly runtime condition over
-            // graph output has no SQL shape yet.
-            case TypedIf i when containsGetAll(i) -> {
-                Boolean cond = staticBool(i.condition());
-                if (cond == null) {
-                    throw new NotImplementedException("class query under if()"
-                            + " with a runtime condition is not resolvable yet");
-                }
-                TypedSpec branch = cond ? i.thenBranch()
-                        : i.elseBranch().orElseThrow(() -> new NotImplementedException(
-                                "class query under if() without an else branch"));
-                yield resolveNode(unthunk(branch), context);
-            }
-            // size()/count() over a class extent = the ROW COUNT of the
-            // resolved pipeline: project ONE constant column (no slot
-            // demand — engine emits select count(*)) and count the relation.
+            case TypedIf i when containsGetAll(i) ->
+                    resolveStaticIf(i, context);
+            // size()/count() over a class extent = row count (engine
+            // emits select count(*)); classExtentCount projects ONE const
             case TypedNativeCall nc
                     when nc.args().size() == 1 && isObjectSpace(nc.args().get(0))
                     && (nc.callee().qualifiedName().equals(
@@ -285,9 +288,8 @@ public final class StoreResolver {
                             || nc.callee().qualifiedName().equals(
                                     "meta::pure::functions::collection::count")) ->
                     classExtentCount(nc, context);
-            // ->map(p|$p.scalarExpr) over instances IS the single-column
-            // projection (map-terminal invariant; to-many paths explode
-            // via the projection funnel's positional rules).
+            // ->map(p|$p.scalarExpr) over instances = single-column
+            // projection (map-terminal invariant)
             case TypedMap m
                     when isObjectSpace(m.source())
                     && !(((Type.FunctionType) m.mapper().info().type()).result().type()

@@ -370,6 +370,16 @@ public final class Pure {
             """);
 
     // ---- Date enums ----
+    // executionPlan feature flags (REAL executionPlanFeature.pure:21);
+    // withFeatureFlags is IDENTITY in real pure (:27 — the flag rides the
+    // plan context; our enum source-value translation IS the pushdown).
+    public static final EnumDefinition EXECUTION_PLAN_FEATURE = nativeEnum("""
+            Enum meta::pure::executionPlan::features::Feature
+            {
+                PUSH_DOWN_ENUM_TRANSFORM,
+                VARIANT_TYPE_AS_INPUT
+            }""");
+
     public static final EnumDefinition DURATION_UNIT = nativeEnum("""
             Enum meta::pure::functions::date::DurationUnit
             {
@@ -1062,6 +1072,10 @@ public final class Pure {
     // splices the SAME semantics by EMISSION (TypedConcatenate fold in
     // StatementExecutor.buildFrame).
     public static final NativeFunctionDefinition CONCATENATE_TEMPORAL_TDS_QUERIES = signature("native function meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::metamodel::function::Function<{->T[*]}>[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
+
+    // withFeatureFlags (REAL executionPlanFeature.pure:27): IDENTITY —
+    // the flags ride the plan context; the harness reads through it.
+    public static final NativeFunctionDefinition WITH_FEATURE_FLAGS__T_MANY__ANY_MANY = signature("native function meta::pure::executionPlan::featureFlag::withFeatureFlags<T>(object:T[*], e:meta::pure::metamodel::type::Any[*]):T[*];");
 
     // relationalExtensions(): the corpus's own definition is signature-
     // broken in this platform (the Extension metamodel class), so it never
