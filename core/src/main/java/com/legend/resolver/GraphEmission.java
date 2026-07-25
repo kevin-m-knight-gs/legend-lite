@@ -476,12 +476,15 @@ final class GraphEmission {
             // at graph depth is its own rung, the partial serves the
             // mapped leaves and missing ones stay loud below.
             TypedSpec emb = inner;
+            TypedSpec owFallback = null;
             var ow2 = com.legend.resolver.Substitution.otherwiseOf(b0);
             if (ow2 != null) {
                 emb = ow2.args().get(0);
+                owFallback = ow2.args().get(1);
             }
             if (emb instanceof TypedNewInstance ctor2) {
-                return embeddedChild(cs, node, ctor2, context, parentPipeline);
+                return embeddedChild(cs, node, ctor2, context, parentPipeline,
+                        owFallback);
             }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' is mapped as an"
@@ -695,6 +698,13 @@ final class GraphEmission {
     private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
             TypedGraphTree node, TypedNewInstance ctor,
             StoreResolver.Context context, TypedSpec parentPipeline) {
+        return embeddedChild(cs, node, ctor, context, parentPipeline, null);
+    }
+
+    private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
+            TypedGraphTree node, TypedNewInstance ctor,
+            StoreResolver.Context context, TypedSpec parentPipeline,
+            TypedSpec otherwiseFallback) {
         var prop = ctx.findProperty(cs.classFqn(), node.property())
                 .orElseThrow(() -> new IllegalStateException(
                         "resolver bug: graph child '" + node.property()
@@ -714,6 +724,22 @@ final class GraphEmission {
         List<TypedSerializeGraph.Child> nested = new ArrayList<>();
         for (TypedGraphTree c : want) {
             TypedSpec e = ctor.properties().get(c.property());
+            if (e == null && otherwiseFallback != null) {
+                // OTHERWISE per-leaf dispatch (map §6 / V1 §D.5): a leaf
+                // MISSING from the embedded partial reads through the
+                // FALLBACK join target — a correlated scalar subquery,
+                // never a silent null
+                HeadRel hr = navHeadRelation(
+                        new SubqueryEnv(cs, context, cs.rowVar(), rowT),
+                        otherwiseFallback, cs.rowVar());
+                TypedSpec fb = hr == null ? null
+                        : hr.target().bindings().get(c.property());
+                if (fb != null
+                        && !(fb.info().type() instanceof Type.ClassType)) {
+                    e = scalarLeafSubquery(hr.rel(), hr.target().rowVar(),
+                            hr.targetRow(), c.property(), fb);
+                }
+            }
             if (e == null) {
                 // DERIVED property of the EMBEDDED class: the lifted body
                 // inlines against the ctor's bindings — parent-row exprs,
@@ -740,7 +766,10 @@ final class GraphEmission {
                         + c.property() + "' of embedded '" + node.property()
                         + "' on class '" + cs.classFqn()
                         + "' is not mapped in mapping '" + cs.mappingFqn()
-                        + "'", cs.classFqn());
+                        + "' [otherwise fallback="
+                        + (otherwiseFallback == null ? "ABSENT"
+                                : otherwiseFallback.getClass().getSimpleName())
+                        + "]", cs.classFqn());
             }
             TypedSpec ei = e;
             if (ei instanceof TypedNativeCall tc1 && tc1.args().size() == 1
@@ -888,6 +917,19 @@ final class GraphEmission {
             // carries the raw target and the predicate — navSlotChild's
             // route, scalar-shaped
             TypedSpec bindingRead = cs.bindings().get(headProp);
+            if (bindingRead == null) {
+                // the OTHERWISE-fallback case: the hop IS the slot read
+                // (an alias, not a class property — bindings has no entry)
+                bindingRead = hop;
+            }
+            // an OTHERWISE-wrapped binding routes through its FALLBACK
+            // read (the FK-join navigate; the embedded partial serves
+            // only its own ctor leaves)
+            var owN = com.legend.resolver.Substitution
+                    .otherwiseOf(bindingRead);
+            if (owN != null) {
+                bindingRead = owN.args().get(1);
+            }
             // conform-by-emission wrappers (toOne over the slot read) unwrap
             while (bindingRead instanceof TypedNativeCall bw
                     && bw.args().size() == 1
@@ -1116,18 +1158,27 @@ final class GraphEmission {
                                             .Multiplicity.Bounded.ONE)),
                     rel.info());
         }
-        // project the leaf binding over the TARGET's own row var
+        return scalarLeafSubquery(rel, target.rowVar(), targetRow,
+                leaf.property(), leafBind);
+    }
+
+    /** The [0..1] scalar-subquery tail shared by the nav-leaf and
+     * otherwise-fallback emissions: project ONE leaf column over the
+     * corr-filtered relation, LIMIT 1 (pure toOne semantics — a plain
+     * scalar subquery, never a LIST aggregation). */
+    private static TypedSpec scalarLeafSubquery(TypedSpec rel, String rowVar,
+            Type.RelationType targetRow, String leafName, TypedSpec leafBind) {
         var leafFn = new Type.FunctionType(
                 List.of(new Type.Param(targetRow,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                 new Type.Param(leafBind.info().type(),
                         leafBind.info().multiplicity()));
         Type.RelationType oneCol = new Type.RelationType(List.of(
-                new Type.Column(leaf.property(), leafBind.info().type(),
+                new Type.Column(leafName, leafBind.info().type(),
                         leafBind.info().multiplicity())));
         TypedSpec proj = new com.legend.compiler.spec.typed.TypedProject(rel,
-                List.of(new TypedFuncCol(leaf.property(),
-                        new TypedLambda(List.of(target.rowVar()),
+                List.of(new TypedFuncCol(leafName,
+                        new TypedLambda(List.of(rowVar),
                                 List.of(leafBind),
                                 new ExprType(leafFn,
                                         com.legend.compiler.element.type
@@ -1135,8 +1186,6 @@ final class GraphEmission {
                 new ExprType(oneCol,
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
-        // the READ is [0..1]: pure toOne semantics — a plain scalar
-        // subquery, never a LIST aggregation
         return new com.legend.compiler.spec.typed.TypedLimit(proj,
                 new com.legend.compiler.spec.typed.TypedCInteger(1L,
                         ExprType.one(Type.Primitive.INTEGER)),
