@@ -220,6 +220,9 @@ final class JoinChecker {
         if (ps.size() == 5 && !keys.equals(columnNames(ps.get(4)))) {
             return null;
         }
+        // DUPLICATE key entries (corpus DupeJoinKeys: ['tradeDate','tradeDate'])
+        // are redundant equalities — one rename + one condition per distinct key
+        keys = new java.util.ArrayList<>(new java.util.LinkedHashSet<>(keys));
         // WHICH side's key values survive is join-type-dependent (engine
         // tds.pure requiredLeftCols/requiredRightCols + the RightOuter
         // golden: fID carries the RIGHT side's values, no TDSNull): the

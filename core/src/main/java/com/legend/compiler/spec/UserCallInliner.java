@@ -113,9 +113,14 @@ import java.util.Optional;
 public final class UserCallInliner {
 
     private final SpecCompiler specs;
-    private final java.util.function.UnaryOperator<TypedSpec> hook;
+    private final java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
     private final ArrayDeque<String> stack = new ArrayDeque<>();
     private final ArrayDeque<String> names = new ArrayDeque<>();
+    /** Lambda binders in scope at the CURRENT walk position (name → nesting
+     * count) — passed to the hook so a query-level splice never captures a
+     * lambda-bound variable spelled like an exec-let ({@code let r =
+     * execute(...)} vs {@code ->map(r|$r.values...)}). */
+    private final Map<String, Integer> bound = new LinkedHashMap<>();
     private int fresh;
 
     public UserCallInliner(SpecCompiler specs) {
@@ -131,7 +136,7 @@ public final class UserCallInliner {
      * the argument itself (same reference) when it does not apply.
      */
     public UserCallInliner(SpecCompiler specs,
-            java.util.function.UnaryOperator<TypedSpec> hook) {
+            java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.hook = hook;
     }
@@ -302,7 +307,7 @@ public final class UserCallInliner {
 
     private TypedSpec rewrite(TypedSpec n, Map<String, TypedSpec> env) {
         if (hook != null) {
-            TypedSpec h = hook.apply(n);
+            TypedSpec h = hook.apply(n, bound.keySet());
             if (h != n) {
                 return rewrite(h, env);
             }
@@ -540,11 +545,17 @@ public final class UserCallInliner {
      */
     private TypedLambda lambda(TypedLambda l, Map<String, TypedSpec> env) {
         if (env.isEmpty()) {
-            List<TypedSpec> body = new ArrayList<>(l.body().size());
-            for (TypedSpec stmt : l.body()) {
-                body.add(rewrite(stmt, env));
+            l.parameters().forEach(p -> bound.merge(p, 1, Integer::sum));
+            try {
+                List<TypedSpec> body = new ArrayList<>(l.body().size());
+                for (TypedSpec stmt : l.body()) {
+                    body.add(rewrite(stmt, env));
+                }
+                return new TypedLambda(l.parameters(), body, l.info());
+            } finally {
+                l.parameters().forEach(p -> bound.compute(p,
+                        (k, c) -> c == null || c <= 1 ? null : c - 1));
             }
-            return new TypedLambda(l.parameters(), body, l.info());
         }
         Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
         var fnType = (com.legend.compiler.element.type.Type.FunctionType) l.info().type();

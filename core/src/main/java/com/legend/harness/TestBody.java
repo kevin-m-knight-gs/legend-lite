@@ -744,6 +744,13 @@ public final class TestBody {
                 Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() == 0 ? null : "assertEmpty: got " + a.size() + " values";
             }
+            case "assertNotEmpty" -> {
+                if (args.size() != 1) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
+            }
             case "assertSameSQL" -> {
                 return ADVISORY_MARKER;
             }

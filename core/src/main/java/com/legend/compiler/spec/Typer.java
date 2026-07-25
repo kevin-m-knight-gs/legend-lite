@@ -712,7 +712,117 @@ final class Typer {
      */
     TypedSpec applyGeneric(AppliedFunction af, Env env) {
         Application a = checkGeneric(af, env);
+        if (requiresNormalization(a.chosen())) {
+            return inlineNormalized(af, a.chosen(), env);
+        }
         return emitCall(a.chosen(), a.args(), a.out());
+    }
+
+    /**
+     * Engine {@code <<functionType.NormalizeRequiredFunction>>} doctrine: a
+     * TDS-erased module function's body COMPUTES the plan (its schema
+     * expressions read {@code .columns} facts and build colspecs), so it is
+     * normalized away at its CALL SITE — β-substitute the raw arguments into
+     * the parsed body, statically fold the schema vocabulary
+     * ({@link StaticFold}), and type the result in the caller's env. The
+     * gate is the stereotype, plus the TDS-erased helper shape those
+     * functions call privately ({@code TDSColumn[*]} params —
+     * {@code extendMatchColumns}): a signature over the schema-erasing
+     * nominals cannot type standalone, only monomorphized.
+     */
+    private boolean requiresNormalization(TypedFunction f) {
+        if (f.isNative() || f.body().isEmpty() || f.definition() == null) {
+            return false;
+        }
+        boolean stereotyped = f.definition().stereotypes().stream()
+                .anyMatch(s -> s.stereotypeName().equals("NormalizeRequiredFunction"));
+        return stereotyped || f.parameters().stream()
+                .anyMatch(p -> isSchemaErased(p.type()));
+    }
+
+    private static boolean isSchemaErased(com.legend.compiler.element.type.Type t) {
+        String raw = switch (t) {
+            case com.legend.compiler.element.type.Type.ClassType c -> c.fqn();
+            case com.legend.compiler.element.type.Type.GenericType g -> g.rawFqn();
+            default -> null;
+        };
+        return com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET.equals(raw)
+                || "meta::pure::tds::TDSColumn".equals(raw);
+    }
+
+    private final java.util.ArrayDeque<String> normalizing = new java.util.ArrayDeque<>();
+
+    private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, Env env) {
+        String key = chosen.signatureKey();
+        if (normalizing.contains(key)) {
+            throw new TypeInferenceException("recursive NormalizeRequired function '"
+                    + chosen.qualifiedName() + "' cannot be inlined ("
+                    + String.join(" -> ", normalizing) + " -> " + key + ")");
+        }
+        LambdaFunction folded = SourceSubst.inlineLets(
+                new LambdaFunction(List.of(), chosen.body().get()));
+        if (folded == null) {
+            throw new TypeInferenceException("NormalizeRequired function '"
+                    + chosen.qualifiedName()
+                    + "' has non-let intermediate statements — cannot inline");
+        }
+        java.util.Map<String, ValueSpecification> subst = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < chosen.parameters().size(); i++) {
+            subst.put(chosen.parameters().get(i).name(), af.parameters().get(i));
+        }
+        // α-hygiene (the UserCallInliner rule at source level): the body's
+        // lambda binders rename to fresh _nr<N> — a caller variable spelled
+        // like a body binder (corpus: `let r = execute(...)` vs the body's
+        // `filter(r:TDSRow[1]|…)`) must never be captured by the splice.
+        ValueSpecification body = SourceSubst.substitute(
+                alphaRename(folded.body().get(0)), subst);
+        normalizing.push(key);
+        try {
+            return synth(new StaticFold(this, env).fold(body), env);
+        } finally {
+            normalizing.pop();
+        }
+    }
+
+    private int nrFresh;
+
+    /** Rename every lambda binder in an inlined body to a fresh {@code _nr<N>}
+     * (outermost-first; occurrence substitution is shadow-aware, so inner
+     * same-named binders keep their own scopes until their own rename). */
+    private ValueSpecification alphaRename(ValueSpecification v) {
+        return switch (v) {
+            case LambdaFunction lf -> {
+                java.util.Map<String, ValueSpecification> ren = new java.util.LinkedHashMap<>();
+                List<com.legend.model.spec.Variable> params = new ArrayList<>(lf.parameters().size());
+                for (com.legend.model.spec.Variable p : lf.parameters()) {
+                    String fresh = "_nr" + nrFresh++;
+                    ren.put(p.name(), new com.legend.model.spec.Variable(
+                            fresh, p.type(), p.multiplicity()));
+                    params.add(new com.legend.model.spec.Variable(
+                            fresh, p.type(), p.multiplicity()));
+                }
+                yield new LambdaFunction(params, lf.body().stream()
+                        .map(b -> alphaRename(SourceSubst.substitute(b, ren)))
+                        .toList());
+            }
+            case AppliedFunction af2 -> new AppliedFunction(af2.function(),
+                    af2.parameters().stream().map(this::alphaRename).toList(),
+                    af2.candidateFqns());
+            case com.legend.model.spec.AppliedProperty ap -> new com.legend.model.spec.AppliedProperty(
+                    alphaRename(ap.receiver()), ap.property());
+            case com.legend.model.spec.PureCollection pc -> new com.legend.model.spec.PureCollection(
+                    pc.values().stream().map(this::alphaRename).toList());
+            case com.legend.model.spec.ColSpec cs -> new com.legend.model.spec.ColSpec(cs.name(),
+                    cs.function1() == null ? null : (LambdaFunction) alphaRename(cs.function1()),
+                    cs.function2() == null ? null : (LambdaFunction) alphaRename(cs.function2()),
+                    cs.alias(),
+                    cs.args() == null ? null
+                            : cs.args().stream().map(this::alphaRename).toList());
+            case com.legend.model.spec.ColSpecArray ca -> new com.legend.model.spec.ColSpecArray(
+                    ca.colSpecs().stream()
+                            .map(c -> (com.legend.model.spec.ColSpec) alphaRename(c)).toList());
+            default -> v;
+        };
     }
 
     /**

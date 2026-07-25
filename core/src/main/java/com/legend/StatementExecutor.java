@@ -483,10 +483,20 @@ final class StatementExecutor {
      * scalar root); {@code $r->size()} over a relation-rooted frame is the
      * envelope's ONE; an inline {@code execute(...).values} splices in place.
      */
-    private static java.util.function.UnaryOperator<TypedSpec> spliceHook(
-            java.util.Map<String, ExecFrame> execFrames,
+    private static java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> spliceHook(
+            java.util.Map<String, ExecFrame> allFrames,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
-        return n -> {
+        return (n, boundVars) -> {
+            // a lambda-bound variable spelled like an exec-let is NOT a frame
+            // read (corpus: `let r = execute(...)` + `->map(r|$r.values...)`
+            // — the map binder's $r.values is the ROW's cells, never the
+            // Result envelope); shadowed names drop out of the frame map
+            java.util.Map<String, ExecFrame> execFrames = allFrames;
+            if (!boundVars.isEmpty()
+                    && boundVars.stream().anyMatch(allFrames::containsKey)) {
+                execFrames = new java.util.LinkedHashMap<>(allFrames);
+                execFrames.keySet().removeAll(boundVars);
+            }
             // the Typer's `.rows` MARKER (identity over a relation value):
             // it exists so the arms below can tell a REAL row index
             // ($r.values.rows->at(k)) from the Result envelope

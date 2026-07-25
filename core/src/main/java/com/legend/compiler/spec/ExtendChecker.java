@@ -71,31 +71,52 @@ final class ExtendChecker {
     private static AppliedFunction normalizeLegacyCols(AppliedFunction af) {
         int colsIx = af.parameters().size() == 3 ? 2
                 : af.parameters().size() == 2 ? 1 : -1;
-        if (colsIx < 0
-                || !(af.parameters().get(colsIx) instanceof com.legend.model.spec.PureCollection pc)
-                || pc.values().isEmpty()) {
+        if (colsIx < 0) {
+            return af;
+        }
+        // a single BARE col(fn,'name') (corpus testTdsExtension spelling:
+        // extend(col(x:TDSRow[1]|..., 'name')) — no wrapping collection)
+        // converts the same way; anything else without a collection passes
+        if (!(af.parameters().get(colsIx) instanceof com.legend.model.spec.PureCollection pc)) {
+            ColSpec bare = legacyColToSpec(af.parameters().get(colsIx));
+            if (bare == null) {
+                return af;
+            }
+            java.util.List<ValueSpecification> np =
+                    new java.util.ArrayList<>(af.parameters());
+            np.set(colsIx, bare);
+            return new AppliedFunction(af.function(), np);
+        }
+        if (pc.values().isEmpty()) {
             return af;
         }
         java.util.List<ColSpec> specs = new java.util.ArrayList<>();
         for (ValueSpecification v : pc.values()) {
-            if (v instanceof AppliedFunction cf && cf.function().equals("col")
-                    && cf.parameters().size() == 2
-                    && cf.parameters().get(0) instanceof com.legend.model.spec.LambdaFunction fn
-                    && cf.parameters().get(1) instanceof com.legend.model.spec.CString nm) {
-                java.util.List<com.legend.model.spec.Variable> params = fn.parameters().stream()
-                        .map(pv -> new com.legend.model.spec.Variable(pv.name())).toList();
-                specs.add(new ColSpec(nm.value(),
-                        new com.legend.model.spec.LambdaFunction(params, fn.body()), null));
-            } else if (v instanceof ColSpec cs) {
-                specs.add(cs);
-            } else {
+            ColSpec cs = v instanceof ColSpec direct ? direct : legacyColToSpec(v);
+            if (cs == null) {
                 return af;
             }
+            specs.add(cs);
         }
         java.util.List<ValueSpecification> np =
                 new java.util.ArrayList<>(af.parameters());
         np.set(colsIx, new ColSpecArray(specs));
         return new AppliedFunction(af.function(), np);
+    }
+
+    /** {@code col(fn,'name')} as a ColSpec (legacy TDSRow param annotation
+     * stripped); null when the shape is anything else. */
+    private static ColSpec legacyColToSpec(ValueSpecification v) {
+        if (!(v instanceof AppliedFunction cf && cf.function().equals("col")
+                && cf.parameters().size() == 2
+                && cf.parameters().get(0) instanceof com.legend.model.spec.LambdaFunction fn
+                && cf.parameters().get(1) instanceof com.legend.model.spec.CString nm)) {
+            return null;
+        }
+        java.util.List<com.legend.model.spec.Variable> params = fn.parameters().stream()
+                .map(pv -> new com.legend.model.spec.Variable(pv.name())).toList();
+        return new ColSpec(nm.value(),
+                new com.legend.model.spec.LambdaFunction(params, fn.body()), null);
     }
 
     private static boolean isAgg(TypedSpec arg) {

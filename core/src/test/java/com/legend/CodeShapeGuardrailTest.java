@@ -65,6 +65,9 @@ class CodeShapeGuardrailTest {
             "StoreResolver.serializeTypeCfg",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
+            // NormalizeRequired inline α-rename counter — same lifecycle as
+            // UserCallInliner.fresh (fresh-name generation per compile)
+            "Typer.nrFresh",
             // render mode toggle + import memo
             "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
             // normalizer emission frame: Pipeline IS the frame object; expr
