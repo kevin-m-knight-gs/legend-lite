@@ -1,6 +1,10 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
+import com.legend.sql.SqlAgg;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+import com.legend.sql.SqlType;
 import com.legend.compiler.element.TypedFunction;
 import java.util.HashMap;
 import java.util.Map;
@@ -108,5 +112,21 @@ final class Aggregates {
                             + callee.qualifiedName() + "'");
         }
         return name;
+    }
+
+    /** Descending DISCRETE percentile: ceil(p*N)-th element of the
+     * DESC-sorted values (PERCENTILE_DISC ORDER BY DESC semantics), cast
+     * to DOUBLE — pure percentile renders as float (engine golden 12.0). */
+    static SqlExpr qdiscDesc(SqlExpr value, SqlExpr p) {
+        return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.LIST_GET,
+                SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
+                        new SqlAgg.Reducer("LIST", java.util.List.of(value), false)),
+                new SqlExpr.Cast(
+                        SqlExpr.Call.of(SqlFn.CEILING,
+                                SqlExpr.Call.of(SqlFn.TIMES, p,
+                                        new SqlAgg.Reducer("COUNT",
+                                                java.util.List.of(value), false))),
+                        SqlType.Scalar.BIGINT)),
+                SqlType.Scalar.DOUBLE);
     }
 }

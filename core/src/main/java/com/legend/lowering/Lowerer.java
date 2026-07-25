@@ -1131,24 +1131,17 @@ public final class Lowerer {
                                     false, aggOrder)),
                     extra.get(2));
         }
-        // Descending DISCRETE percentile: ceil(p*N)-th element of the
-        // DESC-sorted values (PERCENTILE_DISC ORDER BY DESC semantics).
         if ("__QDISC_DESC__".equals(fn)) {
-            return SqlExpr.Call.of(SqlFn.LIST_GET,
-                    SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
-                            new SqlAgg.Reducer("LIST", List.of(value), false)),
-                    new SqlExpr.Cast(
-                            SqlExpr.Call.of(SqlFn.CEILING,
-                                    SqlExpr.Call.of(SqlFn.TIMES,
-                                            extra.get(0),
-                                            new SqlAgg.Reducer("COUNT",
-                                                    List.of(value), false))),
-                            SqlType.Scalar.BIGINT));
+            return Aggregates.qdiscDesc(value, extra.get(0));
         }
         List<SqlExpr> args = new ArrayList<>();
         args.add(value);
         args.addAll(extra);
-        return new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
+        SqlExpr red = new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
+        // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —
+        // the discrete quantile keeps the input's integer type, so cast
+        return "QUANTILE_DISC".equals(fn)
+                ? new SqlExpr.Cast(red, SqlType.Scalar.DOUBLE) : red;
     }
 
     /**

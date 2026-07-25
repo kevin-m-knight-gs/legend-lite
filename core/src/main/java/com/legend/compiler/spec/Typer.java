@@ -497,6 +497,14 @@ final class Typer {
                 return synth(pcs, env);
             }
         }
+        // olapGroupBy — the legacy TDS OLAP spellings; the modern construct
+        // IS the windowed extend (see olapGroupByDesugar)
+        if (tdsVocab(af.function(), "olapGroupBy")) {
+            AppliedFunction olap = olapGroupByDesugar(af);
+            if (olap != null) {
+                return synth(olap, env);
+            }
+        }
         // columnValues(tds,'c') — the rows-mapped cell read
         if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString cvCol) {
@@ -508,6 +516,119 @@ final class Typer {
                                     new CString(cvCol.value()))))))), env);
         }
         return null;
+    }
+
+    /**
+     * The legacy TDS OLAP spellings as the modern windowed extend:
+     * {@code olapGroupBy([parts]?, [sortKeys]?, func('col',agg) | rankLambda,
+     * 'name')} &rarr; {@code extend(over(~parts, [sortKeys]), ~name:…)}.
+     * The agg form's column becomes the {p,w,r|$r.col} map lambda with the
+     * user's reducer; a bare rank lambda ({@code x|$x->rank()}) becomes the
+     * modern window-function call ({@code {p,w,r|$p->rank($w,$r)}}). Null on
+     * any other shape — the unknown-function wall stays loud.
+     */
+    private static AppliedFunction olapGroupByDesugar(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() < 3 || !(ps.get(ps.size() - 1) instanceof CString outName)) {
+            return null;
+        }
+        int i = 1;
+        List<ValueSpecification> partSpecs = new ArrayList<>();
+        if (i < ps.size() - 2 && ps.get(i) instanceof CString p1) {
+            partSpecs.add(new ColSpec(p1.value()));
+            i++;
+        } else if (i < ps.size() - 2 && ps.get(i) instanceof PureCollection pc
+                && pc.values().stream().allMatch(v -> v instanceof CString)) {
+            pc.values().forEach(v -> partSpecs.add(new ColSpec(((CString) v).value())));
+            i++;
+        }
+        List<ValueSpecification> sortKeys = new ArrayList<>();
+        if (i < ps.size() - 2 && isLegacySortKey(ps.get(i))) {
+            sortKeys.add(ps.get(i));
+            i++;
+        } else if (i < ps.size() - 2 && ps.get(i) instanceof PureCollection sc
+                && !sc.values().isEmpty()
+                && sc.values().stream().allMatch(Typer::isLegacySortKey)) {
+            sortKeys.addAll(sc.values());
+            i++;
+        }
+        if (i != ps.size() - 2) {
+            return null;
+        }
+        ValueSpecification op = ps.get(i);
+        List<ValueSpecification> overArgs = new ArrayList<>();
+        if (!partSpecs.isEmpty()) {
+            overArgs.add(new PureCollection(partSpecs));
+        }
+        if (!sortKeys.isEmpty()) {
+            overArgs.add(new PureCollection(sortKeys));
+        }
+        if (overArgs.isEmpty()) {
+            return null;
+        }
+        Variable p = new Variable("_olp");
+        Variable w = new Variable("_olw");
+        Variable r = new Variable("_olr");
+        ColSpec col;
+        if (op instanceof AppliedFunction fc && tdsVocab(fc.function(), "func")
+                && fc.parameters().size() == 2
+                && fc.parameters().get(0) instanceof CString aggCol
+                && fc.parameters().get(1) instanceof LambdaFunction aggFn) {
+            col = new ColSpec(outName.value(),
+                    new LambdaFunction(List.of(p, w, r), List.of(
+                            new AppliedProperty(r, aggCol.value()))),
+                    aggFn);
+        } else {
+            LambdaFunction rankLam = op instanceof AppliedFunction fr
+                    && tdsVocab(fr.function(), "func")
+                    && fr.parameters().size() == 1
+                    && fr.parameters().get(0) instanceof LambdaFunction inner
+                    ? inner
+                    : op instanceof LambdaFunction direct ? direct : null;
+            String rankFn = rankLam == null ? null : legacyRankName(rankLam);
+            if (rankFn == null) {
+                return null;
+            }
+            List<ValueSpecification> rankArgs = rankFn.equals("rowNumber")
+                    ? List.of(p, r) : List.of(p, w, r);
+            col = new ColSpec(outName.value(),
+                    new LambdaFunction(List.of(p, w, r), List.of(
+                            new AppliedFunction(rankFn, rankArgs))), null);
+        }
+        return new AppliedFunction("extend", List.of(ps.get(0),
+                new AppliedFunction("over", overArgs), col));
+    }
+
+    private static boolean isLegacySortKey(ValueSpecification v) {
+        return v instanceof AppliedFunction sf
+                && (simpleFnName(sf.function()).equals("asc")
+                        || simpleFnName(sf.function()).equals("desc"))
+                && sf.parameters().size() == 1
+                && sf.parameters().get(0) instanceof CString;
+    }
+
+    /** The modern window-function name behind a legacy rank lambda
+     * ({@code x|$x->rank()}); null for anything unrecognized. */
+    private static String legacyRankName(LambdaFunction lam) {
+        if (lam.parameters().size() != 1 || lam.body().size() != 1
+                || !(lam.body().get(0) instanceof AppliedFunction call)
+                || call.parameters().size() != 1
+                || !(call.parameters().get(0) instanceof Variable v)
+                || !v.name().equals(lam.parameters().get(0).name())) {
+            return null;
+        }
+        return switch (simpleFnName(call.function())) {
+            case "rank" -> "rank";
+            case "denseRank" -> "denseRank";
+            case "rowNumber" -> "rowNumber";
+            case "averageRank" -> null;   // no modern counterpart yet — loud
+            default -> null;
+        };
+    }
+
+    private static String simpleFnName(String fn) {
+        int cut = fn.lastIndexOf("::");
+        return cut < 0 ? fn : fn.substring(cut + 2);
     }
 
     /** {@code projectWithColumnSubset} as plain {@code project} over the
@@ -998,13 +1119,19 @@ final class Typer {
      */
     private Application checkWithDeferred(AppliedFunction af, Env env) {
         List<ValueSpecification> raw = af.parameters();
-        List<TypedFunction> arity = functionCandidates(af).stream()
+        List<TypedFunction> candidates = functionCandidates(af);
+        List<TypedFunction> arity = candidates.stream()
                 .filter(c -> c.parameters().size() == raw.size())
                 .filter(c -> deferredShapesMatch(c, raw))
                 .toList();
         if (arity.isEmpty()) {
             throw new TypeInferenceException("no overload of '" + af.function()
-                    + "' matches " + raw.size() + " argument(s) of these shapes");
+                    + "' matches " + raw.size() + " argument(s) of these shapes"
+                    + (candidates.isEmpty() ? " (no candidates at all)"
+                            : " — candidates: " + candidates.stream()
+                                    .map(c -> c.qualifiedName() + "/"
+                                            + c.parameters().size())
+                                    .distinct().toList()));
         }
 
         TypedSpec[] typed = new TypedSpec[raw.size()];
