@@ -239,6 +239,62 @@ final class Pipelines {
         return new Materialized(out, prefixes, stripped);
     }
 
+
+    private static TypedSpec walkJoinSlot(TypedJoinSlot js, Set<String> demanded,
+            Set<String> demandedNavs, TargetResolver targets,
+            Map<String, String> prefixes, Set<String> stripped,
+            String classFqn) {
+
+                TypedSpec target = js.target();
+                if (containsSlot(target)) {
+                    // a FRAMED VIEW target (Leg 4) carries its own internal
+                    // slots — join-navigating view columns hoisted inside
+                    // the frame's project. The frame is a self-contained
+                    // row-defining subselect: walk it in its OWN scope (the
+                    // TypedProject arm self-demands from its columns).
+                    target = walk(target, Set.of(), Set.of(), targets,
+                            new LinkedHashMap<>(), new LinkedHashSet<>(),
+                            classFqn);
+                    if (containsSlot(target)) {
+                        throw new IllegalStateException("resolver bug: join"
+                                + " slot '" + js.alias() + "' target still"
+                                + " carries a slot after frame"
+                                + " materialization");
+                    }
+                }
+                final TypedSpec tgt = target;
+                TypedSpec left = walk(js.source(), demanded, demandedNavs, targets, prefixes, stripped, classFqn);
+                if (!demanded.contains(js.alias())) {
+                    stripped.add(js.alias());
+                    return left;   // JOIN CANCELLED: nothing reads through it
+                }
+                String prefix = js.alias() + "_";
+                prefixes.put(js.alias(), prefix);
+                // Condition: rewrite reads of PRIOR converted slots' sub-rows
+                // to their prefixed columns (multi-hop chains). The BODY is
+                // rewritten and the lambda rebuilt — entering via the lambda
+                // itself would conflate its own param with shadowing.
+                TypedLambda condLam = js.condition();
+                String leftParam = condLam.parameters().get(0);
+                TypedLambda cond = new TypedLambda(condLam.parameters(),
+                        condLam.body().stream().map(b -> rewriteRowReads(
+                                b, leftParam, prefixes, stripped,
+                                UnaryOperator.identity())).toList(),
+                        condLam.info());
+                Type.RelationType leftRow = (Type.RelationType) left.info().type();
+                Type.RelationType rightRow = (Type.RelationType) tgt.info().type();
+                List<Type.Column> cols = new ArrayList<>(leftRow.columns());
+                for (Type.Column c : rightRow.columns()) {
+                    cols.add(new Type.Column(prefix + c.name(), c.type(), c.multiplicity()));
+                }
+                return new TypedJoin(left, tgt,
+                        new TypedEnumValue(JOIN_KIND_FQN, "LEFT",
+                                new ExprType(new Type.EnumType(JOIN_KIND_FQN),
+                                        Multiplicity.Bounded.ONE)),
+                        cond, Optional.of(prefix),
+                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+                }
+
     /** Slot/nav aliases read by any {@link TypedFilter} predicate in the
      * pipeline (mapping ~filters and spliced below-hop filters alike). */
     private static void collectFilterDemand(TypedSpec n, Set<String> slotUniverse,
@@ -260,43 +316,8 @@ final class Pipelines {
                                   Map<String, String> prefixes, Set<String> stripped,
                                   String classFqn) {
         return switch (n) {
-            case TypedJoinSlot js -> {
-                if (containsSlot(js.target())) {
-                    throw new IllegalStateException("resolver bug: join slot '"
-                            + js.alias() + "' carries a nested slot in its target;"
-                            + " the normalizer emits linear chains only");
-                }
-                TypedSpec left = walk(js.source(), demanded, demandedNavs, targets, prefixes, stripped, classFqn);
-                if (!demanded.contains(js.alias())) {
-                    stripped.add(js.alias());
-                    yield left;   // JOIN CANCELLED: nothing reads through it
-                }
-                String prefix = js.alias() + "_";
-                prefixes.put(js.alias(), prefix);
-                // Condition: rewrite reads of PRIOR converted slots' sub-rows
-                // to their prefixed columns (multi-hop chains). The BODY is
-                // rewritten and the lambda rebuilt — entering via the lambda
-                // itself would conflate its own param with shadowing.
-                TypedLambda condLam = js.condition();
-                String leftParam = condLam.parameters().get(0);
-                TypedLambda cond = new TypedLambda(condLam.parameters(),
-                        condLam.body().stream().map(b -> rewriteRowReads(
-                                b, leftParam, prefixes, stripped,
-                                UnaryOperator.identity())).toList(),
-                        condLam.info());
-                Type.RelationType leftRow = (Type.RelationType) left.info().type();
-                Type.RelationType rightRow = (Type.RelationType) js.target().info().type();
-                List<Type.Column> cols = new ArrayList<>(leftRow.columns());
-                for (Type.Column c : rightRow.columns()) {
-                    cols.add(new Type.Column(prefix + c.name(), c.type(), c.multiplicity()));
-                }
-                yield new TypedJoin(left, js.target(),
-                        new TypedEnumValue(JOIN_KIND_FQN, "LEFT",
-                                new ExprType(new Type.EnumType(JOIN_KIND_FQN),
-                                        Multiplicity.Bounded.ONE)),
-                        cond, Optional.of(prefix),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
-            }
+            case TypedJoinSlot js -> walkJoinSlot(js, demanded, demandedNavs,
+                    targets, prefixes, stripped, classFqn);
             case TypedNavigate nav
                     when nav.alias().isPresent() -> {
                 TypedSpec left = walk(nav.source(), demanded, demandedNavs, targets,
