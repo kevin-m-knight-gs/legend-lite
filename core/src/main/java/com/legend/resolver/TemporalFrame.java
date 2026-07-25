@@ -346,6 +346,142 @@ final class TemporalFrame {
      * head's join condition: each deferred outer-dated sub-hop's prefixed
      * milestone columns window against the SAME outer date (idempotent —
      * entries stay for sibling head identities). */
+    /** FLATTEN rung (#81): deferred outer-dated SUB-hops leave the head
+     * composite and join as TOP-LEVEL siblings — the engine's flat shape
+     * (testBusinessDateMilestoning.pure:598). Composing the sub window
+     * into the HEAD's ON is row-wrong: a present-but-failing sub row must
+     * null ONLY the sub columns (LEFT sibling does that), never kill the
+     * head match. Returns null when a sub-join is not liftable off the
+     * composite's spine (caller falls back to guarded composition). */
+    private TypedSpec hoistDeferredOuterSubJoins(TypedJoin j,
+            TypedSpec processedLeft, String chainHead, String outerCol,
+            String navClass) {
+        Type.RelationType rRow = (Type.RelationType) j.right().info().type();
+        Map<String, List<String[]>> byPfx = new LinkedHashMap<>();
+        for (var de : deferredOuterSubWindows.entrySet()) {
+            if (!de.getKey().startsWith(chainHead + ".")) {
+                continue;
+            }
+            String subProp = de.getKey().substring(chainHead.length() + 1);
+            if (subProp.indexOf('#') >= 0) {
+                subProp = subProp.substring(0, subProp.indexOf('#'));
+            }
+            String[] w = de.getValue();
+            String pfx = null;
+            for (String cand : new String[]{subProp + "_", subProp + "_nav_"}) {
+                final String probe = cand + w[0];
+                if (rRow.columns().stream()
+                        .anyMatch(x -> x.name().equalsIgnoreCase(probe))) {
+                    pfx = cand;
+                    break;
+                }
+            }
+            if (pfx == null) {
+                return null;
+            }
+            byPfx.computeIfAbsent(pfx, k -> new ArrayList<>()).add(w);
+        }
+        if (byPfx.isEmpty()) {
+            return null;
+        }
+        // detach each sub-join off the composite spine (joins above it
+        // would need a column-subtraction rebuild — not liftable yet)
+        TypedSpec stripped = j.right();
+        List<TypedJoin> subJoins = new ArrayList<>();
+        for (String pfx : byPfx.keySet()) {
+            TypedJoin[] found = new TypedJoin[1];
+            stripped = detachSpineJoin(stripped, pfx, found);
+            if (stripped == null) {
+                return null;
+            }
+            subJoins.add(found[0]);
+        }
+        // the head join's prefix renames its right side, so the composed
+        // read names are <headPfx><subPfx><col> — the sibling reproduces
+        // them with the composed prefix and re-points the sub condition's
+        // head-side reads under the head prefix
+        String headPfx = j.prefix().orElse("");
+        List<String> pfxs = new ArrayList<>(byPfx.keySet());
+        Type.RelationType origRow = (Type.RelationType) j.info().type();
+        List<Type.Column> headCols = new ArrayList<>();
+        for (Type.Column c : origRow.columns()) {
+            boolean subCol = pfxs.stream()
+                    .anyMatch(p -> c.name().startsWith(headPfx + p));
+            if (!subCol) {
+                headCols.add(c);
+            }
+        }
+        TypedSpec out = new TypedJoin(processedLeft, stripped, j.kind(),
+                outerDatedCond(j.condition(), j.left(), stripped, navClass,
+                        outerCol),
+                j.prefix(),
+                new ExprType(new Type.RelationType(headCols),
+                        Multiplicity.Bounded.ONE));
+        for (int i = 0; i < pfxs.size(); i++) {
+            String pfx = pfxs.get(i);
+            TypedJoin sj = subJoins.get(i);
+            // head-side reads of the sub condition re-point under the head
+            // prefix (they read composite-row names the head join renamed);
+            // the target side is the raw sub pipe, names unchanged
+            TypedLambda c = sj.condition();
+            if (!headPfx.isEmpty()) {
+                String sv = c.parameters().get(0);
+                ExprType lInfo = new ExprType(
+                        (Type.RelationType) out.info().type(),
+                        Multiplicity.Bounded.ONE);
+                List<TypedSpec> body = new ArrayList<>();
+                for (TypedSpec b : c.body()) {
+                    body.add(Pipelines.prefixColumns(b, sv, headPfx,
+                            v -> new TypedVariable(sv, lInfo)));
+                }
+                c = new TypedLambda(c.parameters(), body, c.info());
+            }
+            for (String[] w : byPfx.get(pfx)) {
+                String entryOuter = w.length > 3 && !w[3].isEmpty()
+                        ? w[3] : outerCol;
+                c = outerDatedWindowCond(c, out, sj.right(), w[0], w[1],
+                        Boolean.parseBoolean(w[2]), entryOuter, navClass,
+                        /*nullTolerant*/ false);
+            }
+            Type.RelationType prev = (Type.RelationType) out.info().type();
+            List<Type.Column> cols = new ArrayList<>(prev.columns());
+            for (Type.Column sc : ((Type.RelationType)
+                    sj.right().info().type()).columns()) {
+                String nm = headPfx + pfx + sc.name();
+                Type.Column oc = origRow.columns().stream()
+                        .filter(x -> x.name().equalsIgnoreCase(nm))
+                        .findFirst().orElse(null);
+                cols.add(oc != null ? oc
+                        : new Type.Column(nm, sc.type(), sc.multiplicity()));
+            }
+            out = new TypedJoin(out, sj.right(), sj.kind(), c,
+                    java.util.Optional.of(headPfx + pfx),
+                    new ExprType(new Type.RelationType(cols),
+                            Multiplicity.Bounded.ONE));
+        }
+        return out;
+    }
+
+    /** The composite minus the spine join carrying {@code pfx} (returned
+     * through {@code found}); filters above it rebuild, a JOIN above it
+     * returns null (that shape needs column subtraction — fallback). */
+    private static TypedSpec detachSpineJoin(TypedSpec pipe, String pfx,
+            TypedJoin[] found) {
+        if (pipe instanceof TypedJoin sj) {
+            if (sj.prefix().isPresent() && sj.prefix().get().equals(pfx)) {
+                found[0] = sj;
+                return sj.left();
+            }
+            return null;
+        }
+        if (pipe instanceof TypedFilter f) {
+            TypedSpec src = detachSpineJoin(f.source(), pfx, found);
+            return src == null ? null
+                    : new TypedFilter(src, f.predicate(), src.info());
+        }
+        return null;
+    }
+
     TypedLambda withDeferredOuterSubWindows(TypedLambda cond, TypedSpec left,
             TypedSpec right, String chainHead, String outerCol,
             String navClass) {
@@ -1242,10 +1378,16 @@ final class TemporalFrame {
                     // out of scope (task #32)
                     String outerCol = outerColumnDate(specs.get(chainHead), cs);
                     if (outerCol != null) {
-                        yield new TypedJoin(
-                                applyJoinTemporalFilters(j.left(), cs,
-                                        navPrefixToClass, navPrefixToChain,
-                                        midPrefixToChain, midPrefixToDim),
+                        TypedSpec processedLeft = applyJoinTemporalFilters(
+                                j.left(), cs, navPrefixToClass,
+                                navPrefixToChain, midPrefixToChain,
+                                midPrefixToDim);
+                        TypedSpec hoisted = hoistDeferredOuterSubJoins(j,
+                                processedLeft, chainHead, outerCol, navClass);
+                        if (hoisted != null) {
+                            yield hoisted;
+                        }
+                        yield new TypedJoin(processedLeft,
                                 right, j.kind(),
                                 withDeferredOuterSubWindows(
                                         outerDatedCond(j.condition(), j.left(),
