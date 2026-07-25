@@ -710,6 +710,17 @@ final class TemporalFrame {
 
     TypedSpec milestonedPipeByStrategy(TypedSpec pipe, TypedSpec date,
             String strategy, String classFqn) {
+        // HYBRID union (across-tables milestoning): each member filters by
+        // ITS OWN table's block for this dimension — deriving capability
+        // from the first member's table silently unfiltered every OTHER
+        // dimension's members (the hybrid trio's 18v12: processing arms
+        // in_z/out_z and processing-snapshotDate never stamped)
+        if (Pipelines.containsConcatenate(pipe)) {
+            final TypedSpec fdate = date;
+            return replaceScan(pipe, sc -> tableHasBlock(sc, strategy)
+                    ? milestonedPipeByStrategy(sc, fdate, strategy, classFqn)
+                    : sc);
+        }
         TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
