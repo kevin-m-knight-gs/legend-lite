@@ -1019,7 +1019,9 @@ public final class Lowerer {
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
         // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
         if (mapBody instanceof TypedNativeCall rm
-                && rm.callee().qualifiedName().equals("meta::pure::functions::math::mathUtility::rowMapper")
+                && (rm.callee().qualifiedName().equals("meta::pure::functions::math::mathUtility::rowMapper")
+                        || rm.callee().qualifiedName().equals(
+                                "meta::pure::functions::math::wavgUtility::wavgRowMapper"))
                 && rm.args().size() == 2) {
             SqlExpr first = scalar(rm.args().get(0), (v, name) -> resolveOrThrow(base, name));
             SqlExpr second = scalar(rm.args().get(1), (v, name) -> resolveOrThrow(base, name));

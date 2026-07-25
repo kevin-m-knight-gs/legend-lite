@@ -1492,6 +1492,12 @@ public final class Pure {
     // lite spelling of REAL pure meta::pure::functions::variant::convert::to/toMany.
     public static final NativeFunctionDefinition VARIANT_TO__ANY_1__T_1 = signature("native function meta::legend::lite::variantTo<T>(val:meta::pure::metamodel::type::Any[1], type:T[1]):T[1];");
     public static final NativeFunctionDefinition WAVG__ROW_MAPPER_MANY = signature("native function meta::pure::functions::math::wavg<T,U>(values:meta::pure::functions::math::mathUtility::RowMapper<T,U>[*]):meta::pure::metamodel::type::Float[1];");
+    // wavgRowMapper (REAL math/wavgUtility spelling, handlers:464 —
+    // wavgRowMapper(Number[0..1], Number[0..1]):WavgRowMapper[1]): the
+    // corpus's receiver-style pair builder ($x.quantity->wavgRowMapper(
+    // $x.weight)); carried as the SAME RowMapper family (the aggregate
+    // decompose reads (value, weight) positionally either way).
+    public static final NativeFunctionDefinition WAVG_ROW_MAPPER__NUMBER_0_1__NUMBER_0_1 = signature("native function meta::pure::functions::math::wavgUtility::wavgRowMapper(value:meta::pure::metamodel::type::Number[0..1], weight:meta::pure::metamodel::type::Number[0..1]):meta::pure::functions::math::mathUtility::RowMapper<meta::pure::metamodel::type::Number, meta::pure::metamodel::type::Number>[1];");
     public static final NativeFunctionDefinition WEEK_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::weekOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition WRITE__RELATION_1 = signature("native function meta::pure::functions::relation::write<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition WRITE__RELATION_1__ANY_1 = signature("native function meta::pure::functions::relation::write<T>(source:meta::pure::metamodel::relation::Relation<T>[1], target:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Integer[1];");
