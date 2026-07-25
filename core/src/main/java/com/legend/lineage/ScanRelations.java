@@ -87,7 +87,9 @@ public final class ScanRelations {
         for (List<Seg> p : paths) {
             if (roots.isEmpty()) {
                 for (ClassMapping.Relational cm : rootCms) {
-                    roots.add(new Node(mainDbOf(cm), mainTableOf(cm), null));
+                    Node r = new Node(mainDbOf(cm), mainTableOf(cm), null);
+                    roots.add(r);
+                    foldClassFilter(ctx, r, cm);
                 }
             }
             for (int i = 0; i < rootCms.size(); i++) {
@@ -193,6 +195,23 @@ public final class ScanRelations {
             assignByTable(root, refs);
         }
         return root;
+    }
+
+    /** A set's ~filter joins the tree like the view filter: its join
+     * web's tables and condition columns are part of the set's rows. */
+    private static void foldClassFilter(ModelContext ctx, Node node,
+            ClassMapping.Relational cm) {
+        com.legend.model.FilterMapping fm = cm.filter();
+        if (fm instanceof com.legend.model.FilterMapping.JoinMediated jm) {
+            Node at = joinChain(ctx, null, node, jm.sourceDb(), jm.joins());
+            assignFilter(ctx, node, at, jm.sourceDb(), jm.filter());
+        } else if (fm instanceof com.legend.model.FilterMapping.Direct d) {
+            String db = node.db;
+            if (d.filter() instanceof com.legend.model.FilterPointer.Cross c) {
+                db = c.db();
+            }
+            assignFilter(ctx, node, node, db, d.filter());
+        }
     }
 
     private static void foldJoinNavigation(ModelContext ctx, Node root,
@@ -316,7 +335,14 @@ public final class ScanRelations {
         }
         for (PropertyMapping pm : pms) {
             switch (pm) {
-                case PropertyMapping.Column c -> node.cols.add(c.column());
+                case PropertyMapping.Column c -> {
+                    if (next < path.size()) {
+                        throw new NotImplementedException("scanRelations:"
+                                + " scalar '" + prop.name()
+                                + "' in MID position");
+                    }
+                    node.cols.add(c.column());
+                }
                 case PropertyMapping.Expression ex -> {
                     // derived scalar (concat(firstName, lastName)): its
                     // source columns are the demand
@@ -773,11 +799,15 @@ public final class ScanRelations {
         }
         if (n instanceof AppliedFunction af && af.parameters().size() >= 2
                 && af.parameters().stream().skip(1)
-                        .noneMatch(a -> a instanceof LambdaFunction)) {
-            // a call with non-lambda extras over a chain is a QUALIFIED
-            // PROPERTY hop (milestoned dates: product($businessDate)) —
-            // a non-property lands on the walk's loud unmapped wall,
-            // never a silently wrong tree
+                        .noneMatch(a -> a instanceof LambdaFunction)
+                && af.parameters().stream().skip(1)
+                        .noneMatch(ScanRelations::carriesChain)) {
+            // a call whose extras are chain-free non-lambdas over a chain
+            // is a QUALIFIED PROPERTY hop (milestoned dates:
+            // product($businessDate)) — an OPERATOR over chains
+            // (firstName + lastName) is NOT: its operand chains collect
+            // separately. A non-property still lands on the walk's loud
+            // unmapped wall, never a silently wrong tree.
             List<Seg> base = chainOf(af.parameters().get(0));
             if (base == null) {
                 return null;
@@ -786,6 +816,13 @@ public final class ScanRelations {
             return base;
         }
         return null;
+    }
+
+    /** Whether the expression contains a NON-EMPTY var-rooted chain. */
+    private static boolean carriesChain(ValueSpecification n) {
+        List<List<Seg>> probe = new ArrayList<>();
+        collectChains(n, probe);
+        return !probe.isEmpty();
     }
 
     private static String typeName(ValueSpecification v) {

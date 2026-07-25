@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 1 | 1 | 2 |
-| lineage/scanRelations | 49 | 10 | 8 | 0 | 31 |
+| lineage/scanRelations | 49 | 11 | 5 | 0 | 33 |
 | milestoning/tests | 224 | 162 | 4 | 14 | 44 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
@@ -68,14 +68,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 62 | 3 | 8 | 1 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 100 | 0 | 6 | 18 |
+| tests/mapping/union | 124 | 99 | 1 | 6 | 18 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 71 | 0 | 9 | 3 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1553** | 76 | 296 | 613 |
+| **total** | 2538 | **1553** | 74 | 296 | 615 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7507,8 +7507,8 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].timestamp expected 2003-07-19T00:00:00.000000000, got 2003-07-19 00:00:00 | expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tiny
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].pnl expected 200.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=100.0, supportContactName=Peter Smith, order
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7542,11 +7542,10 @@ in-process Alloy-shaped path).
 - SHAPE testRelationalTreeCalculationWithViewInAnotherSchema [lineage/scanRelations]: scanRelations: scanRelations: unknown join 'AltIDToEntityMapping_AlternativeID'
 - SHAPE testTableTree_Inheritance_1 [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testTableTree_Inheritance_2 [lineage/scanRelations]: scanRelations: scanRelations: enum-mapped column leaf
-- FAIL testSelectOnLeftSide [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) Person [ID, name]\n    ------> (t) Bicycle(PersonBicycle) [b_PersonID]\n    ------> (t) Car(PersonCar) [ID, c_PersonID]\n      ------> (t) Owner(CarOwner) [VEHICLE_ID, name]\ngot\nroot\n  ------> (t) Person [name]\n
-- SHAPE testTableTreeTwoFilters [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
+- SHAPE testSelectOnLeftSide [lineage/scanRelations]: scanRelations: scanRelations: scalar 'name' in MID position
+- SHAPE testTableTreeTwoFilters [lineage/scanRelations]: scanRelations: scanRelations: scalar 'name' in MID position
 - SHAPE testTableTreeQualifier [lineage/scanRelations]: scanRelations: scanRelations: property 'type' has no property mapping in set 'meta::relational::tests::model::simple::Product'
-- FAIL testTableTreeWithMappingFilter [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) personTable [FIRMID, FIRSTNAME]\n    ------> (t) firmTable(Firm_Person) [ID, LEGALNAME]\ngot\nroot\n  ------> (t) personTable [FIRSTNAME]\n
-- FAIL testUnion [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) FirmSet1 [ID, name]\n    ------> (t) PersonMaster(PersonMasterFirmSet1) [FirmID, firstName, lastName]\n  ------> (t) FirmSet2 [ID, name]\n    ------> (t) PersonMaster(PersonMasterFirmSet2) [FirmID, firstName, lastName]\ngot\nroot\n  ------> (t) FirmSet1 [
+- SHAPE testUnion [lineage/scanRelations]: scanRelations: scanRelations: scalar 'firstName' in MID position
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testUnionToUnion [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testUnionToSameTableWithDiffKeys [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7614,7 +7613,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8108,6 +8107,7 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
