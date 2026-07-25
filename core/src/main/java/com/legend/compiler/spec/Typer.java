@@ -2120,7 +2120,9 @@ final class Typer {
                     "coalesce", "orElse", "defaultIfEmpty", "size", "count",
                     "sum", "average", "mean", "min", "max", "joinStrings",
                     "makeString", "isDistinct", "exists", "forAll",
-                    "contains", "in");
+                    // in() lowers COALESCE(..., false) — total like pure's,
+                    // so it is strict-safe for the derived [0..1] inline
+                    "contains");
 
     private boolean derivedBodyStrictInThis(Property.Derived d) {
         var fns = ctx.findFunction(d.bodyFunctionFqn());

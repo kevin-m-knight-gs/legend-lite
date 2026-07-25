@@ -2161,7 +2161,14 @@ final class Scalars {
             } else {
                 flat.add(args.get(1));
             }
-            return new SqlExpr.Call(SqlFn.IN, flat);
+            // pure in() is TOTAL (Boolean[1] — false over an empty needle,
+            // never empty): coalesce the SQL three-valued NULL to false so
+            // a [0..1] read's in() projects pure's false, not TDSNull.
+            // (not(in) stays correct: not(coalesce(NULL->false)) = true =
+            // the engine's processNotIn 'OR IS NULL' outcome.)
+            return SqlExpr.Call.of(SqlFn.COALESCE,
+                    new SqlExpr.Call(SqlFn.IN, flat),
+                    new SqlExpr.BoolLit(false));
         });
     }
 
