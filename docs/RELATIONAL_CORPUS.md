@@ -14,7 +14,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 198 | 9 | 34 | 17 |
+| functions/tests | 258 | 199 | 8 | 34 | 17 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 109 | 6 | 21 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1490** | 71 | 322 | 655 |
+| **total** | 2538 | **1491** | 70 | 322 | 655 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6864,7 +6864,6 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -7019,7 +7018,7 @@ in-process Alloy-shaped path).
 - ERROR testBiTemporalProperty [graphFetch/tests]: graphFetch tree: class meta::relational::tests::milestoning::BiTemporalProduct has no property 'processingDate'
 - ERROR testSnapshotMilestoning [graphFetch/tests]: parameterized qualifier tree leaf 'classification' with a non-literal argument needs an alias — the rendered-key form only covers literals
 - FAIL testInnerJoinIsolationAtRoot [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].id expected 2, got 3 | expected [{cancelProductActivityCreatedBy=null, id=2}, {cancelProductActivityCreatedBy=null, id=3}], got [{id=3, cancelProductActivityCreatedBy=null}, {id=2, cancelProductActivityCreatedBy=null}]
-- ERROR testInnerJoinIsolationAtChild [graphFetch/tests]: graph leaf 'cancelProductActivityCreatedBy' of class 'meta::relational::tests::milestoning::Product' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
+- ERROR testInnerJoinIsolationAtChild [graphFetch/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Product_CancelActivities' (the demand scan and the rewrite disagreed)
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_Checked [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
@@ -7165,7 +7164,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7320,7 +7319,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
