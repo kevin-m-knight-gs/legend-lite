@@ -44,6 +44,16 @@ final class Aggregates {
         family("MEDIAN", "median");
         family("AVG", "mean");
         family("MODE", "mode");
+        // Boolean reductions: y|$y->and() / ->or() over a group — DuckDB
+        // BOOL_AND/BOOL_OR (engine simpleGroupByAnd/Or goldens). The
+        // 1-arg COLLECTION overloads only: the 2-arg logical and(a,b)
+        // must never register as a reducer.
+        for (String f : Pure.nativeKeysAt("and", 1)) {
+            REDUCERS.put(f, "BOOL_AND");
+        }
+        for (String f : Pure.nativeKeysAt("or", 1)) {
+            REDUCERS.put(f, "BOOL_OR");
+        }
         // percentile: DuckDB QUANTILE family; the 4-arg overload's
         // ascending/continuous flags are folded in the lowering (aggExpr).
         family("QUANTILE_CONT", "percentile");
