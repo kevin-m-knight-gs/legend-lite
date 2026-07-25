@@ -55,15 +55,8 @@ final class InnerDemand {
         Set<List<String>> out = new LinkedHashSet<>();
         for (TemporalFrame.TemporalSpec sp : specs) {
             for (TypedSpec dexp : sp.dates()) {
-                List<String> path = new java.util.ArrayList<>();
-                TypedSpec cur = Pipelines.unwrapToOne(dexp);
-                while (cur instanceof com.legend.compiler.spec.typed
-                        .TypedPropertyAccess pa) {
-                    path.add(0, pa.property());
-                    cur = Pipelines.unwrapToOne(pa.source());
-                }
-                if (cur instanceof com.legend.compiler.spec.typed.TypedVariable
-                        && path.size() >= 2) {
+                List<String> path = TemporalFrame.singleVarChain(dexp);
+                if (path != null && path.size() >= 2) {
                     out.add(path);
                 }
             }

@@ -194,16 +194,10 @@ final class TemporalFrame {
                 // sub-window on the head's join ON covers these targets
                 // (stampForClassOrDefer registered it); skipping here is
                 // the same window, not a dropped filter
-                TypedSpec dd = unwrapToOne(c.dateFor(dim));
-                if (dd instanceof TypedPropertyAccess dpa
-                        && (dpa.source() instanceof
-                                com.legend.compiler.spec.typed.TypedVariable
-                            // NAV-READ dates (#32) defer identically:
-                            // the composed column lives on the OUTER row
-                            || (unwrapToOne(dpa.source())
-                                        instanceof TypedPropertyAccess dpb
-                                && dpb.source() instanceof com.legend
-                                        .compiler.spec.typed.TypedVariable))) {
+                // OUTER-ROW reads (own-column, nav-read, or wrapped —
+                // adjust($o...)) cannot stamp in-pipe; the join-ON
+                // composition owns their window (#32)
+                if (singleVarChain(c.dateFor(dim)) != null) {
                     continue;
                 }
                 out = milestonedPipeByStrategy(out, c.dateFor(dim), dim, label);
@@ -253,6 +247,11 @@ final class TemporalFrame {
      * composition consumes ({@link #withDeferredOuterSubWindows}, both
      * routes; idempotent). Per-resolution frame lifecycle. */
     private final Map<String, String[]> deferredOuterSubWindows =
+            new java.util.LinkedHashMap<>();
+    /** The deferred entry's raw DATE EXPRESSION (same keys) — the window
+     * composition re-applies its wrappers (adjust etc.) over the outer
+     * column read (#32 part 2). */
+    private final Map<String, TypedSpec> deferredOuterSubDates =
             new java.util.LinkedHashMap<>();
 
     /**
@@ -312,17 +311,70 @@ final class TemporalFrame {
      * exposes it on the head's left row; a wrong candidate dies loud at
      * the window's column lookup, never silently). Null otherwise. */
     private String outerRead(TypedSpec d) {
-        TypedSpec d0 = d == null ? null : unwrapToOne(d);
-        if (d0 instanceof TypedPropertyAccess p0
-                && p0.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable) {
-            return p0.property();
+        List<String> ch = singleVarChain(d);
+        return ch == null ? null : String.join("_", ch);
+    }
+
+    /** The SINGLE var-rooted property chain inside a date expression —
+     * the expr may WRAP the read (adjust($o.orderDetails.settlementDate,
+     * -1, DAYS)); exactly one chain of 1-2 hops = the outer read, else
+     * null (a two-chain date has no single window column). */
+    static List<String> singleVarChain(TypedSpec d) {
+        if (d == null) {
+            return null;
         }
-        if (d0 instanceof TypedPropertyAccess p1
-                && unwrapToOne(p1.source()) instanceof TypedPropertyAccess p2
-                && p2.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable) {
-            return p2.property() + "_" + p1.property();
+        List<List<String>> chains = new ArrayList<>();
+        collectVarChains(unwrapToOne(d), chains);
+        return chains.size() == 1 && chains.get(0).size() <= 2
+                ? chains.get(0) : null;
+    }
+
+    private static void collectVarChains(TypedSpec n,
+            List<List<String>> out) {
+        TypedSpec n0 = unwrapToOne(n);
+        List<String> path = new ArrayList<>();
+        TypedSpec cur = n0;
+        while (cur instanceof TypedPropertyAccess pa) {
+            path.add(0, pa.property());
+            cur = unwrapToOne(pa.source());
+        }
+        if (!path.isEmpty()
+                && cur instanceof com.legend.compiler.spec.typed.TypedVariable) {
+            out.add(path);
+            return;
+        }
+        for (TypedSpec c : n0.children()) {
+            collectVarChains(c, out);
+        }
+    }
+
+    /** The spec date EXPRESSION with its inner outer-row read replaced
+     * by {@code colRead} — wrappers (adjust etc.) survive, so the window
+     * compares against the TRANSFORMED date (engine: dateadd on the
+     * join ON). Null when the date IS the bare read (no wrapper). */
+    private static TypedSpec wrapOuterDate(TypedSpec specDate,
+            TypedSpec colRead) {
+        TypedSpec d0 = unwrapToOne(specDate);
+        if (d0 instanceof TypedPropertyAccess) {
+            return null;
+        }
+        if (d0 instanceof TypedNativeCall c) {
+            List<TypedSpec> args = new ArrayList<>();
+            boolean changed = false;
+            for (TypedSpec a : c.args()) {
+                TypedSpec a0 = unwrapToOne(a);
+                if (a0 instanceof TypedPropertyAccess
+                        && singleVarChain(a0) != null) {
+                    args.add(colRead);
+                    changed = true;
+                } else {
+                    TypedSpec inner = wrapOuterDate(a, colRead);
+                    args.add(inner == null ? a : inner);
+                    changed |= inner != null;
+                }
+            }
+            return changed ? new TypedNativeCall(c.callee(), args, c.info())
+                    : null;
         }
         return null;
     }
@@ -357,6 +409,7 @@ final class TemporalFrame {
         deferredOuterSubWindows.put(chain + "#" + strat,
                 new String[]{f0, t0, String.valueOf(inc0),
                         outerRead(date) == null ? "" : outerRead(date)});
+        deferredOuterSubDates.put(chain + "#" + strat, date);
         return true;
     }
 
@@ -376,6 +429,7 @@ final class TemporalFrame {
             String navClass) {
         Type.RelationType rRow = (Type.RelationType) j.right().info().type();
         Map<String, List<String[]>> byPfx = new LinkedHashMap<>();
+        Map<String, List<String>> byPfxKeys = new LinkedHashMap<>();
         for (var de : deferredOuterSubWindows.entrySet()) {
             if (!de.getKey().startsWith(chainHead + ".")) {
                 continue;
@@ -398,6 +452,8 @@ final class TemporalFrame {
                 return null;
             }
             byPfx.computeIfAbsent(pfx, k -> new ArrayList<>()).add(w);
+            byPfxKeys.computeIfAbsent(pfx, k -> new ArrayList<>())
+                    .add(de.getKey());
         }
         if (byPfx.isEmpty()) {
             return null;
@@ -429,9 +485,12 @@ final class TemporalFrame {
                 headCols.add(c);
             }
         }
+        TemporalSpec headSpec = specs.get(chainHead);
+        TypedSpec headDate = headSpec != null && headSpec.dates().size() == 1
+                ? headSpec.dates().get(0) : null;
         TypedSpec out = new TypedJoin(processedLeft, stripped, j.kind(),
                 outerDatedCond(j.condition(), j.left(), stripped, navClass,
-                        outerCol),
+                        outerCol, headDate),
                 j.prefix(),
                 new ExprType(new Type.RelationType(headCols),
                         Multiplicity.Bounded.ONE));
@@ -454,12 +513,15 @@ final class TemporalFrame {
                 }
                 c = new TypedLambda(c.parameters(), body, c.info());
             }
-            for (String[] w : byPfx.get(pfx)) {
+            List<String[]> ws = byPfx.get(pfx);
+            for (int k = 0; k < ws.size(); k++) {
+                String[] w = ws.get(k);
                 String entryOuter = w.length > 3 && !w[3].isEmpty()
                         ? w[3] : outerCol;
                 c = outerDatedWindowCond(c, out, sj.right(), w[0], w[1],
                         Boolean.parseBoolean(w[2]), entryOuter, navClass,
-                        /*nullTolerant*/ false);
+                        /*nullTolerant*/ false, deferredOuterSubDates.get(
+                                byPfxKeys.get(pfx).get(k)));
             }
             Type.RelationType prev = (Type.RelationType) out.info().type();
             List<Type.Column> cols = new ArrayList<>(prev.columns());
@@ -535,7 +597,8 @@ final class TemporalFrame {
             }
             cond = outerDatedWindowCond(cond, left, right, pfx + w[0],
                     pfx + w[1], Boolean.parseBoolean(w[2]), entryOuter,
-                    navClass, /*nullTolerant*/ true);
+                    navClass, /*nullTolerant*/ true,
+                    deferredOuterSubDates.get(de.getKey()));
         }
         return cond;
     }
@@ -578,14 +641,11 @@ final class TemporalFrame {
                 || spec.dates().size() != 1) {
             return own;
         }
-        TypedSpec d = unwrapToOne(spec.dates().get(0));
-        if (d instanceof TypedPropertyAccess pa2
-                && unwrapToOne(pa2.source()) instanceof TypedPropertyAccess pb2
-                && pb2.source() instanceof
-                        com.legend.compiler.spec.typed.TypedVariable) {
+        List<String> ch = singleVarChain(spec.dates().get(0));
+        if (ch != null && ch.size() == 2) {
             for (String cand : new String[]{
-                    pb2.property() + "_" + pa2.property(),
-                    pb2.property() + "_nav_" + pa2.property()}) {
+                    ch.get(0) + "_" + ch.get(1),
+                    ch.get(0) + "_nav_" + ch.get(1)}) {
                 if (leftRow.columns().stream()
                         .anyMatch(c -> c.name().equalsIgnoreCase(cand))) {
                     return cand;
@@ -593,7 +653,7 @@ final class TemporalFrame {
             }
             if (System.getenv("LEGEND_LITE_NAVDATE_TRACE") != null) {
                 System.err.println("[navdate] left row lacks composed column "
-                        + pb2.property() + "." + pa2.property() + ": "
+                        + String.join(".", ch) + ": "
                         + leftRow.columns().stream()
                                 .map(Type.Column::name).toList());
             }
@@ -1002,6 +1062,12 @@ final class TemporalFrame {
 
     private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String navClass, String outerCol) {
+        return outerDatedCond(cond, left, right, navClass, outerCol, null);
+    }
+
+    private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
+            TypedSpec right, String navClass, String outerCol,
+            TypedSpec specDate) {
         String strat = temporalStrategy(navClass);
         TypedTableReference rt = rootTable(right);
         var ms = rt == null ? null
@@ -1034,7 +1100,7 @@ final class TemporalFrame {
                     + rt.table() + "' has no FROM/THRU pair");
         }
         return outerDatedWindowCond(cond, left, right, fromCol, thruCol,
-                inclusive, outerCol, navClass, false);
+                inclusive, outerCol, navClass, false, specDate);
     }
 
     /** The window {@code r.<from> <= l.<outerCol> AND r.<thru> > l.<outerCol>}
@@ -1045,6 +1111,14 @@ final class TemporalFrame {
             TypedSpec right, String fromCol, String thruCol,
             boolean inclusive, String outerCol, String navClass,
             boolean nullTolerant) {
+        return outerDatedWindowCond(cond, left, right, fromCol, thruCol,
+                inclusive, outerCol, navClass, nullTolerant, null);
+    }
+
+    private TypedLambda outerDatedWindowCond(TypedLambda cond, TypedSpec left,
+            TypedSpec right, String fromCol, String thruCol,
+            boolean inclusive, String outerCol, String navClass,
+            boolean nullTolerant, TypedSpec specDate) {
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
         Type.RelationType lRow = (Type.RelationType) left.info().type();
@@ -1067,6 +1141,12 @@ final class TemporalFrame {
         TypedSpec dExpr = new TypedPropertyAccess(new TypedVariable(sv,
                 new ExprType(lRow, Multiplicity.Bounded.ONE)),
                 lc.name(), new ExprType(lc.type(), lc.multiplicity()));
+        if (specDate != null) {
+            TypedSpec wrapped = wrapOuterDate(specDate, dExpr);
+            if (wrapped != null) {
+                dExpr = wrapped;
+            }
+        }
         ExprType boolT = new ExprType(Type.Primitive.BOOLEAN,
                 Multiplicity.Bounded.ONE);
         TypedSpec win = inclusive
@@ -1474,11 +1554,16 @@ final class TemporalFrame {
                         if (hoisted != null) {
                             yield hoisted;
                         }
+                        TemporalSpec chSpec = specs.get(chainHead);
                         yield new TypedJoin(processedLeft,
                                 right, j.kind(),
                                 withDeferredOuterSubWindows(
                                         outerDatedCond(j.condition(), j.left(),
-                                                right, navClass, outerCol),
+                                                right, navClass, outerCol,
+                                                chSpec != null && chSpec
+                                                        .dates().size() == 1
+                                                        ? chSpec.dates().get(0)
+                                                        : null),
                                         j.left(), right, chainHead, outerCol,
                                         navClass),
                                 j.prefix(), j.info());
