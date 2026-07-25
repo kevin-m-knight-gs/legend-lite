@@ -52,7 +52,20 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             java.util.function.Consumer<String> rawSqlFailureSink,
-            boolean addDriverTablePk) {
+            boolean addDriverTablePk,
+            java.util.Map<String, TypedSpec> queryLets) {
+        ExecEnv(ModelContext ctx, String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                java.util.function.Consumer<String> rawSqlFailureSink,
+                boolean addDriverTablePk) {
+            // run-scoped accumulator of inliner-consumed lets: graph-tree
+            // date args keep their source spelling (the serialize key), so
+            // every resolver seeds its let env from here (engine
+            // inScopeVars)
+            this(ctx, runtimeFqn, dialect, connection, rawSqlFailureSink,
+                    addDriverTablePk, new java.util.LinkedHashMap<>());
+        }
     }
 
     /**
@@ -144,10 +157,11 @@ final class StatementExecutor {
             }
             java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
             single.add(stmt);
+            var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
+                    spliceHook(execFrames, letPrefix, specs, env));
             java.util.List<TypedSpec> body =
-                    new com.legend.compiler.spec.UserCallInliner(specs,
-                            spliceHook(execFrames, letPrefix, specs, env))
-                            .inlineBody(single);                          // Phase G½
+                    stmtInliner.inlineBody(single);                       // Phase G½
+            env.queryLets().putAll(stmtInliner.queryLets());
             // toSQLString dispatches PRE-H: its query lambda resolves
             // against the EXPLICIT mapping argument, never the ambient
             // runtime's (audit 19d B3 — the K-native replacing the
@@ -175,6 +189,7 @@ final class StatementExecutor {
                 continue;
             }
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                    .withLetBindings(env.queryLets())
                     .resolve(body, env.runtimeFqn());                     // Phase H
             if (env.addDriverTablePk()) {
                 // the engine's addDriverTablePkForProject option (#45):
@@ -391,8 +406,9 @@ final class StatementExecutor {
         }
         java.util.List<TypedSpec> qb = new java.util.ArrayList<>(letPrefix);
         qb.addAll(lam.body());
-        TypedSpec chain = new com.legend.compiler.spec.UserCallInliner(specs)
-                .inlineBody(qb).get(0);
+        var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
+        TypedSpec chain = inliner.inlineBody(qb).get(0);
+        env.queryLets().putAll(inliner.queryLets());
         if (!containsTypedFrom(chain)) {
             if (mref == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -411,8 +427,12 @@ final class StatementExecutor {
                 instanceof com.legend.compiler.element.type.Type.RelationType;
         ExecutionResult run = null;
         if (eager) {
+            // the inliner consumed the query's lets; graph-tree date args
+            // still spell the variables (serialize-key source form) — the
+            // resolver's let env resolves them (engine inScopeVars)
             java.util.List<TypedSpec> body =
                     new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                            .withLetBindings(env.queryLets())
                             .resolve(java.util.List.of(chain), env.runtimeFqn());
             // the engine's RelationalExecutionContext option: driver-table
             // PK columns join every projection (#45 validation)

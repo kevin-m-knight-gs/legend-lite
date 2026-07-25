@@ -121,6 +121,14 @@ public final class UserCallInliner {
      * lambda-bound variable spelled like an exec-let ({@code let r =
      * execute(...)} vs {@code ->map(r|$r.values...)}). */
     private final Map<String, Integer> bound = new LinkedHashMap<>();
+    /** Query-level lets consumed by {@link #inlineBody} — graph-tree args
+     * keep their source spelling, so the resolver resolves variable dates
+     * through these (engine inScopeVars). */
+    private final Map<String, TypedSpec> queryLets = new LinkedHashMap<>();
+
+    public Map<String, TypedSpec> queryLets() {
+        return queryLets;
+    }
     private int fresh;
 
     public UserCallInliner(SpecCompiler specs) {
@@ -166,6 +174,10 @@ public final class UserCallInliner {
             }
             scope.put(let.name(), rewrite(let.value(), scope));
         }
+        // graph-tree args are NOT β-reduced (source spelling is the
+        // serialize key) — the resolver reads consumed lets through this
+        // (engine inScopeVars)
+        queryLets.putAll(scope);
         TypedSpec last = body.get(body.size() - 1);
         TypedSpec root = last instanceof TypedLet let
                 ? rewrite(let.value(), scope)
@@ -521,6 +533,10 @@ public final class UserCallInliner {
                     f.mapping(), f.runtime(), f.info());
             case TypedWrite w -> new TypedWrite(rewrite(w.source(), env),
                     w.destination().map(d -> rewrite(d, env)), w.info());
+            // tree ARGS stay VERBATIM: the serialize key renders their
+            // SOURCE spelling (engine: product($bd), not the bound date);
+            // date resolution reads the let env at the resolver instead
+            // (queryLets — engine resolveMilestoningDateParams/inScopeVars)
             case TypedGraphFetch gf -> new TypedGraphFetch(rewrite(gf.source(), env),
                     gf.tree(), gf.info());
             case TypedSerialize sz -> new TypedSerialize(rewrite(sz.source(), env),
@@ -594,6 +610,7 @@ public final class UserCallInliner {
         }
         return out;
     }
+
 
     private TypedFuncCol funcCol(TypedFuncCol c, Map<String, TypedSpec> env) {
         return new TypedFuncCol(c.name(), lambda(c.fn(), env));

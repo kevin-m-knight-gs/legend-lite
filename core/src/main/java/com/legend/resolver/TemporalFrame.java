@@ -1230,6 +1230,12 @@ final class TemporalFrame {
             String strategy, String classFqn) {
         if (System.getenv("LEGEND_LITE_STAMP_TRACE") != null) {
             TypedSpec d0 = unwrapToOne(date);
+            if (d0 instanceof com.legend.compiler.spec.typed.TypedVariable bv) {
+                System.err.println("[stamp] BYSTRAT BARE-VAR date $"
+                        + bv.name() + " cls=" + classFqn + " letEnv="
+                        + letEnv.keySet());
+                Thread.dumpStack();
+            }
             if (d0 instanceof TypedPropertyAccess p0
                     && p0.source() instanceof
                             com.legend.compiler.spec.typed.TypedVariable v0) {

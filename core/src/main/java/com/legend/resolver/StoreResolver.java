@@ -83,6 +83,14 @@ public final class StoreResolver {
     /** Query-body lets, shared by reference with every TemporalFrame. */
     private final Map<String, TypedSpec> letBindings =
             new java.util.LinkedHashMap<>();
+
+    /** Pre-seed the let env with bindings a caller already consumed
+     * (the inliner β-reduces query lets, but graph-tree date args keep
+     * their source spelling and resolve here — engine inScopeVars). */
+    public StoreResolver withLetBindings(Map<String, TypedSpec> lets) {
+        letBindings.putAll(lets);
+        return this;
+    }
     private GraphEmission.SerializeTypeConfig serializeTypeCfg;
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
