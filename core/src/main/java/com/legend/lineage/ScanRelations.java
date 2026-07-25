@@ -495,11 +495,6 @@ public final class ScanRelations {
             base.add(new Seg.Prop(ap.property()));
             return base;
         }
-        if (n instanceof AppliedFunction af && af.parameters().size() == 1
-                && ("toOne".equals(simple(af.function()))
-                        || "toOneMany".equals(simple(af.function())))) {
-            return chainOf(af.parameters().get(0));
-        }
         if (n instanceof AppliedFunction af
                 && "subType".equals(simple(af.function()))
                 && af.parameters().size() == 2) {
@@ -510,12 +505,36 @@ public final class ScanRelations {
             base.add(new Seg.SubType(typeName(af.parameters().get(1))));
             return base;
         }
+        if (n instanceof AppliedFunction af && af.parameters().size() == 1) {
+            // single-arg calls over a chain (toOne/isEmpty/count/...):
+            // transparent CONSUMERS — the chain itself is the demand
+            return chainOf(af.parameters().get(0));
+        }
+        if (n instanceof AppliedFunction af && af.parameters().size() >= 2
+                && af.parameters().stream().skip(1)
+                        .noneMatch(a -> a instanceof LambdaFunction)) {
+            // a call with non-lambda extras over a chain is a QUALIFIED
+            // PROPERTY hop (milestoned dates: product($businessDate)) —
+            // a non-property lands on the walk's loud unmapped wall,
+            // never a silently wrong tree
+            List<Seg> base = chainOf(af.parameters().get(0));
+            if (base == null) {
+                return null;
+            }
+            base.add(new Seg.Prop(simple(af.function())));
+            return base;
+        }
         return null;
     }
 
     private static String typeName(ValueSpecification v) {
-        if (v instanceof TypeAnnotation ta) {
-            return taName(ta);
+        if (v instanceof TypeAnnotation.Named named) {
+            return switch (named.type()) {
+                case com.legend.model.TypeExpression.NameRef nr -> nr.name();
+                case com.legend.model.TypeExpression.Generic g -> g.name();
+                default -> throw new NotImplementedException(
+                        "scanRelations: structural subType annotation");
+            };
         }
         if (v instanceof PackageableElementPtr p) {
             return p.fullPath();
@@ -523,21 +542,6 @@ public final class ScanRelations {
         throw new NotImplementedException(
                 "scanRelations: subType argument "
                 + v.getClass().getSimpleName());
-    }
-
-    private static String taName(TypeAnnotation ta) {
-        // TypeAnnotation's single name accessor (record component)
-        for (var rc : ta.getClass().getRecordComponents()) {
-            if (rc.getType() == String.class) {
-                try {
-                    return (String) rc.getAccessor().invoke(ta);
-                } catch (ReflectiveOperationException e) {
-                    throw new IllegalStateException(e);
-                }
-            }
-        }
-        throw new NotImplementedException("scanRelations: TypeAnnotation"
-                + " without a name component");
     }
 
     private static String simple(String f) {
