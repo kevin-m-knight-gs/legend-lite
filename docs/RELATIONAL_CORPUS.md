@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 113 | 6 | 17 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 62 | 16 | 62 | 3 |
+| graphFetch/tests | 143 | 62 | 17 | 61 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 1 | 1 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1553** | 75 | 293 | 617 |
+| **total** | 2538 | **1553** | 76 | 292 | 617 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7478,10 +7478,10 @@ in-process Alloy-shaped path).
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - ERROR testMilestonedProperty [graphFetch/tests]: no overload of 'meta::pure::executionPlan::executionPlan' matches 4 argument(s) of these shapes (no candidates at all)
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
-- ERROR testMultiLevelMilestoning [graphFetch/tests]: property 'inlinedExchangeName' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
-- ERROR testDateTimeInQuery [graphFetch/tests]: property 'inlinedCreatedBy' of class 'meta::relational::tests::milestoning::Product' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
-- ERROR testBiTemporalProperty [graphFetch/tests]: parameterized qualifier tree leaf 'biTemporalClassification' with a non-literal argument needs an alias — the rendered-key form only covers literals
-- ERROR testSnapshotMilestoning [graphFetch/tests]: parameterized qualifier tree leaf 'classification' with a non-literal argument needs an alias — the rendered-key form only covers literals
+- ERROR testMultiLevelMilestoning [graphFetch/tests]: filter predicate references column 'null', unresolvable even after isolation [param=ms_row; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::and, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=BOOLEAN, multiplicity=Boun
+- FAIL testDateTimeInQuery [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orderDate expected 2015-08-26T00:00:00.000000000, got 2015-08-26 00:00:00 | expected [{id=1, orderDate=2015-08-26T00:00:00.000000000, product(2019-08-26T00:00:00.000000000+0000)=[]}, {id=2, orderDate=2015-08-26T00:00:00.000000000, product(201..., got [{id=1
+- ERROR testBiTemporalProperty [graphFetch/tests]: filter predicate references column 'null', unresolvable even after isolation [param=ms_row; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::and, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=BOOLEAN, multiplicity=Boun
+- ERROR testSnapshotMilestoning [graphFetch/tests]: filter predicate references column 'null', unresolvable even after isolation [param=ms_row; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=ClassType[fqn=meta::pure
 - FAIL testInnerJoinIsolationAtRoot [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].id expected 2, got 3 | expected [{cancelProductActivityCreatedBy=null, id=2}, {cancelProductActivityCreatedBy=null, id=3}], got [{id=3, cancelProductActivityCreatedBy=null}, {id=2, cancelProductActivityCreatedBy=null}]
 - ERROR testInnerJoinIsolationAtChild [graphFetch/tests]: filter predicate references column 'null', unresolvable even after isolation [param=ms_row; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::and, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=BOOLEAN, multiplicity=Boun
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
@@ -7506,14 +7506,14 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].timestamp expected 2003-07-19T00:00:00.000000000, got 2003-07-19 00:00:00 | expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tiny
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
 - FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testInScopeVariable [graphFetch/tests]: Cannot invoke "String.length()" because "column" is null
-- ERROR testInScopeVariableBoolean [graphFetch/tests]: parameterized qualifier tree leaf 'fullName' with a non-literal argument needs an alias — the rendered-key form only covers literals
+- ERROR testInScopeVariableBoolean [graphFetch/tests]: Cannot invoke "String.length()" because "column" is null
 - ERROR testQualifierWithManyMultiplicityParameter_EmptyInput [graphFetch/tests]: derived graph leaf 'synonymsByTypes' body node TypedFilter referencing $this is not inlinable yet
 - ERROR testQualifierWithManyMultiplicityParameter_OneInput [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testQualifierWithManyMultiplicityParameter_MultiInputs [graphFetch/tests]: unknown enumeration 'ProductSynonymType'

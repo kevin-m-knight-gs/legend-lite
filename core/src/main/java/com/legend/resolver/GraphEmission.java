@@ -221,6 +221,25 @@ final class GraphEmission {
                 TypedSpec gen = generatedDateLeaf(cs, node.property(),
                         rowType, rowVar);
                 if (gen == null) {
+                    // an UNMAPPED OPTIONAL property serializes as null
+                    // (engine graph semantics: milestoningModel's
+                    // inlinedExchangeName rides unmapped in milestoningmap
+                    // and the golden emits null); REQUIRED stays loud
+                    var mp = ctx.findProperty(cs.classFqn(), node.property())
+                            .orElse(null);
+                    if (mp != null && mp.multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded ob
+                            && ob.lower() == 0) {
+                        gen = new com.legend.compiler.spec.typed
+                                .TypedCollection(List.of(),
+                                        new ExprType(mp.type(),
+                                                com.legend.compiler.element
+                                                        .type.Multiplicity
+                                                        .Bounded.ZERO_ONE));
+                    }
+                }
+                if (gen == null) {
                     throw new MappingResolutionException("property '"
                             + node.property() + "' of class '" + cs.classFqn()
                             + "' is not mapped in mapping '" + cs.mappingFqn()
@@ -1487,6 +1506,11 @@ final class GraphEmission {
                 // zone when it carries a time component
                 String d = cd.value().toEngineString();
                 k.append(d).append(d.indexOf('T') >= 0 ? "+0000" : "");
+            } else if (a instanceof
+                    com.legend.compiler.spec.typed.TypedVariable v) {
+                // a VARIABLE arg keeps its source spelling — the engine
+                // key is "classification($bd)" verbatim
+                k.append('$').append(v.name());
             } else {
                 throw new NotImplementedException("parameterized qualifier"
                         + " tree leaf '" + node.property() + "' with a"
