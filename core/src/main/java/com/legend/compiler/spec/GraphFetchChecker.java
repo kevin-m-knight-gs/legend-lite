@@ -126,6 +126,31 @@ final class GraphFetchChecker {
                 }
             }
             if (prop == null) {
+                // GENERATED milestoning members (businessDate/
+                // processingDate/milestoning struct) serve graph trees
+                // from the SAME registry as query-position typing
+                com.legend.compiler.element.type.ExprType gen =
+                        com.legend.compiler.element.Temporal
+                                .generatedMember(t.model(), classFqn,
+                                        cs.name());
+                if (gen != null) {
+                    ColSpecArray genNested = nestedTree(cs);
+                    if (genNested == null) {
+                        out.add(new TypedGraphTree(cs.name(), List.of(),
+                                cs.alias(), List.of(), false));
+                        continue;
+                    }
+                    if (!(gen.type() instanceof Type.ClassType gc)) {
+                        throw new TypeInferenceException(fn
+                                + " tree: generated member '" + cs.name()
+                                + "' is not class-typed and cannot carry"
+                                + " a sub-tree");
+                    }
+                    out.add(new TypedGraphTree(cs.name(),
+                            validate(t, gc.fqn(), genNested, fn, env),
+                            cs.alias(), List.of(), false));
+                    continue;
+                }
                 throw new TypeInferenceException(fn + " tree: class " + classFqn
                         + " has no property '" + cs.name() + "'");
             }

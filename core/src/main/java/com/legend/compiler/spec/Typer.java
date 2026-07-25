@@ -1952,45 +1952,14 @@ final class Typer {
             case Type.ClassType ct -> {
                 Property prop = ctx.findProperty(ct.fqn(), ap.property()).orElse(null);
                 if (prop == null) {
-                    // real pure GENERATES businessDate/processingDate on
-                    // temporal classes (the instance's temporal context
-                    // date — reads back as the query's context constant)
-                    String strat = com.legend.compiler.element.Temporal
-                            .strategyOf(ctx, ct.fqn());
-                    boolean generated = strat != null
-                            && (ap.property().equals("businessDate")
-                                    && (strat.equals("businesstemporal")
-                                            || strat.equals("bitemporal"))
-                            || ap.property().equals("processingDate")
-                                    && (strat.equals("processingtemporal")
-                                            || strat.equals("bitemporal")));
-                    if (generated) {
-                        yield new ExprType(Type.Primitive.DATE,
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ONE);
-                    }
-                    // the generated milestone STRUCT ($p.milestoning.from /
-                    // .thru): typed as the platform milestoning class
-                    if (ap.property().equals("milestoning") && strat != null) {
-                        yield new ExprType(new Type.ClassType(
-                                "meta::pure::milestoning::" + (strat
-                                        .equals("processingtemporal")
-                                        ? "ProcessingDateMilestoning"
-                                        : "BusinessDateMilestoning")),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ZERO_ONE);
-                    }
-                    if ((ct.fqn().equals("meta::pure::milestoning::BusinessDateMilestoning")
-                            || ct.fqn().equals("meta::pure::milestoning::ProcessingDateMilestoning"))
-                            && java.util.Set.of("from", "thru", "in", "out",
-                                    "snapshotDate").contains(ap.property())) {
-                        // DATE_TIME, not abstract Date: the wire keeps the
-                        // physical precision (the engine's milestone columns
-                        // read back as timestamps; the abstract-Date lattice
-                        // narrowing would truncate midnight values)
-                        yield new ExprType(Type.Primitive.DATE_TIME,
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ZERO_ONE);
+                    // real pure GENERATES the milestoning member surface
+                    // (businessDate/processingDate, the milestoning struct
+                    // and its members) — ONE registry, shared with graph
+                    // trees (Temporal.generatedMember)
+                    ExprType gen = com.legend.compiler.element.Temporal
+                            .generatedMember(ctx, ct.fqn(), ap.property());
+                    if (gen != null) {
+                        yield gen;
                     }
                     throw new TypeInferenceException("class " + ct.fqn()
                             + " has no property '" + ap.property() + "'");
