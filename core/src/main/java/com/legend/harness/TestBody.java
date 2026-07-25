@@ -242,6 +242,18 @@ public final class TestBody {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.List<String> seedFailures)
             throws java.sql.SQLException {
+        // validate(...) desugars to the engine's own synthesized query
+        // over the ORDINARY execute path (#45) — before routing, so the
+        // exec-frame machinery sees the execute binding
+        {
+            java.util.List<ValueSpecification> desugared =
+                    new ArrayList<>(statements.size());
+            for (ValueSpecification s : statements) {
+                desugared.add(com.legend.validation.ValidateDesugar
+                        .rewrite(s, ctx, imports.wildcards()));
+            }
+            statements = desugared;
+        }
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(statements);
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();

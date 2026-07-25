@@ -503,7 +503,10 @@ public final class Runner {
                 String simple = af.function()
                         .substring(af.function().lastIndexOf(':') + 1);
                 boolean executeShape = (simple.equals("execute")
-                                || simple.equals("toSQLString"))
+                                || simple.equals("toSQLString")
+                                // validate(func, MAPPING, runtime, ...) —
+                                // #45: desugars to execute at TestBody
+                                || simple.equals("validate"))
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;
