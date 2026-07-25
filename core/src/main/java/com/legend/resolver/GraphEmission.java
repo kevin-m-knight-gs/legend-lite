@@ -546,7 +546,7 @@ final class GraphEmission {
             }
         }
         Pipelines.Materialized cMat = Pipelines.materialize(
-                child.pipeline(), Set.of(), childClass);
+                child.pipeline(), leafSlotDemand(child, node), childClass);
         // MILESTONED child: the tree node's date arg registered as the
         // hop's temporal spec (collectTreeSweeps) — the child pipeline
         // filters by its window here, exactly like the relational
@@ -606,7 +606,7 @@ final class GraphEmission {
                     + "' — cross-source M2M children are not supported yet");
         }
         Pipelines.Materialized cMat = Pipelines.materialize(
-                child.pipeline(), Set.of(), childCls.fqn());
+                child.pipeline(), leafSlotDemand(child, node), childCls.fqn());
         return correlatedGraphChild(child, cMat.pipeline(),
                 (Type.RelationType)
                         cMat.pipeline().info().type(),
@@ -1305,6 +1305,41 @@ final class GraphEmission {
                     + " is not inlinable yet");
         }
         return n;
+    }
+
+    /** Slot aliases the tree's LEAF bindings read off the child row —
+     * the child pipeline's materialization demand (H4b: a leaf mapped
+     * through the class's own join slots needs those slots CONVERTED,
+     * not stripped; empty demand left them stripped and the leaf walled). */
+    private static java.util.Set<String> leafSlotDemand(ClassSource child,
+            TypedGraphTree node) {
+        java.util.Set<String> universe =
+                Pipelines.slotAliases(child.pipeline());
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (universe.isEmpty()) {
+            return out;
+        }
+        for (TypedGraphTree c : node.children()) {
+            TypedSpec b = child.bindings().get(c.property());
+            if (b != null) {
+                collectAliasReads(b, child.rowVar(), universe, out);
+            }
+        }
+        return out;
+    }
+
+    private static void collectAliasReads(TypedSpec n, String rowVar,
+            java.util.Set<String> universe, java.util.Set<String> out) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedPropertyAccess mid
+                && mid.source() instanceof TypedVariable v
+                && v.name().equals(rowVar)
+                && universe.contains(mid.property())) {
+            out.add(mid.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectAliasReads(c, rowVar, universe, out);
+        }
     }
 
     /** The engine's key for a non-aliased qualifier leaf: the SOURCE
