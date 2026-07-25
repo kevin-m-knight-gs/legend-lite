@@ -664,6 +664,17 @@ final class TemporalFrame {
                     "outer-row milestoning date: target table '"
                     + rt.table() + "' has no FROM/THRU pair");
         }
+        return outerDatedWindowCond(cond, left, right, fromCol, thruCol,
+                inclusive, outerCol, navClass);
+    }
+
+    /** The window {@code r.<from> <= l.<outerCol> AND r.<thru> > l.<outerCol>}
+     * ANDed onto {@code cond} — the column names are given VERBATIM (the
+     * head passes raw table columns; a deferred SUB-hop passes its
+     * composed prefixed spellings). */
+    private TypedLambda outerDatedWindowCond(TypedLambda cond, TypedSpec left,
+            TypedSpec right, String fromCol, String thruCol,
+            boolean inclusive, String outerCol, String navClass) {
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
         Type.RelationType lRow = (Type.RelationType) left.info().type();
