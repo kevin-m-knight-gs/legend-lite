@@ -119,12 +119,24 @@ final class AssociationSynthesis {
                     continue;
                 }
                 String target = associationTargetClass(ad, apm.propertyName());
-                if (target == null
-                        || UnionSynthesis.unionForClass(md, model, target) == null) {
+                if (target == null) {
                     continue;
                 }
+                boolean unionTgt =
+                        UnionSynthesis.unionForClass(md, model, target) != null;
+                boolean inheritanceTgt = !unionTgt
+                        && UnionSynthesis.inheritanceForClass(md, model, target)
+                                != null;
+                if (!unionTgt && !inheritanceTgt) {
+                    continue;
+                }
+                // an INHERITANCE-op target has NO set of its own class —
+                // the predicate path cannot anchor it (no ~mainTable);
+                // pair groups into it ALWAYS take the routed-PM injection
+                // (FIX-A computes inheritance member ordinals)
                 routedUnionGroups.merge(apm.sourceSetId() + "\u0000"
-                        + apm.propertyName(), join.joins().size() > 1,
+                        + apm.propertyName(),
+                        inheritanceTgt || join.joins().size() > 1,
                         Boolean::logicalOr);
             }
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
@@ -290,10 +302,35 @@ final class AssociationSynthesis {
         return null;
     }
 
+    /** The mapped association, resolved through the MAPPING's import
+     * scope when the header spells a SIMPLE name (the engine grammar:
+     * {@code Driver : Relational { AssociationMapping (...) }} inside a
+     * file importing the model package). */
+    static java.util.Optional<AssociationDefinition> resolveAssociation(
+            ModelBuilder model, LegacyMappingDefinition md,
+            AssociationMapping am) {
+        String name = am.associationName();
+        var direct = model.findAssociation(name);
+        if (direct.isPresent() || name.contains("::")) {
+            return direct;
+        }
+        for (String pkg : model.importsOf(md.qualifiedName()).wildcards()) {
+            var hit = model.findAssociation(pkg + "::" + name);
+            if (hit.isPresent()) {
+                return hit;
+            }
+        }
+        // same-package fallback (an unimported sibling)
+        int cut = md.qualifiedName().lastIndexOf("::");
+        return cut < 0 ? java.util.Optional.empty()
+                : model.findAssociation(
+                        md.qualifiedName().substring(0, cut) + "::" + name);
+    }
+
     static FunctionDefinition synthesizeAssociationMapping(LegacyMappingDefinition md,
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
-        AssociationDefinition ad0 = model.findAssociation(am.associationName())
+        AssociationDefinition ad0 = resolveAssociation(model, md, am)
                 .orElse(null);
         if (am instanceof AssociationMapping.ModelJoin mj && ad0 != null) {
             return MappingNormalizer.synthesizeModelJoinMapping(md, mj, model,
@@ -310,7 +347,7 @@ final class AssociationSynthesis {
                     "Association mapping kind " + am.getClass().getSimpleName()
                   + " not supported; mapping=" + md.qualifiedName());
         }
-        AssociationDefinition ad = model.findAssociation(am.associationName())
+        AssociationDefinition ad = resolveAssociation(model, md, am)
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "AssociationMapping references unknown association '"
                       + am.associationName() + "'; mapping=" + md.qualifiedName()));

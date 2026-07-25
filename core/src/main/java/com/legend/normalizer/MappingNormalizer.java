@@ -392,8 +392,7 @@ public final class MappingNormalizer {
         List<MappingDefinition.AssociationBinding> assocBindings =
                 new ArrayList<>(md.associationMappings().size());
         for (AssociationMapping am : md.associationMappings()) {
-            // null => multi-hop association, realized by per-end navigation
-            // injected above; no standalone predicate function, hence no binding.
+            // null => multi-hop association (per-end navigation above).
             FunctionDefinition fn;
             try {
                 fn = AssociationSynthesis.synthesizeAssociationMapping(md, am, model);
@@ -408,15 +407,19 @@ public final class MappingNormalizer {
                 if (!tolerant) {
                     throw e;
                 }
-                model.mappingPoisons.putIfAbsent(
-                        md.qualifiedName() + "::" + am.associationName(),
+                model.mappingPoisons.putIfAbsent(md.qualifiedName() + "::"
+                        + AssociationSynthesis.resolveAssociation(model, md, am)
+                                .map(a -> a.qualifiedName())
+                                .orElse(am.associationName()),
                         String.valueOf(e.getMessage()));
                 continue;
             }
             if (fn != null) {
                 lifted.add(fn);
                 assocBindings.add(new MappingDefinition.AssociationBinding(
-                        am.associationName(), fn.qualifiedName()));
+                        AssociationSynthesis.resolveAssociation(model, md, am)
+                                .map(a -> a.qualifiedName())
+                                .orElse(am.associationName()), fn.qualifiedName()));
             }
         }
         // includes survive the rewrite unchanged — one shared MappingInclude type.
