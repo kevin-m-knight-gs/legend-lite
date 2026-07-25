@@ -505,6 +505,14 @@ final class Typer {
                 return synth(olap, env);
             }
         }
+        // union(a, b) — SQL UNION: distinct over the concatenation (the
+        // same shape is pure's collection set-union, so both spellings
+        // mean exactly this)
+        if (tdsVocab(af.function(), "union") && af.parameters().size() == 2) {
+            return synth(new AppliedFunction("distinct", List.of(
+                    new AppliedFunction("concatenate", List.of(
+                            af.parameters().get(0), af.parameters().get(1))))), env);
+        }
         // columnValues(tds,'c') — the rows-mapped cell read
         if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString cvCol) {
