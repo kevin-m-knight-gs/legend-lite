@@ -430,8 +430,10 @@ final class AssociationJoins {
             TypedLambda cond, TypedSpec targetPipe) {
         String odc = temporal.outerDateColumn(head, cs);
         if (odc != null) {
-            return temporal.outerDatedJoinCond(cond, cs.pipeline(), targetPipe,
-                    target.classFqn(), odc);
+            return temporal.withDeferredOuterSubWindows(
+                    temporal.outerDatedJoinCond(cond, cs.pipeline(), targetPipe,
+                            target.classFqn(), odc),
+                    cs.pipeline(), targetPipe, head, odc, target.classFqn());
         }
         TypedLambda bi = temporal.outerBiDatedJoinCond(cond, cs.pipeline(),
                 targetPipe, cs, target, head);

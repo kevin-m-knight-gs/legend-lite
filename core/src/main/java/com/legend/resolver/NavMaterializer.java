@@ -377,8 +377,9 @@ final class NavMaterializer {
                     // non-temporal hops structurally — audit 13
                     // F4/F5), stamped by the sub CLASS's own
                     // temporality (bitemp pair / point / range)
-                    sub = temporal.stampForClass(sub,
-                            temporal.contextAt(subChain, cls, hopCtx), cls);
+                    sub = temporal.stampForClassOrDefer(sub,
+                            temporal.contextAt(subChain, cls, hopCtx), cls,
+                            subChain);
                 }
             }
             return sub;

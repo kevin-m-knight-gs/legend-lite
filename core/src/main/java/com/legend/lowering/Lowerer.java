@@ -1241,9 +1241,6 @@ public final class Lowerer {
         };
     }
 
-    /** Lower the predicate against this select's columns; null = a ref
-     * would not fold. Over a GROUPED select, refs resolve to the projection
-     * EXPRESSIONS (what standard SQL admits in HAVING). */
     /** The isolate-terminal boundary: the select was JUST isolated, so an
      * unfoldable ref can never become foldable — LOUD, never a dropped
      * predicate (the ONE retry contract, shared by filter and whereLambda). */
@@ -1252,7 +1249,9 @@ public final class Lowerer {
             case Resolution.Resolved r -> r.expr();
             case Resolution.Unfoldable u -> throw new IllegalStateException(
                     op + " predicate references column '" + u.column()
-                            + "', unresolvable even after isolation");
+                            + "', unresolvable even after isolation [param="
+                            + lambda.parameters().get(0) + "; pred="
+                            + lambda.body().get(lambda.body().size() - 1) + "]");
         };
     }
 

@@ -189,6 +189,17 @@ final class TemporalFrame {
             if (c.rangeAppliesTo(dim)) {
                 out = rangeScanPipe(out, c.rangeStart(), c.rangeEnd(), dim);
             } else if (c.dateFor(dim) != null) {
+                // an OUTER-ROW context date ($o.orderDate) cannot stamp
+                // in-pipe (the read is out of scope) — the DEFERRED
+                // sub-window on the head's join ON covers these targets
+                // (stampForClassOrDefer registered it); skipping here is
+                // the same window, not a dropped filter
+                TypedSpec dd = unwrapToOne(c.dateFor(dim));
+                if (dd instanceof TypedPropertyAccess dpa
+                        && dpa.source() instanceof
+                                com.legend.compiler.spec.typed.TypedVariable) {
+                    continue;
+                }
                 out = milestonedPipeByStrategy(out, c.dateFor(dim), dim, label);
             }
         }
@@ -228,6 +239,100 @@ final class TemporalFrame {
         TypedSpec d = c.dateFor(strat);
         return d == null ? pipe
                 : milestonedPipeByStrategy(pipe, d, strat, classFqn);
+    }
+
+    /** OUTER-dated PROPAGATED sub-hops: subChain -> [fromCol, thruCol,
+     * inclusive] — {@link #stampForClassOrDefer} DEFERS (an in-pipe stamp
+     * would read the outer date var out of scope) and the head's join-ON
+     * composition consumes ({@link #withDeferredOuterSubWindows}, both
+     * routes; idempotent). Per-resolution frame lifecycle. */
+    private final Map<String, String[]> deferredOuterSubWindows =
+            new java.util.LinkedHashMap<>();
+
+    /**
+     * {@link #stampForClass} EXCEPT when the context's single-dimension
+     * date is an OUTER-ROW read ({@code $o.orderDate} inherited through
+     * the head's spec): stamping in-pipe would embed an out-of-scope
+     * read — DEFER; the head's join-ON windows the sub's prefixed
+     * columns against the outer date (engine: the depth-2 hop's ON reads
+     * "root".orderDate too). Underivable shapes fall back to the stamp
+     * (its loud wall beats a silent version fan).
+     */
+    TypedSpec stampForClassOrDefer(TypedSpec pipe, TemporalContext c,
+            String classFqn, String chain) {
+        String strat = temporalStrategy(classFqn);
+        if (strat != null && !"bitemporal".equals(strat) && !c.isEmpty()
+                && !c.rangeAppliesTo(strat) && chain != null) {
+            TypedSpec d = c.dateFor(strat);
+            TypedSpec d0 = d == null ? null : unwrapToOne(d);
+            if (d0 instanceof TypedPropertyAccess p0
+                    && p0.source() instanceof
+                            com.legend.compiler.spec.typed.TypedVariable) {
+                var rt0 = rootTable(pipe);
+                var ms0 = rt0 == null ? null
+                        : ctx.findTableMilestoning(rt0.store(), rt0.table())
+                                .orElse(null);
+                String f0 = null;
+                String t0 = null;
+                boolean inc0 = false;
+                if ("businesstemporal".equals(strat) && ms0 != null
+                        && ms0.business() != null
+                        && ms0.business().snapshotDate() == null) {
+                    f0 = ms0.business().from();
+                    t0 = ms0.business().thru();
+                    inc0 = ms0.business().thruIsInclusive();
+                } else if ("processingtemporal".equals(strat) && ms0 != null
+                        && ms0.processing() != null
+                        && ms0.processing().snapshotDate() == null) {
+                    f0 = ms0.processing().in();
+                    t0 = ms0.processing().out();
+                    inc0 = ms0.processing().outIsInclusive();
+                }
+                if (f0 != null && t0 != null) {
+                    deferredOuterSubWindows.put(chain,
+                            new String[]{f0, t0, String.valueOf(inc0)});
+                    return pipe;
+                }
+            }
+        }
+        return stampForClass(pipe, c, classFqn);
+    }
+
+    /** AND the DEFERRED sub-hop windows for {@code chainHead} onto the
+     * head's join condition: each deferred outer-dated sub-hop's prefixed
+     * milestone columns window against the SAME outer date (idempotent —
+     * entries stay for sibling head identities). */
+    TypedLambda withDeferredOuterSubWindows(TypedLambda cond, TypedSpec left,
+            TypedSpec right, String chainHead, String outerCol,
+            String navClass) {
+        for (var de : deferredOuterSubWindows.entrySet()) {
+            if (!de.getKey().startsWith(chainHead + ".")) {
+                continue;
+            }
+            String subProp = de.getKey().substring(chainHead.length() + 1);
+            String[] w = de.getValue();
+            Type.RelationType rRow = (Type.RelationType) right.info().type();
+            String pfx = null;
+            for (String cand : new String[]{subProp + "_", subProp + "_nav_"}) {
+                final String probe = cand + w[0];
+                if (rRow.columns().stream()
+                        .anyMatch(x -> x.name().equalsIgnoreCase(probe))) {
+                    pfx = cand;
+                    break;
+                }
+            }
+            if (pfx == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "outer-dated propagated sub-hop '" + de.getKey()
+                        + "': its milestone columns are not on the head's"
+                        + " join target row — the deferred window cannot"
+                        + " compose (would fan versions silently)");
+            }
+            cond = outerDatedWindowCond(cond, left, right, pfx + w[0],
+                    pfx + w[1], Boolean.parseBoolean(w[2]), outerCol,
+                    navClass);
+        }
+        return cond;
     }
 
     TypedSpec milestonedPipe(TypedSpec pipe, TypedSpec date, String classFqn) {
@@ -721,6 +826,16 @@ final class TemporalFrame {
 
     TypedSpec milestonedPipeByStrategy(TypedSpec pipe, TypedSpec date,
             String strategy, String classFqn) {
+        if (System.getenv("LEGEND_LITE_STAMP_TRACE") != null) {
+            TypedSpec d0 = unwrapToOne(date);
+            if (d0 instanceof TypedPropertyAccess p0
+                    && p0.source() instanceof
+                            com.legend.compiler.spec.typed.TypedVariable v0) {
+                System.err.println("[stamp] BYSTRAT OUTER-READ date $"
+                        + v0.name() + "." + p0.property() + " cls=" + classFqn);
+                Thread.dumpStack();
+            }
+        }
         // HYBRID union (across-tables milestoning): each member filters by
         // ITS OWN table's block for this dimension — deriving capability
         // from the first member's table silently unfiltered every OTHER
@@ -1042,8 +1157,11 @@ final class TemporalFrame {
                                         navPrefixToClass, navPrefixToChain,
                                         midPrefixToChain, midPrefixToDim),
                                 right, j.kind(),
-                                outerDatedCond(j.condition(), j.left(),
-                                        right, navClass, outerCol),
+                                withDeferredOuterSubWindows(
+                                        outerDatedCond(j.condition(), j.left(),
+                                                right, navClass, outerCol),
+                                        j.left(), right, chainHead, outerCol,
+                                        navClass),
                                 j.prefix(), j.info());
                     }
                     filtered = temporalTargetPipe(cs,
