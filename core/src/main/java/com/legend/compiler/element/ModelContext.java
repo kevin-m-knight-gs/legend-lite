@@ -49,6 +49,13 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** The RAW legacy mapping DSL element (pre-Door-1 rewrite) — the
+     * static lineage analyzer walks its joins/PMs by name (#44). */
+    default Optional<com.legend.model.LegacyMappingDefinition>
+            findLegacyMapping(String fqn) {
+        return Optional.empty();
+    }
+
     /** The {@link TypedEnum} for {@code fqn}, if present. */
     Optional<TypedEnum> findEnum(String fqn);
 

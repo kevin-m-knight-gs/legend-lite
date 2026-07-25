@@ -32,11 +32,18 @@ import java.util.Map;
  * @param imports  import scope carried through from the parsed model
  */
 public record NormalizedModel(List<PackageableElement> elements, ImportScope imports,
-        java.util.Map<String, String> mappingPoisons) {
+        java.util.Map<String, String> mappingPoisons,
+        java.util.Map<String, LegacyMappingDefinition> legacySurfaces) {
 
     /** Without poisons (tests, poison-free paths). */
     public NormalizedModel(List<PackageableElement> elements, ImportScope imports) {
-        this(elements, imports, java.util.Map.of());
+        this(elements, imports, java.util.Map.of(), java.util.Map.of());
+    }
+
+    /** Without legacy surfaces (poison-only callers). */
+    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
+            java.util.Map<String, String> mappingPoisons) {
+        this(elements, imports, mappingPoisons, java.util.Map.of());
     }
 
     public NormalizedModel {
@@ -48,6 +55,11 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
         // a roadmap/user-model wall (binding withheld; loud at query time)
         mappingPoisons = mappingPoisons == null
                 ? java.util.Map.of() : java.util.Map.copyOf(mappingPoisons);
+        // READ-ONLY archive of the pre-Door-1 mapping DSL for ANALYSIS
+        // consumers (static lineage #44) — the compilation pipeline never
+        // reads it (CLEAN_SHEET_INVERSION §1.5 still holds for F+)
+        legacySurfaces = legacySurfaces == null
+                ? java.util.Map.of() : java.util.Map.copyOf(legacySurfaces);
     }
 
     /**

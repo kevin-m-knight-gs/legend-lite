@@ -496,8 +496,13 @@ public final class TestBody {
             fired |= r != s;
         }
         com.legend.validation.DriverPkOption.set(fired);
-        return new Preamble(desugared,
-                LineageForm.tryRun(ctx, desugared, imports, runtimeFqn));
+        Outcome lineage = LineageForm.tryRun(ctx, desugared, imports,
+                runtimeFqn);
+        if (lineage == null) {
+            lineage = LineageRelationsForm.tryRun(ctx, desugared, imports,
+                    runtimeFqn);
+        }
+        return new Preamble(desugared, lineage);
     }
 
     /** Fold {@code if(<literal>, |a, |b)} (zero-param thunks, one body

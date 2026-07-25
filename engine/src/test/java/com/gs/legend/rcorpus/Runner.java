@@ -507,9 +507,11 @@ public final class Runner {
                                 // validate(func, MAPPING, runtime, ...) —
                                 // #45: desugars to execute at TestBody
                                 || simple.equals("validate")
-                                // scanColumns(tree, MAPPING) — #44: the
-                                // lineage form routes at TestBody
-                                || simple.equals("scanColumns"))
+                                // scanColumns(tree, MAPPING) /
+                                // scanRelations(q, MAPPING, ...) — #44:
+                                // the lineage forms route at TestBody
+                                || simple.equals("scanColumns")
+                                || simple.equals("scanRelations"))
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;

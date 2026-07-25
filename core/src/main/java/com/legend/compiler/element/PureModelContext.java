@@ -87,6 +87,10 @@ public final class PureModelContext implements ModelContext {
         // Phase-E poisons must survive into the queryable context — the
         // 0-binder error's "failed to normalize" reasons read them here
         mb.mappingPoisons.putAll(normalized.mappingPoisons());
+        // the pre-Door-1 mapping surfaces ride as an ANALYSIS archive
+        // (static lineage #44) — F+ compilation never reads them
+        normalized.legacySurfaces().values()
+                .forEach(mb::retainLegacySurface);
         return new PureModelContext(mb, wallSink);
     }
 
@@ -113,6 +117,12 @@ public final class PureModelContext implements ModelContext {
     public Optional<com.legend.model.ClassDefinition>
             findClassDefinition(String fqn) {
         return classifier.classDef(fqn);
+    }
+
+    @Override
+    public Optional<com.legend.model.LegacyMappingDefinition>
+            findLegacyMapping(String fqn) {
+        return model.findLegacyMapping(fqn);
     }
 
     @Override

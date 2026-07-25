@@ -158,6 +158,8 @@ public final class MappingNormalizer {
         Objects.requireNonNull(model, "model");
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
         List<FunctionDefinition> lifted = new ArrayList<>();
+        java.util.Map<String, LegacyMappingDefinition> legacySurfaces =
+                new java.util.LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
             // The legacy mapping we read from `parsed` may have been
             // cross-baked (e.g., by JsonModelConnection bindings) in
@@ -166,6 +168,7 @@ public final class MappingNormalizer {
             if (el instanceof LegacyMappingDefinition md) {
                 LegacyMappingDefinition latest =
                         model.findLegacyMapping(md.qualifiedName()).orElse(md);
+                legacySurfaces.put(md.qualifiedName(), latest);
                 // Rewrite legacy surface -> canonical binding table; the legacy
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
                 try {
@@ -201,7 +204,8 @@ public final class MappingNormalizer {
         // (docs/CLEAN_SHEET_INVERSION.md §1) — appended after the
         // structural elements, never stored on the mapping record.
         out.addAll(lifted);
-        return new NormalizedModel(out, parsed.imports());
+        return new NormalizedModel(out, parsed.imports(),
+                java.util.Map.of(), legacySurfaces);
     }
 
     /**

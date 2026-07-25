@@ -799,6 +799,14 @@ public final class ModelBuilder {
         return Optional.ofNullable(idGet(legacyMappings, symbols.resolveId(fqn)));
     }
 
+    /** ARCHIVE a pre-Door-1 mapping surface into a builder rebuilt from a
+     * NORMALIZED model (whose element list no longer carries legacy
+     * records) — analysis consumers only (static lineage #44); the F+
+     * compilation pipeline never reads it. */
+    public void retainLegacySurface(LegacyMappingDefinition md) {
+        putAtId(legacyMappings, intern(md.qualifiedName()), md);
+    }
+
     /** O(1). Returns {@link ServiceDefinition} for {@code fqn}, if any. */
     public Optional<ServiceDefinition> findService(String fqn) {
         return Optional.ofNullable(idGet(services, symbols.resolveId(fqn)));
