@@ -253,4 +253,25 @@ final class Fold {
         }
         return outputs.stream().anyMatch(c -> c.name().equals(column));
     }
+
+    /** One-line structural sketch of a join side for the unknown-column
+     * wall — table/alias per leaf, projection names for subselects. */
+    static String describeSource(SqlSource s) {
+        return switch (s) {
+            case SqlSource.Join j -> "join(" + describeSource(j.left()) + ", "
+                    + describeSource(j.right()) + ")";
+            case SqlSource.Subselect sub -> "subselect:" + sub.alias() + "("
+                    + (sub.inner() instanceof SqlSelect ss
+                            ? ss.projections().stream()
+                                    .map(SqlSelect.Projection::alias)
+                                    .collect(java.util.stream.Collectors
+                                            .joining(","))
+                            : "union") + ")";
+            default -> s.getClass().getSimpleName() + ":" + s.alias() + "("
+                    + s.outputs().stream().map(o -> o.name())
+                            .collect(java.util.stream.Collectors.joining(","))
+                    + ")";
+        };
+    }
+
 }

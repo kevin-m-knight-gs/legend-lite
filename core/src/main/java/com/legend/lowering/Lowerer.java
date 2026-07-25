@@ -1796,7 +1796,8 @@ public final class Lowerer {
                     : new SqlExpr.Column(side.alias(), prop);
             if (c == null) {
                 throw new IllegalStateException("join condition references unknown column '"
-                        + prop + "' on its " + (isLeft ? "left" : "right") + " side");
+                        + prop + "' on its " + (isLeft ? "left" : "right")
+                        + " side [side=" + Fold.describeSource(side) + "]");
             }
             return c;
         });
