@@ -4105,11 +4105,13 @@ class MappingNormalizerTest {
     }
 
     @Test
-    @DisplayName("viewWithOnlyJoinBackedColumns_throws")
-    void viewWithOnlyJoinBackedColumns_throws() {
-        // Every view column navigates a join, so no column anchors the
-        // view's own root table; inferViewMainTable must reject it (it has
-        // nothing to use as the tableReference source).
+    @DisplayName("viewWithOnlyJoinBackedColumns_infersRootFromJoin")
+    void viewWithOnlyJoinBackedColumns_infersRootFromJoin() {
+        // Every view column navigates a join — the view's root is the
+        // FIRST join's OTHER side (the table the chain departs FROM):
+        // @Person_Firm connects T_PERSON to the terminal T_FIRM, so the
+        // root is T_PERSON (engine inferMainTable; the corpus
+        // PersonViewWithDistinct shape). The mapping normalizes cleanly.
         ParsedModel parsed = ElementParser.parse(
                 "Class model::J { fname: String[1]; } "
                         + "Database db::DB ( "
@@ -4125,10 +4127,9 @@ class MappingNormalizerTest {
                         + "  } "
                         + ")");
         String exMsg = poisonReasons(parsed);
-        assertTrue(exMsg.contains("V_ALLJOIN")
-                        && exMsg.contains("cannot infer underlying main table"),
-                () -> "Expected a no-root-table diagnostic naming V_ALLJOIN; got: "
-                        + exMsg);
+        assertTrue(exMsg.isEmpty(),
+                () -> "Expected the join-only view to normalize (root inferred"
+                        + " from the join's other side); got: " + exMsg);
     }
 
     @Test

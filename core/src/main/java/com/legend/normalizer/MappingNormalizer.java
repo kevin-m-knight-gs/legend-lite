@@ -1899,7 +1899,7 @@ public final class MappingNormalizer {
         }
         // Engine parity: the view resolves to a single physical root table,
         // which (not the view name) is the source relation.
-        String physicalTable = inferViewMainTable(view, rcm.mainTable().table(), md);
+        String physicalTable = ViewRelation.inferViewMainTable(view, rcm.mainTable().table(), md, model, mainDb);
         // Resolve view column expressions: name -> RelationalOperation.
         Map<String, RelationalOperation> viewCols = new LinkedHashMap<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
@@ -2096,29 +2096,8 @@ public final class MappingNormalizer {
      * reference joined tables, not the view's root. Exactly one root table
      * must remain, else fail loudly.
      */
-    static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, LegacyMappingDefinition md) {
-        Set<String> tables = new LinkedHashSet<>();
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            RelationalOperation expr = vc.expression();
-            List<JoinChainEmission.JoinNavSpec> navs = new ArrayList<>();
-            JoinChainEmission.collectJoinNavigations(expr, navs);
-            if (!navs.isEmpty()) continue;   // joined column — not the view's root table
-            RelOpTranslator.collectTablesIn(expr, tables);
-        }
-        if (tables.isEmpty()) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "View '" + viewName + "': cannot infer underlying main table — no "
-                  + "non-join column references found; mapping=" + md.qualifiedName());
-        }
-        if (tables.size() > 1) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "View '" + viewName + "' references multiple root tables " + tables
-                  + "; a view must resolve to a single root table. Mapping="
-                  + md.qualifiedName());
-        }
-        return tables.iterator().next();
-    }
+
+
 
     // ====================================================================
     // Table-backed mapping  —  the main pipeline synthesis
@@ -3228,7 +3207,8 @@ public final class MappingNormalizer {
                 if (view == null) {
                     yield cr;
                 }
-                String phys = inferViewMainTable(view, cr.table(), md);
+                String phys = ViewRelation.inferViewMainTable(view, cr.table(), md, model,
+                        cr.databaseName() != null ? cr.databaseName() : db);
                 if (!phys.equals(sourceTable)) {
                     yield cr;
                 }
