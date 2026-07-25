@@ -438,20 +438,19 @@ final class NavMaterializer {
                         // a chain-keyed SPEC of any form (point, range
                         // sweep) is a usable context — temporalTargetPipe
                         // in the resolver lambda handles each; only the
-                        // spec-less no-propagation case stays loud
+                        // spec-less no-propagation case stays loud.
+                        // SNAPSHOT sub-unions share the chain-keyed join
+                        // too: the spec registry is keyed by THIS chain, so
+                        // every read that reaches here filters by ONE date —
+                        // the shared join is row-identical to the engine's
+                        // per-call fan (its 16 = our 8 x 2 is join-COUNT
+                        // shape, not rows; two-dates-per-head collides in
+                        // the spec registry before this route and stays its
+                        // own rung).
                         || (temporal.spec(
                                 chainPrefix + "." + tail.get(0)) == null
                             && temporal.contextAt(chainPrefix + "." + tail.get(0),
-                                subCls, hopCtx).isEmpty())
-                        // SNAPSHOT sub-unions stay loud: the engine
-                        // mints a join PER dated-QP CALL SITE there
-                        // (filter+project occurrences fan separately —
-                        // expected 16 = our merged 8 x 2); from/thru
-                        // sub-unions merge (partiallyMilestoning golden
-                        // passes with the shared join). Per-call join
-                        // identity is its own rung.
-                        || (StoreResolver.containsConcatenate(subT.pipeline())
-                                && temporal.hasSnapshotScan(subT.pipeline())))) {
+                                subCls, hopCtx).isEmpty()))) {
                     return;
                 }
                 // milestoned SLOT TARGETS inside the sub's own pipeline
