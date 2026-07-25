@@ -286,6 +286,11 @@ final class ViewRelation {
             case PropertyMapping.Join jp -> !jp.joins().isEmpty()
                     && joinTouches(jp.joins().get(0),
                             jp.database(), viewName, model);
+            // same rule for the scalar-terminal spelling
+            // (category: @Org_DeptCat > @Dept_Branch | Branch.name)
+            case PropertyMapping.JoinTerminalColumn jtc -> !jtc.joins().isEmpty()
+                    && joinTouches(jtc.joins().get(0),
+                            jtc.database(), viewName, model);
             default -> false;
         };
     }

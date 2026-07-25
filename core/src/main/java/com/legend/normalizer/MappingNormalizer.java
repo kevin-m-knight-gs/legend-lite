@@ -1924,6 +1924,14 @@ public final class MappingNormalizer {
                 new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
                 mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
                 rewrittenPms, null, rcm.propertyTargetSets());
+        // VIEW-ON-VIEW on the fallback route: the inferred root may itself
+        // be a view (OrgViewOnView -> OrgView -> Org) — flatten another
+        // layer; the rewritten PMs now speak the inner view's columns
+        DatabaseDefinition.ViewDefinition innerView =
+                model.findView(mainDb, physicalTable).orElse(null);
+        if (innerView != null) {
+            return synthViewBackedMapping(md, effective, innerView, model);
+        }
         ValueSpecification body = synthTableBackedMapping(md, effective, model,
                 rcm.mainTable().table());
         // When BOTH a view filter and a mapping filter exist, the pipeline
