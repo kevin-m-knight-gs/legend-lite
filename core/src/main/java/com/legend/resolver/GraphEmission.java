@@ -618,13 +618,24 @@ final class GraphEmission {
                 Pipelines.closeOverConditions(child.pipeline(),
                         leafSlotDemand(child, node)),
                 childClass);
+        // MILESTONED SLOTS inside the child: the hop's date context
+        // windows the child's own slot-join targets (mirror of the
+        // relational navigate's slot-target stamping) — unstamped they
+        // serialize every version row (the classification fan)
+        TypedSpec cPipe = cMat.pipeline();
+        TemporalContext hopCtx = temporal.contextAt(node.property(),
+                childClass, TemporalContext.NONE);
+        if (!hopCtx.isEmpty()
+                && temporal.hasMilestonedSlotTarget(child.pipeline())) {
+            cPipe = temporal.filterMilestonedJoinTargets(cPipe, hopCtx);
+        }
         // MILESTONED child: the tree node's date arg registered as the
         // hop's temporal spec (collectTreeSweeps) — the child pipeline
         // filters by its window here, exactly like the relational
         // navigate's target (unfiltered children serialize every version
         // row: the multi-level union 2->4 duplication)
         TypedSpec childPipe = temporal.temporalTargetPipe(cs, child,
-                node.property(), cMat.pipeline());
+                node.property(), cPipe);
         // GRAPH children pair STRICTLY per union member (the engine's
         // graph executor runs per-member serial child queries) — a merged
         // union navigate carries the paired variant for exactly this
