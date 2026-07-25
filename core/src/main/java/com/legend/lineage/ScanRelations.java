@@ -60,12 +60,14 @@ public final class ScanRelations {
     }
 
     private static final class Node {
+        final String db;          // defining database (view detection)
         final String table;
         final String joinName;    // null on the root table node
         final Set<String> cols = new TreeSet<>();
         final TreeMap<String, Node> children = new TreeMap<>();
 
-        Node(String table, String joinName) {
+        Node(String db, String table, String joinName) {
+            this.db = db;
             this.table = table;
             this.joinName = joinName;
         }
@@ -82,26 +84,175 @@ public final class ScanRelations {
         Node[] rootTable = new Node[1];
         for (List<Seg> p : paths) {
             if (rootTable[0] == null) {
-                rootTable[0] = new Node(mainTableOf(rootCm), null);
+                rootTable[0] = new Node(mainDbOf(rootCm), mainTableOf(rootCm),
+                        null);
             }
             walk(ctx, md, rootCm, rootTable[0], p, 0);
         }
         StringBuilder sb = new StringBuilder("root\n");
         if (rootTable[0] != null) {
-            print(sb, rootTable[0], 1);
+            print(sb, rootTable[0], 1, ctx);
         }
         return sb.toString();
     }
 
-    private static void print(StringBuilder sb, Node n, int depth) {
-        sb.append("  ".repeat(depth)).append("------> (t) ").append(n.table);
+    private static void print(StringBuilder sb, Node n, int depth,
+            ModelContext ctx) {
+        DatabaseDefinition.ViewDefinition vd = n.db == null ? null
+                : findView(ctx, n.db, n.table);
+        sb.append("  ".repeat(depth)).append("------> (")
+                .append(vd != null ? 'v' : 't').append(") ").append(n.table);
         if (n.joinName != null) {
             sb.append('(').append(n.joinName).append(')');
         }
         sb.append(" [").append(String.join(", ", n.cols)).append("]\n");
         for (Node c : n.children.values()) {
-            print(sb, c, depth + 1);
+            print(sb, c, depth + 1, ctx);
         }
+        if (vd != null) {
+            // a VIEW EXPANDS: a nested 'root' subtree of its underlying
+            // tables — every column mapping expression plus the view
+            // filter's join web (the engine's view internals)
+            sb.append("  ".repeat(depth + 1)).append("root\n");
+            print(sb, expandView(ctx, n.db, vd), depth + 2, ctx);
+        }
+    }
+
+    /** The view's INTERNAL tree: plain column expressions seed the root
+     * table and its columns; JoinNavigation expressions and the view
+     * ~filter fold their join chains off it. */
+    private static Node expandView(ModelContext ctx, String dbName,
+            DatabaseDefinition.ViewDefinition vd) {
+        Node root = null;
+        List<RelationalOperation.ColumnRef> plainRefs = new ArrayList<>();
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
+                : vd.columnMappings()) {
+            if (!(cm.expression()
+                    instanceof RelationalOperation.JoinNavigation)) {
+                columnRefs(cm.expression(), plainRefs);
+            }
+        }
+        for (RelationalOperation.ColumnRef r : plainRefs) {
+            if (root == null) {
+                root = new Node(r.databaseName() != null ? r.databaseName()
+                        : dbName, bare(r.table()), null);
+            }
+            if (!bare(r.table()).equals(root.table)) {
+                throw new NotImplementedException("scanRelations: view '"
+                        + vd.name() + "' columns span tables '" + root.table
+                        + "' and '" + r.table() + "'");
+            }
+            root.cols.add(r.column());
+        }
+        if (root == null) {
+            throw new NotImplementedException("scanRelations: view '"
+                    + vd.name() + "' has no plain column to seed its root");
+        }
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
+                : vd.columnMappings()) {
+            if (cm.expression()
+                    instanceof RelationalOperation.JoinNavigation jn) {
+                foldJoinNavigation(ctx, root, dbName, jn);
+            }
+        }
+        com.legend.model.FilterMapping fm = vd.filter();
+        if (fm instanceof com.legend.model.FilterMapping.JoinMediated jm) {
+            Node at = joinChain(ctx, null, root,
+                    jm.sourceDb() != null ? jm.sourceDb() : dbName,
+                    jm.joins());
+            assignFilter(ctx, root, at, jm.sourceDb() != null ? jm.sourceDb()
+                    : dbName, jm.filter());
+        } else if (fm instanceof com.legend.model.FilterMapping.Direct d) {
+            assignFilter(ctx, root, root, dbName, d.filter());
+        }
+        for (RelationalOperation g : vd.groupByColumns()) {
+            List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+            columnRefs(g, refs);
+            assignByTable(root, refs);
+        }
+        return root;
+    }
+
+    private static void foldJoinNavigation(ModelContext ctx, Node root,
+            String dbName, RelationalOperation.JoinNavigation jn) {
+        Node at = joinChain(ctx, null, root,
+                jn.databaseName() != null ? jn.databaseName() : dbName,
+                jn.chain());
+        if (jn.terminal() != null) {
+            List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+            columnRefs(jn.terminal(), refs);
+            for (RelationalOperation.ColumnRef r : refs) {
+                if (bare(r.table()).equals(at.table)) {
+                    at.cols.add(r.column());
+                } else {
+                    assignByTable(root, List.of(r));
+                }
+            }
+        }
+    }
+
+    private static void assignFilter(ModelContext ctx, Node root, Node at,
+            String dbName, com.legend.model.FilterPointer ptr) {
+        String fdb = ptr instanceof com.legend.model.FilterPointer.Cross c
+                ? c.db() : dbName;
+        DatabaseDefinition db = ctx.findDatabase(fdb).orElseThrow(() ->
+                new NotImplementedException("scanRelations: unknown filter"
+                        + " database '" + fdb + "'"));
+        DatabaseDefinition.FilterDefinition fd = db.filters().stream()
+                .filter(f -> f.name().equals(ptr.name())).findFirst()
+                .orElseThrow(() -> new NotImplementedException(
+                        "scanRelations: unknown filter '" + ptr.name() + "'"));
+        List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+        columnRefs(fd.condition(), refs);
+        assignByTable(root, refs);
+    }
+
+    /** Assign each ref's column to the tree node whose table matches —
+     * a ref landing nowhere is loud (the tree would silently lie). */
+    private static void assignByTable(Node root,
+            List<RelationalOperation.ColumnRef> refs) {
+        for (RelationalOperation.ColumnRef r : refs) {
+            if (!assignOne(root, r)) {
+                throw new NotImplementedException("scanRelations: column '"
+                        + r.table() + "." + r.column()
+                        + "' matches no tree node");
+            }
+        }
+    }
+
+    private static boolean assignOne(Node n,
+            RelationalOperation.ColumnRef r) {
+        if (bare(r.table()).equals(n.table)) {
+            n.cols.add(r.column());
+            return true;
+        }
+        for (Node c : n.children.values()) {
+            if (assignOne(c, r)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
+            String dbName, String name) {
+        DatabaseDefinition db = ctx.findDatabase(dbName).orElse(null);
+        if (db == null) {
+            return null;
+        }
+        for (DatabaseDefinition.ViewDefinition v : db.views()) {
+            if (v.name().equals(name)) {
+                return v;
+            }
+        }
+        for (var sc : db.schemas()) {
+            for (DatabaseDefinition.ViewDefinition v : sc.views()) {
+                if (v.name().equals(name)) {
+                    return v;
+                }
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------
@@ -219,9 +370,13 @@ public final class ScanRelations {
                             new NotImplementedException("scanRelations:"
                                     + " self-join '" + el.joinName()
                                     + "' is not supported yet"));
+            String otherDb = refs.stream()
+                    .filter(r -> bare(r.table()).equals(other))
+                    .map(RelationalOperation.ColumnRef::databaseName)
+                    .filter(Objects::nonNull).findFirst().orElse(dbName);
             Node child = at.children.computeIfAbsent(
                     other + "(" + el.joinName() + ")",
-                    k -> new Node(other, el.joinName()));
+                    k -> new Node(otherDb, other, el.joinName()));
             for (RelationalOperation.ColumnRef r : refs) {
                 if (bare(r.table()).equals(at.table)) {
                     at.cols.add(r.column());
@@ -417,6 +572,18 @@ public final class ScanRelations {
         throw new NotImplementedException("scanRelations: set '"
                 + cm.className() + "' has no main table (explicit or"
                 + " implied by a column mapping)");
+    }
+
+    private static String mainDbOf(ClassMapping.Relational cm) {
+        if (cm.mainTable() != null) {
+            return cm.mainTable().database();
+        }
+        for (PropertyMapping pm : cm.propertyMappings()) {
+            if (pm instanceof PropertyMapping.Column c) {
+                return c.database();
+            }
+        }
+        return null;
     }
 
     private static String bare(String table) {
