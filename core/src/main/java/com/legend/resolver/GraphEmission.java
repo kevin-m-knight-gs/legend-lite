@@ -476,15 +476,37 @@ final class GraphEmission {
             // at graph depth is its own rung, the partial serves the
             // mapped leaves and missing ones stay loud below.
             TypedSpec emb = inner;
-            TypedSpec owFallback = null;
             var ow2 = com.legend.resolver.Substitution.otherwiseOf(b0);
             if (ow2 != null) {
+                // GRAPHFETCH ALWAYS TAKES THE FK FALLBACK (V1 §D.5; corpus
+                // testOtherwiseEmbeddedMapping: description serializes the
+                // fallback table's NOT_SO_GOOD_DETAIL 'P 1', NOT the
+                // partial's parent column 'Bond 1') — the whole child
+                // routes through the fallback's navigate; the partial
+                // serves QUERY-position reads only.
+                TypedSpec fb = ow2.args().get(1);
+                while (fb instanceof TypedNativeCall fw && fw.args().size() == 1
+                        && (fw.callee().qualifiedName().equals(
+                                "meta::pure::functions::multiplicity::toOne")
+                            || fw.callee().qualifiedName().equals(
+                                "meta::pure::functions::collection::first"))) {
+                    fb = fw.args().get(0);
+                }
+                if (fb instanceof TypedPropertyAccess fpa
+                        && fpa.source() instanceof TypedVariable fv
+                        && fv.name().equals(cs.rowVar())) {
+                    var owNav = Pipelines.outerNavSteps(cs.pipeline())
+                            .get(fpa.property());
+                    if (owNav != null) {
+                        return navSlotChild(cs, node, owNav, null,
+                                context, parentRowVar, parentRowType);
+                    }
+                }
                 emb = ow2.args().get(0);
-                owFallback = ow2.args().get(1);
             }
             if (emb instanceof TypedNewInstance ctor2) {
                 return embeddedChild(cs, node, ctor2, context, parentPipeline,
-                        owFallback);
+                        ow2 == null ? null : ow2.args().get(1));
             }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' is mapped as an"
