@@ -32,6 +32,18 @@ final class ProjectChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // a spec-BUILDING helper call in columns position expands RAW
+        // (project(getCols()) — its col() literals feed the same shape
+        // normalization as written-out columns)
+        if (af.parameters().size() >= 2) {
+            ValueSpecification expanded =
+                    t.rawSchemaErasedExpansion(af.parameters().get(1));
+            if (expanded != null) {
+                List<ValueSpecification> np = new ArrayList<>(af.parameters());
+                np.set(1, expanded);
+                af = new AppliedFunction(af.function(), np);
+            }
+        }
         AppliedFunction modern = normalizeLegacyForms(af);
         Application a = t.checkGeneric(withMappedColumns(modern), env);
         return new TypedProject(a.args().get(0), Args.funcCols(a.args().get(1)),

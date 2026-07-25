@@ -256,6 +256,13 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) throws java.sql.SQLException {
         TypedSpec q = letBound(ec.args().get(0), letPrefix);
+        // a LAMBDA-BUILDING user call in query position (corpus
+        // buildQuery(value) returning FunctionDefinition<{->Person[*]}>):
+        // β-inline it — the body's single expression IS the lambda literal
+        if (q instanceof com.legend.compiler.spec.typed.TypedUserCall) {
+            q = new com.legend.compiler.spec.UserCallInliner(specs)
+                    .inlineBody(java.util.List.of(q)).get(0);
+        }
         // preval(query, extensions) / withFeatureFlags(query, flags):
         // plan-time wrappers, IDENTITY for row semantics — read through
         // to the wrapped query lambda.

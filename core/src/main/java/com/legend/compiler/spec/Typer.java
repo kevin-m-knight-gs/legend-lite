@@ -967,7 +967,8 @@ final class Typer {
         boolean stereotyped = f.definition().stereotypes().stream()
                 .anyMatch(s -> s.stereotypeName().equals("NormalizeRequiredFunction"));
         return stereotyped || f.parameters().stream()
-                .anyMatch(p -> isSchemaErased(p.type()));
+                .anyMatch(p -> isSchemaErased(p.type()))
+                || isSchemaErased(f.returnType());
     }
 
     private static boolean isSchemaErased(com.legend.compiler.element.type.Type t) {
@@ -977,7 +978,17 @@ final class Typer {
             default -> null;
         };
         return com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET.equals(raw)
-                || "meta::pure::tds::TDSColumn".equals(raw);
+                || "meta::pure::tds::TDSColumn".equals(raw)
+                // column specs are PLAN vocabulary — a spec-building helper
+                // (getCols():ColumnSpecification<T>[*]) exists only inlined.
+                // The bare spellings appear because module signatures keep
+                // the IMPORT-scoped name unresolved (corpus testSimple.pure
+                // declares `ColumnSpecification<Person>` under an import) —
+                // retire them when signature types resolve through imports.
+                || "meta::pure::tds::ColumnSpecification".equals(raw)
+                || "meta::pure::tds::BasicColumnSpecification".equals(raw)
+                || "ColumnSpecification".equals(raw)
+                || "BasicColumnSpecification".equals(raw);
     }
 
     private final java.util.ArrayDeque<String> normalizing = new java.util.ArrayDeque<>();
@@ -1012,6 +1023,44 @@ final class Typer {
         } finally {
             normalizing.pop();
         }
+    }
+
+    /**
+     * RAW β-expansion of a schema-erased helper call in a SPEC position
+     * ({@code project(getCols())} — the col() literals must reach the
+     * checker's SHAPE normalization, so typed inlining is too late).
+     * Exactly one arity-matching NormalizeRequired candidate with a body
+     * expands; anything else returns null and the checker's wall stands.
+     */
+    ValueSpecification rawSchemaErasedExpansion(ValueSpecification v) {
+        if (!(v instanceof AppliedFunction af)) {
+            return null;
+        }
+        List<TypedFunction> cands = functionCandidates(af).stream()
+                .filter(c -> c.parameters().size() == af.parameters().size())
+                .filter(this::requiresNormalization)
+                .toList();
+        if (System.getenv("LEGEND_LITE_RAW_EXPAND_TRACE") != null) {
+            System.err.println("[raw-expand] " + af.function() + " cands="
+                    + cands.size() + " all=" + functionCandidates(af).stream()
+                            .map(c -> c.qualifiedName() + " ret="
+                                    + c.returnType().typeName()).toList());
+        }
+        if (cands.size() != 1) {
+            return null;
+        }
+        TypedFunction chosen = cands.get(0);
+        LambdaFunction folded = SourceSubst.inlineLets(
+                new LambdaFunction(List.of(), chosen.body().get()));
+        if (folded == null) {
+            return null;
+        }
+        java.util.Map<String, ValueSpecification> subst = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < chosen.parameters().size(); i++) {
+            subst.put(chosen.parameters().get(i).name(), af.parameters().get(i));
+        }
+        return SourceSubst.substitute(
+                alphaRename(folded.body().get(0)), subst);
     }
 
     private int nrFresh;
