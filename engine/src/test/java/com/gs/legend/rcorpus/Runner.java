@@ -1078,9 +1078,36 @@ public final class Runner {
                 callSetup(unit.fqn(), ctx, conn, failedSeeds);
             }
         }
+        // OUTERMOST-FIRST (the JUnit BeforePackage nesting rule): a
+        // broader package's setup must never run AFTER a narrower one —
+        // it would re-create shared tables and wipe the narrow setup's
+        // late inserts (fromMapping::setUp delegates to query::setUp,
+        // whose tail rows vanished under collection order).
+        List<String[]> matching = new ArrayList<>();
         for (String[] bp : beforePackagesParsed) {
             if (fqn.startsWith(bp[0] + "::") && setupFnAsts.containsKey(bp[1])
-                    && isEffectfulSetup(bp[1]) && executed.add(bp[1])) {
+                    && isEffectfulSetup(bp[1])) {
+                matching.add(bp);
+            }
+        }
+        matching.sort(java.util.Comparator.comparingInt(bp -> bp[0].length()));
+        if (System.getenv("LEGEND_LITE_SEED_TRACE") != null) {
+            System.err.println("[seed-trace] test=" + fqn + " matching="
+                    + matching.stream().map(bp -> bp[1]).toList()
+                    + " effectful(fromMapping::setUp)="
+                    + isEffectfulSetup(
+                            "meta::relational::tests::fromMapping::setUp")
+                    + " known=" + setupFnAsts.containsKey(
+                            "meta::relational::tests::fromMapping::setUp")
+                    + " knownQ=" + setupFnAsts.containsKey(
+                            "meta::relational::tests::query::setUp")
+                    + " effQ=" + isEffectfulSetup(
+                            "meta::relational::tests::query::setUp")
+                    + " body=" + setupFnAsts.get(
+                            "meta::relational::tests::fromMapping::setUp"));
+        }
+        for (String[] bp : matching) {
+            if (executed.add(bp[1])) {
                 callSetup(bp[1], ctx, conn, failedSeeds);
             }
         }
@@ -1247,7 +1274,15 @@ public final class Runner {
             com.legend.model.spec.ValueSpecification v, java.util.Set<String> out) {
         if (v instanceof com.legend.model.spec.AppliedFunction af) {
             String fn = af.function();
+            // BOTH spellings: the bare name feeds the effect-keyword check
+            // (executeInDb etc.); the FQN feeds resolveSetupName's exact
+            // branch — stripping it made a delegating BeforePackage
+            // (fromMapping::setUp -> query::setUp) resolve back to ITSELF
+            // and read as effect-free, so its seeds never ran
             out.add(fn.contains("::") ? fn.substring(fn.lastIndexOf(':') + 1) : fn);
+            if (fn.contains("::")) {
+                out.add(fn);
+            }
             af.parameters().forEach(x -> collectCalledNames(x, out));
         } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
             collectCalledNames(ap.receiver(), out);
