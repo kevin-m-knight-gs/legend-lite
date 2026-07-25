@@ -262,8 +262,7 @@ public final class StoreResolver {
                     CorrelatedSubselects.zipPairMap(zm, zc,
                             n2 -> resolveNode(n2, context));
             // BARE object-space chain headed by toOne/first/at/distinct:
-            // the chain resolver owns these in-pipeline (keeps the eager
-            // run off the envelope-in-scalar wall)
+            // the chain resolver owns these in-pipeline
             case TypedNativeCall nc when isObjectSpace(nc) ->
                     resolveChain(nc, context);
             // project DISTRIBUTES over a class-collection concatenate
