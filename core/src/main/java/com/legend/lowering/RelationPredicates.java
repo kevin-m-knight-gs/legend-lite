@@ -46,7 +46,21 @@ final class RelationPredicates {
         }
         if ((Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))
                 && n.args().size() == 1 && n.args().get(0).info().type()
-                        instanceof Type.RelationType) {
+                        instanceof Type.RelationType rt0) {
+            // An OPTIONAL-VALUE read encoded as a relation (single scalar
+            // column, [0..1] stamp — the filtered-nav leaf): emptiness is
+            // the VALUE's NULL-ness, not row-set existence (engine
+            // processIsEmpty scalar arm; a row with a NULL leaf IS empty).
+            // Returning null routes through the scalar bridge + IS NULL.
+            if (rt0.columns().size() == 1
+                    && !(rt0.columns().get(0).type()
+                            instanceof Type.ClassType)
+                    && n.args().get(0).info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded b0
+                    && b0.isToOne() && b0.lower() == 0) {
+                return null;
+            }
             // EXISTS over the relation (map §2 rule; engine processEmpty
             // Class-arm L4441) — never a serialized graph or list carrier.
             boolean isNot = Lowerer.isFamily(n, "isNotEmpty");

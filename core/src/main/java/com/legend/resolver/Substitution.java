@@ -2148,10 +2148,14 @@ final class Substitution {
         Type.RelationType outRow = new Type.RelationType(List.of(
                 new Type.RelationType.Column(pa.property(), leafType,
                         pa.info().multiplicity())));
+        // stamped with the READ's multiplicity ([0..1]) — the relation
+        // REPRESENTS an optional scalar value, and emptiness consumers
+        // must test the VALUE (IS NULL), not the row set (engine: a
+        // Smith with no address name IS empty — testIsEmpty1.pure:84)
         TypedSpec projected = new TypedProject(rel,
                 List.of(new TypedFuncCol(
                         pa.property(), leafFn)),
-                new ExprType(outRow, Multiplicity.Bounded.ONE));
+                new ExprType(outRow, pa.info().multiplicity()));
         if (firstRow) {
             projected = new TypedLimit(projected,
                     new TypedCInteger(1L,
