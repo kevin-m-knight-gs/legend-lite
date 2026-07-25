@@ -1210,4 +1210,17 @@ final class Pipelines {
                 new TypedLambda(List.of(v), List.of(body), lamInfo),
                 pa.info());
     }
+
+    /** Whether the pipeline carries a union (TypedConcatenate) anywhere. */
+    static boolean containsConcatenate(TypedSpec pipeline) {
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
+            return true;
+        }
+        for (TypedSpec c : pipeline.children()) {
+            if (containsConcatenate(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

@@ -76,6 +76,19 @@ final class NavMaterializer {
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
+        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn,
+                tails, chainPrefix, inherited, parkedPreds, Set.of());
+    }
+
+    /** {@code splitChains}: dotted {@code head.mid} chains read in BOTH
+     * filter and projection position — a SNAPSHOT SUB-UNION step on such a
+     * chain joins ONCE PER OCCURRENCE CLASS (engine per-call join
+     * identity: the projection read rides its own copy and OR-fans the
+     * member arms — ROW semantics, unionalias_3 vs unionalias_2). */
+    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+            String targetClassFqn, List<List<String>> tails,
+            String chainPrefix, TemporalContext inherited,
+            List<TypedLambda> parkedPreds, Set<String> splitChains) {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
         // (possibly rootless) multi-set target resolves through the
         // set-discriminated binding (ClassSources.getForNav).
@@ -136,7 +149,7 @@ final class NavMaterializer {
                     // conditions (V4) — the plain predicate returns PARTIAL
                     // rows; stays loud until that rung is built
                     if (subClsOpt.isPresent()
-                            && !StoreResolver.containsConcatenate(sources
+                            && !Pipelines.containsConcatenate(sources
                                     .get(mappingFqn, subClsOpt.get())
                                     .pipeline())) {
                         String subChain = chainPrefix == null ? tail.get(0)
@@ -308,6 +321,9 @@ final class NavMaterializer {
                 chainPrefix);
         pipe = foldExtraSubIdentities(temporal, mappingFqn, t, pipe, subTree,
                 extraSubHeads, extraSubTails, tNavSteps, chainPrefix, hopCtx);
+        pipe = foldProjectionCopies(temporal, mappingFqn, t, pipe, subTree,
+                subMats, midByAlias, matM, subClsByAlias, subTails,
+                tNavSteps, chainPrefix, hopCtx, splitChains);
         return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
     }
 
@@ -609,6 +625,110 @@ final class NavMaterializer {
         return pipe;
     }
 
+
+    /**
+     * OCCURRENCE-SPLIT (engine per-call join identity): for each demanded
+     * sub-step on a {@code splitChains} chain whose target is a SNAPSHOT
+     * SUB-UNION, append a SECOND prefixed LEFT join of the same (stamped)
+     * sub pipeline — the projection occurrence's own copy. Substitution
+     * routes projection-position reads to the {@code <prop>#p} SubNav; the
+     * copy's raw OR condition fans the member arms exactly like the
+     * engine's unionalias_3 (expected 16 = filtered 8 x 2).
+     */
+    private TypedSpec foldProjectionCopies(TemporalFrame temporal,
+            String mappingFqn, ClassSource t, TypedSpec pipe,
+            Map<String, Substitution.SubNav> subTree,
+            Map<String, NavMat> subMats, Map<String, String> midByAlias,
+            Pipelines.Materialized matM, Map<String, String> subClsByAlias,
+            Map<String, List<List<String>>> subTails,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            String chainPrefix, TemporalContext hopCtx,
+            Set<String> splitChains) {
+        if (System.getenv("LEGEND_LITE_SPLIT_TRACE") != null) {
+            System.err.println("[split] chainPrefix=" + chainPrefix
+                    + " splitChains=" + splitChains + " subMats="
+                    + subMats.keySet() + " mids=" + midByAlias
+                    + " prefixes=" + matM.slotPrefixes().keySet());
+        }
+        if (splitChains.isEmpty() || chainPrefix == null) {
+            return pipe;
+        }
+        for (var sm : new ArrayList<>(subMats.entrySet())) {
+            String na = sm.getKey();
+            String prop = midByAlias.get(na);
+            String base = matM.slotPrefixes().get(na);
+            if (prop == null || base == null
+                    || !splitChains.contains(chainPrefix + "." + prop)) {
+                continue;
+            }
+            var st = tNavSteps.get(na);
+            if (st == null || !(st.target() instanceof TypedGetAll sg)) {
+                continue;
+            }
+            TypedSpec sub2 = subPipeFor(temporal, t, na, sg.classFqn(),
+                    mappingFqn, subTails, midByAlias, subMats,
+                    subClsByAlias, chainPrefix, hopCtx);
+            if (System.getenv("LEGEND_LITE_SPLIT_TRACE") != null) {
+                System.err.println("[split] gate na=" + na + " concat="
+                        + Pipelines.containsConcatenate(sub2)
+                        + " snap=" + temporal.hasSnapshotScan(sub2));
+            }
+            if (!(Pipelines.containsConcatenate(sub2)
+                    && temporal.hasSnapshotScan(sub2))) {
+                continue;
+            }
+            // the copy's condition is EXACTLY the first copy's (the OR over
+            // the member arms, already oriented by the materialization) —
+            // the raw step predicate would re-resolve against the first
+            // copy's columns and arm-pair (t8.type = t11.type_1, fan x1)
+            var firstJoin = joinWithPrefix(matM.pipeline(), base);
+            if (firstJoin == null) {
+                continue;
+            }
+            String prefix2 = na + "_p_";
+            var leftRow = (com.legend.compiler.element.type.Type.RelationType)
+                    pipe.info().type();
+            var subRow = (com.legend.compiler.element.type.Type.RelationType)
+                    sub2.info().type();
+            List<com.legend.compiler.element.type.Type.Column> cols =
+                    new ArrayList<>(leftRow.columns());
+            for (var c : subRow.columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.Column(
+                        prefix2 + c.name(), c.type(), c.multiplicity()));
+            }
+            pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe, sub2,
+                    StoreResolver.leftKind(), firstJoin.condition(),
+                    java.util.Optional.of(prefix2),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type
+                                    .RelationType(cols),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE));
+            ClassSource subCs = sources.get(mappingFqn, subClsByAlias.get(na));
+            subTree.put(prop + "#p", new Substitution.SubNav(prefix2,
+                    subCs.rowVar(), subCs.bindings(),
+                    composeSubNavPrefixes(prefix2,
+                            subMats.get(na).subNavs())));
+        }
+        return pipe;
+    }
+
+    /** The materialized join carrying {@code prefix} (the first copy of a
+     * split sub-step); null when the shape holds no such join. */
+    private static com.legend.compiler.spec.typed.TypedJoin joinWithPrefix(
+            TypedSpec pipe, String prefix) {
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedJoin j
+                && j.prefix().map(prefix::equals).orElse(false)) {
+            return j;
+        }
+        for (TypedSpec c : pipe.children()) {
+            var r = joinWithPrefix(c, prefix);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
 
     /** Re-root a child's SUB-navigation tree onto the parent row: every
      * prefix (relative to the child's row) gains the child's own join

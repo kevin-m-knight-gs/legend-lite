@@ -998,7 +998,14 @@ final class Substitution {
             // tree carries prefixes composed per level.
             if (target.assocs().containsKey(path.get(0))) {
                 AssocSub a3 = target.assocs().get(path.get(0));
-                SubNav sub = a3.subNavs().get(path.get(1));
+                // OCCURRENCE-SPLIT: a projection-position read of a chain
+                // that ALSO appears in a filter rides its own join copy
+                // (engine per-call identity — the '#p' SubNav when minted)
+                SubNav sub = target.filterPosition() ? null
+                        : a3.subNavs().get(path.get(1) + "#p");
+                if (sub == null) {
+                    sub = a3.subNavs().get(path.get(1));
+                }
                 int hop = 2;
                 while (sub != null && hop + 1 < path.size()
                         && sub.children().containsKey(path.get(hop))) {

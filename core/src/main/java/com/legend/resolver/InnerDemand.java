@@ -349,4 +349,25 @@ final class InnerDemand {
         }
         return false;
     }
+
+    /** OCCURRENCE-SPLIT demand: a 3+-hop chain read in BOTH filter and
+     * projection position — its snapshot sub-union step joins once per
+     * occurrence class (engine per-call join identity, row-semantic). */
+    static java.util.Set<String> occurrenceSplitChains(
+            java.util.Set<java.util.List<String>> filterPaths,
+            java.util.Set<java.util.List<String>> projectionPaths) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (java.util.List<String> fp : filterPaths) {
+            if (fp.size() < 3) {
+                continue;
+            }
+            for (java.util.List<String> pp : projectionPaths) {
+                if (pp.size() >= 3 && pp.get(0).equals(fp.get(0))
+                        && pp.get(1).equals(fp.get(1))) {
+                    out.add(fp.get(0) + "." + fp.get(1));
+                }
+            }
+        }
+        return out;
+    }
 }

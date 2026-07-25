@@ -1291,8 +1291,35 @@ public final class StoreResolver {
      * join slots demand them; class-typed Join PM heads materialize their
      * targets (recursively, with per-hop temporal context) and register
      * the head substitution material under the chain key. */
+    /** Filter/sortBy op-lambda demand: filter predicates feed filterPaths
+     * (membership scan + corrPred outer demand), sortBy keys feed the
+     * projection-side agg scan — the ENTRY RULE holds (scans enter through
+     * lambda BODIES, never the lambda node). */
+    private void collectOpDemand(List<TypedSpec> ops, ClassSource cs,
+            Set<List<String>> filterPaths, Set<List<String>> projectionPaths,
+            Map<String, List<AggDemand>> aggDemands) {
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
+                }
+                // #69: outer reads in corrPreds may root at THIS filter's
+                // param too (the RhsFilter family) — same parent demand
+                // as the terminal-lambda scan
+                synthetics.corrPredOuterDemand(f.predicate(), filterPaths);
+            }
+            if (op instanceof TypedSortBy sb) {
+                for (TypedSpec b : sb.key().body()) {
+                    CorrelatedSubselects.aggScan(b, sb.key().parameters().get(0), cs,
+                            aggDemands, projectionPaths,
+                            this::isToManyAssocHead);
+                }
+            }
+        }
+    }
+
     private NavPlan registerNavigations(ClassSource cs,
-            Set<List<String>> paths) {
+            Set<List<String>> paths, Set<String> splitChains) {
         // Slot demand (heads whose bindings read join slots).
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
         Set<String> demanded = new LinkedHashSet<>();
@@ -1457,7 +1484,7 @@ public final class StoreResolver {
                     navTails.getOrDefault(alias, List.of()),
                     navHeadByAlias.getOrDefault(alias, alias),
                     TemporalContext.NONE,
-                    synthetics.allPreds(bareKey0)));
+                    synthetics.allPreds(bareKey0), splitChains));
             // a LIFTED head's predicate applies INSIDE the join target
             // (engine: the chain filter parks on the navigation's join-tree
             // node); the composite right side carries its own filters, so
@@ -2282,7 +2309,7 @@ public final class StoreResolver {
                     aj = assocMaterial.withSourceNestedAssocs(temporal, cs,
                             aj, context, assocJoins, joinsByChain, assocs);
                 }
-                if (hop > 0 && containsConcatenate(aj.targetPipeline())) {
+                if (hop > 0 && Pipelines.containsConcatenate(aj.targetPipeline())) {
                     // union target: paired | routed-lift | wall, plus V4
                     // mid-key parent widen — one arm (AssociationJoins)
                     aj = assocMaterial.chainedUnionHop(temporal, parent, aj,
@@ -2726,24 +2753,7 @@ public final class StoreResolver {
         Set<List<String>> projectionPaths = new LinkedHashSet<>();
         Map<String, List<AggDemand>> aggDemands =
                 new LinkedHashMap<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                for (TypedSpec b : f.predicate().body()) {
-                    memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
-                }
-                // #69: outer reads in corrPreds may root at THIS filter's
-                // param too (the RhsFilter family) — same parent demand
-                // as the terminal-lambda scan
-                synthetics.corrPredOuterDemand(f.predicate(), filterPaths);
-            }
-            if (op instanceof TypedSortBy sb) {
-                for (TypedSpec b : sb.key().body()) {
-                    CorrelatedSubselects.aggScan(b, sb.key().parameters().get(0), cs,
-                            aggDemands, projectionPaths,
-                            this::isToManyAssocHead);
-                }
-            }
-        }
+        collectOpDemand(ops, cs, filterPaths, projectionPaths, aggDemands);
         if (tree == null && implicitSerialize) {
             tree = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).synthesizeScalarTree(cs);
         }
@@ -2774,7 +2784,8 @@ public final class StoreResolver {
 
         temporal = temporal.withSpecs(collectChainSpecs(ops, top, tree));
 
-        NavPlan navPlan = registerNavigations(cs, paths);
+        NavPlan navPlan = registerNavigations(cs, paths,
+                InnerDemand.occurrenceSplitChains(filterPaths, projectionPaths));
         Set<String> demanded = navPlan.demanded();
         Set<String> demandedNavs = navPlan.demandedNavs();
         Map<String, Substitution.AssocSub> assocs = navPlan.assocs();
@@ -3389,18 +3400,6 @@ public final class StoreResolver {
     }
 
     /** Whether the pipeline contains a UNION (concatenate) anywhere. */
-    static boolean containsConcatenate(TypedSpec pipeline) {
-        if (pipeline instanceof TypedConcatenate) {
-            return true;
-        }
-        for (TypedSpec c : pipeline.children()) {
-            if (containsConcatenate(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** Whether the pipeline carries a mapping ~filter anywhere. */
     static boolean containsFilter(TypedSpec pipeline) {
         if (pipeline instanceof TypedFilter) {
