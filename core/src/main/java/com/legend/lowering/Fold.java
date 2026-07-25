@@ -274,4 +274,24 @@ final class Fold {
         };
     }
 
+    /** A DATETIME-family serialize leaf renders the engine's ISO wire
+     * form ({@code 2015-08-26T00:00:00.000000000} — 'T' separator +
+     * 9-digit nanos; DuckDB's raw json timestamp text is
+     * space-separated). NULL propagates (CONCAT would swallow it). */
+    static SqlExpr jsonDateWrap(SqlExpr e,
+            com.legend.compiler.element.type.Type t) {
+        if (t != com.legend.compiler.element.type.Type.Primitive.DATE_TIME
+                && t != com.legend.compiler.element.type.Type.Primitive.DATE) {
+            return e;
+        }
+        SqlExpr iso = SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.STRFTIME, e,
+                        new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                new SqlExpr.StringLit("000"));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                new SqlExpr.NullLit())), iso);
+    }
+
+
 }

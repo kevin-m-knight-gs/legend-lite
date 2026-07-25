@@ -634,7 +634,8 @@ public final class Lowerer {
             // loud naming the leaf.
             switch (attempt(() -> scalar(last(leaf.fn()),
                     (v, name) -> resolveOrThrow(base, name)))) {
-                case Resolution.Resolved r -> kv.add(r.expr());
+                case Resolution.Resolved r -> kv.add(Fold.jsonDateWrap(r.expr(),
+                        last(leaf.fn()).info().type()));
                 case Resolution.Unfoldable u -> throw new IllegalStateException(
                         "serialize leaf '" + leaf.name() + "' references column '"
                                 + u.column() + "', unresolvable in the envelope source");
@@ -682,7 +683,8 @@ public final class Lowerer {
                     pkv.add(new SqlExpr.StringLit(leaf.name()));
                     switch (attempt(() -> scalar(last(leaf.fn()),
                             (v, name) -> resolveOrThrow(base, name)))) {
-                        case Resolution.Resolved r -> pkv.add(r.expr());
+                        case Resolution.Resolved r -> pkv.add(Fold.jsonDateWrap(
+                                r.expr(), last(leaf.fn()).info().type()));
                         case Resolution.Unfoldable u -> throw new IllegalStateException(
                                 "subType patch leaf '" + leaf.name()
                                         + "' references column '" + u.column()
@@ -747,7 +749,6 @@ public final class Lowerer {
     }
 
 
-
     /** Simple type name; the FQN when fullyQualifiedTypePath is set. */
     private static String typeName(String classFqn, boolean fq) {
         int cut = classFqn.lastIndexOf("::");
@@ -764,7 +765,8 @@ public final class Lowerer {
             kv.add(new SqlExpr.StringLit(leaf.name()));
             switch (attempt(() -> scalar(last(leaf.fn()),
                     (v, name) -> resolveOrThrow(base, name)))) {
-                case Resolution.Resolved r -> kv.add(r.expr());
+                case Resolution.Resolved r -> kv.add(Fold.jsonDateWrap(
+                        r.expr(), last(leaf.fn()).info().type()));
                 case Resolution.Unfoldable u -> throw new IllegalStateException(
                         "embedded serialize leaf '" + leaf.name()
                                 + "' references column '" + u.column()
