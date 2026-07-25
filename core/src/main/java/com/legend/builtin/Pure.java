@@ -1481,6 +1481,7 @@ public final class Pure {
     public static final NativeFunctionDefinition TO_LOWER_FIRST_CHARACTER__STRING_1 = signature("native function meta::pure::functions::string::toLowerFirstCharacter(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_LOWER__STRING_1 = signature("native function meta::pure::functions::string::toLower(source:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TO_MANY__T_0_1__V_0_1 = signature("native function meta::pure::functions::variant::convert::toMany<T,V>(source:T[0..1], type:V[0..1]):V[*];");
+    public static final NativeFunctionDefinition TO_ONE_MANY__T_MANY = signature("native function meta::pure::functions::multiplicity::toOneMany<T>(values:T[*]):T[1..*];");
     public static final NativeFunctionDefinition TO_ONE_MANY__T_MANY__STRING_1 = signature("native function meta::pure::functions::multiplicity::toOneMany<T>(values:T[*], message:meta::pure::metamodel::type::String[1]):T[1..*];");
     public static final NativeFunctionDefinition TO_ONE__T_MANY = signature("native function meta::pure::functions::multiplicity::toOne<T>(values:T[*]):T[1];");
     public static final NativeFunctionDefinition TO_ONE__T_MANY__STRING_1 = signature("native function meta::pure::functions::multiplicity::toOne<T>(values:T[*], message:meta::pure::metamodel::type::String[1]):T[1];");

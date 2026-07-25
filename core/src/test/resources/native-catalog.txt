@@ -597,6 +597,7 @@ meta::pure::functions::math::toFloat(number:meta::pure::metamodel::type::Number[
 meta::pure::functions::string::toLowerFirstCharacter(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::string::toLower(source:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::variant::convert::toMany<T,V>(source:T[0..1], type:V[0..1]):V[*]
+meta::pure::functions::multiplicity::toOneMany<T>(values:T[*]):T[1..*]
 meta::pure::functions::multiplicity::toOneMany<T>(values:T[*], message:meta::pure::metamodel::type::String[1]):T[1..*]
 meta::pure::functions::multiplicity::toOne<T>(values:T[*]):T[1]
 meta::pure::functions::multiplicity::toOne<T>(values:T[*], message:meta::pure::metamodel::type::String[1]):T[1]

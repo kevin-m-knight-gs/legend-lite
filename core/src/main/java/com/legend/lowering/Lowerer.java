@@ -3429,10 +3429,8 @@ public final class Lowerer {
     // Plumbing
     // ==================================================================
 
-    /** Close the current select into a subselect and open a fresh star select over it. */
     /** An if-branch is a 0-param SINGLE-expression thunk; its body is the value. */
-    private static TypedSpec thunkBody(
-            TypedSpec branch) {
+    private static TypedSpec thunkBody(TypedSpec branch) {
         if (branch instanceof TypedLambda l) {
             if (l.body().size() != 1) {
                 throw new IllegalStateException("if-branch thunk has "
@@ -3455,6 +3453,18 @@ public final class Lowerer {
     private static long intOf(TypedSpec spec) {
         if (spec instanceof TypedCInteger c) {
             return c.value().longValue();
+        }
+        // identity wrappers over a literal bound fold (optional-limit's
+        // `let l = 1->first(); ->limit($l)`: first/toOne over a singleton)
+        if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && !nc.args().isEmpty()
+                && ("meta::pure::functions::collection::first".equals(nc.callee().qualifiedName())
+                        || "meta::pure::functions::multiplicity::toOne".equals(nc.callee().qualifiedName()))) {
+            return intOf(nc.args().get(0));
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                && tc.elements().size() == 1) {
+            return intOf(tc.elements().get(0));
         }
         throw new NotImplementedException(
                 "dynamic slicing bounds are not lowered yet (literal expected), got "

@@ -84,6 +84,13 @@ final class StaticFold {
         return fold(v, Map.of());
     }
 
+    /** The expression as a fully static LITERAL, or null — the Typer's
+     * TDSColumn-metadata fold ({@code X.columns->map(c|$c.name...)} asserts)
+     * only rewrites when the whole computation is schema facts. */
+    ValueSpecification foldToLiteral(ValueSpecification v) {
+        return reify(eval(v, Map.of()));
+    }
+
     private ValueSpecification fold(ValueSpecification v, Map<String, Object> scope) {
         Object ev = eval(v, scope);
         ValueSpecification lit = reify(ev);
@@ -390,6 +397,30 @@ final class StaticFold {
                 return args.stream().map(a -> (Boolean) a)
                         .reduce(and, (x, y) -> and ? x && y : x || y);
             }
+            case "makeString", "joinStrings" -> {
+                if (ps.isEmpty() || ps.size() > 2) {
+                    return null;
+                }
+                List<Object> coll = evalList(ps.get(0), scope);
+                Object sep = ps.size() == 2 ? eval(ps.get(1), scope) : "";
+                if (coll == null || !(sep instanceof String s)) {
+                    return null;
+                }
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < coll.size(); i++) {
+                    String piece = stringify(coll.get(i));
+                    if (piece == null) {
+                        return null;
+                    }
+                    sb.append(i > 0 ? s : "").append(piece);
+                }
+                return sb.toString();
+            }
+            case "elementToPath" -> {
+                Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
+                // primitives' path IS the simple name (Integer, String…)
+                return a instanceof TypeToken t ? t.simpleName() : null;
+            }
             case "toOne", "at" -> {
                 if (af.function().equals("toOne") && ps.size() == 1) {
                     Object a = eval(ps.get(0), scope);
@@ -453,6 +484,17 @@ final class StaticFold {
                 one.add(e);
                 yield one;
             }
+        };
+    }
+
+    private static String stringify(Object v) {
+        return switch (v) {
+            case String s -> s;
+            case Long l -> String.valueOf(l);
+            case Double d -> String.valueOf(d);
+            case Boolean b -> String.valueOf(b);
+            case TypeToken t -> t.simpleName();
+            case null, default -> null;
         };
     }
 

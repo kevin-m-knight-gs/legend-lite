@@ -304,6 +304,10 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toOne")) {
             RULES.put(f, (n, args) -> args.get(0));
         }
+        // toOneMany narrows [*] to [1..*] — the same value-wise no-op.
+        for (String f : Pure.nativeKeysAt("toOneMany")) {
+            RULES.put(f, (n, args) -> args.get(0));
+        }
         // evaluateAndDeactivate erases too (real pure: reflection-level
         // deactivation of expression wrappers — values here are already
         // values, so identity; evaluateAndDeactivate.pure:17).

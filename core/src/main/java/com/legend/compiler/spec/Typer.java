@@ -244,30 +244,9 @@ final class Typer {
                 && af.parameters().get(1) instanceof CString name) {
             return synth(new ColSpec(name.value(), fn, null), env);
         }
-        // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
-        // — engine tds.pure host-graph bodies; desugar to the modern
-        // rename native (STATIC pair literals only; else loud below)
-        if (tdsVocab(af.function(), "renameColumn") && af.parameters().size() == 3
-                && af.parameters().get(1) instanceof CString ro
-                && af.parameters().get(2) instanceof CString rn) {
-            return synth(new AppliedFunction("rename", List.of(
-                    af.parameters().get(0),
-                    new ColSpec(stripQuotes(ro.value()), null, null),
-                    new ColSpec(stripQuotes(rn.value()), null, null))), env);
-        }
-        if (tdsVocab(af.function(), "renameColumns") && af.parameters().size() == 2) {
-            return renameColumnsDesugar(af, env);
-        }
-        // columnValues(tds,'c') — engine tds.pure host-graph body; the
-        // platform spelling is the rows-mapped cell read
-        if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
-                && af.parameters().get(1) instanceof CString cvCol) {
-            return synth(new AppliedFunction("map", List.of(
-                    new AppliedProperty(af.parameters().get(0), "rows"),
-                    new LambdaFunction(List.of(new Variable("_cvr")),
-                            List.of(new AppliedFunction("get", List.of(
-                                    new Variable("_cvr"),
-                                    new CString(cvCol.value()))))))), env);
+        TypedSpec tdsSchema = tdsSchemaDesugars(af, env);
+        if (tdsSchema != null) {
+            return tdsSchema;
         }
         // $r.getString('COL') / getInteger / ... — TDSRow typed accessors
         // read the named COLUMN of the relation row (a plain property
@@ -473,6 +452,128 @@ final class Typer {
     private static String stripQuotes(String name) {
         return name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")
                 ? name.substring(1, name.length() - 1) : name;
+    }
+
+    /**
+     * The SCHEMA-computing legacy TDS spellings (engine tds.pure host-graph
+     * bodies), desugared to modern natives or folded to literals; null when
+     * none applies — the caller continues down the ordinary dispatch.
+     */
+    private TypedSpec tdsSchemaDesugars(AppliedFunction af, Env env) {
+        // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
+        // — desugar to the modern rename native (STATIC pair literals only)
+        if (tdsVocab(af.function(), "renameColumn") && af.parameters().size() == 3
+                && af.parameters().get(1) instanceof CString ro
+                && af.parameters().get(2) instanceof CString rn) {
+            return synth(new AppliedFunction("rename", List.of(
+                    af.parameters().get(0),
+                    new ColSpec(stripQuotes(ro.value()), null, null),
+                    new ColSpec(stripQuotes(rn.value()), null, null))), env);
+        }
+        if (tdsVocab(af.function(), "renameColumns") && af.parameters().size() == 2) {
+            return renameColumnsDesugar(af, env);
+        }
+        // TDSColumn-metadata computations over `.columns` fold to literals
+        // (engine TabularDataSet reflection: `$tds.columns->map(c|$c.name +
+        // ':' + $c.type->elementToPath())` — column names and types are
+        // STATIC FACTS of the typed relation). Only a FULLY static result
+        // rewrites; anything else keeps the ordinary path and its walls.
+        if (af.function().equals("map") && af.parameters().size() == 2
+                && af.parameters().get(0) instanceof AppliedProperty colsRead
+                && colsRead.property().equals("columns")) {
+            ValueSpecification lit = new StaticFold(this, env).foldToLiteral(af);
+            if (lit != null) {
+                return synth(lit, env);
+            }
+        }
+        // projectWithColumnSubset — the engine's demand-pruned project: the
+        // emitted SQL computes ONLY the subset-named columns, so the desugar
+        // IS project over the filtered column list. Two spellings:
+        // (src, [col(fn,'name')...], [subsetNames]) and
+        // (src, [lambdas], [allNames], [subsetNames]).
+        if (tdsVocab(af.function(), "projectWithColumnSubset")) {
+            AppliedFunction pcs = projectWithColumnSubsetDesugar(af);
+            if (pcs != null) {
+                return synth(pcs, env);
+            }
+        }
+        // columnValues(tds,'c') — the rows-mapped cell read
+        if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof CString cvCol) {
+            return synth(new AppliedFunction("map", List.of(
+                    new AppliedProperty(af.parameters().get(0), "rows"),
+                    new LambdaFunction(List.of(new Variable("_cvr")),
+                            List.of(new AppliedFunction("get", List.of(
+                                    new Variable("_cvr"),
+                                    new CString(cvCol.value()))))))), env);
+        }
+        return null;
+    }
+
+    /** {@code projectWithColumnSubset} as plain {@code project} over the
+     * subset-named columns (subset-list order, engine parity); null when the
+     * shape is not the static legacy spelling — the generic path stays loud. */
+    private static AppliedFunction projectWithColumnSubsetDesugar(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        java.util.LinkedHashMap<String, LambdaFunction> byName = new java.util.LinkedHashMap<>();
+        List<String> subset;
+        if (ps.size() == 3 && ps.get(1) instanceof PureCollection cols
+                && ps.get(2) instanceof PureCollection subs) {
+            subset = literalStrings(subs);
+            if (subset == null) {
+                return null;
+            }
+            for (ValueSpecification v : cols.values()) {
+                if (v instanceof AppliedFunction cf && cf.function().equals("col")
+                        && cf.parameters().size() == 2
+                        && cf.parameters().get(0) instanceof LambdaFunction fn
+                        && cf.parameters().get(1) instanceof CString nm) {
+                    byName.put(nm.value(), fn);
+                } else if (v instanceof ColSpec cs && cs.function1() != null) {
+                    byName.put(cs.name(), cs.function1());
+                } else {
+                    return null;
+                }
+            }
+        } else if (ps.size() == 4 && ps.get(1) instanceof PureCollection lams
+                && ps.get(2) instanceof PureCollection allNames
+                && ps.get(3) instanceof PureCollection subs) {
+            subset = literalStrings(subs);
+            List<String> names = literalStrings(allNames);
+            if (subset == null || names == null
+                    || names.size() != lams.values().size()
+                    || !lams.values().stream().allMatch(v -> v instanceof LambdaFunction)) {
+                return null;
+            }
+            for (int i = 0; i < names.size(); i++) {
+                byName.put(names.get(i), (LambdaFunction) lams.values().get(i));
+            }
+        } else {
+            return null;
+        }
+        List<ValueSpecification> outLams = new ArrayList<>(subset.size());
+        List<ValueSpecification> outNames = new ArrayList<>(subset.size());
+        for (String s : subset) {
+            LambdaFunction fn = byName.get(s);
+            if (fn == null) {
+                return null;
+            }
+            outLams.add(fn);
+            outNames.add(new CString(s));
+        }
+        return new AppliedFunction("project", List.of(ps.get(0),
+                new PureCollection(outLams), new PureCollection(outNames)));
+    }
+
+    private static List<String> literalStrings(PureCollection c) {
+        List<String> out = new ArrayList<>(c.values().size());
+        for (ValueSpecification v : c.values()) {
+            if (!(v instanceof CString s)) {
+                return null;
+            }
+            out.add(s.value());
+        }
+        return out;
     }
 
     /** The LITERAL column name of a TDSRow accessor argument: a plain

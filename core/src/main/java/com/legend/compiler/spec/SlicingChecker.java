@@ -19,6 +19,14 @@ final class SlicingChecker {
     }
 
     static TypedSpec limit(Typer t, AppliedFunction af, Env env) {
+        // limit(rel, []) — the OPTIONAL bound (Integer[0..1]) absent: the
+        // engine's optional-limit spelling is the identity, no LIMIT emitted
+        if (af.parameters().size() == 2
+                && af.parameters().get(1)
+                        instanceof com.legend.model.spec.PureCollection pc
+                && pc.values().isEmpty()) {
+            return t.synth(af.parameters().get(0), env);
+        }
         Application a = t.checkGeneric(af, env);
         return new TypedLimit(a.args().get(0), a.args().get(1), a.out());
     }
