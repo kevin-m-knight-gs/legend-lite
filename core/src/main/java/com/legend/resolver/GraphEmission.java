@@ -527,7 +527,8 @@ final class GraphEmission {
                 ? assoc.property1() : assoc.property2();
         boolean toMany = !end.isToOne();
         return correlatedGraphChild(aj.target(), aj.targetPipeline(), aj.targetRow(),
-                aj.condition(), toMany, node, parentRowVar, parentRowType, context);
+                aj.condition(), toMany, node, parentRowVar, parentRowType,
+                context, aj.targetSlotPrefixes());
     }
 
     /**
@@ -595,7 +596,8 @@ final class GraphEmission {
                 (Type.RelationType)
                         childPipe.info().type(),
                 nav.pairedPredicate().orElse(nav.predicate()),
-                toMany, node, parentRowVar, parentRowType, context);
+                toMany, node, parentRowVar, parentRowType, context,
+                cMat.slotPrefixes());
     }
 
     /**
@@ -643,7 +645,8 @@ final class GraphEmission {
         return correlatedGraphChild(child, cMat.pipeline(),
                 (Type.RelationType)
                         cMat.pipeline().info().type(),
-                aj.condition(), toMany, node, parentRowVar, parentRowType, context);
+                aj.condition(), toMany, node, parentRowVar, parentRowType,
+                context, cMat.slotPrefixes());
     }
 
     /**
@@ -659,6 +662,24 @@ final class GraphEmission {
             String parentRowVar,
             Type.RelationType parentRowType,
             StoreResolver.Context context) {
+        return correlatedGraphChild(target, targetPipeline, targetRow,
+                condition, toMany, node, parentRowVar, parentRowType,
+                context, Map.of());
+    }
+
+    /** {@code slotPrefixes}: the child pipeline's CONVERTED slot aliases
+     * (from its materialization) — leaves reading through them rewrite to
+     * the prefixed flat columns instead of walling as stripped (H4b:
+     * ViewAtChild's pnl reads Order's own @OrderPnlView join slot, which
+     * leafSlotDemand had the materialization convert). */
+    TypedSerializeGraph.Child correlatedGraphChild(ClassSource target,
+            TypedSpec targetPipeline,
+            Type.RelationType targetRow,
+            TypedLambda condition, boolean toMany, TypedGraphTree node,
+            String parentRowVar,
+            Type.RelationType parentRowType,
+            StoreResolver.Context context,
+            Map<String, String> slotPrefixes) {
         // The association condition λ(parent, target): parent reads become
         // the FREE parent row var (the lowerer's enclosing-scope channel);
         // the target param stays as the child filter's own row.
@@ -707,8 +728,11 @@ final class GraphEmission {
         GraphEmission em = childFrame == null ? this
                 : new GraphEmission(ctx, sources, assocMaterial, childFrame,
                         dispatch, freshVar);
-        TypedSerializeGraph child = em.buildGraphNode(target, childRel, Map.of(),
-                Pipelines.slotAliases(target.pipeline()), childVar,
+        Set<String> childStripped = new LinkedHashSet<>(
+                Pipelines.slotAliases(target.pipeline()));
+        childStripped.removeAll(slotPrefixes.keySet());
+        TypedSerializeGraph child = em.buildGraphNode(target, childRel,
+                slotPrefixes, childStripped, childVar,
                 node.children(), context, toMany, childInfo);
         return new TypedSerializeGraph.Child(keyOf(node), child);
     }
@@ -1400,8 +1424,19 @@ final class GraphEmission {
         }
         for (TypedGraphTree c : node.children()) {
             TypedSpec b = child.bindings().get(c.property());
-            if (b != null) {
-                collectAliasReads(b, child.rowVar(), universe, out);
+            if (b == null) {
+                continue;
+            }
+            collectAliasReads(b, child.rowVar(), universe, out);
+            // reads WRAPPED in computed expressions (concat over
+            // $row.slot.COL) demand the slot the same way — any reference
+            // shape converts, the direct pattern above is just the fast path
+            for (String a : universe) {
+                if (!out.contains(a)
+                        && Pipelines.referencesAliasOn(b, child.rowVar(),
+                                java.util.Set.of(a))) {
+                    out.add(a);
+                }
             }
         }
         return out;
