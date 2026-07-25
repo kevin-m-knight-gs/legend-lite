@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 154 | 6 | 16 | 48 |
+| milestoning/tests | 224 | 154 | 9 | 13 | 48 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -68,14 +68,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 62 | 3 | 8 | 1 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 97 | 2 | 7 | 18 |
+| tests/mapping/union | 124 | 100 | 0 | 6 | 18 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 69 | 1 | 12 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1520** | 71 | 291 | 656 |
+| **total** | 2538 | **1523** | 72 | 287 | 656 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7031,7 +7031,7 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].timestamp expected 2003-07-19T00:00:00.000000000, got 2003-07-19 00:00:00 | expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tiny
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].pnl expected 200.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=100.0, supportContactName=Peter Smith, order
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7152,13 +7152,13 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: unbound variable '$businessDate'
-- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
+- FAIL testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: assertEquals: expected [STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK], got [STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK]
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7176,11 +7176,11 @@ in-process Alloy-shaped path).
 - SHAPE testAssoWithOtherwiseDeep [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet [assocs=[processingTemporalProduct]; head subNavs=[]; head binding=TypedNativeCall]
+- FAIL testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: assertEquals: expected [STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK], got [STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK, STOCK]
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: assertEquals: expected [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], got [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-- ERROR testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: multi-hop navigation biTemporalProduct.biTemporalClassification.description through an embedded/slot head is not supported yet [assocs=[biTemporalProduct]; head subNavs=[]; head binding=TypedPropertyAccess]
+- FAIL testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: assertEquals: expected [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], got [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 - FAIL testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: assertEquals: expected [1, 1, 1, 1, 1, 1, 1, 1], got [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - SHAPE testJoinWithConstantDouble [modelJoins]: no execute(|...) call
@@ -7544,7 +7544,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -7651,9 +7651,6 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
-- ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
