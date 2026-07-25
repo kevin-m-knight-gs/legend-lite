@@ -1886,7 +1886,7 @@ public final class MappingNormalizer {
         // view NEVER flattens). Column substitution below is only the
         // MIGRATION fallback for shapes the frame walls on (frameable).
         if (!view.groupByColumns().isEmpty()
-                || ViewRelation.frameable(view, rcm)) {
+                || ViewRelation.frameable(view, rcm, model)) {
             ValueSpecification viewSource = ViewRelation.viewRelationExpr(
                     view, rcm.mainTable().table(), mainDb, model, md);
             ClassMapping.Relational overView = new ClassMapping.Relational(

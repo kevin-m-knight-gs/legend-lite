@@ -234,7 +234,7 @@ final class ViewRelation {
      * root's row — they stay on the substitution fallback until the frame
      * path resolves them through the view row (Leg 4 remainder). */
     static boolean frameable(DatabaseDefinition.ViewDefinition view,
-            ClassMapping.Relational rcm) {
+            ClassMapping.Relational rcm, ModelBuilder model) {
         if (view.filter() != null
                 && !(view.filter() instanceof FilterMapping.Direct)) {
             return false;
@@ -253,8 +253,9 @@ final class ViewRelation {
                 : view.columnMappings()) {
             declared.add(vc.name());
         }
+        String viewName = rcm.mainTable().table();
         for (PropertyMapping pm : rcm.propertyMappings()) {
-            if (!pmReadsViewColumns(pm, declared)) {
+            if (!pmReadsViewColumns(pm, declared, viewName, model)) {
                 return false;
             }
         }
@@ -262,15 +263,42 @@ final class ViewRelation {
     }
 
     private static boolean pmReadsViewColumns(PropertyMapping pm,
-            java.util.Set<String> declared) {
+            java.util.Set<String> declared, String viewName, ModelBuilder model) {
         return switch (pm) {
             case PropertyMapping.Column col -> declared.contains(col.column());
             case PropertyMapping.EnumeratedColumn ec ->
                     declared.contains(ec.column());
             case PropertyMapping.LocalProperty lp ->
-                    pmReadsViewColumns(lp.body(), declared);
+                    pmReadsViewColumns(lp.body(), declared, viewName, model);
+            // a join PM whose FIRST hop departs FROM the view (condition
+            // spells <view>.<col>) resolves against the frame row — the
+            // frame IS the join's left side (OrderPnl's order:
+            // @OrderPnlView_Order). Joins rooted at some physical table
+            // stay on the migration fallback.
+            case PropertyMapping.Join jp -> !jp.joins().isEmpty()
+                    && joinTouches(jp.joins().get(0),
+                            jp.database(), viewName, model);
             default -> false;
         };
+    }
+
+    /** Whether the named join's condition references {@code tableOrView}. */
+    private static boolean joinTouches(com.legend.model.JoinChainElement el,
+            String pmDb, String tableOrView, ModelBuilder model) {
+        String db = el.databaseName() != null ? el.databaseName() : pmDb;
+        var found = model.findDatabase(db).orElse(null);
+        if (found == null) {
+            return false;
+        }
+        var jd = found.joins().stream()
+                .filter(j -> j.name().equals(el.joinName())).findFirst()
+                .orElse(null);
+        if (jd == null) {
+            return false;
+        }
+        java.util.Set<String> tables = new java.util.LinkedHashSet<>();
+        RelOpTranslator.collectTablesIn(jd.operation(), tables);
+        return tables.contains(tableOrView);
     }
 
     /** The RELATION expression for a {@code (db, table)} target: a VIEW
