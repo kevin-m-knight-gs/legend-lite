@@ -77,23 +77,45 @@ public final class ScanRelations {
             String mappingFqn) {
         LegacyMappingDefinition md = mapping(ctx, mappingFqn);
         String rootClass = rootClassFqn(query);
-        ClassMapping.Relational rootCm = classMappingFor(ctx, md, rootClass,
-                null);
+        // a UNION-mapped root walks ONCE PER SET, one root table node
+        // each, in mapping declaration order (testUnion golden)
+        List<ClassMapping.Relational> rootCms =
+                rootClassMappings(ctx, md, rootClass);
         List<List<Seg>> paths = new ArrayList<>();
         collectChains(query, paths);
-        Node[] rootTable = new Node[1];
+        List<Node> roots = new ArrayList<>();
         for (List<Seg> p : paths) {
-            if (rootTable[0] == null) {
-                rootTable[0] = new Node(mainDbOf(rootCm), mainTableOf(rootCm),
-                        null);
+            if (roots.isEmpty()) {
+                for (ClassMapping.Relational cm : rootCms) {
+                    roots.add(new Node(mainDbOf(cm), mainTableOf(cm), null));
+                }
             }
-            walk(ctx, md, rootCm, rootTable[0], p, 0);
+            for (int i = 0; i < rootCms.size(); i++) {
+                walk(ctx, md, rootCms.get(i), roots.get(i), p, 0);
+            }
         }
         StringBuilder sb = new StringBuilder("root\n");
-        if (rootTable[0] != null) {
-            print(sb, rootTable[0], 1, ctx);
+        for (Node r : roots) {
+            print(sb, r, 1, ctx);
         }
         return sb.toString();
+    }
+
+    private static List<ClassMapping.Relational> rootClassMappings(
+            ModelContext ctx, LegacyMappingDefinition md, String classFqn) {
+        List<ClassMapping.Relational> hits = new ArrayList<>();
+        for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
+            for (ClassMapping.Relational r : allClassMappings(m)) {
+                if (typeMatches(r.className(), classFqn)) {
+                    hits.add(r);
+                }
+            }
+        }
+        if (hits.isEmpty()) {
+            throw new NotImplementedException("scanRelations: no class"
+                    + " mapping for '" + classFqn + "'");
+        }
+        return hits;
     }
 
     private static void print(StringBuilder sb, Node n, int depth,
@@ -273,6 +295,19 @@ public final class ScanRelations {
         int next = st == null ? i + 1 : i + 2;
         List<PropertyMapping> pms = pmsFor(ctx, md, cm, prop.name());
         if (pms.isEmpty()) {
+            // a CLASS-DERIVED property (name = firstName + lastName /
+            // qualifiers): expand its BODY's $this chains in place — the
+            // engine's scanProperties walks derived definitions the same
+            // way
+            List<List<Seg>> expanded = derivedChains(ctx, cm, prop.name());
+            if (expanded != null) {
+                for (List<Seg> sub : expanded) {
+                    List<Seg> spliced = new ArrayList<>(sub);
+                    spliced.addAll(path.subList(next, path.size()));
+                    walk(ctx, md, cm, node, spliced, 0);
+                }
+                return;
+            }
             // a SCALAR leaf that is genuinely unmapped is loud; a mid-hop
             // must resolve
             throw new NotImplementedException("scanRelations: property '"
@@ -282,6 +317,14 @@ public final class ScanRelations {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.Column c -> node.cols.add(c.column());
+                case PropertyMapping.Expression ex -> {
+                    // derived scalar (concat(firstName, lastName)): its
+                    // source columns are the demand
+                    List<RelationalOperation.ColumnRef> refs =
+                            new ArrayList<>();
+                    columnRefs(ex.expression(), refs);
+                    assignByTable(node, refs);
+                }
                 case PropertyMapping.EnumeratedColumn ec ->
                         throw new NotImplementedException(
                                 "scanRelations: enum-mapped column leaf");
@@ -312,6 +355,57 @@ public final class ScanRelations {
                         + " property mapping is not supported yet");
             }
         }
+    }
+
+    /** The $this chains of a class-derived property's body, or null when
+     * the class declares no such derived property (or its body is a
+     * function-ref binding). */
+    private static List<List<Seg>> derivedChains(ModelContext ctx,
+            ClassMapping.Relational cm, String prop) {
+        com.legend.model.ClassDefinition cd = classDef(ctx, cm.className());
+        if (cd == null) {
+            return null;
+        }
+        for (com.legend.model.ClassDefinition.DerivedPropertyDefinition dp
+                : cd.derivedProperties()) {
+            if (!dp.name().equals(prop)) {
+                continue;
+            }
+            if (!(dp.realization()
+                    instanceof com.legend.model.Realization.Inline inl)) {
+                return null;
+            }
+            List<List<Seg>> out = new ArrayList<>();
+            for (ValueSpecification b : inl.body()) {
+                collectChains(b, out);
+            }
+            return out;
+        }
+        return null;
+    }
+
+    /** The parsed class definition for an as-written class spelling. */
+    private static com.legend.model.ClassDefinition classDef(ModelContext ctx,
+            String written) {
+        var direct = ctx.findClassDefinition(written);
+        if (direct.isPresent()) {
+            return direct.get();
+        }
+        // as-written short names: resolve by unambiguous tail over the
+        // element index
+        com.legend.model.ClassDefinition hit = null;
+        for (String fqn : ctx.elementFqns()) {
+            if (typeMatches(written, fqn)) {
+                var cd = ctx.findClassDefinition(fqn);
+                if (cd.isPresent()) {
+                    if (hit != null) {
+                        return null;   // ambiguous: stay loud upstream
+                    }
+                    hit = cd.get();
+                }
+            }
+        }
+        return hit;
     }
 
     /** All same-named PMs: class-mapping entries first, association-
