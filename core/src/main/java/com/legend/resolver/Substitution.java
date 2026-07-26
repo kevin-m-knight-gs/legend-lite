@@ -1155,6 +1155,10 @@ final class Substitution {
                 }
             }
             AssocSub diag = target.assocs().get(path.get(0));
+            if (System.getenv("LEGEND_LITE_STACKS") != null) {
+                System.err.println("[multi-hop wall] path=" + path);
+                Thread.dumpStack();
+            }
             throw new NotImplementedException("multi-hop navigation "
                     + String.join(".", path) + " through an embedded/slot head"
                     + " is not supported yet [assocs="
