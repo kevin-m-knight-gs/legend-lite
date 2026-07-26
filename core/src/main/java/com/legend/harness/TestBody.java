@@ -1007,8 +1007,16 @@ public final class TestBody {
             ValueSpecification esrc = emap.parameters().get(0);
             List<ValueSpecification> evs = esrc instanceof PureCollection pc0
                     ? pc0.values() : List.of(esrc);
-            if (!evs.isEmpty()
-                    && evs.stream().allMatch(x -> enumTail(x) != null)) {
+            // STRICT literal-enum elements only (DatabaseType.H2 — an
+            // EnumValue or a dotted read off an element POINTER): a map
+            // over an arbitrary property chain is a QUERY, and enumTail's
+            // loose property match must never unroll it (the
+            // testComplexOrExistsToManyProperty misfire)
+            if (!evs.isEmpty() && evs.stream().allMatch(
+                    x -> x instanceof com.legend.model.spec.EnumValue
+                            || (x instanceof AppliedProperty ap0
+                                && ap0.receiver() instanceof com.legend
+                                    .model.spec.PackageableElementPtr))) {
                 List<ValueSpecification> unrolled = new ArrayList<>();
                 for (ValueSpecification ev : evs) {
                     for (ValueSpecification b : dl.body()) {
