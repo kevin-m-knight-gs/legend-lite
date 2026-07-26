@@ -404,7 +404,7 @@ public final class Lowerer {
 
             case TypedLimit l -> {
                 SqlSelect src = relation(l.source());
-                yield (Fold.limitFolds(src) ? src : isolate(src)).withLimit(intOf(l.count()));
+                yield (Fold.limitFolds(src) ? src : isolate(src)).withLimit(ConstBounds.intOf(l.count()));
             }
 
             // first()/head() over a RELATION: the first row — LIMIT 1 (the
@@ -418,14 +418,14 @@ public final class Lowerer {
 
             case TypedDrop d -> {
                 SqlSelect src = relation(d.source());
-                yield (Fold.offsetFolds(src) ? src : isolate(src)).withOffset(intOf(d.count()));
+                yield (Fold.offsetFolds(src) ? src : isolate(src)).withOffset(ConstBounds.intOf(d.count()));
             }
 
             case TypedSlice s -> {
                 SqlSelect src = relation(s.source());
-                long start = intOf(s.start());
+                long start = ConstBounds.intOf(s.start());
                 SqlSelect base = Fold.offsetFolds(src) ? src : isolate(src);
-                yield base.withOffset(start).withLimit(intOf(s.stop()) - start);
+                yield base.withOffset(start).withLimit(ConstBounds.intOf(s.stop()) - start);
             }
 
             case TypedGroupBy g -> groupBy(g);
@@ -3432,27 +3432,6 @@ public final class Lowerer {
 
     private static TypedSpec last(TypedLambda lambda) {
         return lambda.body().get(lambda.body().size() - 1);
-    }
-
-    private static long intOf(TypedSpec spec) {
-        if (spec instanceof TypedCInteger c) {
-            return c.value().longValue();
-        }
-        // identity wrappers over a literal bound fold (optional-limit's
-        // `let l = 1->first(); ->limit($l)`: first/toOne over a singleton)
-        if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && !nc.args().isEmpty()
-                && ("meta::pure::functions::collection::first".equals(nc.callee().qualifiedName())
-                        || "meta::pure::functions::multiplicity::toOne".equals(nc.callee().qualifiedName()))) {
-            return intOf(nc.args().get(0));
-        }
-        if (spec instanceof com.legend.compiler.spec.typed.TypedCollection tc
-                && tc.elements().size() == 1) {
-            return intOf(tc.elements().get(0));
-        }
-        throw new NotImplementedException(
-                "dynamic slicing bounds are not lowered yet (literal expected), got "
-                        + spec.getClass().getSimpleName());
     }
 
     private static Type.RelationType schemaOf(TypedSpec spec) {

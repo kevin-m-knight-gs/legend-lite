@@ -167,10 +167,13 @@ class PipelineStageFailureTest {
     }
 
     @Test
-    @DisplayName("lowering: dynamic slicing bound fails loudly (literal expected)")
+    @DisplayName("lowering: dynamic slicing bound fails loudly"
+            + " (constant arithmetic folds; genuinely dynamic stays)")
     void dynamicLimit() {
+        // (1 + 1) folds now (the paginated desugar's (page-1)*size);
+        // a bound needing runtime evaluation keeps the loud wall
         var ex = failsWith(com.legend.error.NotImplementedException.class, MODEL,
-                "#>{test::DB.T_PERSON}#->limit(1 + 1)");
+                "#>{test::DB.T_PERSON}#->limit('12'->parseInteger())");
         messageNames(ex, "literal expected");
     }
 

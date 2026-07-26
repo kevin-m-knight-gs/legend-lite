@@ -202,6 +202,10 @@ final class Typer {
                     yield new TypedLambda(names, List.copyOf(stmts),
                             new ExprType(fnType, Multiplicity.Bounded.ONE));
                 }
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    System.err.println("[bare-lambda] " + lf);
+                    Thread.dumpStack();
+                }
                 throw new TypeInferenceException(
                         "a bare lambda has no type outside a call position"
                                 + " (lambdas type against their call's signature)");
@@ -504,6 +508,27 @@ final class Typer {
             if (wcd != null) {
                 return synth(wcd, env);
             }
+        }
+        // #/A/b!alias# outside project position: the VALUE is the path's
+        // navigation lambda; the alias is projection metadata (ProjectChecker
+        // consumes the raw carrier before typing ever sees it)
+        if (af.function().equals("pathWithAlias") && af.parameters().size() == 2) {
+            return synth(af.parameters().get(0), env);
+        }
+        // paginated(set, page, size) — real pure collectionExtension.pure:236
+        // body verbatim: slice((page-1)*size, page*size)
+        if ((af.function().equals("paginated")
+                || af.function().endsWith("::paginated"))
+                && af.parameters().size() == 3) {
+            ValueSpecification pg = af.parameters().get(1);
+            ValueSpecification sz = af.parameters().get(2);
+            return synth(new AppliedFunction("slice", List.of(
+                    af.parameters().get(0),
+                    new AppliedFunction("times", List.of(
+                            new AppliedFunction("minus", List.of(pg,
+                                    new CInteger(1L))),
+                            sz)),
+                    new AppliedFunction("times", List.of(pg, sz)))), env);
         }
         // olapGroupBy — the legacy TDS OLAP spellings; the modern construct
         // IS the windowed extend (see olapGroupByDesugar)

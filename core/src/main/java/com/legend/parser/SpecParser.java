@@ -2224,7 +2224,12 @@ public final class SpecParser implements TokenStreamCursor {
             }
             body = new AppliedProperty(body, seg);
         }
-        LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path")), List.of(body));
+        // the path's ROOT segment IS the param's type (real pure's Path
+        // carries Path<Root,Leaf>) — the annotated lambda self-types in
+        // let/argument positions, not just call positions
+        LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path",
+                new com.legend.model.TypeExpression.NameRef(segs[0].strip()),
+                null)), List.of(body));
         if (alias == null) {
             return fn;
         }

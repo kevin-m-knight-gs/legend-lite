@@ -14,11 +14,11 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 205 | 10 | 23 | 20 |
+| functions/tests | 258 | 207 | 11 | 20 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 114 | 6 | 16 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 99 | 8 | 33 | 3 |
+| graphFetch/tests | 143 | 97 | 10 | 33 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -71,11 +71,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 99 | 1 | 6 | 18 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
-| tests/query | 83 | 71 | 0 | 9 | 3 |
+| tests/query | 83 | 71 | 0 | 8 | 4 |
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1640** | 69 | 219 | 610 |
+| **total** | 2538 | **1640** | 72 | 215 | 611 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7187,7 +7187,6 @@ in-process Alloy-shaped path).
 - 4x no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes (no candidates at all)
 - 4x in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - 3x class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- 3x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 3x class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - 3x unknown function 'meta::legend::compileLegendGrammar'
 - 3x unknown enumeration 'ProductSynonymType'
@@ -7208,6 +7207,7 @@ in-process Alloy-shaped path).
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
 - 2x cannot access 'name' on String
+- 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 
 ### per-test outcomes (non-passing)
 
@@ -7384,9 +7384,7 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInWithEmptyLists [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInWithObjReferenceOutput [functions/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testPaginated [functions/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testPaginatedByVendor [functions/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testPaginatedWithVariables [functions/tests]: unknown function 'paginated'
+- FAIL testPaginatedByVendor [functions/tests]: assertEquals: expected select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName", "root".FIRSTNAME as "o_fn" from personTable as "root" order by "root".FIRSTNAME asc offset 0 rows fetch next 4 rows only, got select "root".ID as "pk_0", "root".FIR
 - ERROR testSQLComments [functions/tests]: unknown type 'RelationalActivity' in @RelationalActivity
 - SHAPE testLimitFilterInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterLimitInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7467,7 +7465,9 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7562,7 +7562,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7712,7 +7712,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
@@ -7938,7 +7938,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -8052,7 +8052,7 @@ in-process Alloy-shaped path).
 - SHAPE testViewToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testUnionedViewsToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy:
-- ERROR testDayOfWeek [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- SHAPE testDayOfWeek [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testWithParameterToClassNestedSelect [tests/query]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - SHAPE testViewWithJoinsAndDistinct [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
