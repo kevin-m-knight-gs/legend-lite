@@ -378,7 +378,8 @@ public final class ScanRelations {
                 }
                 case PropertyMapping.Join j -> {
                     ClassMapping.Relational target = targetCm(ctx, md, j,
-                            node.table);
+                            node.table, propertyTargetClass(ctx, cm,
+                                    prop.name()));
                     if (st != null && !typeMatches(target.className(),
                             st.classFqn())) {
                         continue;
@@ -462,12 +463,14 @@ public final class ScanRelations {
         return scopedChainOf(cur, scope);
     }
 
-    /** Boolean/comparison natives recurse into their operands — chainOf's
-     * qualified-property arm must not hop on them ('equal' tails). */
+    /** Boolean/comparison/arithmetic natives recurse into their operands —
+     * chainOf's qualified-property arm must not hop on them ('equal' and
+     * 'times' tails: averageEmployeesAge = ...->average() * 2.0). */
     private static final java.util.Set<String> PRED_OPS = java.util.Set.of(
             "equal", "notEqual", "and", "or", "not", "lessThan",
             "lessThanEqual", "greaterThan", "greaterThanEqual", "in",
-            "isEmpty", "isNotEmpty", "contains", "startsWith", "endsWith");
+            "isEmpty", "isNotEmpty", "contains", "startsWith", "endsWith",
+            "times", "multiply", "plus", "minus", "divide", "rem", "mod");
 
     private static void scopedChains(ValueSpecification n,
             java.util.Map<String, List<Seg>> scope, List<List<Seg>> out) {
@@ -742,9 +745,43 @@ public final class ScanRelations {
     /** The join PM's target class mapping: explicit {@code targetSetId}
      * wins; else the single set whose main table is the join's landing
      * table. */
+    /** The declared class of a property (deep through supers), null when
+     * unresolvable — the join-target disambiguator. */
+    private static String propertyTargetClass(ModelContext ctx,
+            ClassMapping.Relational cm, String prop) {
+        java.util.ArrayDeque<String> q = new java.util.ArrayDeque<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        q.add(cm.className());
+        while (!q.isEmpty()) {
+            com.legend.model.ClassDefinition cd = classDef(ctx, q.poll());
+            if (cd == null) {
+                continue;
+            }
+            for (var p : cd.properties()) {
+                if (p.name().equals(prop)
+                        && p.type() instanceof com.legend.model.TypeExpression.NameRef nr) {
+                    return nr.name();
+                }
+            }
+            for (com.legend.model.TypeExpression s : cd.superClasses()) {
+                if (s instanceof com.legend.model.TypeExpression.NameRef snr
+                        && seen.add(snr.name())) {
+                    q.add(snr.name());
+                }
+            }
+            // association ends are class properties semantically
+            var end = ctx.findAssociationEnd(cd.qualifiedName(), prop);
+            if (end.isPresent() && end.get().targetClass()
+                    instanceof com.legend.model.TypeExpression.NameRef anr) {
+                return anr.name();
+            }
+        }
+        return null;
+    }
+
     private static ClassMapping.Relational targetCm(ModelContext ctx,
             LegacyMappingDefinition md, PropertyMapping.Join j,
-            String fromTable) {
+            String fromTable, String targetClassHint) {
         if (j.targetSetId() != null) {
             return classMappingFor(ctx, md, null, j.targetSetId());
         }
@@ -773,10 +810,24 @@ public final class ScanRelations {
             }
         }
         hits.removeIf(cm -> mainTableOf(cm).equals(bare(fromTable)));
+        if (hits.size() > 1 && targetClassHint != null) {
+            // several classes share the join's table: the PROPERTY's
+            // declared type picks the set (engine findPropertyMapping
+            // resolves per receiver class)
+            List<ClassMapping.Relational> byClass = hits.stream()
+                    .filter(cm -> typeMatches(cm.className(), targetClassHint)
+                            || typeMatches(targetClassHint, cm.className()))
+                    .toList();
+            if (byClass.size() == 1) {
+                return byClass.get(0);
+            }
+        }
         if (hits.size() != 1) {
             throw new NotImplementedException("scanRelations: join target of"
                     + " '" + j.propertyName() + "' is ambiguous ("
-                    + hits.size() + " sets)");
+                    + hits.size() + " sets: " + hits.stream()
+                            .map(h -> h.className() + "[" + h.setId() + "]")
+                            .toList() + "; hint=" + targetClassHint + ")");
         }
         return hits.get(0);
     }
