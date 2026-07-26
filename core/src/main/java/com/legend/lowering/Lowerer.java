@@ -2701,9 +2701,13 @@ public final class Lowerer {
             // consumers): aggregate the column to a LIST — the bare scalar
             // subquery would raise on the second row. The OUTER row
             // resolver rides the enclosing channel either way.
+            // MULTI-column: the assert idiom ($result.values.rows.values
+            // over a whole TDS) — ROW-MAJOR cell flatten; no toOne
+            // carve-out (a [1] stamp on a relation VALUE is the value's
+            // mult, not the row count — the TypedSort/TypedDistinct rule).
             case TypedSpec rel when rel.info().type()
                     instanceof Type.RelationType rt
-                    && rt.columns().size() == 1 -> {
+                    && !rt.columns().isEmpty() -> {
                 enclosing.push((v, name) -> {
                     SqlExpr r = columns.resolve(v, name);
                     if (r == null) {
@@ -2712,6 +2716,11 @@ public final class Lowerer {
                     return r;
                 });
                 try {
+                    if (rt.columns().size() > 1) {
+                        yield new SqlExpr.ScalarSubquery(
+                                ValueCollections.rowMajorCellList(
+                                        relation(rel), rt, nextAlias()));
+                    }
                     // a RELATION-OP head (TDS distinct/restrict splice) is
                     // a VALUE COLLECTION whatever its stamp — [1] is the
                     // relation VALUE's mult, not the row count; the
@@ -2726,19 +2735,9 @@ public final class Lowerer {
                     if (!toMany) {
                         yield new SqlExpr.ScalarSubquery(relation(rel));
                     }
-                    String sub = nextAlias();
-                    String col = rt.columns().get(0).name();
-                    SqlSelect agg = SqlSelect.starOf(
-                            new SqlSource.Subselect(relation(rel), sub))
-                            .withProjections(List.of(new SqlSelect.Projection(
-                                            new SqlAgg.Reducer("LIST", List.of(
-                                                    new SqlExpr.Column(sub, col)),
-                                                    false),
-                                            null)),
-                                    List.of(new OutputCol(col,
-                                            SqlType.Scalar.VARCHAR,
-                                            true)));
-                    yield new SqlExpr.ScalarSubquery(agg);
+                    yield new SqlExpr.ScalarSubquery(
+                            ValueCollections.columnList(relation(rel),
+                                    rt.columns().get(0).name(), nextAlias()));
                 } finally {
                     enclosing.pop();
                 }
