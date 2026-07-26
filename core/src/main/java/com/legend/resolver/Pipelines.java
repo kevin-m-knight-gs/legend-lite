@@ -1151,6 +1151,15 @@ final class Pipelines {
         }
     }
 
+    /** Collection distinct/removeDuplicates over instances (no comparator). */
+    static boolean isClassDistinct(com.legend.compiler.spec.typed.TypedNativeCall c) {
+        return c.args().size() == 1
+                && (c.callee().qualifiedName().equals(
+                                "meta::pure::functions::collection::distinct")
+                        || c.callee().qualifiedName().equals(
+                                "meta::pure::functions::collection::removeDuplicates"));
+    }
+
     static boolean containsSlot(TypedSpec n) {
         if (n instanceof TypedJoinSlot) {
             return true;

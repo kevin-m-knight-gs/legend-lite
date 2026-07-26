@@ -53,12 +53,19 @@ class CodeShapeGuardrailTest {
             "ElementParser.pos", "ElementParser.currentMappingScope",
             "ElementParser.currentTargetSets", "ElementParser.currentScopeBlock",
             "SpecParser.pos",
+            // the shared minimal JSON reader's walk position — a parser
+            // cursor, same family as Lexer.pos
+            "Json.i",
             // ';'-ambiguity context for unbraced lambda code blocks: inside
             // call args/collections a ';' is unambiguously the lambda's —
             // a cursor-adjacent depth, same lifecycle as pos
             "SpecParser.boundedDepth",
             // per-resolution frames + counters
             "StoreResolver.freshVarCounter", "StoreResolver.temporal",
+            // JSON source frames (XStore §1): the execution context's
+            // JsonModelConnection map, set per from()-scope — same
+            // per-resolution frame lifecycle as `temporal`
+            "ClassSources.jsonSources",
             // serialize(..., config) type-key config: set at the serialize
             // arm, consumed at the envelope build — same per-resolution
             // frame lifecycle as `temporal`

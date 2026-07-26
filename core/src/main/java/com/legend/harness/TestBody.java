@@ -579,12 +579,12 @@ public final class TestBody {
      * (the caller reports Unsupported, never a false verdict). */
     private static Object jsonValueOf(Eval e) {
         if (e.result instanceof com.legend.exec.ExecutionResult.Graph g) {
-            return ExecJson.parse(g.json());
+            return com.legend.exec.Json.parse(g.json());
         }
         List<Object> vals = e.values();
         if (vals.size() == 1 && vals.get(0) instanceof String str) {
             try {
-                return ExecJson.parse(str);
+                return com.legend.exec.Json.parse(str);
             } catch (RuntimeException notJson) {
                 return null;
             }
@@ -1270,7 +1270,7 @@ public final class TestBody {
                 case com.legend.exec.ExecutionResult.Collection c -> c.values().size();
                 case com.legend.exec.ExecutionResult.Tabular t -> t.rows().size();
                 case com.legend.exec.ExecutionResult.Graph g -> {
-                    Object p = ExecJson.parse(g.json());
+                    Object p = com.legend.exec.Json.parse(g.json());
                     yield p instanceof List<?> l ? l.size() : 1;
                 }
             };
@@ -1287,7 +1287,7 @@ public final class TestBody {
                     yield out;
                 }
                 case com.legend.exec.ExecutionResult.Graph g -> {
-                    Object p = ExecJson.parse(g.json());
+                    Object p = com.legend.exec.Json.parse(g.json());
                     yield p instanceof List<?> l ? new ArrayList<>(l) : List.of(p);
                 }
             };
@@ -2227,137 +2227,5 @@ public final class TestBody {
                     !af.parameters().isEmpty() && endsInSort(af.parameters().get(0));
             default -> false;
         };
-    }
-
-    /** Minimal JSON reader for the GRAPH result envelope (core's own wire). */
-    static final class ExecJson {
-        private final String s;
-        private int i;
-
-        private ExecJson(String s) {
-            this.s = s;
-        }
-
-        static Object parse(String json) {
-            ExecJson p = new ExecJson(json);
-            p.ws();
-            Object v = p.value();
-            p.ws();
-            if (p.i < p.s.length()) {
-                throw new IllegalStateException("trailing JSON at " + p.i);
-            }
-            return v;
-        }
-
-        private Object value() {
-            char c = s.charAt(i);
-            return switch (c) {
-                case '{' -> obj();
-                case '[' -> arr();
-                case '"' -> str();
-                case 't' -> { i += 4; yield Boolean.TRUE; }
-                case 'f' -> { i += 5; yield Boolean.FALSE; }
-                case 'n' -> { i += 4; yield null; }
-                default -> num();
-            };
-        }
-
-        private Map<String, Object> obj() {
-            Map<String, Object> out = new LinkedHashMap<>();
-            i++;
-            ws();
-            if (s.charAt(i) == '}') {
-                i++;
-                return out;
-            }
-            while (true) {
-                ws();
-                String k = str();
-                ws();
-                i++;    // ':'
-                ws();
-                out.put(k, value());
-                ws();
-                if (s.charAt(i) == ',') {
-                    i++;
-                    continue;
-                }
-                i++;    // '}'
-                return out;
-            }
-        }
-
-        private List<Object> arr() {
-            List<Object> out = new ArrayList<>();
-            i++;
-            ws();
-            if (s.charAt(i) == ']') {
-                i++;
-                return out;
-            }
-            while (true) {
-                ws();
-                out.add(value());
-                ws();
-                if (s.charAt(i) == ',') {
-                    i++;
-                    continue;
-                }
-                i++;    // ']'
-                return out;
-            }
-        }
-
-        private String str() {
-            StringBuilder b = new StringBuilder();
-            i++;
-            while (s.charAt(i) != '"') {
-                char c = s.charAt(i);
-                if (c == '\\') {
-                    i++;
-                    char e = s.charAt(i);
-                    b.append(switch (e) {
-                        case 'n' -> '\n';
-                        case 't' -> '\t';
-                        case 'r' -> '\r';
-                        case 'b' -> '\b';
-                        case 'f' -> '\f';
-                        case 'u' -> {
-                            char u = (char) Integer.parseInt(
-                                    s.substring(i + 1, i + 5), 16);
-                            i += 4;
-                            yield u;
-                        }
-                        default -> e;
-                    });
-                } else {
-                    b.append(c);
-                }
-                i++;
-            }
-            i++;
-            return b.toString();
-        }
-
-        private Object num() {
-            int start = i;
-            while (i < s.length() && "+-0123456789.eE".indexOf(s.charAt(i)) >= 0) {
-                i++;
-            }
-            String t = s.substring(start, i);
-            // Decimal tokens parse as BigDecimal, NOT double (audit 18):
-            // two distinct Decimals beyond 17 significant digits round to
-            // the SAME double, so a wrong Decimal wire value would compare
-            // equal — the JSON bridge must stay as strict as wireEquals.
-            return t.contains(".") || t.contains("e") || t.contains("E")
-                    ? (Object) new java.math.BigDecimal(t)
-                    : (Object) Long.parseLong(t);
-        }
-
-        private void ws() {
-            while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
-                i++;
-            }
-        }
     }
 }

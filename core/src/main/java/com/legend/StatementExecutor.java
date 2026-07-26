@@ -441,9 +441,13 @@ final class StatementExecutor {
                     ? com.legend.compiler.spec.typed.TypedFrom.chainMappingsIn(
                             letBound(ec.args().get(2), letPrefix))
                     : java.util.List.of();
+            java.util.Map<String, String> jsonSources = ec.args().size() >= 3
+                    ? com.legend.compiler.spec.typed.TypedFrom.jsonSourcesIn(
+                            letBound(ec.args().get(2), letPrefix))
+                    : java.util.Map.of();
             chain = new com.legend.compiler.spec.typed.TypedFrom(chain,
                     java.util.Optional.of(mref), runtime, chainMappings,
-                    chain.info());
+                    jsonSources, chain.info());
         }
         boolean relationRooted = chain.info().type()
                 instanceof com.legend.compiler.element.type.Type.RelationType;

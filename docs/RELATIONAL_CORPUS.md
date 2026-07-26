@@ -14,11 +14,11 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 204 | 9 | 25 | 20 |
+| functions/tests | 258 | 203 | 10 | 25 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 114 | 6 | 16 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 76 | 10 | 54 | 3 |
+| graphFetch/tests | 143 | 81 | 9 | 50 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -68,14 +68,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 67 | 5 | 1 | 1 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 |
-| tests/mapping/union | 124 | 100 | 0 | 6 | 18 |
+| tests/mapping/union | 124 | 99 | 1 | 6 | 18 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 71 | 0 | 9 | 3 |
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1611** | 68 | 249 | 610 |
+| **total** | 2538 | **1614** | 69 | 245 | 610 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7184,6 +7184,7 @@ in-process Alloy-shaped path).
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes (no candidates at all)
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unknown function 'generateObjectReferences'
+- 5x trailing JSON at 88
 - 4x no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes (no candidates at all)
 - 4x in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - 3x no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes — candidates: [meta::pure::tds::project/3]
@@ -7207,7 +7208,6 @@ in-process Alloy-shaped path).
 - 2x class 'meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion' (Operation union member set 'trade_set_model' of class 'meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::Trade' is not a Relational or Relation(~func) set; mapping=meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion)
 - 2x class 'meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion2' (Operation union member set 'trade_set_model' of class 'meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::Trade' is not a Relational or Relation(~func) set; mapping=meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion2)
 - 2x in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
-- 2x class 'meta::relational::graphFetch::tests::resultSourcing::_Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::resultSourcing::mappingWithFilters'
 
 ### per-test outcomes (non-passing)
 
@@ -7343,6 +7343,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -7442,7 +7443,7 @@ in-process Alloy-shaped path).
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - ERROR testCrossMappingWithMoreBooleanAlgebra [graphFetch/tests]: association 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::Trade_TradeEvent' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2' (property 'trader' routes to unknown mapping set 'trader_set'; the property is dropped from this synthes
 - ERROR testCrossMappingJsonToDB [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping3' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=
-- ERROR testCrossMappingJsonToDBWithNoLocalProperties [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::S_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping4'
+- ERROR testCrossMappingJsonToDBWithNoLocalProperties [graphFetch/tests]: trailing JSON at 88
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - ERROR testCrossStoreWithCSVDataSource [graphFetch/tests]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
@@ -7469,27 +7470,22 @@ in-process Alloy-shaped path).
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_Checked [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
-- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: class 'meta::relational::graphFetch::tests::resultSourcing::_Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::resultSourcing::mappingWithoutFilters'
-- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: class 'meta::relational::graphFetch::tests::resultSourcing::_Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::resultSourcing::mappingWithFilters'
-- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: class 'meta::relational::graphFetch::tests::resultSourcing::_Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::resultSourcing::mappingWithFilters'
-- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: class 'meta::relational::graphFetch::tests::resultSourcing::_SettlementDateClass' is not mapped in mapping 'meta::relational::graphFetch::tests::resultSourcing::identityMappingForDate'
 - ERROR testIsolationOfPropertyTargetFilter [graphFetch/tests]: filter predicate references column 'firmTable_personFirmBridgeTable_personId', unresolvable even after isolation [param=t; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left
 - ERROR testSimpleOrderedCrossStoreGraphFetchMissingProperty [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=meta::pure::graphFetc
 - ERROR testSimpleOrderedCrossStoreGraphFetchRightOrder [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=meta::pure::graphFetc
 - ERROR testSimpleOrderedCrossStoreGraphFetchReverseOrder [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=meta::pure::graphFetc
 - ERROR testSimpleOrderedCrossStoreGraphFetchStringKey [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping2' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=meta::pure::graphFetc
-- ERROR testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::S_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping3'
-- ERROR testSimpleOrderedCrossStoreGraphFetchPropertyLevel [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::S_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping4'
-- ERROR testOrderedCrossStoreGraphFetchWithComplexQualifierExpression [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::S_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping5'
-- ERROR testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::S_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping5'
+- ERROR testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements [graphFetch/tests]: trailing JSON at 88
+- ERROR testSimpleOrderedCrossStoreGraphFetchPropertyLevel [graphFetch/tests]: trailing JSON at 88
+- ERROR testOrderedCrossStoreGraphFetchWithComplexQualifierExpression [graphFetch/tests]: trailing JSON at 88
+- ERROR testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse [graphFetch/tests]: trailing JSON at 88
 - ERROR testGraphFetchCheckedWithSize [graphFetch/tests]: no overload of 'graphFetchChecked' matches 3 argument(s) of these shapes (no candidates at all)
 - ERROR testRelationalGraphFetchWithAlloySerializationConfig [graphFetch/tests]: unknown function 'alloyConfig'
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7737,7 +7733,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
@@ -8065,6 +8061,7 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification

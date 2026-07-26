@@ -22,11 +22,77 @@ import java.util.Optional;
  */
 public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                         Optional<TypedPackageableRef> runtime,
-                        List<String> chainMappings, ExprType info) implements TypedSpec {
+                        List<String> chainMappings,
+                        java.util.Map<String, String> jsonSources,
+                        ExprType info) implements TypedSpec {
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime, ExprType info) {
-        this(source, mapping, runtime, List.of(), info);
+        this(source, mapping, runtime, List.of(), java.util.Map.of(), info);
+    }
+
+    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
+                     Optional<TypedPackageableRef> runtime,
+                     List<String> chainMappings, ExprType info) {
+        this(source, mapping, runtime, chainMappings, java.util.Map.of(), info);
+    }
+
+    /** class FQN -> data: URL payload for every
+     * {@code ^JsonModelConnection(class=..., url='data:application/json,...')}
+     * in a runtime-valued expression — the JSON SOURCE FRAME feed (XStore
+     * leg §1). Non-literal shapes contribute nothing. */
+    public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        collectJson(n, out);
+        return java.util.Map.copyOf(out);
+    }
+
+    private static void collectJson(TypedSpec n,
+            java.util.Map<String, String> out) {
+        if (n instanceof TypedNewInstance ni
+                && "meta::external::store::model::JsonModelConnection"
+                        .equals(ni.classFqn())) {
+            TypedSpec cls = ni.properties().get("class");
+            String url = foldLiteral(ni.properties().get("url"));
+            if (cls instanceof TypedPackageableRef pr && url != null) {
+                out.put(pr.fullPath(), url);
+            }
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectJson(c, out);
+        }
+    }
+
+    /** A '+'-folded string literal, null when any part is non-literal. */
+    private static String foldLiteral(TypedSpec n) {
+        if (n instanceof TypedCString cs) {
+            return cs.value();
+        }
+        if (n instanceof TypedNativeCall c
+                && c.callee().qualifiedName().endsWith("::plus")) {
+            StringBuilder sb = new StringBuilder();
+            for (TypedSpec a : c.args()) {
+                String part = foldLiteral(a);
+                if (part == null) {
+                    return null;
+                }
+                sb.append(part);
+            }
+            return sb.toString();
+        }
+        if (n instanceof TypedCollection tc) {
+            StringBuilder sb = new StringBuilder();
+            for (TypedSpec a : tc.elements()) {
+                String part = foldLiteral(a);
+                if (part == null) {
+                    return null;
+                }
+                sb.append(part);
+            }
+            return sb.toString();
+        }
+        return null;
     }
 
     /** Mapping FQNs under any {@code ^ModelChainConnection(mappings=[...])}

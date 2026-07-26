@@ -1404,6 +1404,14 @@ final class Substitution {
                     // rebind it to THIS scope's row var, orphaning reads)
                     new TypedFilter(rewrite(f.source()),
                             rewriteLambdaBodyOnly(f.predicate()), f.info());
+            // RESOLVED RELATION MATERIAL in value position (the SubQueryLift
+            // scalar subquery: an uncorrelated [0..1] single-column project
+            // over resolved sources) — same pass-through family as the R2
+            // constructed material above; the lift's uncorrelated guard
+            // means nothing inside reads this scope's vars
+            case TypedProject rp when rp.info().type()
+                    instanceof Type.RelationType -> n;
+            case com.legend.compiler.spec.typed.TypedTds ignored -> n;
             // graphFetch in VALUE position is SOURCE-PRESERVING (engine
             // GraphFetchLowering = lower(source); the tree shapes only a
             // SERIALIZED result): the XStore result-sourcing idiom binds

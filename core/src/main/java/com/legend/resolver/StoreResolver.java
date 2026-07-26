@@ -198,9 +198,13 @@ public final class StoreResolver {
      * audit catch 1's precedence rule).
      */
     record Context(String explicitMapping, String runtimeFqn,
-            List<String> chainMappings) {
+            List<String> chainMappings, Map<String, String> jsonSources) {
         Context(String explicitMapping, String runtimeFqn) {
-            this(explicitMapping, runtimeFqn, List.of());
+            this(explicitMapping, runtimeFqn, List.of(), Map.of());
+        }
+        Context(String explicitMapping, String runtimeFqn,
+                List<String> chainMappings) {
+            this(explicitMapping, runtimeFqn, chainMappings, Map.of());
         }
         static final Context NONE = new Context(null, null);
         static Context ofMapping(String fqn) { return new Context(fqn, null); }
@@ -235,13 +239,7 @@ public final class StoreResolver {
                     && !wf.args().isEmpty() ->
                     resolveNode(wf.args().get(0), context);
             case TypedFrom from -> {
-                Context inner = from.mapping()
-                        .map(m -> new Context(m.fullPath(), null,
-                                from.chainMappings()))
-                        .orElseGet(() -> from.runtime()
-                                .map(r -> new Context(null, r.fullPath(),
-                                        from.chainMappings()))
-                                .orElse(context));
+                Context inner = fromContext(from, context);
                 // in-query CLASS SUBQUERIES under lambdas lift FIRST
                 // (SubQueryLift): the sub-chain resolves under THIS
                 // from()'s context into a [0..1] scalar-subquery relation
@@ -249,7 +247,7 @@ public final class StoreResolver {
                         inner, ctx, specs, letBindings);
                 yield new TypedFrom(resolveNode(liftedSrc, inner),
                         from.mapping(), from.runtime(),
-                        from.chainMappings(), from.info());
+                        from.chainMappings(), from.jsonSources(), from.info());
             }
             // Bare class fetch: GRAPH output — implicit serialize with a
             // leaf-only tree over the class's SCALAR bindings (plan §E10).
@@ -473,14 +471,6 @@ public final class StoreResolver {
     }
 
     /** An op whose source chain is still in OBJECT space (class-typed). */
-    /** Collection distinct/removeDuplicates over instances (no comparator). */
-    private static boolean isClassDistinct(TypedNativeCall c) {
-        return c.args().size() == 1
-                && (c.callee().qualifiedName().equals(
-                                "meta::pure::functions::collection::distinct")
-                        || c.callee().qualifiedName().equals(
-                                "meta::pure::functions::collection::removeDuplicates"));
-    }
 
     /** INTERIM temporal-propagation wall (audit S1): engine dates EVERY
      * milestoned table; lite only the root — navigation to an UNFILTERED
@@ -1095,7 +1085,7 @@ public final class StoreResolver {
                     isObjectSpace(c.args().get(0));
             case TypedNativeCall c when isClassToOne(c) ->
                     isObjectSpace(c.args().get(0));
-            case TypedNativeCall c when isClassDistinct(c) ->
+            case TypedNativeCall c when Pipelines.isClassDistinct(c) ->
                     isObjectSpace(c.args().get(0));
             case TypedNativeCall c when classSortOf(c) != null ->
                     isObjectSpace(c.args().get(0));
@@ -2505,7 +2495,7 @@ public final class StoreResolver {
             // Normalize collection natives with relation shapes BEFORE
             // collecting: first()/head() IS limit 1; class-space
             // sort(key, comparator) IS sortBy with a direction.
-            if (cur instanceof TypedNativeCall nc && isClassDistinct(nc)) {
+            if (cur instanceof TypedNativeCall nc && Pipelines.isClassDistinct(nc)) {
                 // instance distinct = dedup by the SERIALIZED VALUE. Over a
                 // single-table extent rows are pk-unique and DISTINCT is a
                 // no-op; over a UNION/concatenate extent duplicates are
@@ -2548,13 +2538,7 @@ public final class StoreResolver {
             }
             // in-chain from(): re-scopes execution context, contributes NO op
             if (cur instanceof TypedFrom fr) {
-                if (fr.mapping().isPresent()) {
-                    context = new Context(fr.mapping().get().fullPath(), null,
-                            fr.chainMappings());
-                } else if (fr.runtime().isPresent()) {
-                    context = new Context(null, fr.runtime().get().fullPath(),
-                            fr.chainMappings());
-                }
+                context = fromContext(fr, context);
                 cur = fr.source();
                 continue;
             }
@@ -3482,6 +3466,25 @@ public final class StoreResolver {
             throw new IllegalStateException("resolver bug: no isNotEmpty registration");
         }
         return fns.get(0);
+    }
+
+    /** ONE from()-scope entry: the re-scoped Context, with the scope's
+     * JSON source frames (XStore §1 — ${var} url templates substitute
+     * from the let env) seeded into ClassSources' unmapped-class route. */
+    private Context fromContext(TypedFrom fr, Context outer) {
+        if (!fr.jsonSources().isEmpty()) {
+            sources.setJsonSources(JsonSourceFrame.substituteUrlParams(
+                    fr.jsonSources(), letBindings));
+        }
+        if (fr.mapping().isPresent()) {
+            return new Context(fr.mapping().get().fullPath(), null,
+                    fr.chainMappings(), fr.jsonSources());
+        }
+        if (fr.runtime().isPresent()) {
+            return new Context(null, fr.runtime().get().fullPath(),
+                    fr.chainMappings(), fr.jsonSources());
+        }
+        return outer;
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins

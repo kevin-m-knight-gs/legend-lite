@@ -27,6 +27,8 @@ final class FromChecker {
         Application a = t.checkGeneric(af, env);
         List<TypedPackageableRef> refs = new ArrayList<>(a.args().size() - 1);
         List<String> chainMappings = new ArrayList<>();
+        java.util.Map<String, String> jsonSources =
+                new java.util.LinkedHashMap<>();
         for (int i = 1; i < a.args().size(); i++) {
             if (a.args().get(i) instanceof TypedPackageableRef ref) {
                 refs.add(ref);
@@ -52,6 +54,7 @@ final class FromChecker {
                     && ct.fqn().equals("meta::core::runtime::Runtime")) {
                 chainMappings.addAll(TypedFrom.chainMappingsIn(
                         a.args().get(i)));
+                jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i)));
                 continue;
             }
             throw new TypeInferenceException("from() argument " + i
@@ -73,6 +76,7 @@ final class FromChecker {
             default -> Optional.of(refs.get(1));
         };
         return new TypedFrom(a.args().get(0), mapping, runtime,
-                List.copyOf(chainMappings), a.out());
+                List.copyOf(chainMappings),
+                java.util.Map.copyOf(jsonSources), a.out());
     }
 }

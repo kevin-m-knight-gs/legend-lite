@@ -137,7 +137,7 @@ final class SubQueryLift {
                 : Optional.of(new TypedPackageableRef(
                         context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, m, r,
-                context.chainMappings(), proj.info());
+                context.chainMappings(), context.jsonSources(), proj.info());
         TypedSpec resolved = new StoreResolver(ctx, specs)
                 .withLetBindings(letBindings)
                 .resolve(List.of(wrapped), null).get(0);

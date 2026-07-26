@@ -60,6 +60,19 @@ public final class ClassSources {
     private final ModelContext ctx;
     private final SpecCompiler specs;
     private final Map<String, ClassSource> memo = new LinkedHashMap<>();
+    /** class FQN -> data: URL from the execution context's
+     * JsonModelConnections (XStore §1) — set per from()-scope by the
+     * resolver; STATEMENT-scoped like this instance itself. The memo key
+     * does not include it: two from() scopes with DIFFERENT json sources
+     * for the SAME class in ONE statement would collide — accepted and
+     * documented (no corpus shape does this; a collision surfaces as a
+     * wrong-rows FAIL, never silence). */
+    private java.util.Map<String, String> jsonSources = java.util.Map.of();
+
+    void setJsonSources(java.util.Map<String, String> sources) {
+        this.jsonSources = sources;
+    }
+
     private final LinkedHashSet<String> resolving = new LinkedHashSet<>();
 
     /** The model context (H5 set-ID hint lookups ride it). */
@@ -162,6 +175,14 @@ public final class ClassSources {
             binding = findBinding(mapping, classFqn, new LinkedHashSet<>());
         }
         if (binding == null) {
+            // JSON SOURCE FRAME (XStore §1): an unmapped class carried by a
+            // JsonModelConnection in the execution context realizes as a
+            // typed VALUES relation — the class declaration is the schema.
+            String jsonUrl = jsonSources.get(classFqn);
+            if (jsonUrl != null) {
+                return JsonSourceFrame.classSource(ctx, mappingFqn, classFqn,
+                        jsonUrl);
+            }
             throw new MappingResolutionException("class '" + classFqn
                     + "' is not mapped in mapping '" + mappingFqn + "'"
                     + ctx.mappingPoison(mappingFqn, classFqn)
