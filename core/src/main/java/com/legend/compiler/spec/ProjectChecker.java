@@ -118,10 +118,17 @@ final class ProjectChecker {
                     continue;
                 }
                 // legacy TDS col(fn, 'name') inside the project collection;
-                // the lambda may be COLLECTION-wrapped: col([o|...], 'n')
+                // the lambda may be COLLECTION-wrapped: col([o|...], 'n').
+                // The 3-arg form adds DOCUMENTATION (real pure
+                // tds.pure:289 col(func, name, documentation) —
+                // BasicColumnSpecification metadata, no execution
+                // semantics; discarded here).
                 if (v instanceof AppliedFunction colCall
                         && colCall.function().equals("col")
-                        && colCall.parameters().size() == 2
+                        && (colCall.parameters().size() == 2
+                                || (colCall.parameters().size() == 3
+                                        && colCall.parameters().get(2)
+                                                instanceof CString))
                         && colCall.parameters().get(1) instanceof CString cname) {
                     ValueSpecification fnArg = colCall.parameters().get(0);
                     if (fnArg instanceof PureCollection pc1
@@ -145,8 +152,11 @@ final class ProjectChecker {
 
     private static boolean isLegacyColumnCall(ValueSpecification v) {
         return v instanceof AppliedFunction c
-                && (c.function().equals("col") || c.function().equals("pathWithAlias"))
-                && c.parameters().size() == 2;
+                && ((c.function().equals("col")
+                        && (c.parameters().size() == 2
+                                || c.parameters().size() == 3))
+                    || (c.function().equals("pathWithAlias")
+                        && c.parameters().size() == 2));
     }
 
     /** The leaf property of a navigation lambda/path names its column (engine parity). */
