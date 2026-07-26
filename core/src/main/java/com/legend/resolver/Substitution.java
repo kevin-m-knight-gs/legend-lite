@@ -1404,6 +1404,13 @@ final class Substitution {
                     // rebind it to THIS scope's row var, orphaning reads)
                     new TypedFilter(rewrite(f.source()),
                             rewriteLambdaBodyOnly(f.predicate()), f.info());
+            // graphFetch in VALUE position is SOURCE-PRESERVING (engine
+            // GraphFetchLowering = lower(source); the tree shapes only a
+            // SERIALIZED result): the XStore result-sourcing idiom binds
+            // 'let x = C.all()->toOne()->graphFetch(t)' and reads
+            // $x->toOne().name — the value IS the instance set.
+            case com.legend.compiler.spec.typed.TypedGraphFetch gf ->
+                    rewrite(gf.source());
             default -> {
                 String shape = String.valueOf(n);
                 throw new NotImplementedException(

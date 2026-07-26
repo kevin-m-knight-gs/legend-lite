@@ -933,6 +933,25 @@ final class StatementExecutor {
             }
             return new ExecutionResult.Scalar(null, rni.info().type());
         }
+        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
+        // typed VALUE is an orchestration handle regardless of expression
+        // shape — the corpus's connection-picking idiom
+        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
+        // never lower to SQL (it list_filter'd a struct literal). Same
+        // effect guard as the ctor arm: nested effects never drop silently.
+        if (root.info().type()
+                instanceof com.legend.compiler.element.type.Type.ClassType hct
+                && ("meta::core::runtime::Runtime".equals(hct.fqn())
+                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
+                        || env.ctx().isSubtype(hct.fqn(),
+                                "meta::core::runtime::Connection"))) {
+            if (containsEffectfulNode(java.util.List.of(root))) {
+                throw new IllegalStateException("a connection-typed value"
+                        + " expression carries an executeInDb-family effect;"
+                        + " the orchestration-handle arm never evaluates it");
+            }
+            return new ExecutionResult.Scalar(null, root.info().type());
+        }
         // a COLLECTION whose elements include DDL string generators (the
         // aggregationAware setup shape: [dropSchemaStatement(..), ...]
         // ->map(s|executeInDb(..))): every element evaluates here
