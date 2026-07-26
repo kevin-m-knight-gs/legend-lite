@@ -136,3 +136,28 @@ lowers to ONE SQL plan:
   chains XStore hops — needs slice 3's assoc route to compose.
 - Property-level fetch details / complex qualifier expressions in
   XStore conditions may hit the qualifier-inlining long tail.
+
+## Cluster A design note (2026-07-26): Pure-set XStore ends
+
+`synthesizeXStoreMapping` is NORMALIZE-time: it resolves each end to a
+relation pipeline + column view (`xstoreEndOf`) and rewrites the cross
+condition to COLUMN reads over the two relation rows
+(`legacyAssocPredicate(a, b, srcRel, tgtRel, {s,t|cond})`). A PURE set
+has no normalize-time relation — its frame (the JSON payload) arrives
+with the RUNTIME VALUE at resolve time.
+
+**Chosen direction (route A — resolve-time is where all facts live):**
+a Pure-set end emits the association PREDICATE in PROPERTY SPACE
+(`$this.prodId == $that.productId`, unrewritten) with the end pinned by
+class + set id; the RESOLVER's association route substitutes the reads
+through each side's COMPOSED bindings (locals included — they compose
+as binding columns since a36c4930), exactly how AssociationMapping
+predicates already resolve. Needs: an emission variant that
+`AssociationJoins.associationJoin` recognizes as property-space with
+set-qualified ends, and the whole-instance `$src` marker rung for the
+same-source second-set bindings (`trader[trader_set]: $src`).
+
+Rejected route B (project locals as physical columns at composition so
+the column-space emission works): still needs a deferred pipeline for
+the frame, and bakes column names into normalize-time output that
+resolve-time owns.
