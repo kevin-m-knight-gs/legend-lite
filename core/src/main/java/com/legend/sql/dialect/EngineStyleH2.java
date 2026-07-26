@@ -198,7 +198,46 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (dd != null) {
             return dd;
         }
+        // engine boolean text: lowercase keywords, AND groups
+        // parenthesized once around the flattened chain —
+        // '(x is not null and x > y)' (relative-date goldens)
+        if (e instanceof SqlExpr.Call bc) {
+            switch (bc.fn()) {
+                case AND -> {
+                    java.util.List<String> terms = new java.util.ArrayList<>();
+                    flattenAnd(bc, terms);
+                    return "(" + String.join(" and ", terms) + ")";
+                }
+                case IS_NULL -> {
+                    return expr(bc.args().get(0), 4) + " is null";
+                }
+                case IS_NOT_NULL -> {
+                    return expr(bc.args().get(0), 4) + " is not null";
+                }
+                default -> { }
+            }
+        }
         return super.expr(e, parentPrec);
+    }
+
+    private void flattenAnd(SqlExpr e, java.util.List<String> out) {
+        if (e instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.AND) {
+            for (SqlExpr a : c.args()) {
+                flattenAnd(a, out);
+            }
+            return;
+        }
+        out.add(expr(e, 3));
+    }
+
+    /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
+     * — every aggregation golden's spelling). */
+    @Override
+    protected String reducer(com.legend.sql.SqlAgg.Reducer r) {
+        String s = super.reducer(r);
+        int p = s.indexOf('(');
+        return s.substring(0, p).toLowerCase(Locale.ROOT) + s.substring(p);
     }
 
     /**

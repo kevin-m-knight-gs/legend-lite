@@ -32,6 +32,38 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                     ? "trim(" + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
             case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
+            case TODAY -> "date(current date)";
+            // DB2 interval arithmetic: x - 1 MONTHS / x + 3 DAYS (the
+            // relative-date goldens) — the IR's ADD_INTERVAL
+            // [unitFn, count, anchor] respells as infix labeled units
+            case ADD_INTERVAL -> {
+                if (a.size() == 3 && a.get(0) instanceof SqlExpr.StringLit u
+                        && a.get(1) instanceof SqlExpr.IntLit n) {
+                    String unit = switch (u.value()) {
+                        case "to_years" -> "YEARS";
+                        case "to_months" -> "MONTHS";
+                        case "to_days" -> "DAYS";
+                        case "to_hours" -> "HOURS";
+                        case "to_minutes" -> "MINUTES";
+                        case "to_seconds" -> "SECONDS";
+                        default -> null;
+                    };
+                    long v = n.value();
+                    if (unit == null && u.value().equals("to_weeks")) {
+                        // DB2 has no WEEKS label — the engine spells
+                        // weeks as days ('- 14 DAYS' for 2 weeks)
+                        unit = "DAYS";
+                        v = v * 7;
+                    }
+                    if (unit != null) {
+                        yield expr(a.get(2), 0)
+                                + (v < 0 ? " - " + (-v) : " + " + v)
+                                + " " + unit;
+                    }
+                }
+                throw new IllegalStateException("interval shape has no"
+                        + " engine-DB2 spelling yet: " + a);
+            }
             // parse-date family: DB2's to_date/timestamp_format take the
             // whole string with the Java-style pattern (no substring, no
             // space after the comma — the goldens' exact text)
@@ -90,12 +122,14 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                 && s == SqlType.Scalar.VARCHAR) {
             return "cast(" + expr(c.value(), 0) + " as varchar(16000))";
         }
-        // to_date/timestamp_format are already date-typed — the IR's
-        // parse-cast renders bare (the goldens carry no cast)
+        // to_date/timestamp_format and infix interval arithmetic are
+        // already date-typed — the IR's normalizing casts render bare
+        // (the goldens carry no cast)
         if (c.target() instanceof SqlType.Scalar s2
                 && (s2 == SqlType.Scalar.DATE || s2 == SqlType.Scalar.TIMESTAMP)
                 && c.value() instanceof SqlExpr.Call pc
-                && pc.fn() == com.legend.sql.SqlFn.STRPTIME) {
+                && (pc.fn() == com.legend.sql.SqlFn.STRPTIME
+                        || pc.fn() == com.legend.sql.SqlFn.ADD_INTERVAL)) {
             return expr(pc, 0);
         }
         return super.variantAwareCast(c);
