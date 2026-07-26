@@ -87,6 +87,7 @@ public final class PureModelContext implements ModelContext {
         // Phase-E poisons must survive into the queryable context — the
         // 0-binder error's "failed to normalize" reasons read them here
         mb.mappingPoisons.putAll(normalized.mappingPoisons());
+        mb.mixedUnions.putAll(normalized.mixedUnions());
         // the pre-Door-1 mapping surfaces ride as an ANALYSIS archive
         // (static lineage #44) — F+ compilation never reads them
         normalized.legacySurfaces().values()
@@ -205,6 +206,12 @@ public final class PureModelContext implements ModelContext {
     public java.util.Optional<com.legend.model.MappingDefinition> findMapping(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findMapping(fqn);
+    }
+
+    @Override
+    public java.util.List<String> mixedUnionMembers(String mappingFqn,
+            String classFqn) {
+        return model.mixedUnions.get(mappingFqn + "::" + classFqn);
     }
 
     @Override

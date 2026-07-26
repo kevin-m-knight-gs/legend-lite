@@ -319,6 +319,22 @@ final class UnionSynthesis {
         List<ClassMapping> memberSets = new ArrayList<>();
         for (String setId : u.memberSetIds()) {
             ClassMapping member = bySetId.get(setId);
+            if (member instanceof ClassMapping.Pure) {
+                // MIXED-KIND union (route b, docs/XSTORE_LEG.md): a Pure
+                // member's relation exists only at resolve time — record
+                // the member list for ClassSources' resolver-side arm
+                // synthesis and withhold the eager class function (the
+                // throw lands on the poison ledger; the resolver route
+                // recognizes the registry before the ledger surfaces).
+                model.mixedUnions.put(
+                        md.qualifiedName() + "::" + u.className(),
+                        List.copyOf(u.memberSetIds()));
+                throw new NotImplementedException(
+                        "Operation union member set '" + setId + "' of class '"
+                      + u.className() + "' is a Pure (M2M) set — the mixed-kind"
+                      + " union extent synthesizes at the resolver; mapping="
+                      + md.qualifiedName());
+            }
             if (!(member instanceof ClassMapping.Relational)
                     && !(member instanceof ClassMapping.RelationFunction)) {
                 throw new NotImplementedException(

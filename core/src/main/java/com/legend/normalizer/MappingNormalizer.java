@@ -265,22 +265,34 @@ public final class MappingNormalizer {
         List<MappingDefinition.ClassBinding> classBindings =
                 new ArrayList<>(md.classMappings().size());
         Set<String> unionRooted = new HashSet<>();
+        Set<String> mixedUnionRooted = new HashSet<>();
         for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Union) {
-                unionRooted.add(cm.className());
+            if (cm instanceof ClassMapping.Union un) {
+                unionRooted.add(un.className());
+                // MIXED-KIND (route b): resolver arms need PER-SET bindings
+                for (String sid : un.memberSetIds()) {
+                    if (findSetById(md, model, sid) instanceof ClassMapping.Pure) {
+                        mixedUnionRooted.add(un.className());
+                        break;
+                    }
+                }
             }
         }
         for (ClassMapping cm : md.classMappings()) {
             if (mappingsPerClass.get(cm.className()) > 1 && !cm.root()) {
-                if (!unionRooted.contains(cm.className())) {
-                    // multi-set class without a UNION root: .all() is
-                    // undefined (poisoned); the SET itself still realizes
-                    // (H5) via the set-discriminated binding below.
-                    model.mappingPoisons.putIfAbsent(
-                            md.qualifiedName() + "::" + cm.className(),
-                            "class is mapped through multiple set IDs; .all() over"
-                                    + " multi-set mappings (implicit union) is a"
-                                    + " roadmap feature");
+                boolean unionMember = unionRooted.contains(cm.className());
+                if (!unionMember || mixedUnionRooted.contains(cm.className())) {
+                    if (!unionMember) {
+                        // multi-set class without a UNION root: .all() is
+                        // undefined (poisoned); the SET itself still
+                        // realizes (H5) via the set-discriminated binding.
+                        model.mappingPoisons.putIfAbsent(
+                                md.qualifiedName() + "::" + cm.className(),
+                                "class is mapped through multiple set IDs;"
+                                        + " .all() over multi-set mappings"
+                                        + " (implicit union) is a roadmap"
+                                        + " feature");
+                    }
                     try {
                         FunctionDefinition setFn =
                                 synthesizeClassMapping(md, cm, model, true);

@@ -33,17 +33,28 @@ import java.util.Map;
  */
 public record NormalizedModel(List<PackageableElement> elements, ImportScope imports,
         java.util.Map<String, String> mappingPoisons,
-        java.util.Map<String, LegacyMappingDefinition> legacySurfaces) {
+        java.util.Map<String, LegacyMappingDefinition> legacySurfaces,
+        java.util.Map<String, java.util.List<String>> mixedUnions) {
 
     /** Without poisons (tests, poison-free paths). */
     public NormalizedModel(List<PackageableElement> elements, ImportScope imports) {
-        this(elements, imports, java.util.Map.of(), java.util.Map.of());
+        this(elements, imports, java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of());
     }
 
     /** Without legacy surfaces (poison-only callers). */
     public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
             java.util.Map<String, String> mappingPoisons) {
-        this(elements, imports, mappingPoisons, java.util.Map.of());
+        this(elements, imports, mappingPoisons, java.util.Map.of(),
+                java.util.Map.of());
+    }
+
+    /** Without mixed unions (pre-route-b callers). */
+    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
+            java.util.Map<String, String> mappingPoisons,
+            java.util.Map<String, LegacyMappingDefinition> legacySurfaces) {
+        this(elements, imports, mappingPoisons, legacySurfaces,
+                java.util.Map.of());
     }
 
     public NormalizedModel {
@@ -60,6 +71,10 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
         // reads it (CLEAN_SHEET_INVERSION §1.5 still holds for F+)
         legacySurfaces = legacySurfaces == null
                 ? java.util.Map.of() : java.util.Map.copyOf(legacySurfaces);
+        // "mapping::class -> member set ids" of MIXED-KIND Operation
+        // unions (Pure members — resolver-side arm synthesis, route b)
+        mixedUnions = mixedUnions == null
+                ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
     }
 
     /**

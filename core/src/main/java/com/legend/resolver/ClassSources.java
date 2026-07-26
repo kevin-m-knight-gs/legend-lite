@@ -161,6 +161,94 @@ public final class ClassSources {
         }
     }
 
+    /**
+     * MIXED-KIND UNION extent (route b, docs/XSTORE_LEG.md): each member
+     * set resolves to its OWN ClassSource (Relational members compose as
+     * ever; Pure members ride the M2M/JSON-frame composition), each arm
+     * projects the class's declared SCALAR properties to property-named
+     * columns, and the arms concatenate in DECLARATION order (the
+     * engine's member ordinal). Class-typed navigation off the mixed
+     * extent is per-member dispatch — not built yet, loud downstream.
+     */
+    private ClassSource mixedUnionSource(String mappingFqn, String classFqn,
+            List<String> memberSetIds, UnaryOperator<String> upstreamMapping,
+            String contextKey) {
+        var cls = ctx.findClass(classFqn).orElseThrow(() ->
+                new IllegalStateException("resolver bug: mixed-union class '"
+                        + classFqn + "' unknown to the model"));
+        List<Type.Column> cols = new ArrayList<>();
+        for (var p : cls.properties()) {
+            if (!(p.type() instanceof Type.ClassType)) {
+                cols.add(new Type.Column(p.name(), p.type(), p.multiplicity()));
+            }
+        }
+        Type.RelationType rowType = new Type.RelationType(cols);
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var many = com.legend.compiler.element.type.Multiplicity.Bounded
+                .ZERO_MANY;
+        // ARM ORDER = the engine's cross-store BATCH order: the relational
+        // store's members first (declaration order within), the in-memory
+        // (Pure) members after — testSimpleUnionCrossStore (rel,model
+        // declared) and testSimpleUnionOnMultipleSetsCrossStore (models
+        // declared first, relational rows still lead) pin both directions.
+        MappingDefinition mdef = ctx.findMapping(mappingFqn).orElseThrow();
+        List<String> ordered = new ArrayList<>();
+        List<String> pureArms = new ArrayList<>();
+        for (String memberId : memberSetIds) {
+            MappingDefinition.ClassBinding mcb = findBinding(mdef, classFqn,
+                    memberId, new LinkedHashSet<>());
+            if (mcb != null && mcb.kind() == MappingDefinition.Kind.PURE) {
+                pureArms.add(memberId);
+            } else {
+                ordered.add(memberId);
+            }
+        }
+        ordered.addAll(pureArms);
+        TypedSpec union = null;
+        for (String memberId : ordered) {
+            ClassSource m = get(mappingFqn, classFqn, memberId,
+                    upstreamMapping, contextKey);
+            TypedSpec pipe = Pipelines.materialize(m.pipeline(),
+                    java.util.Set.of(), classFqn).pipeline();
+            Type.RelationType mRow = (Type.RelationType) pipe.info().type();
+            List<com.legend.compiler.spec.typed.TypedFuncCol> pcols =
+                    new ArrayList<>(cols.size());
+            for (Type.Column c : cols) {
+                TypedSpec b = m.bindings().get(c.name());
+                if (b == null) {
+                    throw new NotImplementedException("mixed-kind union of '"
+                            + classFqn + "': member set '" + memberId
+                            + "' does not bind shared property '" + c.name()
+                            + "' — NULL-column arms are not built yet"
+                            + " (mapping=" + mappingFqn + ")");
+                }
+                var lFn = new Type.FunctionType(
+                        List.of(new Type.Param(mRow, one)),
+                        new Type.Param(b.info().type(),
+                                b.info().multiplicity()));
+                pcols.add(new com.legend.compiler.spec.typed.TypedFuncCol(
+                        c.name(), new com.legend.compiler.spec.typed
+                                .TypedLambda(List.of(m.rowVar()), List.of(b),
+                                        new ExprType(lFn, one))));
+            }
+            TypedSpec arm = new com.legend.compiler.spec.typed.TypedProject(
+                    pipe, pcols, new ExprType(rowType, many));
+            union = union == null ? arm
+                    : new com.legend.compiler.spec.typed.TypedConcatenate(
+                            union, arm, new ExprType(rowType, many));
+        }
+        ExprType rowInfo = new ExprType(rowType, one);
+        String rowVar = "u_row";
+        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
+        for (Type.Column c : cols) {
+            bindings.put(c.name(), new TypedPropertyAccess(
+                    new TypedVariable(rowVar, rowInfo), c.name(),
+                    new ExprType(c.type(), c.multiplicity())));
+        }
+        return new ClassSource(mappingFqn, classFqn, "union", union,
+                rowVar, bindings, rowType);
+    }
+
     private ClassSource build(String mappingFqn, String classFqn,
             String setId,
             UnaryOperator<String> upstreamMapping,
@@ -175,6 +263,18 @@ public final class ClassSources {
             binding = findBinding(mapping, classFqn, new LinkedHashSet<>());
         }
         if (binding == null) {
+            // MIXED-KIND UNION (route b, XSTORE_LEG design note): a union
+            // with a Pure (M2M) member has no eager synthesis — the member
+            // list rides the normalized model and the arms build HERE, per
+            // member, over composed ClassSources. CLASS-LEVEL lookups only:
+            // a setId-qualified miss must stay the loud not-mapped wall —
+            // falling into this route would re-request the member and cycle.
+            List<String> mixed = setId == null
+                    ? ctx.mixedUnionMembers(mappingFqn, classFqn) : null;
+            if (mixed != null) {
+                return mixedUnionSource(mappingFqn, classFqn, mixed,
+                        upstreamMapping, contextKey);
+            }
             // JSON SOURCE FRAME (XStore §1): an unmapped class carried by a
             // JsonModelConnection in the execution context realizes as a
             // typed VALUES relation — the class declaration is the schema.

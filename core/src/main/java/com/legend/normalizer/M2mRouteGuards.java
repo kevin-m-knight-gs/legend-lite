@@ -70,8 +70,14 @@ final class M2mRouteGuards {
             ClassMapping routed = sets.stream()
                     .filter(cm -> setIdMatches(cm, tgtSet))
                     .findFirst().orElse(null);
-            if (routed != null && (sets.size() == 1 || routed.root())) {
-                return; // root-routing == honoring the route
+            if (routed != null && (sets.size() == 1 || routed.root()
+                    || pb.expression() instanceof com.legend.model.spec.Variable)) {
+                // honored routes: the sole set, the root, or the
+                // WHOLE-SOURCE identity binding ($src) — its cast carries
+                // targetSetId (route A edit 3) and the graph consumer
+                // dispatches by it (wholeSrcChild), so the named set is
+                // honored, never root-collapsed
+                return;
             }
         }
         throw new ModelException(LegendCompileException.Phase.NORMALIZE,

@@ -322,6 +322,11 @@ public final class ModelBuilder {
      * fault isolation, loud at use.
      */
     public final java.util.Map<String, String> mappingPoisons = new java.util.LinkedHashMap<>();
+    /** "mapping::class" &rarr; member set ids of a MIXED-KIND Operation
+     * union (a Pure member defers synthesis to the resolver — route b,
+     * docs/XSTORE_LEG.md); mirrors {@link #mappingPoisons}' plumbing. */
+    public final java.util.Map<String, java.util.List<String>> mixedUnions =
+            new java.util.LinkedHashMap<>();
 
     /** Precise primitives: extension FQN → declared base type name (chains allowed). */
     final java.util.Map<String, String> primitiveExtensions = new java.util.LinkedHashMap<>();

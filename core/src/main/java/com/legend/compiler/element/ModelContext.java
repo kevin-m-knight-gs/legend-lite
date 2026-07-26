@@ -105,6 +105,13 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** Member set ids of a MIXED-KIND Operation union (a Pure member —
+     * resolver-side arm synthesis, route b); {@code null} otherwise. */
+    default java.util.List<String> mixedUnionMembers(String mappingFqn,
+            String classFqn) {
+        return null;
+    }
+
     /**
      * The connection for {@code fqn}, if present &mdash; carries the declared
      * {@code DatabaseType} that selects the SQL dialect a runtime's queries

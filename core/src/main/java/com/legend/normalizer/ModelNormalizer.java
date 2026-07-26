@@ -127,7 +127,8 @@ public final class ModelNormalizer {
         // per-class poisons recorded during mapping synthesis ride the
         // normalized model into Phase F (StoreResolver's 0-binder reasons)
         normalized = new NormalizedModel(normalized.elements(), normalized.imports(),
-                model.mappingPoisons, normalized.legacySurfaces());
+                model.mappingPoisons, normalized.legacySurfaces(),
+                model.mixedUnions);
         List<FunctionDefinition> lifted = new ArrayList<>();
         liftDerivedProperties(parsed, lifted);  // E.2
         liftConstraints(parsed, lifted);        // E.3
@@ -138,7 +139,8 @@ public final class ModelNormalizer {
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
         return new NormalizedModel(elements, normalized.imports(),
-                model.mappingPoisons, normalized.legacySurfaces());
+                model.mappingPoisons, normalized.legacySurfaces(),
+                model.mixedUnions);
     }
 
     private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {
