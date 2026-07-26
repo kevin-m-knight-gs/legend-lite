@@ -725,7 +725,14 @@ final class AssociationJoins {
                     + end.multiplicity() + " is not supported");
         }
         String targetClass = end.targetClassFqn();
-        ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+        // predicate material FIRST (route A, XSTORE_LEG brief §3): a
+        // property-space emission pins the target SET — its id must reach
+        // this get call, which historically never passed one
+        PredMaterial pm = predicateMaterial(cs, assoc, real, targetClass);
+        ClassSource target = pm.targetSetId() != null
+                ? sources.get(cs.mappingFqn(), targetClass, pm.targetSetId(),
+                        null, "")
+                : sources.get(cs.mappingFqn(), targetClass);
         // The TARGET's own join slots materialize on demand too: a demanded
         // leaf whose binding reads a slot ($p.firm.country where country is
         // @FirmCountry-mapped) pulls that slot's LEFT join into the target
@@ -811,6 +818,94 @@ final class AssociationJoins {
         final Pipelines.Materialized tMat = new Pipelines.Materialized(
                 basePipe, tMat0.slotPrefixes(), tMat0.stripped());
 
+        TypedLambda oriented;
+        if (pm.propertySpace()) {
+            // route A: the cond's params are END-CLASS instances —
+            // substitute each side through its set's composed bindings
+            // onto fresh relation-row binders; output contract identical
+            // to the column-space emission (leftRow=PARENT, rightRow=TARGET)
+            oriented = propertyCondToColumns(pm.cond(), pm.reverse(), cs,
+                    target, tMat.slotPrefixes(),
+                    (Type.RelationType) tMat.pipeline().info().type());
+        } else {
+            TypedLambda cond = pm.cond();
+            oriented = rewriteNestedAssocCondReads(cond, condTgtVar,
+                    nestedPrefixByProp,
+                    (Type.RelationType) tMat.pipeline().info().type());
+            if (pm.reverse()) {
+                var ft = (Type.FunctionType)
+                        cond.info().type();
+                var swapped = new Type.FunctionType(
+                        List.of(ft.params().get(1), ft.params().get(0)),
+                        ft.result());
+                oriented = new TypedLambda(List.of(cond.parameters().get(1),
+                        cond.parameters().get(0)), cond.body(),
+                        new ExprType(swapped,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+            }
+        }
+        // A CORRELATED lifted predicate ANDs into the CONDITION — the one
+        // place both rows are in scope: its own param substitutes against
+        // the TARGET bindings over the condition's target row; the residual
+        // OUTER-variable reads substitute against the PARENT's bindings
+        // over the condition's source row (audit 14 B-F1's correlation
+        // pass). Runs BEFORE key collection so the pred's target reads
+        // widen distinct/union keys too.
+        TypedLambda corr = synthetics.correlatedPred(head);
+        TypedLambda corrSub = null;
+        if (corr != null) {
+            // ROUTE RULE (engine parity, testFunctionVariables goldens):
+            // a pred whose OUTER reads are plain parent properties
+            // composes into the flat join ON (both rows in scope); a pred
+            // demanding a parent NAV hop ($f.address.name) can never
+            // resolve there — it rides the parent-copy subselect at the
+            // fold (#69, the exploding variant of the aggregated shape).
+            if (corrPredDemandsParentNav(corr)) {
+                corrSub = corr;
+            } else {
+                oriented = andCorrelatedIntoCondition(oriented, corr, cs,
+                        target, tMat.slotPrefixes());
+            }
+        }
+        TypedSpec tPipe = widenForConditionKeys(oriented, tMat.pipeline(),
+                head, cs);
+        // audit 10: the target pipeline's OWN materialized slot joins to
+        // milestoned tables filter by the temporal context too (every
+        // milestoned table alias filters — the dead wall this replaces)
+        tPipe = temporal.applyJoinTemporalFilters(tPipe, target, Map.of());
+        tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
+                CorrelatedSubselects.predFilteredPipe(p, target, tMat.slotPrefixes(),
+                        pred, cs.mappingFqn()));
+        Map<String, Substitution.SubNav> tailSubNavs =
+                new java.util.LinkedHashMap<>();
+        for (var tne : tailNavAliases.entrySet()) {
+            String pfx3 = tMat.slotPrefixes().get(tne.getValue());
+            var stepT3 = tNavSteps3.get(tne.getValue()).target();
+            if (pfx3 == null || !(stepT3 instanceof TypedGetAll stg3)) {
+                continue;
+            }
+            ClassSource sub3 = sources.get(cs.mappingFqn(), stg3.classFqn());
+            tailSubNavs.put(tne.getKey(), new Substitution.SubNav(
+                    pfx3, sub3.rowVar(), sub3.bindings()));
+        }
+        return new AssocJoin(prefixFor(head, cs), target, tPipe,
+                (Type.RelationType)
+                        tPipe.info().type(),
+                withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
+                tMat.slotPrefixes(), tailSubNavs, corrSub);
+    }
+
+    /** The compiled association predicate's material: the raw condition,
+     * the orientation ({@code reverse} = the parent rides the cond's
+     * SECOND param), whether the emission is the PROPERTY-SPACE route-A
+     * form (String set-id args, class-typed cond params), and — for that
+     * form — the pinned TARGET set id. */
+    record PredMaterial(TypedLambda cond, boolean reverse,
+            boolean propertySpace, String targetSetId) {}
+
+    private PredMaterial predicateMaterial(ClassSource cs,
+            com.legend.model.AssociationDefinition assoc, String real,
+            String targetClass) {
         // The predicate function: the AssociationBinding for the assoc,
         // searched across the INCLUDE CLOSURE (own mapping wins; audit V3:
         // the qualified YZ entries live in an included assoc mapping)
@@ -868,69 +963,76 @@ final class AssociationJoins {
         boolean reverse = cs.classFqn().equals(targetClass)
                 ? !assoc.property1().propertyName().equals(real)
                 : !parentIsA;
-        TypedLambda oriented = rewriteNestedAssocCondReads(cond, condTgtVar,
-                nestedPrefixByProp,
-                (Type.RelationType) tMat.pipeline().info().type());
-        if (reverse) {
-            var ft = (Type.FunctionType)
-                    cond.info().type();
-            var swapped = new Type.FunctionType(
-                    List.of(ft.params().get(1), ft.params().get(0)),
-                    ft.result());
-            oriented = new TypedLambda(List.of(cond.parameters().get(1),
-                    cond.parameters().get(0)), cond.body(),
-                    new ExprType(swapped,
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        boolean propSpace = call.args().get(2)
+                instanceof com.legend.compiler.spec.typed.TypedCString;
+        String targetSetId = null;
+        if (propSpace) {
+            // args 2/3 pin (setA, setB); the TARGET is the B side unless
+            // orientation reversed
+            String setA = ((com.legend.compiler.spec.typed.TypedCString)
+                    call.args().get(2)).value();
+            String setB = ((com.legend.compiler.spec.typed.TypedCString)
+                    call.args().get(3)).value();
+            targetSetId = reverse ? setA : setB;
         }
-        // A CORRELATED lifted predicate ANDs into the CONDITION — the one
-        // place both rows are in scope: its own param substitutes against
-        // the TARGET bindings over the condition's target row; the residual
-        // OUTER-variable reads substitute against the PARENT's bindings
-        // over the condition's source row (audit 14 B-F1's correlation
-        // pass). Runs BEFORE key collection so the pred's target reads
-        // widen distinct/union keys too.
-        TypedLambda corr = synthetics.correlatedPred(head);
-        TypedLambda corrSub = null;
-        if (corr != null) {
-            // ROUTE RULE (engine parity, testFunctionVariables goldens):
-            // a pred whose OUTER reads are plain parent properties
-            // composes into the flat join ON (both rows in scope); a pred
-            // demanding a parent NAV hop ($f.address.name) can never
-            // resolve there — it rides the parent-copy subselect at the
-            // fold (#69, the exploding variant of the aggregated shape).
-            if (corrPredDemandsParentNav(corr)) {
-                corrSub = corr;
-            } else {
-                oriented = andCorrelatedIntoCondition(oriented, corr, cs,
-                        target, tMat.slotPrefixes());
-            }
+        return new PredMaterial(cond, reverse, propSpace, targetSetId);
+    }
+
+    /**
+     * Route A conversion: a PROPERTY-SPACE condition ({@code srcRow},
+     * {@code tgtRow} typed as the END CLASSES) becomes the column-space
+     * join condition by substituting each side through its set's composed
+     * bindings — the target side over the MATERIALIZED target row (slot
+     * prefixes honored), the parent side over the parent's row. Set-local
+     * reads arrive as {@code legacyLocalProperty} markers and dispatch
+     * through the same binding tables (Substitution's marker arm).
+     */
+    private TypedLambda propertyCondToColumns(TypedLambda cond,
+            boolean reverse, ClassSource parent, ClassSource target,
+            Map<String, String> targetSlotPrefixes, Type.RelationType tgtRow) {
+        String parentParam = cond.parameters().get(reverse ? 1 : 0);
+        String targetParam = cond.parameters().get(reverse ? 0 : 1);
+        Set<String> taken = new LinkedHashSet<>(cond.parameters());
+        for (TypedSpec b : cond.body()) {
+            collectVarNames(b, taken);
         }
-        TypedSpec tPipe = widenForConditionKeys(oriented, tMat.pipeline(),
-                head, cs);
-        // audit 10: the target pipeline's OWN materialized slot joins to
-        // milestoned tables filter by the temporal context too (every
-        // milestoned table alias filters — the dead wall this replaces)
-        tPipe = temporal.applyJoinTemporalFilters(tPipe, target, Map.of());
-        tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
-                CorrelatedSubselects.predFilteredPipe(p, target, tMat.slotPrefixes(),
-                        pred, cs.mappingFqn()));
-        Map<String, Substitution.SubNav> tailSubNavs =
-                new java.util.LinkedHashMap<>();
-        for (var tne : tailNavAliases.entrySet()) {
-            String pfx3 = tMat.slotPrefixes().get(tne.getValue());
-            var stepT3 = tNavSteps3.get(tne.getValue()).target();
-            if (pfx3 == null || !(stepT3 instanceof TypedGetAll stg3)) {
-                continue;
-            }
-            ClassSource sub3 = sources.get(cs.mappingFqn(), stg3.classFqn());
-            tailSubNavs.put(tne.getKey(), new Substitution.SubNav(
-                    pfx3, sub3.rowVar(), sub3.bindings()));
-        }
-        return new AssocJoin(prefixFor(head, cs), target, tPipe,
-                (Type.RelationType)
-                        tPipe.info().type(),
-                withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
-                tMat.slotPrefixes(), tailSubNavs, corrSub);
+        String srcVar = freshName("srcRow", taken);
+        taken.add(srcVar);
+        String tgtVar = freshName("tgtRow", taken);
+        Type.RelationType srcRow = parent.rowType();
+        Set<String> unconvertedTgt = new LinkedHashSet<>(
+                Pipelines.slotAliases(target.pipeline()));
+        unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
+        TypedSpec body = cond.body().get(cond.body().size() - 1);
+        Substitution tgtSub = new Substitution(new Substitution.Target(
+                new Substitution.RowScope(targetParam, tgtVar,
+                        target.classFqn(), target.mappingFqn(),
+                        target.rowVar(), target.bindings(), tgtRow,
+                        unconvertedTgt, targetSlotPrefixes, Map.of()),
+                new Substitution.Registries(Map.of(), java.util.Set.of(),
+                        Map.of(), Map.of(), null, null),
+                Substitution.TemporalView.NONE, true, true));
+        body = tgtSub.rewriteLambda(new TypedLambda(List.of(targetParam),
+                List.of(body), cond.info())).body().get(0);
+        Substitution srcSub = new Substitution(new Substitution.Target(
+                new Substitution.RowScope(parentParam, srcVar,
+                        parent.classFqn(), parent.mappingFqn(),
+                        parent.rowVar(), parent.bindings(), srcRow,
+                        new LinkedHashSet<>(
+                                Pipelines.slotAliases(parent.pipeline())),
+                        Map.of(), Map.of()),
+                new Substitution.Registries(Map.of(), java.util.Set.of(),
+                        Map.of(), Map.of(), null, null),
+                Substitution.TemporalView.NONE, true, true));
+        body = srcSub.rewriteLambda(new TypedLambda(List.of(parentParam),
+                List.of(body), cond.info())).body().get(0);
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var ft = new Type.FunctionType(
+                List.of(new Type.Param(srcRow, one),
+                        new Type.Param(tgtRow, one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        return new TypedLambda(List.of(srcVar, tgtVar), List.of(body),
+                new ExprType(ft, one));
     }
 
     /** The correlation pass: two sequential substitutions over the lifted

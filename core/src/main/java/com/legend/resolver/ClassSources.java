@@ -508,10 +508,21 @@ public final class ClassSources {
         }
         return switch (n) {
             case TypedVariable v
-                    when v.name().equals(srcVar) ->
-                    throw new NotImplementedException("model-to-model binding of '"
-                            + classFqn + "' uses the whole source instance '$"
-                            + srcVar + "' — not supported yet (H5b)");
+                    when v.name().equals(srcVar) -> {
+                // WHOLE-SOURCE instance in BINDING position
+                // (trader[trader_set]: $src): the SAME source row seen
+                // through another set — re-point at the composed row var,
+                // SOURCE-CLASS-typed (the assoc-marker discipline); sole
+                // consumer is the graph-child path (wholeSrcChild), every
+                // query-position read stays loud downstream.
+                if (bindingPosition) {
+                    yield new TypedVariable(inner.rowVar(),
+                            ExprType.one(new Type.ClassType(inner.classFqn())));
+                }
+                throw new NotImplementedException("model-to-model binding of '"
+                        + classFqn + "' uses the whole source instance '$"
+                        + srcVar + "' — not supported yet (H5b)");
+            }
             case TypedVariable v -> v;
             // ^Target($src.prop): the M2M CAST — substitute within its
             // source; the cast survives as a CLASS-TYPED binding (read
@@ -521,7 +532,7 @@ public final class ClassSources {
                             nic.classFqn(),
                             substituteSourceReads(nic.source(), srcVar, inner,
                                     classFqn, mappingFqn, bindingPosition),
-                            nic.info());
+                            nic.info(), nic.targetSetId());
             case TypedPropertyAccess pa ->
                     new TypedPropertyAccess(
                             substituteSourceReads(pa.source(), srcVar, inner,

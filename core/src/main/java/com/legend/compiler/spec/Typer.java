@@ -222,7 +222,8 @@ final class Typer {
                 }
                 yield new com.legend.compiler.spec.typed.TypedNewInstanceCast(fqn, src,
                         new ExprType(new Type.ClassType(fqn),
-                                src.info().multiplicity()));
+                                src.info().multiplicity()),
+                        nc.targetSetId());
             }
         };
     }

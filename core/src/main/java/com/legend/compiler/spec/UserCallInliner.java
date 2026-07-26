@@ -474,7 +474,7 @@ public final class UserCallInliner {
                         rewrite(cp.source(), env), cp.classFqn(), ov, cp.info());
             }
             case TypedNewInstanceCast nc -> new TypedNewInstanceCast(nc.classFqn(),
-                    rewrite(nc.source(), env), nc.info());
+                    rewrite(nc.source(), env), nc.info(), nc.targetSetId());
             case TypedFold f -> new TypedFold(rewrite(f.source(), env),
                     lambda(f.reducer(), env), rewrite(f.init(), env),
                     f.strategy(), f.info());

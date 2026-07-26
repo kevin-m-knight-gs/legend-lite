@@ -800,7 +800,7 @@ public final class MappingNormalizer {
      * {@code $this.firmId == $that.id}); put the {@code srcRow}-rooted
      * operand first so equal directions COMPARE equal (audit: the
      * direction-specific wall fired on pure commutation). */
-    private static ValueSpecification canonicalizeEqualOperands(
+    static ValueSpecification canonicalizeEqualOperands(
             ValueSpecification v, String srcVar) {
         if (v instanceof AppliedFunction af) {
             List<ValueSpecification> ps = af.parameters().stream()
@@ -825,6 +825,12 @@ public final class MappingNormalizer {
         }
         if (v instanceof AppliedFunction af && af.parameters().size() == 1) {
             return rootedAt(af.parameters().get(0), var);
+        }
+        // the property-space local marker legacyLocalProperty($row, 'p')
+        // is rooted at its row argument (XStorePureEnds emission)
+        if (v instanceof AppliedFunction af2 && af2.parameters().size() == 2
+                && "legacyLocalProperty".equals(af2.function())) {
+            return rootedAt(af2.parameters().get(0), var);
         }
         return false;
     }
@@ -1052,8 +1058,14 @@ public final class MappingNormalizer {
             setA = p1 ? l0.targetSetId() : l0.sourceSetId();
             setB = p1 ? l0.sourceSetId() : l0.targetSetId();
         }
-        XEnd endA = xstoreEndOf(md, classA, setA, model);
-        XEnd endB = xstoreEndOf(md, classB, setB, model);
+        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, setA, model);
+        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, setB, model);
+        if (endA.pure() || endB.pure()) {
+            // route A (docs/XSTORE_LEG.md): a Pure-set end has no relation
+            // at normalize time — property-space emission, sets pinned by id
+            return XStorePureEnds.synthesize(md, xs, ad, classA, classB,
+                    endA, endB);
+        }
         ClassMapping.RelationFunction rfA = endA.colsView();
         ClassMapping.RelationFunction rfB = endB.colsView();
         if (xs.propertyMappings2().isEmpty()) {
@@ -1145,8 +1157,15 @@ public final class MappingNormalizer {
         // ends resolve like the XStore path: a Relation(~func) set
         // directly, or a TABLE-backED Relational set converted to its
         // column view (the testRelational*/mixed sub-family)
-        XEnd endA = xstoreEndOf(md, classA, null, model);
-        XEnd endB = xstoreEndOf(md, classB, null, model);
+        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, null, model);
+        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, null, model);
+        if (endA.pure() || endB.pure()) {
+            throw new NotImplementedException(
+                    "ModelJoin association '" + mj.associationName()
+                    + "' has a Pure-set end — the property-space route"
+                    + " covers XStore only so far (mapping="
+                    + md.qualifiedName() + ")");
+        }
         ClassMapping.RelationFunction rfA = endA.colsView();
         ClassMapping.RelationFunction rfB = endB.colsView();
         if (mj.lambda().parameters().size() != 2) {
@@ -1221,50 +1240,6 @@ public final class MappingNormalizer {
                     + " in '" + md.qualifiedName() + "'");
         }
         return hits.get(0);
-    }
-
-    /** An XStore END resolved to its anchor pipeline and column view —
-     * a Relation(~func) set directly, or a RELATIONAL set converted
-     * (Column/local PMs -> cols, ~mainTable -> pipeline): MIXED-kind
-     * mappings bridge the two (relation-family MixedMapping). */
-    record XEnd(ValueSpecification pipeline,
-                        ClassMapping.RelationFunction colsView) {}
-
-    static XEnd xstoreEndOf(LegacyMappingDefinition md,
-            String classFqn, String setId, ModelBuilder model) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.RelationFunction rf
-                    && rf.className().equals(classFqn)
-                    && (setId == null || setId.equals(setIdOf(rf)))) {
-                return new XEnd(relationFunctionPipeline(rf, model), rf);
-            }
-        }
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Relational rcm
-                    && rcm.className().equals(classFqn)
-                    && (setId == null || setId.equals(setIdOf(rcm)))) {
-                List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
-                for (PropertyMapping pm : rcm.propertyMappings()) {
-                    if (pm instanceof PropertyMapping.Column c) {
-                        cols.add(new ClassMapping.RelationFunction.Col(
-                                c.propertyName(), c.column(), false));
-                    } else if (pm instanceof PropertyMapping.LocalProperty lp
-                            && lp.body() instanceof PropertyMapping.Column lc) {
-                        cols.add(new ClassMapping.RelationFunction.Col(
-                                lp.propertyName(), lc.column(), true));
-                    }
-                }
-                return new XEnd(mainTableRefOf(md, classFqn, model),
-                        new ClassMapping.RelationFunction(classFqn,
-                                setIdOf(rcm), null, rcm.root(),
-                                "<relational>", cols));
-            }
-        }
-        throw new NotImplementedException(
-                "XStore/ModelJoin association end class '" + classFqn
-                + "' resolves to no Relation or Relational set"
-                + (setId != null ? " for set id '" + setId + "'" : "")
-                + " in '" + md.qualifiedName() + "'");
     }
 
     /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
@@ -1430,7 +1405,10 @@ public final class MappingNormalizer {
                   + innerFqn + " recurses. Stack=" + cycleStack);
         }
         try {
-            return new NewInstanceCast(innerFqn, List.of(), pb.expression());
+            // audit 21a heads honored: the line's [targetSetId] route rides
+            // the cast — the whole-$src graph child dispatches by it
+            return new NewInstanceCast(innerFqn, List.of(), pb.expression(),
+                    pb.targetSetId());
         } finally {
             cycleStack.remove(innerFqn);
         }

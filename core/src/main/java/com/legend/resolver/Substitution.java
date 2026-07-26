@@ -1288,6 +1288,22 @@ final class Substitution {
                 return headArm;
             }
         }
+        // XStore property-space LOCAL read (route A):
+        // legacyLocalProperty($row, 'p') is the emission's spelling for a
+        // set-local (+p) property — not a class property, so it rides a
+        // marker; same head dispatch as an ordinary property read.
+        if (n instanceof TypedNativeCall lpc
+                && lpc.callee().qualifiedName().equals(
+                        com.legend.builtin.Pure.LEGACY_LOCAL_PROPERTY_FQN)
+                && lpc.args().get(0) instanceof TypedVariable lpv
+                && lpv.name().equals(target.userVar())
+                && lpc.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCString lps) {
+            TypedSpec localArm = rewriteHeadProp(lps.value(), n);
+            if (localArm != null) {
+                return localArm;
+            }
+        }
         return switch (n) {
             // $p->filter(pred).leaf — the if-as-filter idiom over the
             // INSTANCE itself (engine golden testConcatenateWithFilter:

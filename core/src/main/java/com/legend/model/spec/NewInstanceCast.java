@@ -60,12 +60,19 @@ import java.util.Objects;
 public record NewInstanceCast(
         String className,
         List<TypeExpression> typeArguments,
-        ValueSpecification src) implements ValueSpecification {
+        ValueSpecification src,
+        String targetSetId) implements ValueSpecification {
 
     public NewInstanceCast {
         Objects.requireNonNull(className, "className");
         Objects.requireNonNull(typeArguments, "typeArguments");
         Objects.requireNonNull(src, "src");
         typeArguments = List.copyOf(typeArguments);
+    }
+
+    /** No set route (surface casts; M2M lines without {@code [setId]}). */
+    public NewInstanceCast(String className,
+            List<TypeExpression> typeArguments, ValueSpecification src) {
+        this(className, typeArguments, src, null);
     }
 }

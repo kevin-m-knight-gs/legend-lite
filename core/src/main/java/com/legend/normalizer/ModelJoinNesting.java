@@ -94,7 +94,7 @@ final class ModelJoinNesting {
                         + " in this mapping — only ModelJoin-backed nested"
                         + " hops compose yet");
             }
-            MappingNormalizer.XEnd nEnd = MappingNormalizer.xstoreEndOf(md, nestedCls, null, model);
+            XStorePureEnds.XEnd nEnd = XStorePureEnds.xstoreEndOf(md, nestedCls, null, model);
             ClassMapping.RelationFunction nRf = nEnd.colsView();
             // the nested end is the stock NAVIGATE step (user call:
             // "both XStore and ModelJoin are just navigate()") — the

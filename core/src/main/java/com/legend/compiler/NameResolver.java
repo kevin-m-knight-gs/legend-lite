@@ -1265,7 +1265,8 @@ public final class NameResolver {
                         && src == nic.src()) {
                     yield nic;
                 }
-                yield new NewInstanceCast(className, typeArgs, src);
+                yield new NewInstanceCast(className, typeArgs, src,
+                        nic.targetSetId());
             }
             case PureCollection coll -> {
                 List<ValueSpecification> values = resolveVsList(coll.values(), scope);

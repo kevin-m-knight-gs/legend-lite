@@ -1137,6 +1137,18 @@ public final class Pure {
             "meta::legend::lite::legacyAssocPredicate";
 
     public static final NativeFunctionDefinition LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyAssocPredicate<A,B,S,T>(a:A[1], b:B[1], src:meta::pure::metamodel::relation::Relation<S>[1], tgt:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    /** PROPERTY-SPACE overload (XStore route A): a Pure-set end has no
+     * relation at normalize time, so the emission pins the two SETS by id
+     * and keeps the condition in property space over the END CLASSES —
+     * the resolver substitutes it through the sets' composed bindings. */
+    public static final NativeFunctionDefinition LEGACY_ASSOC_PREDICATE__A_1__B_1__STRING_1__STRING_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyAssocPredicate<A,B>(a:A[1], b:B[1], srcSet:meta::pure::metamodel::type::String[1], tgtSet:meta::pure::metamodel::type::String[1], cond:meta::pure::metamodel::function::Function<{A[1],B[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
+    /** A set-LOCAL (+prop) read inside a property-space XStore condition:
+     * locals are not class properties, so {@code $row.local} cannot type —
+     * the emission spells {@code legacyLocalProperty($row, 'local')} and
+     * the resolver substitutes the set's binding (conform-by-emission). */
+    public static final String LEGACY_LOCAL_PROPERTY_FQN =
+            "meta::legend::lite::legacyLocalProperty";
+    public static final NativeFunctionDefinition LEGACY_LOCAL_PROPERTY__ANY_1__STRING_1 = signature("native function meta::legend::lite::legacyLocalProperty(row:meta::pure::metamodel::type::Any[1], prop:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Any[1];");
     public static final NativeFunctionDefinition LENGTH__STRING_1 = signature("native function meta::pure::functions::string::length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_0_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");

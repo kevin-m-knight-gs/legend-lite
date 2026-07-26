@@ -19,11 +19,18 @@ import java.util.Objects;
  * @param info     {@code classFqn} at the source's multiplicity
  */
 public record TypedNewInstanceCast(String classFqn, TypedSpec source,
-                                   ExprType info) implements TypedSpec {
+                                   ExprType info, String targetSetId)
+        implements TypedSpec {
 
     public TypedNewInstanceCast {
         Objects.requireNonNull(classFqn, "classFqn");
         Objects.requireNonNull(source, "source");
+    }
+
+    /** No declared set route on the originating mapping line. */
+    public TypedNewInstanceCast(String classFqn, TypedSpec source,
+            ExprType info) {
+        this(classFqn, source, info, null);
     }
 
     @Override

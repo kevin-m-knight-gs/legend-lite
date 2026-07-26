@@ -94,7 +94,8 @@ final class SourceSubst {
                 yield new NewInstance(ni.className(), ni.typeArguments(), props);
             }
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
-                    nc.typeArguments(), substitute(nc.src(), env));
+                    nc.typeArguments(), substitute(nc.src(), env),
+                    nc.targetSetId());
             // literals, enum values, element pointers: no variables inside
             default -> v;
         };
