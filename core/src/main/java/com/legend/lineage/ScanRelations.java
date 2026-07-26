@@ -83,6 +83,9 @@ public final class ScanRelations {
                 rootClassMappings(ctx, md, rootClass);
         List<List<Seg>> paths = new ArrayList<>();
         collectChains(query, paths);
+        if (System.getenv("LL_LINEAGE_DEBUG") != null) {
+            System.err.println("[scanRelations] paths=" + paths);
+        }
         List<Node> roots = new ArrayList<>();
         for (List<Seg> p : paths) {
             if (roots.isEmpty()) {
@@ -318,12 +321,19 @@ public final class ScanRelations {
             // qualifiers): expand its BODY's $this chains in place — the
             // engine's scanProperties walks derived definitions the same
             // way
-            List<List<Seg>> expanded = derivedChains(ctx, cm, prop.name());
+            Derived expanded = derivedChains(ctx, cm, prop.name());
             if (expanded != null) {
-                for (List<Seg> sub : expanded) {
+                // only the RESULT chain continues the outer path; the
+                // body's predicate reads are self-contained leaf demands
+                // (splicing them mid-chained 'type' into the tail was the
+                // graphFetch qualifier bug)
+                for (List<Seg> sub : expanded.results()) {
                     List<Seg> spliced = new ArrayList<>(sub);
                     spliced.addAll(path.subList(next, path.size()));
                     walk(ctx, md, cm, node, spliced, 0);
+                }
+                for (List<Seg> side : expanded.sides()) {
+                    walk(ctx, md, cm, node, side, 0);
                 }
                 return;
             }
@@ -351,9 +361,16 @@ public final class ScanRelations {
                     columnRefs(ex.expression(), refs);
                     assignByTable(node, refs);
                 }
-                case PropertyMapping.EnumeratedColumn ec ->
-                        throw new NotImplementedException(
-                                "scanRelations: enum-mapped column leaf");
+                case PropertyMapping.EnumeratedColumn ec -> {
+                    // the enum decode is value-level — the SOURCE COLUMN
+                    // is the lineage, same as a plain Column leaf
+                    if (next < path.size()) {
+                        throw new NotImplementedException("scanRelations:"
+                                + " scalar '" + prop.name()
+                                + "' in MID position");
+                    }
+                    node.cols.add(ec.column());
+                }
                 case PropertyMapping.Join j -> {
                     ClassMapping.Relational target = targetCm(ctx, md, j,
                             node.table);
@@ -386,7 +403,9 @@ public final class ScanRelations {
     /** The $this chains of a class-derived property's body, or null when
      * the class declares no such derived property (or its body is a
      * function-ref binding). */
-    private static List<List<Seg>> derivedChains(ModelContext ctx,
+    private record Derived(List<List<Seg>> results, List<List<Seg>> sides) {}
+
+    private static Derived derivedChains(ModelContext ctx,
             ClassMapping.Relational cm, String prop) {
         com.legend.model.ClassDefinition cd = classDef(ctx, cm.className());
         if (cd == null) {
@@ -401,13 +420,118 @@ public final class ScanRelations {
                     instanceof com.legend.model.Realization.Inline inl)) {
                 return null;
             }
-            List<List<Seg>> out = new ArrayList<>();
+            // VAR-SCOPED collection: $this chains splice verbatim; an
+            // inner lambda var over a scoped source ($this.synonyms
+            // ->filter(s|$s.type == $type)) splices its reads UNDER the
+            // source chain ([synonyms, type]); qualifier PARAMETERS are
+            // out of scope and contribute nothing (the '$type' collision
+            // walled the graphFetch qualifier trees)
+            List<List<Seg>> sides = new ArrayList<>();
+            List<List<Seg>> results = new ArrayList<>();
+            java.util.Map<String, List<Seg>> scope = new java.util.HashMap<>();
+            scope.put("this", List.of());
             for (ValueSpecification b : inl.body()) {
-                collectChains(b, out);
+                scopedChains(b, scope, sides);
             }
-            return out;
+            // the RESULT chain: the (last) body expression's pipe seen
+            // through multiplicity wrappers and filters
+            ValueSpecification last = inl.body().get(inl.body().size() - 1);
+            List<Seg> res = qualifierResultChain(last, scope);
+            if (res != null && !res.isEmpty()) {
+                results.add(res);
+                sides.removeIf(s -> s.equals(res));
+            }
+            return new Derived(results, sides);
         }
         return null;
+    }
+
+    private static List<Seg> qualifierResultChain(ValueSpecification b,
+            java.util.Map<String, List<Seg>> scope) {
+        ValueSpecification cur = b;
+        while (cur instanceof AppliedFunction af && !af.parameters().isEmpty()
+                && java.util.Set.of("toOne", "first", "head", "filter",
+                        "toOneMany").contains(simple(af.function()))) {
+            cur = af.parameters().get(0);
+        }
+        return scopedChainOf(cur, scope);
+    }
+
+    /** Boolean/comparison natives recurse into their operands — chainOf's
+     * qualified-property arm must not hop on them ('equal' tails). */
+    private static final java.util.Set<String> PRED_OPS = java.util.Set.of(
+            "equal", "notEqual", "and", "or", "not", "lessThan",
+            "lessThanEqual", "greaterThan", "greaterThanEqual", "in",
+            "isEmpty", "isNotEmpty", "contains", "startsWith", "endsWith");
+
+    private static void scopedChains(ValueSpecification n,
+            java.util.Map<String, List<Seg>> scope, List<List<Seg>> out) {
+        if (n instanceof AppliedFunction bf
+                && PRED_OPS.contains(simple(bf.function()))) {
+            bf.parameters().forEach(p -> scopedChains(p, scope, out));
+            return;
+        }
+        List<Seg> c = scopedChainOf(n, scope);
+        if (c != null) {
+            if (!c.isEmpty()) {
+                out.add(c);
+            }
+            return;
+        }
+        switch (n) {
+            case AppliedFunction af -> {
+                if (af.parameters().size() == 2
+                        && af.parameters().get(1) instanceof LambdaFunction lam
+                        && lam.parameters().size() == 1) {
+                    List<Seg> src = scopedChainOf(af.parameters().get(0), scope);
+                    if (src != null) {
+                        if (!src.isEmpty()) {
+                            out.add(src);
+                        }
+                        java.util.Map<String, List<Seg>> inner =
+                                new java.util.HashMap<>(scope);
+                        inner.put(lam.parameters().get(0).name(), src);
+                        lam.body().forEach(x -> scopedChains(x, inner, out));
+                        return;
+                    }
+                }
+                af.parameters().forEach(p -> scopedChains(p, scope, out));
+            }
+            case AppliedProperty ap -> scopedChains(ap.receiver(), scope, out);
+            case LambdaFunction lf -> lf.body()
+                    .forEach(x -> scopedChains(x, scope, out));
+            case PureCollection pc -> pc.values()
+                    .forEach(v -> scopedChains(v, scope, out));
+            default -> { }
+        }
+    }
+
+    /** {@link #chainOf} restricted to roots IN SCOPE, prefixed by the
+     * root's own chain; null when the root var is unscoped (a qualifier
+     * parameter) or the node is not a chain. */
+    private static List<Seg> scopedChainOf(ValueSpecification n,
+            java.util.Map<String, List<Seg>> scope) {
+        String root = rootVarOf(n);
+        if (root == null || !scope.containsKey(root)) {
+            return null;
+        }
+        List<Seg> tail = chainOf(n);
+        if (tail == null) {
+            return null;
+        }
+        List<Seg> full = new ArrayList<>(scope.get(root));
+        full.addAll(tail);
+        return full;
+    }
+
+    private static String rootVarOf(ValueSpecification n) {
+        return switch (n) {
+            case Variable v -> v.name();
+            case AppliedProperty ap -> rootVarOf(ap.receiver());
+            case AppliedFunction af -> af.parameters().isEmpty() ? null
+                    : rootVarOf(af.parameters().get(0));
+            default -> null;
+        };
     }
 
     /** The parsed class definition for an as-written class spelling. */
@@ -764,7 +888,48 @@ public final class ScanRelations {
                     .forEach(b -> collectChains(b, out));
             case PureCollection pc -> pc.values()
                     .forEach(v -> collectChains(v, out));
+            // graphFetch trees desugar to ColSpecs (function1 = x|$x.prop,
+            // function2 = the lambda-wrapped nested sub-tree): chains
+            // compose parent-first — product{name} contributes [product]
+            // and [product, name]
+            case com.legend.model.spec.ColSpecArray ca ->
+                    collectTreeChains(ca, List.of(), out);
+            case com.legend.model.spec.ColSpec cs -> collectTreeChains(
+                    new com.legend.model.spec.ColSpecArray(List.of(cs)),
+                    List.of(), out);
             default -> { }
+        }
+    }
+
+    private static void collectTreeChains(com.legend.model.spec.ColSpecArray tree,
+            List<Seg> parent, List<List<Seg>> out) {
+        for (com.legend.model.spec.ColSpec cs : tree.colSpecs()) {
+            List<Seg> hop = null;
+            if (cs.function1() != null && cs.function1().body().size() == 1) {
+                List<Seg> c = chainOf(cs.function1().body().get(0));
+                if (c != null && !c.isEmpty()) {
+                    hop = c;
+                }
+            }
+            if (System.getenv("LL_LINEAGE_DEBUG") != null) {
+                System.err.println("[treeChains] name=" + cs.name()
+                        + " f1=" + (cs.function1() == null ? "null"
+                                : cs.function1().body())
+                        + " hop=" + hop);
+            }
+            if (hop == null) {
+                continue;
+            }
+            List<Seg> full = new ArrayList<>(parent);
+            full.addAll(hop);
+            out.add(full);
+            if (cs.function2() != null) {
+                for (var b : cs.function2().body()) {
+                    if (b instanceof com.legend.model.spec.ColSpecArray sub) {
+                        collectTreeChains(sub, full, out);
+                    }
+                }
+            }
         }
     }
 
