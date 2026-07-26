@@ -1211,8 +1211,17 @@ CompositeChain compositeChainTarget(ClassSource cs,
         for (var en : bySlot.entrySet()) {
             String slotRef = en.getKey();
             var js = joinSlots.get(slotRef);
+            // FRAMED VIEW slot target (Leg 4): the frame carries its own
+            // internal slots — materialize it in its OWN scope before it
+            // joins the composite (walkJoinSlot's frame rule; the frame's
+            // project/distinct terminal keeps its declared row)
+            TypedSpec slotTarget = js.target();
+            if (Pipelines.containsSlot(slotTarget)) {
+                slotTarget = Pipelines.materialize(slotTarget,
+                        Set.of(), cs.classFqn()).pipeline();
+            }
             Type.RelationType optRow =
-                    (Type.RelationType) js.target().info().type();
+                    (Type.RelationType) slotTarget.info().type();
             TypedLambda c1 = js.condition();
             // GUARD (loud, never silent): hop-1's own condition must not
             // read further slots.
@@ -1272,7 +1281,7 @@ CompositeChain compositeChainTarget(ClassSource cs,
                             List.of(new Type.Param(lRow, one),
                                     new Type.Param(optRow, one)),
                             new Type.Param(Type.Primitive.BOOLEAN, one)), one));
-            composite = new TypedJoin(composite, js.target(),
+            composite = new TypedJoin(composite, slotTarget,
                     StoreResolver.leftKind(), joinCond, Optional.of(pfx),
                     new ExprType(newRow, one));
             compRow = newRow;

@@ -1151,7 +1151,7 @@ final class Pipelines {
         }
     }
 
-    private static boolean containsSlot(TypedSpec n) {
+    static boolean containsSlot(TypedSpec n) {
         if (n instanceof TypedJoinSlot) {
             return true;
         }

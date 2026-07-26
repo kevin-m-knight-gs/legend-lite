@@ -1007,6 +1007,9 @@ final class StatementExecutor {
                             + evalStringArg(body, sc.args().get(0), env));
             return new ExecutionResult.Scalar(true, sc.info().type());
         }
+        if (System.getenv("LL_DUMP_RESOLVED") != null) {
+            System.err.println("[resolved] " + body);
+        }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
