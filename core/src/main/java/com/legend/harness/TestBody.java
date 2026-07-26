@@ -328,6 +328,13 @@ public final class TestBody {
                         + simpleName(wrap.function())
                         + "' carries no zero-arg lambda body");
             }
+            List<ValueSpecification> unrolledLoop = enumDriverLoop(stmt);
+            if (unrolledLoop != null) {
+                for (int i = unrolledLoop.size() - 1; i >= 0; i--) {
+                    work.addFirst(unrolledLoop.get(i));
+                }
+                continue;
+            }
             // let name = rhs
             if (stmt instanceof AppliedFunction af && af.function().equals("letFunction")
                     && af.parameters().size() == 2
@@ -973,6 +980,48 @@ public final class TestBody {
      * inline collection) is a list of {@code pair(DatabaseType.X, sql)} —
      * the per-driver golden idiom's pieces; null when the shape differs.
      */
+    /** Per-driver ENUM loop in STATEMENT position:
+     *   {@code [DatabaseType.H2, DatabaseType.DB2]->map(db| let s =
+     *   toSQLString(..., $db, ...); assertEquals(golden, $s);)}
+     * — optionally under the {@code ->distinct() == [true]} wrapper —
+     * HOST-side unroll (sibling of the pair-loop idiom): the loop var
+     * binds each enum literal and the body statements splice back into
+     * the work queue. Null when the statement is not the idiom. */
+    private static List<ValueSpecification> enumDriverLoop(
+            ValueSpecification stmt) {
+        ValueSpecification enumLoop = stmt;
+        if (stmt instanceof AppliedFunction eqw
+                && simpleName(eqw.function()).equals("equal")
+                && eqw.parameters().size() == 2
+                && eqw.parameters().get(0) instanceof AppliedFunction dw
+                && simpleName(dw.function()).equals("distinct")
+                && dw.parameters().size() == 1) {
+            // the asserts INSIDE the body carry the verification
+            enumLoop = dw.parameters().get(0);
+        }
+        if (enumLoop instanceof AppliedFunction emap
+                && simpleName(emap.function()).equals("map")
+                && emap.parameters().size() == 2
+                && emap.parameters().get(1) instanceof LambdaFunction dl
+                && dl.parameters().size() == 1) {
+            ValueSpecification esrc = emap.parameters().get(0);
+            List<ValueSpecification> evs = esrc instanceof PureCollection pc0
+                    ? pc0.values() : List.of(esrc);
+            if (!evs.isEmpty()
+                    && evs.stream().allMatch(x -> enumTail(x) != null)) {
+                List<ValueSpecification> unrolled = new ArrayList<>();
+                for (ValueSpecification ev : evs) {
+                    for (ValueSpecification b : dl.body()) {
+                        unrolled.add(substitute(b, Map.of(
+                                dl.parameters().get(0).name(), ev)));
+                    }
+                }
+                return unrolled;
+            }
+        }
+        return null;
+    }
+
     private static LambdaFunction driverPairLoop(ValueSpecification v,
             Map<String, ValueSpecification> lets,
             List<AppliedFunction> pairsOut) {

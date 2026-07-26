@@ -33,6 +33,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                     : super.call(c, parentPrec);
             case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
             case TODAY -> "date(current date)";
+            case LENGTH -> "CHARACTER_LENGTH(" + expr(a.get(0), 0)
+                    + ",CODEUNITS32)";
             // firstDayOf* family: DB2 rebuilds the truncation from epoch
             // date(1) with labeled year/month arithmetic (per-unit golden
             // text, parens verbatim — quarter parenthesizes the YEARS

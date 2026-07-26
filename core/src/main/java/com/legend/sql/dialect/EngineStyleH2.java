@@ -338,6 +338,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                             + ", " + expr(a.get(2), 0) + ")"
                     : super.call(c, parentPrec);
             case CHR -> "char(" + expr(a.get(0), 0) + ")";
+            case LENGTH -> "char_length(" + expr(a.get(0), 0) + ")";
             case REVERSE_STRING -> "legend_h2_extension_reverse_string("
                     + expr(a.get(0), 0) + ")";
             case SPLIT_PART -> "legend_h2_extension_split_part("
