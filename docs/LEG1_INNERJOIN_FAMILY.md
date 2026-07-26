@@ -22,10 +22,14 @@ tests.
    the view's FRAME (subselect) — the leg-4 identity-carrying frame
    discipline; the join-emission currently only targets tables.
 2. CROSS-DB JOIN LOOKUP — 2 tests (Join 'PersonSet1AddressSet1' /
-   'PersonBicycle' not found in db X): the join lives in a DIFFERENT
-   database than the one searched — the lookup must search the
-   mapping's store closure, not just the set's own db. Mechanical,
-   candidate slice 1.
+   'PersonBicycle' not found in db X): DEEPER than a lookup bug —
+   ModelBuilder.findJoin IS include-closure aware and the join IS
+   declared in the included db (union::myDB, testUnion.pure:835). The
+   included db is a CROSS-FAMILY element (the union family's source
+   file); the likely failure is corpus module ASSEMBLY not carrying the
+   dependency source into this family's model (the include resolves to
+   an unknown db). Route: the harness module-dependency story (#43),
+   verify with a findDatabase probe before any code.
 3. MERGE CLASS MAPPINGS — 2 tests (employees2/3): the Merge operation
    feature (own track, like union/inheritance ops).
 4. TYPE LUB Column-vs-bare — 'no common supertype for
@@ -36,7 +40,8 @@ tests.
 
 ## Slice ladder
 
-S1: cross-db join lookup (2) + Column-vs-bare LUB (diagnose first).
+S1: Column-vs-bare LUB (diagnose first); the join-lookup pair moved
+    to the #43 assembly track (see above).
 S2: leg-4 views-as-join-targets (5) — belongs to the leg-4 design
     (frame-as-join-side), not built here.
 S3: Merge ops (2) — feature track.
