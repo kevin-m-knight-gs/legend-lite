@@ -658,6 +658,16 @@ final class GraphEmission {
                     + " embedded/join-slot/otherwise/M2M binding — only"
                     + " association children are supported yet (H4b/H5c)");
         }
+        // MIXED-UNION extent: class-typed children dispatch PER MEMBER ARM —
+        // ONE correlated subquery over the keyed child union with the
+        // OR-of-member-keys condition (route b, XSTORE_LEG design)
+        if ("union".equals(cs.setId())) {
+            TypedSerializeGraph.Child mcc = mixedUnionChild(cs, node, context,
+                    parentRowVar, parentRowType);
+            if (mcc != null) {
+                return mcc;
+            }
+        }
         // the child tree's LEAF property names ride as demanded leaves —
         // a leaf mapped through the target's own join slots needs them
         // CONVERTED, not stripped (H4b; same rule as leafSlotDemand)
@@ -903,6 +913,107 @@ final class GraphEmission {
      * ctor (parent-row expressions), nested embedded ctors recurse as
      * further inline children. Non-ctor leaves (slot/assoc reads inside
      * the embedded) stay loud — their join machinery is a later rung. */
+    /**
+     * A class-typed child over a MIXED-UNION extent: per-member dispatch as
+     * ONE correlated subquery — target = the keyed child union (arms paired
+     * by each parent member's declared route target set), condition =
+     * OR over pairs of AND over key-column equalities (NULL keys in other
+     * arms make cross-pair matches impossible). Null when the property is
+     * not class-typed (scalar walls stay downstream).
+     */
+    private TypedSerializeGraph.Child mixedUnionChild(ClassSource cs,
+            TypedGraphTree node, StoreResolver.Context context,
+            String parentRowVar, Type.RelationType parentRowType) {
+        String childClass = mixedChildClassOf(cs.classFqn(), node.property());
+        if (childClass == null) {
+            return null;
+        }
+        ClassSources.MixedChild mc = sources.mixedChildMaterial(
+                cs.mappingFqn(), cs.classFqn(), node.property(), childClass);
+        if (mc == null) {
+            return null;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var eqFns = ctx.findFunction("meta::pure::functions::boolean::equal")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        var andFns = ctx.findFunction("meta::pure::functions::boolean::and")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        var orFns = ctx.findFunction("meta::pure::functions::boolean::or")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (eqFns.size() != 1 || andFns.size() != 1 || orFns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected one 2-arg"
+                    + " equal/and/or in the catalog");
+        }
+        ExprType boolInfo = new ExprType(Type.Primitive.BOOLEAN, one);
+        String pv = "u_pr";
+        String tv = "u_tr";
+        Type.RelationType tRow = mc.target().rowType();
+        ExprType pInfo = new ExprType(parentRowType, one);
+        ExprType tInfo = new ExprType(tRow, one);
+        TypedSpec cond = null;
+        for (java.util.List<String> pair : mc.keysPerPair()) {
+            TypedSpec pairCond = null;
+            for (String keyName : pair) {
+                Type.Column kc = mixedKeyColumn(tRow, keyName);
+                mixedKeyColumn(parentRowType, keyName);   // parent carries it
+                ExprType ki = new ExprType(kc.type(), kc.multiplicity());
+                TypedSpec eq = new TypedNativeCall(eqFns.get(0), List.of(
+                        new TypedPropertyAccess(new TypedVariable(pv, pInfo),
+                                keyName, ki),
+                        new TypedPropertyAccess(new TypedVariable(tv, tInfo),
+                                keyName, ki)), boolInfo);
+                pairCond = pairCond == null ? eq : new TypedNativeCall(
+                        andFns.get(0), List.of(pairCond, eq), boolInfo);
+            }
+            cond = cond == null ? pairCond : new TypedNativeCall(
+                    orFns.get(0), List.of(cond, pairCond), boolInfo);
+        }
+        var fnT = new Type.FunctionType(
+                List.of(new Type.Param(parentRowType, one),
+                        new Type.Param(tRow, one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedLambda condL = new TypedLambda(List.of(pv, tv), List.of(cond),
+                new ExprType(fnT, one));
+        return correlatedGraphChild(mc.target(), mc.target().pipeline(), tRow,
+                condL, mixedChildToMany(cs.classFqn(), node.property()), node,
+                parentRowVar, parentRowType, context);
+    }
+
+    private static Type.Column mixedKeyColumn(Type.RelationType row,
+            String name) {
+        for (Type.Column c : row.columns()) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
+        throw new IllegalStateException("resolver bug: mixed-union key"
+                + " column '" + name + "' is not on the row — the extent"
+                + " and the child material drifted");
+    }
+
+    private String mixedChildClassOf(String clsFqn, String prop) {
+        var p = ctx.findProperty(clsFqn, prop).orElse(null);
+        if (p != null && p.type() instanceof Type.ClassType ct) {
+            return ct.fqn();
+        }
+        return ctx.findAssociationOf(clsFqn, prop)
+                .map(a -> (a.property1().propertyName().equals(prop)
+                        ? a.property1() : a.property2()).targetClassFqn())
+                .orElse(null);
+    }
+
+    private boolean mixedChildToMany(String clsFqn, String prop) {
+        var p = ctx.findProperty(clsFqn, prop).orElse(null);
+        if (p != null && p.type() instanceof Type.ClassType) {
+            return !(p.multiplicity() instanceof com.legend.compiler.element
+                    .type.Multiplicity.Bounded mb && mb.isToOne());
+        }
+        return ctx.findAssociationOf(clsFqn, prop)
+                .map(a -> !(a.property1().propertyName().equals(prop)
+                        ? a.property1() : a.property2()).isToOne())
+                .orElse(true);
+    }
+
     /**
      * WHOLE-SOURCE child ({@code trader[trader_set]: $src}): the child
      * instance is the SAME source row seen through ANOTHER set of this

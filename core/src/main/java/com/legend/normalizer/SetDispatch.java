@@ -74,12 +74,27 @@ final class SetDispatch {
         if (!(set instanceof ClassMapping.Relational tr) || tr.root()) {
             return;   // root/sole/unknown: class-level dispatch serves
         }
-        if (UnionSynthesis.unionForClass(md, model, tr.className()) != null) {
+        ClassMapping.Union tu = UnionSynthesis.unionForClass(md, model,
+                tr.className());
+        if (tu != null && !hasPureMember(md, model, tu)) {
             return;   // union member: the union machinery dispatches
         }
+        // a MIXED-kind union has no eager union machinery — the routed
+        // hint pairs the resolver's per-member child arms (route b)
         String prev = out.putIfAbsent(prop, setId);
         if (prev != null && !prev.equals(setId)) {
             conflicted.add(prop);
         }
+    }
+
+    private static boolean hasPureMember(LegacyMappingDefinition md,
+            ModelBuilder model, ClassMapping.Union u) {
+        for (String sid : u.memberSetIds()) {
+            if (MappingNormalizer.findSetById(md, model, sid)
+                    instanceof ClassMapping.Pure) {
+                return true;
+            }
+        }
+        return false;
     }
 }

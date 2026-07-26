@@ -31,6 +31,9 @@ import java.util.Map;
  */
 final class JsonSourceFrame {
 
+    /** The hidden VALUES row-identity column (never a binding). */
+    static final String FRAME_ORDINAL = "u_frame_ord__";
+
     private JsonSourceFrame() {
     }
 
@@ -112,12 +115,24 @@ final class JsonSourceFrame {
             }
             rows.add(row);
         }
+        // HIDDEN ROW ORDINAL — the VALUES row identity: two sets composed
+        // over the SAME frame correlate on it (mixed-union per-member
+        // children, XSTORE_LEG design). Not a class property: excluded
+        // from bindings, so no serialize leaf or query read ever sees it.
+        for (int i = 0; i < rows.size(); i++) {
+            rows.get(i).add(String.valueOf(i));
+        }
+        cols.add(new Type.Column(FRAME_ORDINAL, Type.Primitive.INTEGER,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         Type.RelationType rowType = new Type.RelationType(cols);
         ExprType rowInfo = new ExprType(rowType, Multiplicity.Bounded.ONE);
         TypedSpec pipeline = new TypedTds(rows, rowInfo);
         String rowVar = "src_json";
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (Type.Column c : cols) {
+            if (c.name().equals(FRAME_ORDINAL)) {
+                continue;
+            }
             bindings.put(c.name(), new TypedPropertyAccess(
                     new TypedVariable(rowVar, rowInfo), c.name(),
                     new ExprType(c.type(), c.multiplicity())));

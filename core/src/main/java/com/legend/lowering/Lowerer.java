@@ -1172,24 +1172,22 @@ public final class Lowerer {
     private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                       ExprType info,
                                       boolean keepExisting) {
-        SqlSelect attempt1 = tryComputedColumns(base, columns, info, keepExisting);
-        if (attempt1 != null) {
-            return attempt1;
-        }
-        SqlSelect isolated = isolate(base);
-        SqlSelect attempt2 = tryComputedColumns(isolated, columns, info, keepExisting);
-        if (attempt2 != null) {
-            return attempt2;
+        String[] miss = new String[2];
+        SqlSelect a1 = tryComputedColumns(base, columns, info, keepExisting, miss);
+        SqlSelect a2 = a1 != null ? a1 : tryComputedColumns(isolate(base), columns, info, keepExisting, miss);
+        if (a2 != null) {
+            return a2;
         }
         throw new IllegalStateException("extend/project columns "
                 + columns.stream().map(TypedFuncCol::name).toList()
-                + " reference names unresolvable even after isolation");
+                + " reference names unresolvable even after isolation"
+                + (miss[0] == null ? "" : " [col='" + miss[0] + "' ref='" + miss[1] + "']"));
     }
 
     /** One pass; null when any column's refs would not fold against {@code base}. */
     private SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
-                                         boolean keepExisting) {
+                                         boolean keepExisting, String[] miss) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
             // starProjections handles the JOIN-source case (no single alias:
@@ -1200,6 +1198,8 @@ public final class Lowerer {
             switch (attempt(() -> scalar(last(c.fn()), (v, name) -> resolveOrThrow(base, name)))) {
                 case Resolution.Resolved r -> ps.add(new SqlSelect.Projection(r.expr(), c.name()));
                 case Resolution.Unfoldable u -> {
+                    miss[0] = c.name();
+                    miss[1] = u.column();   // the caller reports the miss
                     return null;
                 }
             }
