@@ -67,23 +67,27 @@ final class JsonSourceFrame {
                     + classFqn + "' is not a data:application/json literal —"
                     + " remote/parameterized sources are not supported yet");
         }
-        Object payload = com.legend.exec.Json.parse(
+        // one object = one row; [array] = n rows; CONCATENATED objects
+        // ({..}{..}) = the engine's row-stream spelling, one per row
+        List<Object> values = com.legend.exec.Json.parseAll(
                 url.substring(prefix.length()));
         List<Map<?, ?>> objects = new ArrayList<>();
-        if (payload instanceof Map<?, ?> one) {
-            objects.add(one);
-        } else if (payload instanceof List<?> arr) {
-            for (Object o : arr) {
-                if (!(o instanceof Map<?, ?> m)) {
-                    throw new NotImplementedException("JSON source for '"
-                            + classFqn + "' carries a non-object array"
-                            + " element — not supported");
+        for (Object payload : values) {
+            if (payload instanceof Map<?, ?> one) {
+                objects.add(one);
+            } else if (payload instanceof List<?> arr) {
+                for (Object o : arr) {
+                    if (!(o instanceof Map<?, ?> m)) {
+                        throw new NotImplementedException("JSON source for '"
+                                + classFqn + "' carries a non-object array"
+                                + " element — not supported");
+                    }
+                    objects.add(m);
                 }
-                objects.add(m);
+            } else {
+                throw new NotImplementedException("JSON source for '" + classFqn
+                        + "' is neither an object nor an array of objects");
             }
-        } else {
-            throw new NotImplementedException("JSON source for '" + classFqn
-                    + "' is neither an object nor an array of objects");
         }
         var cls = ctx.findClass(classFqn).orElseThrow(() ->
                 new IllegalStateException("resolver bug: JSON-sourced class '"

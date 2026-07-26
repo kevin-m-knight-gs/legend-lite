@@ -1374,10 +1374,15 @@ public final class MappingNormalizer {
                 // association property can never silently retarget it (the
                 // engine keeps local mapping properties distinct).
                 if (pb.local()) {
-                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                            "M2M local mapping property '+" + pb.propertyName()
-                          + "' is a roadmap feature (the engine keeps it distinct"
-                          + " from class properties); mapping=" + md.qualifiedName());
+                    // mapping-LOCAL property (the XStore assoc-key idiom):
+                    // composes as an extra isLocal binding column;
+                    // collision with a declared property stays the audit
+                    // 21a poison (M2mRouteGuards.localField)
+                    fields.put(pb.propertyName(), M2mRouteGuards.localField(
+                            pb, tgt, md, model,
+                            findPropertyTypeDeep(tgt, pb.propertyName(),
+                                    model) != null));
+                    continue;
                 }
                 if (pb.explode()) {
                     throw new ModelException(LegendCompileException.Phase.NORMALIZE,

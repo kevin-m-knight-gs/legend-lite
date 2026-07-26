@@ -101,4 +101,28 @@ final class M2mRouteGuards {
         // different packages match each other's routes
         return id.equals(fqn.replace("::", "_"));
     }
+
+    /** Mapping-LOCAL property field (+prodId: String[1]: expr — engine
+     * local-property semantics; the XStore assoc-key idiom): typed by its
+     * own value via the isLocal KeyExpression, composed as an extra
+     * binding column. A local COLLIDING with a declared property stays
+     * the designed poison (audit 21a: the name-keyed binding table
+     * cannot hold both, and silent retargeting was the original bug). */
+    static com.legend.model.spec.KeyExpression localField(
+            com.legend.model.ClassMapping.Pure.PropertyBinding pb,
+            com.legend.model.ClassDefinition tgt,
+            com.legend.model.LegacyMappingDefinition md,
+            com.legend.compiler.ModelBuilder model, boolean collides) {
+        if (tgt != null && collides) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                    "M2M local mapping property '+" + pb.propertyName()
+                  + "' collides with a declared property of '"
+                  + tgt.qualifiedName() + "' — locals are distinct (engine)"
+                  + " and the shared binding table cannot hold both;"
+                  + " mapping=" + md.qualifiedName());
+        }
+        return new com.legend.model.spec.KeyExpression(
+                pb.expression(), false, true);
+    }
 }

@@ -450,11 +450,12 @@ public final class ClassSources {
         }
         Map<String, TypedSpec> composed = new LinkedHashMap<>();
         for (Map.Entry<String, TypedSpec> e : ctor.properties().entrySet()) {
-            if (ctx.findProperty(classFqn, e.getKey()).isEmpty()) {
-                throw new IllegalStateException("resolver bug: mapping binding '"
-                        + e.getKey() + "' is not a property of class '" + classFqn
-                        + "' (G should have rejected the body)");
-            }
+            // a key that is NOT a class property is a mapping-LOCAL (+prop)
+            // binding (the XStore assoc-key idiom): the normalizer emits it
+            // with the isLocal KeyExpression and NewChecker types it by its
+            // own value — unknown NON-local keys were already rejected at
+            // NORMALIZE (synthM2M's deep property check), so it composes
+            // as an extra binding column here.
             composed.put(e.getKey(), substituteSourceReads(e.getValue(), srcVar,
                     inner, classFqn, mappingFqn));
         }
