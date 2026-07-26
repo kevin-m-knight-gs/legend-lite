@@ -1293,6 +1293,8 @@ public final class Lowerer {
     }
 
     private SqlExpr resolveOrThrow(SqlSelect select, String column) {
+        // bare-variable read: unfoldable, never NPE
+        if (column == null) { throw new UnfoldableRef("<whole variable>"); }
         SqlExpr resolved = Fold.resolveInto(select, column);
         if (resolved == null) {
             throw new UnfoldableRef(column);
@@ -2701,10 +2703,9 @@ public final class Lowerer {
             // consumers): aggregate the column to a LIST — the bare scalar
             // subquery would raise on the second row. The OUTER row
             // resolver rides the enclosing channel either way.
-            // MULTI-column: the assert idiom ($result.values.rows.values
-            // over a whole TDS) — ROW-MAJOR cell flatten; no toOne
-            // carve-out (a [1] stamp on a relation VALUE is the value's
-            // mult, not the row count — the TypedSort/TypedDistinct rule).
+            // MULTI-column = ROW-MAJOR cell flatten (the whole-TDS assert
+            // idiom); no toOne carve-out — a [1] stamp on a relation VALUE
+            // is the value's mult, not the row count.
             case TypedSpec rel when rel.info().type()
                     instanceof Type.RelationType rt
                     && !rt.columns().isEmpty() -> {

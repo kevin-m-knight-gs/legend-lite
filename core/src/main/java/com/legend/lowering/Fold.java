@@ -162,6 +162,14 @@ final class Fold {
      * legal but deferred until the corpus pins it).
      */
     static SqlExpr resolveInto(SqlSelect s, String column) {
+        if (column == null) {
+            // a COLUMN-LESS read reaching fold resolution was an NPE
+            // (dishonest wall) — the producing shape failed to name its
+            // column; surface it loudly (audit 24 follow-on).
+            throw new IllegalStateException("resolver bug: a column-less"
+                    + " read reached fold resolution — the producing shape"
+                    + " did not name its column");
+        }
         SqlExpr r = resolveIntoExact(s, column);
         if (r == null) {
             // A pivot dynamic column's PURE identity carries quotes
