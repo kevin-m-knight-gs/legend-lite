@@ -42,6 +42,49 @@ final class AssociationJoins {
         this.synthetics = synthetics;
     }
 
+    /** EMBEDDED PASS-THROUGH ({@code $p.firm.organizations.name} where
+     * {@code firm} is an embedded/inline ctor binding): drill the ctor
+     * fields along the path; when the chain leaves ctor territory at hop
+     * {@code k} and the current ctor's class carries an ASSOCIATION for
+     * {@code path[k]}, hop resolution re-roots at that class on the SAME
+     * ROW (no join — engine per-hop findPropertyMapping through embedded
+     * PMs). Null when the ctor drill serves the whole path (substitution
+     * side) or the stop is not an association (today's loud wall). */
+    record PassThrough(ClassSource root, int startHop) {}
+
+    PassThrough embeddedPassThrough(ClassSource cs, java.util.List<String> path) {
+        TypedSpec cur = cs.bindings().get(SyntheticHeads.realHead(path.get(0)));
+        int hop = 1;
+        while (hop + 1 <= path.size() - 1) {
+            TypedSpec inner = cur;
+            if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                    && c.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")) {
+                inner = c.args().get(0);
+            }
+            if (!(inner instanceof com.legend.compiler.spec.typed
+                    .TypedNewInstance ni)) {
+                return null;
+            }
+            if (ni.properties().containsKey(path.get(hop))) {
+                cur = ni.properties().get(path.get(hop));
+                hop++;
+                continue;
+            }
+            // drill stops here: the hop must be an association of the
+            // CURRENT ctor's class, mapped in this mapping
+            String stopCls = ni.classFqn();
+            if (ctx.findAssociationOf(stopCls,
+                            SyntheticHeads.realHead(path.get(hop))).isEmpty()
+                    || !sources.binds(cs.mappingFqn(), stopCls)) {
+                return null;
+            }
+            return new PassThrough(
+                    sources.get(cs.mappingFqn(), stopCls), hop);
+        }
+        return null;   // the whole path is ctor-drillable (or a scalar leaf)
+    }
+
     /** The join material for an aggregated to-many head: the association
      * route, or the navigate-slot route (class-typed Join PM). */
     AssocJoin aggJoinMaterial(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,

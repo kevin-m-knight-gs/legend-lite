@@ -2203,9 +2203,19 @@ public final class StoreResolver {
             }
         }
         for (List<String> path : paths) {
-            if (path.size() < 2
-                    || cs.bindings().containsKey(SyntheticHeads.realHead(path.get(0)))) {
-                continue;   // 1-hop, or embedded/slot heads (substitution-side)
+            if (path.size() < 2) {
+                continue;
+            }
+            AssociationJoins.PassThrough emb = null;
+            if (cs.bindings().containsKey(SyntheticHeads.realHead(path.get(0)))) {
+                // embedded/slot heads: ctor-drillable paths stay
+                // substitution-side; a chain LEAVING ctor territory
+                // re-roots at the embedded class on the same row and its
+                // association hops register below (pass-through)
+                emb = assocMaterial.embeddedPassThrough(cs, path);
+                if (emb == null) {
+                    continue;
+                }
             }
             String head = path.get(0);
             // EVERY to-many crossing joins with ROW EXPLOSION — filter
@@ -2231,6 +2241,14 @@ public final class StoreResolver {
                 }
             }
             for (int hop = 0; hop + 1 < effectiveSize; hop++) {
+                if (emb != null && hop < emb.startHop()) {
+                    // pass-through hops: same row, no join — the re-root
+                    // class source becomes the parent at the boundary
+                    if (hop == emb.startHop() - 1) {
+                        parent = emb.root();
+                    }
+                    continue;
+                }
                 String chainKey = String.join(".", path.subList(0, hop + 1));
                 AssociationJoins.AssocJoin known = joinsByChain.get(chainKey);
                 if (known != null) {
