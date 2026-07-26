@@ -298,19 +298,15 @@ final class JoinChainEmission {
             String viewTarget = condTables.size() == 1
                     && model.findView(hopDb, condTables.iterator().next()).isPresent()
                     ? condTables.iterator().next() : null;
-            if (viewTarget == null) {
-                // PASS 2: source-side view projections substitute (plain
-                // views only; non-plain non-backing stays a loud wall)
-                joinCond = MappingNormalizer.resolveViewRefsInJoin(joinCond, hopDb, prevTable,
-                        model, md, p.backingView, null);
+            if (viewTarget != null && emitNavigate) {
+                RelationalOperation sub = plainClassViewCond(joinCond,
+                        viewTarget, targetClassFqn, hopDb, model, md);
+                if (sub != null) { joinCond = sub; viewTarget = null; }
             }
-            String targetTable = viewTarget != null ? viewTarget
-                    : MappingNormalizer.determineTargetTable(joinCond, prevTable,
-                            hop.joinName(), propName == null ? "<nested>" : propName,
-                            i + 1, md.qualifiedName());
-            if (viewTarget == null) {
-                MappingNormalizer.requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
-            }
+            HopTarget ht = hopTarget(joinCond, viewTarget, prevTable, hopDb,
+                    hop.joinName(), propName, i, p, model, md);
+            joinCond = ht.cond();
+            String targetTable = ht.table();
 
             Variable s = new Variable("s");
             Variable t = new Variable("t");
@@ -642,6 +638,92 @@ final class JoinChainEmission {
             case RelationalOperation.TypeRef ignored -> { }
         }
     }
+    /** PASS-2 source-side substitution + target determination + the
+     * non-view wall (skipped when a view target was already detected —
+     * that path expands the view as a relation). */
+    private record HopTarget(RelationalOperation cond, String table) {
+    }
+
+    private static HopTarget hopTarget(RelationalOperation joinCond,
+            String viewTarget, String prevTable, String hopDb,
+            String joinName, String propName, int i, Pipeline p,
+            ModelBuilder model, LegacyMappingDefinition md) {
+        if (viewTarget != null) {
+            return new HopTarget(joinCond, viewTarget);
+        }
+        // PASS 2: source-side view projections substitute (plain views
+        // only; non-plain non-backing stays a loud wall)
+        joinCond = MappingNormalizer.resolveViewRefsInJoin(joinCond, hopDb,
+                prevTable, model, md, p.backingView, null);
+        String targetTable = MappingNormalizer.determineTargetTable(
+                joinCond, prevTable, joinName,
+                propName == null ? "<nested>" : propName,
+                i + 1, md.qualifiedName());
+        MappingNormalizer.requireNonViewTarget(
+                targetTable, hopDb, joinName, model, md);
+        return new HopTarget(joinCond, targetTable);
+    }
+
+    /** A CLASS-typed navigate re-roots at the TARGET CLASS's pipeline,
+     * whose row speaks PHYSICAL columns — when the sole view candidate is
+     * a PLAIN (rename-only) re-spelling of that class's own ~mainTable,
+     * the cond substitutes to physical (PASS-1 doctrine) and the returned
+     * cond replaces the expansion. Null = keep the expansion: a non-plain
+     * view (filter/groupBy/distinct — a REAL relation the join lands on),
+     * a foreign table's view, or an unmapped target class. */
+    private static RelationalOperation plainClassViewCond(
+            RelationalOperation joinCond, String viewTarget,
+            String targetClassFqn, String hopDb, ModelBuilder model,
+            LegacyMappingDefinition md) {
+        DatabaseDefinition.ViewDefinition vd =
+                model.findView(hopDb, viewTarget).orElseThrow();
+        if (vd.filter() != null || !vd.groupByColumns().isEmpty()
+                || vd.distinct()) {
+            return null;
+        }
+        // JOIN-NAVIGATING columns disqualify too: substituting them would
+        // splice a @Join expr into the cond (personFirmView.firm_name) —
+        // rename-only means every column is a plain ColumnRef
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
+                : vd.columnMappings()) {
+            List<JoinNavSpec> navs = new ArrayList<>();
+            collectJoinNavigations(vc.expression(), navs);
+            if (!navs.isEmpty()) {
+                return null;
+            }
+        }
+        String vPhys = ViewRelation.inferViewMainTable(
+                vd, viewTarget, md, model, hopDb);
+        String tgtMain;
+        try {
+            tgtMain = MappingNormalizer.mainTableOf(md, targetClassFqn, model);
+        } catch (ModelException unmappedTarget) {
+            return null;
+        }
+        // the declared ~mainTable may spell the VIEW itself or its
+        // physical table (inference vs explicit) — both mean this class.
+        // A ~groupBy/~distinct class mapping's pipeline speaks GROUPED
+        // outputs, not physical — its row is a real relation; keep the
+        // expansion there (testReprocessGroupByAlias's grouped Person).
+        if (!vPhys.equals(tgtMain) && !viewTarget.equals(tgtMain)) {
+            return null;
+        }
+        // SINGLE-SET, group-free, NON-TEMPORAL targets only: union routes
+        // and milestoned targets carry their own emission disciplines
+        // (suffixed keys / temporal columns) that speak the view's row —
+        // those keep the expansion (sweep-proven: unionOfViews +
+        // milestoned-view regressions under the looser gate).
+        List<ClassMapping.Relational> sets = MappingNormalizer
+                .relationalMappingsInClosure(md, model, targetClassFqn);
+        if (sets.size() != 1 || !sets.get(0).groupBy().isEmpty()
+                || sets.get(0).distinct()
+                || MappingNormalizer.isTemporalClass(targetClassFqn, model)) {
+            return null;
+        }
+        return MappingNormalizer.resolveViewRefsInJoin(
+                joinCond, hopDb, vPhys, model, md, viewTarget, null);
+    }
+
     /**
      * The (INNER)-typed mapping ~filter as a ROW-EXPLODING source relation:
      * {@code project(filter(main-table + filter join chain, cond),
@@ -656,6 +738,11 @@ final class JoinChainEmission {
         String mainDb = rcm.mainTable().database();
         String mainTable = rcm.mainTable().table();
         Variable r = new Variable("irow");
+        // NOTE (leg 4, sweep-bisected): threading the class's backingView
+        // here converts the view-to-view (INNER) ~filter pair BUT breaks
+        // unionOfViews + a milestoned-view single under FULL-corpus
+        // assembly (cross-family duplicate resolution) — the next rung
+        // must gate that threading by the failing assemblies' shapes.
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
                 List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
                 null);

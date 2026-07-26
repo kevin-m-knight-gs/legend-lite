@@ -1544,7 +1544,7 @@ public final class MappingNormalizer {
     }
 
     /** Whether the class (or a superclass) carries a temporal stereotype. */
-    private static boolean isTemporalClass(String classFqn, ModelBuilder model) {
+    static boolean isTemporalClass(String classFqn, ModelBuilder model) {
         return isTemporalClass(classFqn, model, new HashSet<>());
     }
 
@@ -2972,7 +2972,7 @@ public final class MappingNormalizer {
     /** {@code classFqn}'s Relational class mappings across the INCLUDE
      * CLOSURE, own mapping first (union V3: assoc mappings routinely live
      * in a mapping that only INCLUDES the class-mapping definitions). */
-    private static List<ClassMapping.Relational> relationalMappingsInClosure(
+    static List<ClassMapping.Relational> relationalMappingsInClosure(
             LegacyMappingDefinition md, ModelBuilder model, String classFqn) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         collectMappingClosure(md, model, closure, new LinkedHashSet<>());
