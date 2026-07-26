@@ -120,6 +120,11 @@ public final class ScanRelations {
             throw new NotImplementedException("scanRelations: no class"
                     + " mapping for '" + classFqn + "'");
         }
+        // union sets print in SET-ID order (testUnion FirmSet1<FirmSet2 AND
+        // testUnionViewOnView neg<nonNeg — declaration order fits only the
+        // first golden)
+        hits.sort(java.util.Comparator.comparing(
+                r -> r.setId() == null ? "" : r.setId()));
         return hits;
     }
 
