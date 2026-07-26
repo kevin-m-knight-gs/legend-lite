@@ -367,6 +367,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     : super.call(c, parentPrec);
             case DATE_TRUNC_DAY -> "cast(truncate(" + expr(a.get(0), 0)
                     + ") as date)";
+            // firstDayOf* family: every H2 golden spells the uniform
+            // double cast; a TODAY anchor renders bare now() inside
+            case DATE_TRUNC -> {
+                if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u
+                        && Set.of("week", "month", "quarter", "year")
+                                .contains(u.value())) {
+                    String anchor = a.get(1) instanceof SqlExpr.Call tc
+                            && tc.fn() == com.legend.sql.SqlFn.TODAY
+                            ? "now()" : expr(a.get(1), 0);
+                    yield "cast(cast(date_trunc('" + u.value() + "', "
+                            + anchor + ") as timestamp) as date)";
+                }
+                yield super.call(c, parentPrec);
+            }
             // parse-date family: the engine's rule (convertToDateH2) is
             // substring(x, 1, 10) + the Java pattern for ALL date-only
             // formats; datetime formats parse the whole string. UNMATCHED

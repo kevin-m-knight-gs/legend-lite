@@ -912,11 +912,11 @@ public final class TestBody {
             throws java.sql.SQLException {
             for (AppliedFunction pair : pairs) {
                 String db = enumTail(pair.parameters().get(0));
-                if (!"H2".equals(db)) {
+                if (!"H2".equals(db) && !"DB2".equals(db)) {
                     return new Outcome.Unsupported(
                             "per-driver golden loop declares"
                             + " DatabaseType." + db
-                            + " — only the H2 renderer is built");
+                            + " — only the H2/DB2 renderers are built");
                 }
             }
             for (AppliedFunction pair : pairs) {

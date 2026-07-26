@@ -33,6 +33,33 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                     : super.call(c, parentPrec);
             case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
             case TODAY -> "date(current date)";
+            // firstDayOf* family: DB2 rebuilds the truncation from epoch
+            // date(1) with labeled year/month arithmetic (per-unit golden
+            // text, parens verbatim — quarter parenthesizes the YEARS
+            // term, month/year do not)
+            case DATE_TRUNC -> {
+                if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u) {
+                    String anchor = a.get(1) instanceof SqlExpr.Call tc
+                            && tc.fn() == com.legend.sql.SqlFn.TODAY
+                            ? "current date" : expr(a.get(1), 0);
+                    String spelled = switch (u.value()) {
+                        case "year" -> "date(1) + (year(" + anchor
+                                + ")-1) YEARS";
+                        case "month" -> "date(1) + (year(" + anchor
+                                + ")-1) YEARS + (month(" + anchor
+                                + ")-1) MONTHS";
+                        case "quarter" -> "date(1) + ((year(" + anchor
+                                + ")-1) YEARS) + (3 * QUARTER(" + anchor
+                                + ") - 3) MONTHS";
+                        default -> null;
+                    };
+                    if (spelled != null) {
+                        yield spelled;
+                    }
+                }
+                throw new IllegalStateException("date_trunc unit has no"
+                        + " engine-DB2 spelling yet: " + a);
+            }
             // DB2 interval arithmetic: x - 1 MONTHS / x + 3 DAYS (the
             // relative-date goldens) — the IR's ADD_INTERVAL
             // [unitFn, count, anchor] respells as infix labeled units

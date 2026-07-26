@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 113 | 6 | 17 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 74 | 9 | 57 | 3 |
+| graphFetch/tests | 143 | 73 | 10 | 57 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 1 | 1 | 2 |
@@ -72,10 +72,10 @@ in-process Alloy-shaped path).
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 71 | 0 | 9 | 3 |
-| transform/fromPure/tests | 50 | 21 | 5 | 9 | 15 |
+| transform/fromPure/tests | 50 | 27 | 4 | 9 | 10 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1579** | 72 | 270 | 617 |
+| **total** | 2538 | **1584** | 72 | 270 | 612 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7494,8 +7494,9 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].pnl expected 200.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=100.0, supportContactName=Peter Smith}, {pnl=150.0, supportContactN
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
 - FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7600,7 +7601,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7750,7 +7751,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
@@ -8126,19 +8127,13 @@ in-process Alloy-shaped path).
 - ERROR testToSQLStringWithPosition [transform/fromPure/tests]: unknown function 'assertEquals'
 - ERROR testToSQLStringWithStdDevSample [transform/fromPure/tests]: unknown function 'assertEquals'
 - ERROR testToSQLStringWithStdDevPopulation [transform/fromPure/tests]: unknown function 'assertEquals'
-- SHAPE testDayOfYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- SHAPE testTrim [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- SHAPE testPad [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- SHAPE testLeftRight [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- SHAPE testCbrt [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- FAIL testDayOfYear [transform/fromPure/tests]: assertEquals: expected select extract(doy from "root".tradeDate) as "doy" from tradeTable as "root", got select date_part('doy', "root".tradeDate) as "doy" from tradeTable as "root"
+- SHAPE testTrim [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
+- SHAPE testPad [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
+- FAIL testLeftRight [transform/fromPure/tests]: assertEquals: expected select trim(left("root".FIRSTNAME, 1)) as "left", trim(right("root".FIRSTNAME, 1)) as "right" from personTable as "root", got select left("root".FIRSTNAME, 1) as "left", right("root".FIRSTNAME, 1) as "right" from personTable as "root"
+- SHAPE testCbrt [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInProjectionForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInFiltersForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testToSqlGenerationFirstDayOfMonth [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- SHAPE testToSqlGenerationFirstDayOfYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- SHAPE testToSqlGenerationFirstDayOfThisYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
-- FAIL testToSqlGenerationFirstDayOfQuarter_H2 [transform/fromPure/tests]: assertEquals: expected select cast(cast(date_trunc('quarter', "root".tradeDate) as timestamp) as date) as "date" from tradeTable as "root", got select date_trunc('quarter', "root".tradeDate) as "date" from tradeTable as "root"
-- FAIL testToSqlGenerationFirstDayOfQuarter_DB2 [transform/fromPure/tests]: assertEquals: expected select date(1) + ((year("root".tradeDate)-1) YEARS) + (3 * QUARTER("root".tradeDate) - 3) MONTHS as "date" from tradeTable as "root", got select date_trunc('quarter', "root".tradeDate) as "date" from tradeTable as "root"
-- FAIL testToSqlGenerationFirstDayOfWeek [transform/fromPure/tests]: assertEquals: expected select cast(cast(date_trunc('week', "root".tradeDate) as timestamp) as date) as "date" from tradeTable as "root", got select date_trunc('week', "root".tradeDate) as "date" from tradeTable as "root"
 - SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsDistinctSQLGeneration [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testGreatestLeast [transform/fromPure/tests]: LIST_GET reached a dialect without a list encoding
