@@ -220,7 +220,7 @@ public final class Lowerer {
                 && m.mapper() instanceof TypedLambda ml
                 && !(ml.info().type() instanceof Type.FunctionType ft
                         && ft.result().type() instanceof Type.RelationType)) {
-            boolean collectionMapper = isCollectionMapper(ml);
+            boolean collectionMapper = ValueCollections.isCollectionMapper(ml);
             Multiplicity colMult =
                     ml.info().type() instanceof Type.FunctionType fnT
                             ? fnT.result().multiplicity()
@@ -267,46 +267,6 @@ public final class Lowerer {
                 null, List.of(), null, null, List.of(), null, null,
                 List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
-    }
-
-    /**
-     * A map mapper whose per-row value is a COLLECTION (pure map flattens
-     * those): declared multiplicity above one, or an ARRAY-producing body
-     * (a one-column row's cells is a single-element LIST, not a scalar).
-     */
-    /** Every element is a property read off the SAME row variable — the
-     * Typer's TDSRow cells synthesis, the one shape that prints TDSNull. */
-    private static boolean isRowCells(TypedCollection tc) {
-        String var = null;
-        for (TypedSpec e : tc.elements()) {
-            if (!(e instanceof TypedPropertyAccess pa
-                    && pa.source()
-                            instanceof TypedVariable v)) {
-                return false;
-            }
-            if (var == null) {
-                var = v.name();
-            } else if (!var.equals(v.name())) {
-                return false;
-            }
-        }
-        return !tc.elements().isEmpty();
-    }
-
-    private static boolean isCollectionMapper(
-            TypedLambda ml) {
-        // Collection mapper iff the lowered value is a SQL LIST, which is
-        // exactly a TypedCollection body (list_value carrier). A loose
-        // declared multiplicity over a non-collection body still lowers to
-        // a plain scalar column — wrapping it in UNNEST/flatten is a type
-        // error, not a flatten. Casts distribute element-wise over
-        // collections (the value stays a LIST) — look through them
-        // ($x.values->cast(@StrictDate), calendar DateRange).
-        TypedSpec last = ml.body().get(ml.body().size() - 1);
-        while (last instanceof TypedCast tc) {
-            last = tc.source();
-        }
-        return last instanceof TypedCollection;
     }
 
     private String nextAlias() {
@@ -1293,8 +1253,14 @@ public final class Lowerer {
     }
 
     private SqlExpr resolveOrThrow(SqlSelect select, String column) {
-        // bare-variable read: unfoldable, never NPE
-        if (column == null) { throw new UnfoldableRef("<whole variable>"); }
+        // bare-variable read ($var whole): over a SINGLE-COLUMN select the
+        // row IS the cell (the encoding's value semantics); wider rows
+        // stay unfoldable (isolate-or-loud), never NPE
+        if (column == null) {
+            column = select.projections().size() == 1
+                    ? select.projections().get(0).outputName() : null;
+            if (column == null) { throw new UnfoldableRef("<whole variable>"); }
+        }
         SqlExpr resolved = Fold.resolveInto(select, column);
         if (resolved == null) {
             throw new UnfoldableRef(column);
@@ -2431,8 +2397,12 @@ public final class Lowerer {
             //   forAll(rel, p)  -> NOT EXISTS (... WHERE NOT p)   [vacuously true]
             //   isEmpty(rel)    -> NOT EXISTS (...);  isNotEmpty -> EXISTS (...)
             //   size(rel)       -> (SELECT COUNT(*) FROM ...)
+            //   A bare VARIABLE with a relation stamp is never a subquery:
+            //   a lambda binder holds a per-element CELL (the encoding's
+            //   stamp rides the element) — it takes the scalar bridge.
             case TypedNativeCall n when n.args().size() >= 1
                     && n.args().get(0).info().type() instanceof Type.RelationType
+                    && !(n.args().get(0) instanceof TypedVariable)
                     && relationPredicate(n) != null -> {
                 var predicate = Objects.requireNonNull(relationPredicate(n));
                 enclosing.push(columns);
@@ -2453,7 +2423,7 @@ public final class Lowerer {
                     when !(m.source().info().type() instanceof Type.RelationType) -> {
                 SqlExpr transformed = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
                         scalar(m.source(), columns), scalar(m.mapper(), columns));
-                yield isCollectionMapper(m.mapper())
+                yield ValueCollections.isCollectionMapper(m.mapper())
                         ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, transformed)
                         : transformed;
             }
@@ -2587,7 +2557,7 @@ public final class Lowerer {
                     && !n.args().isEmpty()
                     && n.args().get(0)
                             instanceof TypedCollection tc
-                    && isRowCells(tc) -> {
+                    && ValueCollections.isRowCells(tc) -> {
                 List<SqlExpr> elems = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
                     elems.add(SqlExpr.Call.of(SqlFn.COALESCE,
@@ -2674,7 +2644,7 @@ public final class Lowerer {
                 SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
                 // pure map FLATTENS collection-valued mappers ($r.values):
                 // the list-of-cell-arrays flattens one level
-                boolean collMapper = isCollectionMapper(ml2);
+                boolean collMapper = ValueCollections.isCollectionMapper(ml2);
                 yield collMapper
                         ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, listed)
                         : listed;

@@ -1086,6 +1086,20 @@ public final class InferenceKernel {
             }
             return new Type.GenericType(gpa.rawFqn(), lub);
         }
+        // The SCALAR-SUBQUERY ENCODING (a single-column relation in value
+        // position — the fnlr discipline; the lowerer renders it as a
+        // correlated scalar subquery) meeting a bare scalar in a branch or
+        // collection LUB: the LUB is over the COLUMN's type — the
+        // encoding's declared value semantics. Multi-column relations stay
+        // at the loud non-nominal wall below.
+        if (a instanceof Type.RelationType r1 && r1.columns().size() == 1
+                && !(b instanceof Type.RelationType)) {
+            return commonSupertype(r1.columns().get(0).type(), b);
+        }
+        if (b instanceof Type.RelationType r2 && r2.columns().size() == 1
+                && !(a instanceof Type.RelationType)) {
+            return commonSupertype(a, r2.columns().get(0).type());
+        }
         String fa = nominalFqn(a), fb = nominalFqn(b);
         if (fa == null || fb == null) {
             // NON-NOMINAL mismatch (function vs relation, differing function

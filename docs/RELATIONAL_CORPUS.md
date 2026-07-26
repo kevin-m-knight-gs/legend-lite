@@ -14,11 +14,11 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 206 | 9 | 23 | 20 |
+| functions/tests | 258 | 205 | 10 | 23 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 114 | 6 | 16 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 97 | 10 | 33 | 3 |
+| graphFetch/tests | 143 | 98 | 9 | 33 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -45,7 +45,7 @@ in-process Alloy-shaped path).
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 |
 | tests/mapping/association | 23 | 17 | 0 | 6 | 0 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 21 | 0 | 11 | 0 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 22 | 2 | 8 | 0 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 |
 | tests/mapping/embedded | 63 | 52 | 1 | 7 | 3 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1635** | 69 | 224 | 610 |
+| **total** | 2538 | **1636** | 71 | 221 | 610 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7343,6 +7343,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -7466,9 +7467,8 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7713,7 +7713,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
@@ -7906,11 +7906,10 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeFilter [tests/mapping/association]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets' (Embedded PM 'planes' on 'meta::relational::tests::model::inheritance::VehicleOwner' has non-class property type
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation' (Join 'PersonSet1AddressSet1' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInne
-- ERROR testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: lowering not yet implemented for TypedVariable
-- ERROR testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (address:String[0..1]) and String
+- FAIL testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: assertEquals: expected [true, true, true, true, false, false, false], got [true, true, true, true]
 - ERROR testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::inheritanceMappingWithInnerJoin' (Join 'PersonBicycle' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInner
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Values list "t3" does not have a column named "firmID" |  | LINE 8: ) AS t3 ON t0.ID = t3.firmID |                            ^
-- ERROR testTargetViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: no common supertype for (pnl:String[1]) and String
+- FAIL testTargetViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: assertEquals: expected [Peter, John, John, Anthony, null, null, null], got [Anthony, John, John, Peter]
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testMergeForClassMappingInnerJoinFilter [tests/mapping/classMappingFilterWithInnerJoin]: property 'employees2' of class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings'

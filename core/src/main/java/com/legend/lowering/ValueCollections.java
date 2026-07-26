@@ -4,6 +4,12 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -59,5 +65,39 @@ final class ValueCollections {
                                 null)),
                         List.of(new OutputCol("value", SqlType.Scalar.VARCHAR,
                                 true)));
+    }
+
+    /** Every element is a property read off the SAME row variable — the
+     * Typer's TDSRow cells synthesis, the one shape that prints TDSNull. */
+    static boolean isRowCells(TypedCollection tc) {
+        String var = null;
+        for (TypedSpec e : tc.elements()) {
+            if (!(e instanceof TypedPropertyAccess pa
+                    && pa.source()
+                            instanceof TypedVariable v)) {
+                return false;
+            }
+            if (var == null) {
+                var = v.name();
+            } else if (!var.equals(v.name())) {
+                return false;
+            }
+        }
+        return !tc.elements().isEmpty();
+    }
+
+    static boolean isCollectionMapper(TypedLambda ml) {
+        // Collection mapper iff the lowered value is a SQL LIST, which is
+        // exactly a TypedCollection body (list_value carrier). A loose
+        // declared multiplicity over a non-collection body still lowers to
+        // a plain scalar column — wrapping it in UNNEST/flatten is a type
+        // error, not a flatten. Casts distribute element-wise over
+        // collections (the value stays a LIST) — look through them
+        // ($x.values->cast(@StrictDate), calendar DateRange).
+        TypedSpec last = ml.body().get(ml.body().size() - 1);
+        while (last instanceof TypedCast tc) {
+            last = tc.source();
+        }
+        return last instanceof TypedCollection;
     }
 }
