@@ -32,6 +32,14 @@ final class ProjectChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // FQN spellings (meta::pure::tds::project — the CoreFn FQN
+        // dispatch) CANONICALIZE to the parse name up front: the legacy
+        // normalization below rebuilds calls that must resolve against
+        // the MODERN project signatures, and an FQN-keyed rebuild finds
+        // only the legacy /3 candidate at that name.
+        if (af.function().contains("::")) {
+            af = new AppliedFunction("project", af.parameters());
+        }
         // a spec-BUILDING helper call in columns position expands RAW
         // (project(getCols()) — its col() literals feed the same shape
         // normalization as written-out columns)
