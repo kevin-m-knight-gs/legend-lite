@@ -228,3 +228,35 @@ Two routes considered:
 Interactions to hold: member key-column demand (c_PersonID family),
 associations INTO union targets (U3 dispatch by member set), milestoned
 members (temporal stamps are per-arm), include-closure member resolution.
+
+## Design note: per-member graph children over MIXED union extents (banked)
+
+Nested pair wall: 'association Trade_Product is not mapped' — the tree's
+`product` child over the mixed Trade extent has no association mapping;
+each MEMBER routes it differently (relational member: join PM
+`product[prod_set_relational]`; model members: whole-src
+`product[prod_set_model*] : $src`).
+
+Engine discipline (visible in the relational-only union SQL): the child
+is ONE correlated subquery over the union-of-child-arms with an
+OR-of-member-suffixed-keys condition — never a CASE of per-arm nodes:
+`'product', (SELECT ... FROM (child arms UNION ALL) t5
+  WHERE t5.k_0 = t2.k_0 OR t5.k_1 = t2.k_1)`.
+
+Transplant for mixed extents, three pieces:
+1. JSON frame ROW ORDINAL: JsonSourceFrame gains a hidden per-row
+   ordinal column — the VALUES row identity. Two sets composed over the
+   SAME frame correlate on it (the whole-src pair's join key).
+2. Mixed extents carry PER-ARM KEY columns (member-suffixed, NULL in
+   other arms): relational arm = its child-join condition columns
+   (@trade_product's tradeTable.productId); model arm = the frame
+   ordinal. Same discipline on BOTH extents (Trade and Product).
+3. GraphEmission.graphChild mixed arm: when cs is a mixed union source
+   and the property is class-typed, target = mixedUnionSource(child
+   class) (both extents' key columns aligned by member pair), child =
+   correlatedGraphChild(target, cond = OR_i(parent.k_i = target.k_i)).
+
+Open questions: key-column demand (carry always vs child-demand-driven);
+member PAIRING (trade arm i ↔ product arm i — by the property route's
+declared target set id, NOT by position); multiplicity of the child arms
+(to-one product vs to-many trades reverse).
