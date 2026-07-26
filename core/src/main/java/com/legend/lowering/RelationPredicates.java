@@ -24,7 +24,10 @@ final class RelationPredicates {
     }
 
     static Lowerer.RelationPredicate of(TypedNativeCall n) {
-        if (Lowerer.isFamily(n, "size")) {
+        // count over a RELATION argument is size (row count) — the graph-
+        // leaf sub-aggregation emission rewrites nav-slot reads to their
+        // correlated target relation and counts them (H4b)
+        if (Lowerer.isFamily(n, "size") || Lowerer.isFamily(n, "count")) {
             // NOTE (audit 22b F1 residual): size over a RELATION value
             // counts ROWS regardless of the value's [1] multiplicity (one
             // relation != one row — a value-mult constant fold here broke

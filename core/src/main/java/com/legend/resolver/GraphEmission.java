@@ -322,6 +322,24 @@ final class GraphEmission {
                         + "' is a MODEL-TO-MODEL cast binding — M2M graph"
                         + " children are not supported yet (H5c)");
             }
+            // AGG-CONSUMED reads of STRIPPED to-many nav steps (the H4b
+            // sub-aggregation leaf: employeeCount = count($row.employees)
+            // through the M2M chain composition): the class-typed slot
+            // read becomes the CORRELATED TARGET RELATION — the nav
+            // condition keyed on the parent row var — and count/size/
+            // isEmpty lower through the relation-predicate scalar arms as
+            // correlated subqueries (engine: per-leaf subselect). Only
+            // STRIPPED aliases rewrite; a materialized slot keeps the
+            // joined-scalar path.
+            TypedSpec navCorr = correlateStrippedNavReads(binding, cs,
+                    rowVar, rowType, stripped, context);
+            if (navCorr != null) {
+                // ALREADY in final row terms (the walker re-points parent
+                // reads at the leaf row var) — the rewriteRowReads pass
+                // below must not walk the embedded relation
+                leaves.add(aggLeaf(keyOf(node), navCorr, rowVar, rowType));
+                continue;
+            }
             // A leaf mapped through STRIPPED join slots (a nested child's
             // own joins materialize with empty demand) is a feature gap,
             // not a resolver bug (audit F5).
@@ -383,6 +401,88 @@ final class GraphEmission {
         return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
                 arrayWrap, false, cs.classFqn(), info, false, subTypePatches,
                 orderKeys);
+    }
+
+    /** A leaf whose body is ALREADY in final row terms (the correlated
+     * sub-aggregation emission) — plain lambda wrap, no row-read pass. */
+    private TypedFuncCol aggLeaf(String key, TypedSpec body, String rowVar,
+            Type.RelationType rowType) {
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var fnT = new Type.FunctionType(
+                List.of(new Type.Param(rowType, one)),
+                new Type.Param(body.info().type(), body.info().multiplicity()));
+        return new TypedFuncCol(key, new TypedLambda(List.of(rowVar),
+                List.of(body), new ExprType(fnT, one)));
+    }
+
+    /**
+     * Rewrite reads of STRIPPED class-typed nav steps ({@code $row.<alias>})
+     * inside a leaf binding to the CORRELATED TARGET RELATION: the step's
+     * target ClassSource materialized (empty demand), filtered by the nav
+     * condition with the parent-side reads re-pointed at {@code rowVar}.
+     * Null when nothing rewrote (unchanged bindings keep their own walls).
+     * Temporal targets stay un-rewritten (the per-hop date calculus does
+     * not thread here) — their reads keep the loud H4b wall.
+     */
+    private TypedSpec correlateStrippedNavReads(TypedSpec n, ClassSource cs,
+            String rowVar, Type.RelationType rowType, Set<String> stripped,
+            StoreResolver.Context context) {
+        var navSteps = Pipelines.outerNavSteps(cs.pipeline());
+        boolean[] rewrote = {false};
+        TypedSpec out = rewriteNavReads(n, cs, rowVar, rowType, stripped,
+                navSteps, context, rewrote);
+        if (!rewrote[0]) {
+            return null;
+        }
+        // MIXED leaf (agg + plain column reads): the direct emission
+        // bypasses the row-read rewrite, so residual parent-row reads
+        // would dangle — keep the loud wall for that shape until demanded
+        Set<String> residual = new LinkedHashSet<>();
+        Pipelines.collectVarReads(out, cs.rowVar(), residual);
+        return residual.isEmpty() ? out : null;
+    }
+
+    private TypedSpec rewriteNavReads(TypedSpec n, ClassSource cs,
+            String rowVar, Type.RelationType rowType, Set<String> stripped,
+            Map<String, TypedNavigate> navSteps,
+            StoreResolver.Context context, boolean[] rewrote) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(cs.rowVar())
+                && stripped.contains(pa.property())
+                && navSteps.get(pa.property()) != null) {
+            TypedNavigate st = navSteps.get(pa.property());
+            if (!(st.target() instanceof TypedGetAll ng)
+                    || st.predicate().parameters().size() != 2
+                    || temporal.temporalStrategy(ng.classFqn()) != null) {
+                return n;
+            }
+            ClassSource t = sources.get(
+                    dispatch.apply(context, ng.classFqn()), ng.classFqn());
+            TypedSpec tPipe = Pipelines.materialize(t.pipeline(),
+                    Set.of(), t.classFqn()).pipeline();
+            Type.RelationType tRow = (Type.RelationType) tPipe.info().type();
+            String pVar = st.predicate().parameters().get(0);
+            String tVar = st.predicate().parameters().get(1);
+            var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+            List<TypedSpec> corrBody = st.predicate().body().stream().map(x ->
+                    Pipelines.rewriteRowReads(x, pVar, Map.of(), Set.of(),
+                            v2 -> new TypedVariable(rowVar,
+                                    new ExprType(rowType, one)))).toList();
+            TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                    new ExprType(new Type.FunctionType(
+                            List.of(new Type.Param(tRow, one)),
+                            new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+            rewrote[0] = true;
+            return new TypedFilter(tPipe, corr, new ExprType(tRow, one));
+        }
+        if (n instanceof TypedNativeCall c) {
+            List<TypedSpec> args = c.args().stream().map(a ->
+                    rewriteNavReads(a, cs, rowVar, rowType, stripped,
+                            navSteps, context, rewrote)).toList();
+            return new TypedNativeCall(c.callee(), args, c.info());
+        }
+        return n;
     }
 
     /**
