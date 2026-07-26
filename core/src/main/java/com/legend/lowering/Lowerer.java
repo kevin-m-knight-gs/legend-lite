@@ -1410,6 +1410,20 @@ public final class Lowerer {
         for (String c : columns) {
             SqlExpr e = Fold.resolveInto(base, c);
             if (e == null) {
+                // PROJECTION position may inline a COMPUTED projection
+                // (window calls included): the caller REPLACES the whole
+                // projection list, so this is a narrowing/reorder of the
+                // same select — never a recomputation in a filtering
+                // position (the restrict-over-window-cols corpus pin;
+                // resolveInto's computed-decline serves the WHERE sites).
+                for (SqlSelect.Projection p : base.projections()) {
+                    if (c.equals(p.outputName())) {
+                        e = p.expr();
+                        break;
+                    }
+                }
+            }
+            if (e == null) {
                 return null;
             }
             ps.add(new SqlSelect.Projection(e,

@@ -498,6 +498,13 @@ final class Typer {
                 return synth(pcs, env);
             }
         }
+        // window cols in PROJECT position — the OLAP col overloads
+        if (tdsVocab(af.function(), "project")) {
+            AppliedFunction wcd = windowColsProjectDesugar(af);
+            if (wcd != null) {
+                return synth(wcd, env);
+            }
+        }
         // olapGroupBy — the legacy TDS OLAP spellings; the modern construct
         // IS the windowed extend (see olapGroupByDesugar)
         if (tdsVocab(af.function(), "olapGroupBy")) {
@@ -638,6 +645,102 @@ final class Typer {
     private static String simpleFnName(String fn) {
         int cut = fn.lastIndexOf("::");
         return cut < 0 ? fn : fn.substring(cut + 2);
+    }
+
+    /** A window-col carrier: declared name, hidden partition/map input
+     * column names, and the user's reducer lambda. */
+    private record WinCol(String name, List<String> partCols, String mapCol,
+            LambdaFunction agg) {
+    }
+
+    /** The WINDOW-COL project overloads (REAL tds.pure:233 —
+     * {@code col(window(parts...), func(map, agg), name)}, name LAST,
+     * OlapAggregation form) as the MODERN windowed extend: the project
+     * carries hidden partition/map INPUT columns ({@code <name>__wpN} /
+     * {@code <name>__wm}), each window col extends with
+     * {@code over(~parts)} + the user's reducer, and a closing restrict
+     * returns exactly the declared names in declaration order (hidden
+     * inputs drop there). Null when no window col is present; the
+     * sortInfo/rank overload variants keep the loud project wall. */
+    private static AppliedFunction windowColsProjectDesugar(AppliedFunction af) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() != 2 || !(ps.get(1) instanceof PureCollection cols)) {
+            return null;
+        }
+        if (cols.values().stream().noneMatch(v -> v instanceof AppliedFunction cf
+                && simpleFnName(cf.function()).equals("col")
+                && !cf.parameters().isEmpty()
+                && cf.parameters().get(0) instanceof AppliedFunction w0
+                && tdsVocab(w0.function(), "window"))) {
+            return null;
+        }
+        List<ValueSpecification> projCols = new ArrayList<>();
+        List<ValueSpecification> declared = new ArrayList<>();
+        List<WinCol> wins = new ArrayList<>();
+        for (ValueSpecification v : cols.values()) {
+            if (!(v instanceof AppliedFunction cf)
+                    || !simpleFnName(cf.function()).equals("col")) {
+                return null;
+            }
+            List<ValueSpecification> cps = cf.parameters();
+            if (!(cps.get(0) instanceof AppliedFunction w
+                    && tdsVocab(w.function(), "window"))) {
+                // plain col (2-arg or 3-arg with doc): name at index 1
+                if (cps.size() < 2 || !(cps.get(1) instanceof CString pn)) {
+                    return null;
+                }
+                projCols.add(cf);
+                declared.add(new CString(pn.value()));
+                continue;
+            }
+            if (cps.size() != 3
+                    || !(cps.get(1) instanceof AppliedFunction fc)
+                    || !tdsVocab(fc.function(), "func")
+                    || fc.parameters().size() != 2
+                    || !(fc.parameters().get(0) instanceof LambdaFunction mapLam)
+                    || !(fc.parameters().get(1) instanceof LambdaFunction aggLam)
+                    || !(cps.get(2) instanceof CString wn)) {
+                return null;
+            }
+            List<ValueSpecification> parts = w.parameters().size() == 1
+                    && w.parameters().get(0) instanceof PureCollection wp
+                    ? wp.values() : w.parameters();
+            List<String> partCols = new ArrayList<>();
+            for (int j = 0; j < parts.size(); j++) {
+                if (!(parts.get(j) instanceof LambdaFunction pl)) {
+                    return null;
+                }
+                String pn = wn.value() + "__wp" + j;
+                projCols.add(new AppliedFunction("col",
+                        List.of(pl, new CString(pn))));
+                partCols.add(pn);
+            }
+            String mn = wn.value() + "__wm";
+            projCols.add(new AppliedFunction("col",
+                    List.of(mapLam, new CString(mn))));
+            wins.add(new WinCol(wn.value(), partCols, mn, aggLam));
+            declared.add(new CString(wn.value()));
+        }
+        ValueSpecification chain = new AppliedFunction("project",
+                List.of(ps.get(0), new PureCollection(projCols)));
+        for (WinCol wc : wins) {
+            List<ValueSpecification> partSpecs = new ArrayList<>();
+            for (String pc : wc.partCols()) {
+                partSpecs.add(new ColSpec(pc));
+            }
+            Variable p = new Variable("_wcp");
+            Variable ww = new Variable("_wcw");
+            Variable r = new Variable("_wcr");
+            chain = new AppliedFunction("extend", List.of(chain,
+                    new AppliedFunction("over",
+                            List.of(new PureCollection(partSpecs))),
+                    new ColSpec(wc.name(),
+                            new LambdaFunction(List.of(p, ww, r), List.of(
+                                    new AppliedProperty(r, wc.mapCol()))),
+                            wc.agg())));
+        }
+        return new AppliedFunction("restrict",
+                List.of(chain, new PureCollection(declared)));
     }
 
     /** {@code projectWithColumnSubset} as plain {@code project} over the

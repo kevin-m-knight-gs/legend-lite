@@ -442,6 +442,22 @@ class ResolveNavigationTest {
     }
 
     @Test
+    @DisplayName("WINDOW COL in project (real tds.pure:233 col(window, func, name),"
+            + " name LAST) — modern windowed extend; hidden inputs restricted away")
+    void windowColProjectDesugars() throws SQLException {
+        String sql = sqlOf("m::Person.all()->project(["
+                + "col(p|$p.name, 'name'), "
+                + "col(window(p|$p.employer.legal), "
+                + "func(p|$p.name->length()->toOne(), y|$y->sum()), 'mx')"
+                + "])->from(m::RT)");
+        assertTrue(sql.contains("OVER (PARTITION BY"), sql);
+        // ACME partition {Ann, Cat} sums name lengths 3+3; Bob's NULL
+        // employer is its own partition (SQL PARTITION BY null-group)
+        assertEquals(List.of("Ann|6", "Bob|3", "Cat|6"),
+                exec(sql).stream().sorted().toList());
+    }
+
+    @Test
     @DisplayName("AUTO-MAP: the class-terminal hop FLATTENS over the joined source (Firm.all().staff.name)")
     void autoMapHopChainFolds() throws SQLException {
         String sql = sqlOfDriver("m::Firm.all().staff.name");

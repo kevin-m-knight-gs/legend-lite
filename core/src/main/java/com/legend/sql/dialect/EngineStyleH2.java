@@ -240,6 +240,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return s.substring(0, p).toLowerCase(Locale.ROOT) + s.substring(p);
     }
 
+    /** Engine window text is lowercase: {@code sum(...) over (partition
+     * by ... order by ...)} (the window-col goldens' spelling). */
+    @Override
+    protected String windowCall(SqlExpr.WindowCall w) {
+        String s = super.windowCall(w);
+        return s.replace(" OVER (", " over (")
+                .replace("PARTITION BY ", "partition by ")
+                .replace("ORDER BY ", "order by ");
+    }
+
     /**
      * dateDiff's composite IR shapes fold BACK to the engine's plain
      * {@code datediff(unit, a, b)} emission. The IR encodes REAL pure's
