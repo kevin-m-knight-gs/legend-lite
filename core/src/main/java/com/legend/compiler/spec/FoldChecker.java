@@ -28,6 +28,12 @@ final class FoldChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // FQN spellings canonicalize to the parse name up front (the
+        // ProjectChecker lesson): rebuilds and generic resolution key on
+        // the name, and an FQN finds only its own narrow catalog entry.
+        if (af.function().contains("::")) {
+            af = new AppliedFunction("fold", af.parameters());
+        }
         Application a = t.checkGeneric(af, env);
         if (a.args().size() != 3 || !(a.args().get(1) instanceof TypedLambda reducer)
                 || !(af.parameters().get(1) instanceof LambdaFunction reducerAst)) {

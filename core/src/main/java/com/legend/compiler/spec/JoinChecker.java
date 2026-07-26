@@ -41,6 +41,12 @@ final class JoinChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // FQN spellings canonicalize to the parse name up front (the
+        // ProjectChecker lesson): rebuilds and generic resolution key on
+        // the name, and an FQN finds only its own narrow catalog entry.
+        if (af.function().contains("::")) {
+            af = new AppliedFunction("join", af.parameters());
+        }
         TypedSpec shared = sharedKeyLegacyJoin(t, af, env);
         if (shared != null) {
             return shared;

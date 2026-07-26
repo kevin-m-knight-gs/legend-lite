@@ -39,6 +39,12 @@ final class ExtendChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // FQN spellings canonicalize to the parse name up front (the
+        // ProjectChecker lesson): rebuilds and generic resolution key on
+        // the name, and an FQN finds only its own narrow catalog entry.
+        if (af.function().contains("::")) {
+            af = new AppliedFunction("extend", af.parameters());
+        }
         af = normalizeLegacyCols(af);
         if (af.parameters().size() == 3) {
             Application a = t.checkGeneric(af, env);
