@@ -113,7 +113,44 @@ final class JoinChainEmission {
                     }
                 }
             }
-            default -> { /* Column / Enum / Expression / InlineEmbedded:
+            case PropertyMapping.InlineEmbedded ie -> {
+                // the referenced set's PMs splice at materialization (the
+                // inline instance shares the owner's row) — their
+                // STRUCTURAL hops hoist into the TOP pipeline exactly like
+                // a direct embedded block (firm() Inline[f1] where f1
+                // carries employees: @firmEmployees)
+                ClassMapping.Relational referenced = null;
+                for (ClassMapping cm : md.classMappings()) {
+                    if (cm instanceof ClassMapping.Relational r2
+                            && java.util.Objects.equals(
+                                    MappingNormalizer.setIdOf(r2), ie.setId())) {
+                        referenced = r2;
+                        break;
+                    }
+                }
+                ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
+                TypeExpression propType = owner == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(owner,
+                                ie.propertyName(), model);
+                if (referenced != null
+                        && propType instanceof TypeExpression.NameRef nr) {
+                    for (PropertyMapping sub : referenced.propertyMappings()) {
+                        if (sub instanceof PropertyMapping.Join j
+                                && p.aliasToTargetTable.containsKey(j.propertyName())
+                                && classTypedTargetIfMapped(nr.name(),
+                                        j.propertyName(), model) != null) {
+                            throw new NotImplementedException(
+                                    "Inline-embedded sub-PM '" + j.propertyName()
+                                  + "' collides with an existing pipeline slot"
+                                  + " of the same name. Mapping="
+                                  + md.qualifiedName());
+                        }
+                        emitHopsForStructuralPm(p, sub, nr.name(), mainDb,
+                                mainTable, rowBind, model, md);
+                    }
+                }
+            }
+            default -> { /* Column / Enum / Expression:
                             nested JoinNav handled in Pass 2 */ }
         }
     }
