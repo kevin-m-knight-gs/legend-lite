@@ -18,12 +18,12 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 114 | 6 | 16 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 76 | 10 | 54 | 3 |
+| graphFetch/tests | 143 | 77 | 9 | 54 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 17 | 0 | 0 | 32 |
-| milestoning/tests | 224 | 162 | 4 | 12 | 46 |
+| milestoning/tests | 224 | 163 | 4 | 11 | 46 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1608** | 69 | 251 | 610 |
+| **total** | 2538 | **1610** | 68 | 250 | 610 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7179,8 +7179,8 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
-- 7x a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- 6x Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes (no candidates at all)
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -7469,10 +7469,10 @@ in-process Alloy-shaped path).
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_Checked [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
-- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
-- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
-- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
-- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
+- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
+- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
+- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
+- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
 - ERROR testIsolationOfPropertyTargetFilter [graphFetch/tests]: filter predicate references column 'firmTable_personFirmBridgeTable_personId', unresolvable even after isolation [param=t; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left
 - ERROR testSimpleOrderedCrossStoreGraphFetchMissingProperty [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=meta::pure::graphFetc
 - ERROR testSimpleOrderedCrossStoreGraphFetchRightOrder [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1' (M2M local mapping property '+prodId' is a roadmap feature (the engine keeps it distinct from class properties); mapping=meta::pure::graphFetc
@@ -7487,9 +7487,8 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7575,7 +7574,6 @@ in-process Alloy-shaped path).
 - SHAPE testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7588,7 +7586,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7915,8 +7913,8 @@ in-process Alloy-shaped path).
 - SHAPE testMultipleIsolationWithSameProp [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR relationalResultSourcingOfList [tests/advanced]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
-- ERROR relationalResultSourcingOfDateList [tests/advanced]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
+- ERROR relationalResultSourcingOfList [tests/advanced]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
+- ERROR relationalResultSourcingOfDateList [tests/advanced]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding! |  or: Referenced column "c" was not found because the FROM clause is missing
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
 - FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
@@ -7970,7 +7968,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^

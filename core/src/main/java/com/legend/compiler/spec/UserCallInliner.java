@@ -404,6 +404,23 @@ public final class UserCallInliner {
                             rewrite(ma.source(), env), ma.property(),
                             list(ma.dates(), env), ma.sweep(), ma.info());
             case TypedNativeCall c -> {
+                // execute()'s RUNTIME argument is ORCHESTRATION position
+                // (engine: the router evaluates connections outside the
+                // planner) — user calls inside it (the corpus's
+                // createDbAndGetConnection) stay UNINLINED; buildFrame
+                // runs their effects once and treats the value as an
+                // opaque handle. Inlining them hits the non-let
+                // intermediate-statement wall on their effect bodies.
+                if (com.legend.compiler.element.type.PlatformTypes
+                        .isExecuteFqn(c.callee().qualifiedName())
+                        && c.args().size() >= 3) {
+                    List<TypedSpec> keepRt = new ArrayList<>(c.args().size());
+                    for (int i = 0; i < c.args().size(); i++) {
+                        keepRt.add(i == 2 ? c.args().get(i)
+                                : rewrite(c.args().get(i), env));
+                    }
+                    yield new TypedNativeCall(c.callee(), keepRt, c.info());
+                }
                 List<TypedSpec> args = list(c.args(), env);
                 // HIGHER-ORDER map: substitution revealed a literal lambda
                 // where the checker saw a function-valued variable

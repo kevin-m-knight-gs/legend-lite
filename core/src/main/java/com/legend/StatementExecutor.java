@@ -408,6 +408,15 @@ final class StatementExecutor {
             }
             mref = mr;
         }
+        // the RUNTIME ARGUMENT's effectful user calls (the corpus's
+        // createDbAndGetConnection: DDL + seed, returns the handle) run
+        // ONCE here — engine order: runtime construction precedes
+        // execution; the value itself stays an opaque handle (re-running
+        // on a non-eager chain build would double the DDL)
+        if (eager && ec.args().size() >= 3) {
+            runRuntimeArgEffects(letBound(ec.args().get(2), letPrefix),
+                    letPrefix, specs, env);
+        }
         java.util.List<TypedSpec> qb = new java.util.ArrayList<>(letPrefix);
         qb.addAll(lam.body());
         var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
@@ -456,6 +465,25 @@ final class StatementExecutor {
             run = executeTyped(body, env);
         }
         return new ExecFrame(chain, relationRooted, run);
+    }
+
+    /** Effectful user calls inside an execute() RUNTIME argument run once
+     * (executeCallStatement); the walk stops AT each call — its own args
+     * are the callee's business, and non-effectful calls (testRuntime())
+     * stay unevaluated orchestration handles. */
+    private static void runRuntimeArgEffects(TypedSpec n,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs,
+            ExecEnv env) throws java.sql.SQLException {
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            if (containsEffect(uc, specs, new java.util.HashMap<>())) {
+                executeCallStatement(uc, letPrefix, specs, env,
+                        new java.util.ArrayDeque<>());
+            }
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            runRuntimeArgEffects(c, letPrefix, specs, env);
+        }
     }
 
     /** A let-bound argument resolves through the caller's let prefix
