@@ -161,3 +161,43 @@ Rejected route B (project locals as physical columns at composition so
 the column-space emission works): still needs a deferred pipeline for
 the frame, and bakes column names into normalize-time output that
 resolve-time owns.
+
+## Implementation brief: property-space Pure-set ends (study 2026-07-26)
+
+1. **Consumption**: AssociationJoins:817-845 — predicateFunctionFqn →
+   compiled body's last node MUST be the 5-arg legacyAssocPredicate call
+   (Pure.java:1139: cond params are RELATION ROWS). The normalizer
+   (synthesizeXStoreMapping :1114-1118) rewrites $this.p to COLUMN reads
+   via rewriteRelationReads (:1271-1330); a Pure PropertyBinding (no
+   .column()) misses the c.column()!=null filter at :1321 → the :1325
+   throw. The condition is column-space by normalize time; the resolver
+   never sees property space today.
+2. **Substitution engine to reuse**: andCorrelatedIntoCondition
+   (AssociationJoins:962-1064) — pass 1: own param through
+   target.bindings() over tgtRow (RowScope :1022-1026); pass 2: free
+   outer vars through parent.bindings() over srcRow. Exactly the
+   $this/$that shape; needs two real ClassSources + slotPrefixes/subNavs.
+   The base XStore cond must arrive as a property-space TypedLambda —
+   the RowScope contract is the seam.
+3. **Set-id dispatch**: already complete — get(mapping, class, setId,...)
+   → findBinding filters by cb.setId() (ClassSources:710-766, Pure sets
+   included). MISSING CALLER: associationJoin resolves targets with NO
+   setId (AssociationJoins:728) — the XStore line's set ids must thread
+   to that get call.
+4. **Whole-instance $src / same-source second set** (trader[trader_set]):
+   TWO load-bearing gaps — (a) synthM2M DROPS pb.targetSetId()/
+   sourceSetId() (:1352-1410 never reads them); (b) only $src.assocProp
+   markers exist (ClassSources:491-500) with ONE consumer
+   (GraphEmission.graphChild:565-587 → m2mAssocChild). Need: a whole-$src
+   marker tagged with targetSetId + a graphChild consumer dispatching to
+   sources.get(mapping, sameClass, targetSetId, ...).
+5. **Pins**: 'no Relation or Relational set' is UNPINNED (free to change).
+   Must hold: MappingNormalizerTest.associationMapping_singleHop_emits-
+   LegacyAssocPredicate (:3857 — Relational-end column-space emission),
+   allEmittedNativesResolveInCatalog (:2118), LegacyCleanSheet-
+   ConvergenceTest.associationBindingTableConverges (:161). New pure-set
+   fixtures should pin the new branch; the runtime shape guard
+   (AssociationJoins:837-844) must stay satisfied — a property-space
+   emission can still terminate in a 5-arg legacyAssocPredicate whose
+   END args are set-pinned class extents, with the cond substituted at
+   the resolver.
