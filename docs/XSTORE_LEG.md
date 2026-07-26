@@ -260,3 +260,13 @@ Open questions: key-column demand (carry always vs child-demand-driven);
 member PAIRING (trade arm i ↔ product arm i — by the property route's
 declared target set id, NOT by position); multiplicity of the child arms
 (to-one product vs to-many trades reverse).
+
+## Provenance note: mixed-union arm order (audit 24)
+
+The relational-members-first arm order in ClassSources.mixedUnionSource
+is GOLDEN-DERIVED, not engine-code-derived: both XStoreUnion fixture
+declaration orders ((rel, model) and (models..., rel)) expect relational
+rows first, which pins store-batch order over declaration order. If the
+engine's cross-store batch scheduling is ever read directly, verify
+there; until then this is an advisory-golden contract like the SQL
+goldens themselves.

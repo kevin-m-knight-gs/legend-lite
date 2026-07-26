@@ -426,11 +426,22 @@ public final class ClassSources {
                 && pa.property().endsWith("_" + ord)) {
             String base = pa.property().substring(0,
                     pa.property().length() - ("_" + ord).length());
+            // audit 24 F1: strip ONLY when the suffixed spelling is NOT a
+            // real column of the arm row — a physical 'X_0' beside 'X'
+            // must never mis-strip (both-present is ambiguous, keep raw)
+            boolean suffixedIsReal = false;
+            Type.Column baseCol = null;
             for (Type.Column c : armRow.columns()) {
-                if (c.name().equals(base)) {
-                    return new TypedPropertyAccess(pa.source(), base,
-                            new ExprType(c.type(), c.multiplicity()));
+                if (c.name().equals(pa.property())) {
+                    suffixedIsReal = true;
                 }
+                if (c.name().equals(base)) {
+                    baseCol = c;
+                }
+            }
+            if (!suffixedIsReal && baseCol != null) {
+                return new TypedPropertyAccess(pa.source(), base,
+                        new ExprType(baseCol.type(), baseCol.multiplicity()));
             }
         }
         return SyntheticHeads.rebuildChildren(n,

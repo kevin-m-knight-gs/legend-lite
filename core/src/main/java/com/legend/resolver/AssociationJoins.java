@@ -1128,7 +1128,7 @@ final class AssociationJoins {
                 && ctx.findAssociationOf(parent.classFqn(), hop.property())
                         .isPresent()) {
             return parentNavSubquery(parentParam, parent, temporal, context,
-                    srcVar, srcRow, hop.property(), leaf.property());
+                    srcVar, srcRow, hop.property(), leaf.property(), false);
         }
         if (n instanceof TypedNativeCall oneW && oneW.args().size() == 1
                 && (oneW.callee().qualifiedName().equals(
@@ -1150,8 +1150,10 @@ final class AssociationJoins {
                 && mpv.name().equals(parentParam)
                 && ctx.findAssociationOf(parent.classFqn(), mHop.property())
                         .isPresent()) {
+            // the ->toOne() around the map IS the declared semantics —
+            // LIMIT 1 is faithful even over a to-many hop
             return parentNavSubquery(parentParam, parent, temporal, context,
-                    srcVar, srcRow, mHop.property(), mLeaf.property());
+                    srcVar, srcRow, mHop.property(), mLeaf.property(), true);
         }
         return SyntheticHeads.rebuildChildren(n, c -> parentNavCondReads(
                 c, parentParam, parent, temporal, context, srcVar, srcRow));
@@ -1160,7 +1162,24 @@ final class AssociationJoins {
     private TypedSpec parentNavSubquery(String parentParam, ClassSource parent,
             TemporalFrame temporal, StoreResolver.Context context,
             String srcVar, Type.RelationType srcRow, String hopProp,
-            String leafProp) {
+            String leafProp, boolean explicitToOne) {
+        // audit 24 F2: LIMIT-1 over a TO-MANY hop would silently compare
+        // ONE arbitrary element where pure compares the collection — only
+        // an EXPLICIT ->toOne() (the map-arm spelling) declares that
+        // semantics; a bare to-many read stays a loud wall
+        if (!explicitToOne) {
+            var pe = ctx.findAssociationOf(parent.classFqn(), hopProp)
+                    .map(a -> a.property1().propertyName().equals(hopProp)
+                            ? a.property1() : a.property2())
+                    .orElse(null);
+            if (pe != null && !pe.isToOne()) {
+                throw new NotImplementedException("XStore condition read '$"
+                        + parentParam + "." + hopProp + "." + leafProp
+                        + "' navigates a TO-MANY end — collection-valued"
+                        + " condition reads are not supported (wrap in"
+                        + " ->toOne() to declare single-element semantics)");
+            }
+        }
         AssocJoin aj = associationJoin(temporal, parent, hopProp,
                 context, /*forExists*/ true,
                 java.util.Set.of(leafProp), hopProp,
