@@ -196,11 +196,13 @@ final class NavMaterializer {
         Map<String, String> extraSubHeads = new LinkedHashMap<>();
         Map<String, List<List<String>>> extraSubTails = new LinkedHashMap<>();
         for (List<String> tail : tails) {
-            if (tail.size() >= 2) {
+            if (tail.size() >= 2
+                    || (!tail.isEmpty()
+                            && assocs.toOneClassProp(t.classFqn(), tail.get(0)))) {
                 TypedSpec b2 = t.bindings().get(
                         SyntheticHeads.realHead(tail.get(0)));
                 String a2 = b2 == null ? null
-                        : StoreResolver.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
+                        : InnerDemand.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
                 if (a2 != null) {
                     midByAlias.putIfAbsent(a2, tail.get(0));
                     if (!midByAlias.get(a2).equals(tail.get(0))
@@ -429,14 +431,18 @@ final class NavMaterializer {
             Map<String, List<List<String>>> subTails,
             String chainPrefix, TemporalContext hopCtx) {
         String mappingFqn = t.mappingFqn();
-        if (tail.size() >= 2) {
+        // a BARE class-typed TO-ONE tail joins too (qualifier-truncated
+        // demand — the qualifier body's leaves never reach the scan, but
+        // the SubNav's full binding table resolves them at substitution)
+        if (tail.size() >= 2
+                || assocs.toOneClassProp(t.classFqn(), tail.get(0))) {
             // a CORRELATED pred on a filtered sub-hop cannot park
             // in-target — leave the step undemanded (loud read),
             // never an unfiltered join (wrong rows)
             if (synthetics.correlatedPred(tail.get(0)) != null) {
                 return;
             }
-            String subAlias = StoreResolver.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
+            String subAlias = InnerDemand.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
             if (subAlias != null) {
                 // audit 12 F2: a TEMPORAL (or gated) sub-target must NOT
                 // materialize unfiltered under a non-temporal parent —

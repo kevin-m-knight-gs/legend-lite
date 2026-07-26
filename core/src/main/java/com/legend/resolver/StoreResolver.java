@@ -646,12 +646,18 @@ public final class StoreResolver {
         Set<String> tSlotDemand = new LinkedHashSet<>();
         Set<String> tNavDemand = new LinkedHashSet<>();
         Map<String, String> headNavAlias = new LinkedHashMap<>();
-        for (String h : downstreamHeads) {
+        // hop-colliding below-ops HOIST above the materialization; their
+        // tail heads extend the hop's own demand (leg slice 2)
+        FlattenOps.BelowSplit bsp = FlattenOps.splitBelowOps(belowOps, src,
+                alias, Pipelines.navSteps(src.pipeline()).keySet());
+        Set<String> allHeads = new LinkedHashSet<>(downstreamHeads);
+        allHeads.addAll(bsp.hopTailHeads());
+        for (String h : allHeads) {
             TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
             if (hb == null) {
                 continue;
             }
-            String na = navSlotAlias(hb, t.rowVar(), tNavSteps.keySet());
+            String na = InnerDemand.navSlotAlias(hb, t.rowVar(), tNavSteps.keySet());
             if (na != null) {
                 tNavDemand.add(na);
                 headNavAlias.put(h, na);
@@ -665,51 +671,23 @@ public final class StoreResolver {
         final Set<String> fNavDemand = tNavDemand;
         Pipelines.Materialized[] innerM = new Pipelines.Materialized[1];
         TypedSpec spliced = src.pipeline();
-        if (!belowOps.isEmpty()) {
-            // the below-ops' consumed chains get their materials from THE
-            // factory (docs/NESTED_SCOPE_REGISTRIES.md — the Map.of()
-            // registries walled multi-hop reads here, fe96e380)
-            Set<List<String>> bFull = new LinkedHashSet<>();
+        if (!bsp.spliceOps().isEmpty()) {
+            // non-colliding below-ops splice with THE factory's materials
+            // (docs/NESTED_SCOPE_REGISTRIES.md — the Map.of() registries
+            // walled multi-hop reads here, fe96e380)
             Set<List<String>> bHeads = new LinkedHashSet<>();
-            for (TypedSpec op : belowOps) {
-                List<TypedLambda> bls = switch (op) {
-                    case TypedFilter f -> List.of(f.predicate());
-                    case TypedSortBy sb -> List.of(sb.key());
-                    case TypedProject p2 -> terminalLambdas(p2);
-                    case TypedGroupBy g2 -> terminalLambdas(g2);
-                    default -> List.of();
-                };
-                for (TypedLambda bl : bls) {
-                    if (bl.parameters().isEmpty()) {
-                        continue;
-                    }
-                    for (TypedSpec b : bl.body()) {
-                        consumedPaths(b, bl.parameters().get(0), bFull);
-                    }
-                }
-            }
-            // a below-read sharing the FLATTEN HOP's head must ride the
-            // hop machinery, not the below scope: widening would consume
-            // the nav step the hop demand needs ('produced no prefix')
-            bFull.removeIf(p -> {
-                TypedSpec hb = src.bindings().get(
-                        SyntheticHeads.realHead(p.get(0)));
-                return hb != null && alias.equals(navSlotAlias(hb,
-                        src.rowVar(),
-                        Pipelines.navSteps(src.pipeline()).keySet()));
-            });
-            bFull.forEach(p -> bHeads.add(List.of(p.get(0))));
-            NestedScope bs = scopeMaterials(src, bHeads, bFull, belowOps,
-                    context, src.pipeline(), List.of());
+            bsp.spliceFull().forEach(p -> bHeads.add(List.of(p.get(0))));
+            NestedScope bs = scopeMaterials(src, bHeads, bsp.spliceFull(),
+                    bsp.spliceOps(), context, src.pipeline(), List.of());
             Pipelines.Materialized m0 = new Pipelines.Materialized(
                     bs.pipeline(),
                     Pipelines.materialize(src.pipeline(), java.util.Set.of(),
                             src.classFqn()).slotPrefixes(),
                     Set.of());
-            String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
+            String bv = CorrelatedSubselects.freshRowVar(src, bsp.spliceOps(),
                     src.pipeline(), List.of(), List.of(), Map.of(),
                     () -> freshVarCounter++);
-            spliced = FlattenOps.spliceBelow(bs.pipeline(), belowOps,
+            spliced = FlattenOps.spliceBelow(bs.pipeline(), bsp.spliceOps(),
                     fn -> substitution(src, m0, bs.regs().assocs(),
                             Set.of(), bs.regs().existsSubs(),
                             Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
@@ -743,6 +721,7 @@ public final class StoreResolver {
         // dispatches it) — the row-read rewriter would throw on it
         Map<String, String> innerSlotOnly = new LinkedHashMap<>(innerPrefixes);
         innerSlotOnly.keySet().removeAll(fNavDemand);
+        Map<String, Substitution.SubNav> hopSubNavs = new LinkedHashMap<>();
         for (var he : headNavAlias.entrySet()) {
             String ip = innerPrefixes.get(he.getValue());
             if (ip == null) {
@@ -757,6 +736,8 @@ public final class StoreResolver {
                     prefix + ip, sub.rowVar(), sub.bindings(),
                     sub.classFqn(),
                     Pipelines.slotAliases(sub.pipeline())));
+            hopSubNavs.put(he.getKey(), new Substitution.SubNav(
+                    ip, sub.rowVar(), sub.bindings()));
         }
         // audit 21b F3: the flatten contract is INNER ≡ engine LEFT +
         // reader null-skip. materialize emits the navigate join LEFT;
@@ -765,6 +746,30 @@ public final class StoreResolver {
         TypedSpec innerized = FlattenOps.innerizeFlattenJoin(m.pipeline(), prefix);
         m = new Pipelines.Materialized(innerized, m.slotPrefixes(),
                 m.stripped());
+        if (!bsp.hoisted().isEmpty()) {
+            // colliding below-ops apply HERE: reads through the hop head
+            // dispatch via the hop's AssocSub (prefix + inner prefixes) —
+            // row-equivalent to below-application under the INNER hop
+            Map<String, Substitution.AssocSub> hopAssocs =
+                    new LinkedHashMap<>();
+            for (String hh : bsp.hopHeads()) {
+                hopAssocs.put(hh, new Substitution.AssocSub(prefix,
+                        t.rowVar(), t.bindings(), targetClass,
+                        Pipelines.slotAliases(t.pipeline()), innerPrefixes,
+                        null, null, temporal.milestoneColumnsOf(
+                                t.pipeline(), targetClass), hopSubNavs));
+            }
+            final Pipelines.Materialized mf = m;
+            String hv = CorrelatedSubselects.freshRowVar(src, bsp.hoisted(),
+                    m.pipeline(), List.of(), List.of(), Map.of(),
+                    () -> freshVarCounter++);
+            m = new Pipelines.Materialized(
+                    FlattenOps.applyHoisted(m.pipeline(), bsp.hoisted(),
+                            fn -> substitution(src, mf, hopAssocs, Set.of(),
+                                    Map.of(), Map.of(), Map.of(), true, hv, fn)
+                                    .rewriteLambda(fn)),
+                    m.slotPrefixes(), m.stripped());
+        }
         Type.RelationType row =
                 (Type.RelationType) m.pipeline().info().type();
         ExprType rowInfo = new ExprType(row,
@@ -815,7 +820,7 @@ public final class StoreResolver {
         TypedSpec hopBinding = src.bindings().get(hop);
         var navSteps = Pipelines.navSteps(src.pipeline());
         String alias = hopBinding == null ? null
-                : navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
+                : InnerDemand.navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
             return flattenNavSlot(src, alias, navSteps.get(alias),
                     heads, provOut, belowOps, context);
@@ -1414,7 +1419,7 @@ public final class StoreResolver {
                     break;
                 }
             }
-            String alias = navSlotAlias(drill, cs.rowVar(), navSteps.keySet());
+            String alias = InnerDemand.navSlotAlias(drill, cs.rowVar(), navSteps.keySet());
             if (alias == null) {
                 continue;
             }
@@ -1626,7 +1631,7 @@ public final class StoreResolver {
                     inner = c1.args().get(0);
                 }
                 var pNavSteps = Pipelines.navSteps(parent.pipeline());
-                String alias = navSlotAlias(inner, parent.rowVar(),
+                String alias = InnerDemand.navSlotAlias(inner, parent.rowVar(),
                         pNavSteps.keySet());
                 var nav = alias == null ? null : pNavSteps.get(alias);
                 if (nav == null || !(nav.target()
@@ -2241,6 +2246,8 @@ public final class StoreResolver {
                         k -> new LinkedHashSet<>()).add(path.get(i + 1));
             }
         }
+        Map<String, Set<List<String>>> tailsByChain =
+                assocMaterial.chainNavTails(cs, paths);
         for (List<String> path : paths) {
             if (path.size() < 2) {
                 continue;
@@ -2308,7 +2315,8 @@ public final class StoreResolver {
                             + "' at '" + chainKey + "') is not supported yet");
                 }
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, path.get(hop), context, false,
-                        leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
+                        leavesByChain.getOrDefault(chainKey, Set.of()), chainKey,
+                        tailsByChain.getOrDefault(chainKey, Set.of()));
                 if (hop == 0) {
                     // SOURCE-SIDE nested condition reads register the
                     // parent's own assoc join first (navigate() rule)
@@ -2353,7 +2361,8 @@ public final class StoreResolver {
                     cond = new TypedLambda(cond.parameters(), List.of(body),
                             cond.info());
                     aj = new AssociationJoins.AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
-                            aj.targetRow(), cond, aj.targetSlotPrefixes());
+                            aj.targetRow(), cond, aj.targetSlotPrefixes(),
+                            aj.targetSubNavs(), aj.corrSubPred());
                 }
                 assocJoins.add(aj);
                 joinsByChain.put(chainKey, aj);
@@ -2363,7 +2372,8 @@ public final class StoreResolver {
                         Pipelines.slotAliases(aj.target().pipeline()),
                         aj.targetSlotPrefixes(), null, null,
                         temporal.milestoneColumnsOf(aj.target().pipeline(),
-                                aj.target().classFqn())));
+                                aj.target().classFqn()),
+                        aj.targetSubNavs()));
                 parent = aj.target();
                 parentPrefix = aj.prefix();
             }
@@ -3017,23 +3027,6 @@ public final class StoreResolver {
     }
 
     /** The navigate-slot alias a class-typed head binding reads, or null. */
-    static String navSlotAlias(TypedSpec binding, String rowVar,
-                                       Set<String> navAliases) {
-        TypedSpec inner = binding;
-        if (inner instanceof TypedNativeCall c
-                && c.args().size() == 1
-                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
-            inner = c.args().get(0);
-        }
-        if (inner instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v
-                && v.name().equals(rowVar)
-                && navAliases.contains(pa.property())) {
-            return pa.property();
-        }
-        return null;
-    }
-
     /** Milestoned accesses grouped by their dotted chain (mirrors
      * {@link #collectTemporalNodes}'s walk — anything the conflict
      * detector would see, the date splitter sees first). */
@@ -3226,7 +3219,7 @@ public final class StoreResolver {
         TypedSpec binding = cs.bindings().get(real);
         if (binding != null) {
             var navSteps = Pipelines.navSteps(cs.pipeline());
-            String alias = navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
+            String alias = InnerDemand.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
             if (alias == null) {
                 return false;   // embedded/otherwise heads keep their routes
             }

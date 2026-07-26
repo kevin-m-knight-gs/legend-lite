@@ -142,12 +142,31 @@ final class InnerDemand {
         return demand;
     }
 
+    /** The nav-step ALIAS a binding reads (a bare class-typed slot read,
+     * toOne-wrapped or not), null otherwise. */
+    static String navSlotAlias(TypedSpec binding, String rowVar,
+                                       Set<String> navAliases) {
+        TypedSpec inner = binding;
+        if (inner instanceof TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+            inner = c.args().get(0);
+        }
+        if (inner instanceof TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(rowVar)
+                && navAliases.contains(pa.property())) {
+            return pa.property();
+        }
+        return null;
+    }
+
     private static void demandStep(ClassSource t, Set<String> navStepKeys,
             String prop, Set<String> demand,
             java.util.Map<String, String> aliasOut) {
         TypedSpec hb = t.bindings().get(prop);
         String al = hb == null ? null
-                : StoreResolver.navSlotAlias(hb, t.rowVar(), navStepKeys);
+                : navSlotAlias(hb, t.rowVar(), navStepKeys);
         if (al != null) {
             demand.add(al);
             aliasOut.put(prop, al);

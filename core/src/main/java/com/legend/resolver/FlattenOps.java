@@ -24,6 +24,67 @@ import java.util.function.Function;
  */
 final class FlattenOps {
 
+    /** BELOW-OP SPLIT for a nav-slot flatten: ops whose reads pass
+     * through the HOP head hoist ABOVE the materialization
+     * (row-equivalent under the INNER hop) with the hop's AssocSub for
+     * dispatch; the rest splice below with factory materials. Collects
+     * the non-colliding paths ({@code spliceFull}) and the colliding
+     * heads/tail-heads that extend the hop's own demand. */
+    record BelowSplit(List<TypedSpec> hoisted, List<TypedSpec> spliceOps,
+            java.util.Set<List<String>> spliceFull,
+            java.util.Set<String> hopHeads,
+            java.util.Set<String> hopTailHeads) {}
+
+    static BelowSplit splitBelowOps(List<TypedSpec> belowOps,
+            ClassSource src, String alias,
+            java.util.Set<String> navStepKeys) {
+        List<TypedSpec> hoisted = new java.util.ArrayList<>();
+        List<TypedSpec> spliceOps = new java.util.ArrayList<>();
+        java.util.Set<List<String>> spliceFull = new java.util.LinkedHashSet<>();
+        java.util.Set<String> hopHeads = new java.util.LinkedHashSet<>();
+        java.util.Set<String> hopTailHeads = new java.util.LinkedHashSet<>();
+        for (TypedSpec op : belowOps) {
+            List<TypedLambda> bls = switch (op) {
+                case TypedFilter f -> List.of(f.predicate());
+                case com.legend.compiler.spec.typed.TypedSortBy sb ->
+                        List.of(sb.key());
+                default -> List.of();
+            };
+            java.util.Set<List<String>> opPaths =
+                    new java.util.LinkedHashSet<>();
+            for (TypedLambda bl : bls) {
+                if (bl.parameters().isEmpty()) {
+                    continue;
+                }
+                for (TypedSpec b : bl.body()) {
+                    StoreResolver.consumedPaths(b,
+                            bl.parameters().get(0), opPaths);
+                }
+            }
+            boolean collides = false;
+            for (List<String> pp : opPaths) {
+                TypedSpec hb = src.bindings().get(
+                        SyntheticHeads.realHead(pp.get(0)));
+                if (hb != null && alias.equals(InnerDemand.navSlotAlias(
+                        hb, src.rowVar(), navStepKeys))) {
+                    collides = true;
+                    hopHeads.add(pp.get(0));
+                    if (pp.size() >= 2) {
+                        hopTailHeads.add(pp.get(1));
+                    }
+                }
+            }
+            if (collides) {
+                hoisted.add(op);
+            } else {
+                spliceOps.add(op);
+                spliceFull.addAll(opPaths);
+            }
+        }
+        return new BelowSplit(hoisted, spliceOps, spliceFull,
+                hopHeads, hopTailHeads);
+    }
+
     private FlattenOps() {
     }
 
@@ -74,6 +135,24 @@ final class FlattenOps {
                         "object-space " + op.getClass().getSimpleName()
                         + " below a class-flatten hop is not supported yet");
             };
+        }
+        return p;
+    }
+
+    /** APPLY hop-colliding hoisted ops above the materialization: the
+     * rewriter dispatches their reads through the hop's AssocSub —
+     * row-equivalent to below-application under the INNER hop. Only
+     * filters hoist; other op kinds keep a loud wall. */
+    static TypedSpec applyHoisted(TypedSpec pipe, List<TypedSpec> hoisted,
+            Function<TypedLambda, TypedLambda> sub) {
+        TypedSpec p = pipe;
+        for (TypedSpec op : hoisted) {
+            if (!(op instanceof TypedFilter f)) {
+                throw new NotImplementedException("hop-colliding below-op"
+                        + " kind " + op.getClass().getSimpleName()
+                        + " is not supported yet");
+            }
+            p = new TypedFilter(p, sub.apply(f.predicate()), p.info());
         }
         return p;
     }

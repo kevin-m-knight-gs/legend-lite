@@ -327,7 +327,7 @@ private static List<String> parentEquiKeys(TypedLambda cond, String head) {
                 continue;
             }
             if (pp.size() >= 2) {
-                String al = StoreResolver.navSlotAlias(hb, cs.rowVar(), navSteps.keySet());
+                String al = InnerDemand.navSlotAlias(hb, cs.rowVar(), navSteps.keySet());
                 if (al != null) {
                     navDemand.add(al);
                     navByHead.put(pp.get(0), al);
@@ -542,7 +542,7 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
         TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(head));
         var navSteps = Pipelines.navSteps(cs.pipeline());
         String headAlias = binding == null ? null
-                : StoreResolver.navSlotAlias(binding, cs.rowVar(),
+                : InnerDemand.navSlotAlias(binding, cs.rowVar(),
                         navSteps.keySet());
         if (headAlias != null) {
             Pipelines.Materialized mat2 = Pipelines.materialize(cs.pipeline(),
@@ -927,7 +927,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             // Join-PM property)
             TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
             boolean slotBacked = hb != null
-                    && StoreResolver.navSlotAlias(hb, t.rowVar(), tNavSteps.keySet()) != null;
+                    && InnerDemand.navSlotAlias(hb, t.rowVar(), tNavSteps.keySet()) != null;
             if (!slotBacked && (hb != null
                     || !hasAssoc.test(t.classFqn(),
                             SyntheticHeads.realHead(h)))) {
@@ -1105,7 +1105,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
         TypedSpec b = parent.bindings().get(seg);
         var navSteps = Pipelines.navSteps(parent.pipeline());
         String alias = b == null ? null
-                : StoreResolver.navSlotAlias(b, parent.rowVar(),
+                : InnerDemand.navSlotAlias(b, parent.rowVar(),
                         navSteps.keySet());
         if (alias == null) {
             return null;

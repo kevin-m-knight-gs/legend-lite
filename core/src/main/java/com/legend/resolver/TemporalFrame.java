@@ -895,7 +895,7 @@ final class TemporalFrame {
             return null;
         }
         var navSteps = Pipelines.navSteps(cs.pipeline());
-        String alias = StoreResolver.navSlotAlias(navB, cs.rowVar(),
+        String alias = InnerDemand.navSlotAlias(navB, cs.rowVar(),
                 navSteps.keySet());
         if (alias == null
                 || !(navSteps.get(alias).target()
@@ -924,7 +924,7 @@ final class TemporalFrame {
         TypedSpec b = cs.bindings().get(head);
         var navSteps = Pipelines.navSteps(cs.pipeline());
         String alias = b == null ? null
-                : StoreResolver.navSlotAlias(b, cs.rowVar(), navSteps.keySet());
+                : InnerDemand.navSlotAlias(b, cs.rowVar(), navSteps.keySet());
         return alias != null && navSteps.get(alias).target()
                 instanceof com.legend.compiler.spec.typed.TypedGetAll g
                 ? g.classFqn() : null;
@@ -935,7 +935,7 @@ final class TemporalFrame {
             Map<String, String> slotPrefixes) {
         TypedSpec b = cs.bindings().get(head);
         String alias = b == null ? null
-                : StoreResolver.navSlotAlias(b, cs.rowVar(),
+                : InnerDemand.navSlotAlias(b, cs.rowVar(),
                         Pipelines.navSteps(cs.pipeline()).keySet());
         return alias == null ? null : slotPrefixes.get(alias);
     }

@@ -99,7 +99,7 @@ final class AssociationJoins {
                     head, tgtNavPaths);
         }
         var navSteps = Pipelines.navSteps(cs.pipeline());
-        String alias = StoreResolver.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
+        String alias = InnerDemand.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
         var nav = navSteps.get(alias);
         String targetClass = ((TypedGetAll)
                 nav.target()).classFqn();
@@ -148,7 +148,7 @@ final class AssociationJoins {
             }
             TypedSpec hb = t.bindings().get(pp.get(0));
             String al = hb == null ? null
-                    : StoreResolver.navSlotAlias(hb, t.rowVar(),
+                    : InnerDemand.navSlotAlias(hb, t.rowVar(),
                             tNavSteps.keySet());
             if (al != null) {
                 tNavDemand.add(al);
@@ -334,7 +334,7 @@ final class AssociationJoins {
             return aj.withCondition(paired);
         }
         TypedSpec pb = parent.bindings().get(SyntheticHeads.realHead(head));
-        if (pb != null && StoreResolver.navSlotAlias(pb, parent.rowVar(),
+        if (pb != null && InnerDemand.navSlotAlias(pb, parent.rowVar(),
                 Pipelines.navSteps(parent.pipeline()).keySet()) != null) {
             return aggJoinMaterial(temporal, parent, head, context, leaves,
                     Set.of());
@@ -627,6 +627,64 @@ final class AssociationJoins {
                 demandedLeaves, chainKey, Set.of());
     }
 
+    /** TARGET-side nav tails per chain key: for each consumed path, the
+     * segments past each hop. A BARE (size-1) class-typed tail head
+     * demands its target join only when TO-ONE — an unread to-many
+     * step would explode the hop's rows; deeper tails are genuinely
+     * read (the qualifier-truncated demand shape, testJoinThroughView:
+     * the qualifier body's leaves never reach the demand scan, so the
+     * bare class hop must still expose its SubNav). */
+    Map<String, java.util.Set<List<String>>> chainNavTails(ClassSource cs,
+            java.util.Set<List<String>> paths) {
+        Map<String, java.util.Set<List<String>>> out =
+                new java.util.LinkedHashMap<>();
+        for (List<String> path : paths) {
+            String cur = cs.classFqn();
+            for (int i = 0; i + 1 < path.size(); i++) {
+                cur = hopTargetClass(cur, path.get(i));
+                List<String> tail = path.subList(i + 1, path.size());
+                if (tail.size() >= 2 || toOneClassProp(cur, tail.get(0))) {
+                    out.computeIfAbsent(
+                            String.join(".", path.subList(0, i + 1)),
+                            k -> new java.util.LinkedHashSet<>()).add(tail);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** TO-ONE class-typed property test — the bare-tail demand gate: a
+     * to-one hop joins row-safely even when the demand scan saw no leaf
+     * (qualifier-truncated reads); a to-many hop would explode rows. */
+    boolean toOneClassProp(String clsFqn, String prop) {
+        return clsFqn != null && ctx.findProperty(clsFqn,
+                SyntheticHeads.realHead(prop))
+                .map(p2 -> p2.type() instanceof Type.ClassType
+                        && p2.multiplicity() instanceof
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded bb
+                        && Integer.valueOf(1).equals(bb.upper()))
+                .orElse(false);
+    }
+
+    /** The class a hop lands on: a declared class-typed property, or an
+     * association end (the walk's own dispatch — findProperty alone
+     * misses association-declared ends). */
+    private String hopTargetClass(String clsFqn, String prop) {
+        if (clsFqn == null) {
+            return null;
+        }
+        String real = SyntheticHeads.realHead(prop);
+        var pr = ctx.findProperty(clsFqn, real).orElse(null);
+        if (pr != null && pr.type() instanceof Type.ClassType ct) {
+            return ct.fqn();
+        }
+        return ctx.findAssociationOf(clsFqn, real)
+                .map(a -> (a.property1().propertyName().equals(real)
+                        ? a.property1() : a.property2()).targetClassFqn())
+                .orElse(null);
+    }
+
     /** {@code navTails}: TARGET-side nav paths past this head
      * (placeOfInterest.name on Location for
      * $e.locations.placeOfInterest.name) — each tail's first segment
@@ -690,7 +748,7 @@ final class AssociationJoins {
             String seg0 = tail.get(0);
             TypedSpec b3 = target.bindings().get(SyntheticHeads.realHead(seg0));
             String al3 = b3 == null ? null
-                    : StoreResolver.navSlotAlias(b3, target.rowVar(),
+                    : InnerDemand.navSlotAlias(b3, target.rowVar(),
                             tNavSteps3.keySet());
             if (al3 != null) {
                 tNavDemand3.add(al3);
