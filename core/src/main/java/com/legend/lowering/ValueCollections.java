@@ -39,14 +39,16 @@ final class ValueCollections {
     }
 
     /** {@code SELECT flatten(LIST([cells...]))} over {@code rel} — a
-     * MULTI-column relation as a ROW-MAJOR value collection. Cells cast
-     * to ONE list type (VARCHAR — DuckDB refuses mixed list_value). */
+     * MULTI-column relation as a ROW-MAJOR value collection. Cells ride
+     * the VARIANT carrier (to_json — the mixed-list discipline: exact
+     * type preservation, same spelling the Any-LUB collection literal
+     * uses), never a text CAST. */
     static SqlSelect rowMajorCellList(SqlSelect rel, Type.RelationType rt,
             String sub) {
         List<SqlExpr> cells = new ArrayList<>();
         for (Type.Column c : rt.columns()) {
-            cells.add(new SqlExpr.Cast(new SqlExpr.Column(sub, c.name()),
-                    SqlType.Scalar.VARCHAR));
+            cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                    new SqlExpr.Column(sub, c.name())));
         }
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub))
                 .withProjections(List.of(new SqlSelect.Projection(
