@@ -1,0 +1,138 @@
+# XStore leg — cross-store queries as ONE SQL plan
+
+## Scope (the 24-test cluster, census 2026-07-26 at nominal 1600)
+
+Every test walls at the SAME place: the Typer's `unbound variable`
+(Typer.java:131) on a let-bound CONNECTION/RUNTIME value — before any
+store machinery runs. Three clusters by what the runtime carries:
+
+| Cluster | Tests | Wall | Engine shape |
+|---|---|---|---|
+| A. Cross-store graphFetch (JSON ModelStore root → relational children) | 15 × `$dbRuntime` — testCrossMappingJsonToDB{,WithNoLocalProperties,WithExplosion}, testSimple/NestedUnion{,OnMultipleSets}CrossStore, testSimpleOrderedCrossStoreGraphFetch× 6, testOrderedCrossStoreGraphFetchWithComplexQualifierExpression{,Reuse} | `let dbRuntime = testRuntime()` then `^$dbRuntime(connectionStores = ...->concatenate(^ConnectionStore(element=^ModelStore(), connection=$jsonConnection)))` | Pure sets (`Trade[trade_set]: Pure { ~src S_Trade, +prodId: $src.s_tradeDetails->split(':')->at(0) ... }`) sourced from a `JsonModelConnection(class=S_Trade, url='data:application/json,{...}')`, XStore assoc (`Trade_Product : XStore { product[trade_set, prod_set]: $this.prodId == $that.productId }`) to Relational sets |
+| B. JSON-sourced M2M feeding a relational query | 4 × `$jsonConnection` — testSourcingJsonResultToQuery{,WithFiltersInMapping,WithParametersInUrl,WithPureDateAsParam} | same `JsonModelConnection` let | JSON rows drive the M2M source class of an otherwise-relational execution |
+| C. Mapping chain | 5 × `$modelChainConnection` — testRelationalChainExecution{Flat,Nested,WithFilter,WithInScopeVariableFilter} + testInExecutionWithTempTableAndQueryChainingAndChainConnection (functions/tests) | `^ModelChainConnection(mappings=[simpleRelationalMapping])` in a hand-built `^Runtime(connectionStores=...)` | M2M mapping whose `~src` classes resolve THROUGH the chained mapping (Target_Firm: Pure { ~src Firm } where Firm is relational in the chained mapping) |
+
+Adjacent but NOT this leg: testCrossMappingWithRelOpWithJoinKeys /
+testCrossMappingWithMoreBooleanAlgebra (already past the runtime wall —
+resolver gaps in xstore end synthesis), testCrossStoreWithCSVDataSource
+(`^EngineRuntime` vocabulary), CrossStoreGraphFetchWithRelationalMilestoned×4
+(`executeLegendQuery` 4-arg — plan-metamodel track), the modelJoin
+family's 9 non-pass (resolver long-tail: sub-aggregation heads,
+exists-nested navigation, inner-join-on-target — they share machinery
+but not the runtime wall).
+
+## Engine architecture (for the record)
+
+- Metamodel: `XStoreAssociationImplementation` — per-end property
+  mappings with `crossExpression` lambdas (`$this.key == $that.key`),
+  ends named by set ids (core/pure/mapping/XStore.pure).
+- Interpreted path: `crossGetterOverride` (XStore.pure:37) — per-OBJECT
+  lazy navigation: reads the source object's hidden `MappingInstanceData`
+  payload, finds the property mapping, and when source/target stores
+  differ fires `performXStoreQuery` = a routed `StoreMappingRouted...`
+  execution of `Target.all()->filter($that| <crossExpression with $this
+  keys bound>)` against the target store.
+- Plan path (what the corpus tests exercise): cross-store graphFetch
+  nodes — root store executes its local tree, cross keys
+  (`parent_cross_key_*`) collected per batch, each cross child runs a
+  root-like query on ITS store keyed by an IN-list; strict constraints
+  (single-property traversal, primitive keys — feature map §7).
+- `ModelChainConnection(mappings=[M])`: the ModelStore's "connection" is
+  ANOTHER MAPPING — the M2M's source classes are fetched by executing
+  them through M, i.e. mapping composition at runtime.
+
+## What legend-lite already has
+
+- **XStore association PARSING + synthesis**: MappingGrammarParser
+  `parseXStoreAssociationMapping` (`A : XStore { prop[src,tgt]: expr }`),
+  `MappingNormalizer.synthesizeXStoreMapping` / `xstoreEndOf`,
+  ModelJoinNesting's doctrine "both XStore and ModelJoin are just
+  navigate()". The modelJoins family (38/47) exercises this machinery
+  end-to-end for relational-to-relational model joins.
+- **M2M `~src` chains**: MappingNormalizer resolves Pure-class sets by
+  recursive substitution (H5 design: β-composition of binding tables),
+  with cycle detection (:762-784). `+prodId`-style mapping-local
+  columns are already understood as XStore keys (:911-913).
+- **JsonModelConnection**: model class + ElementParser support for
+  embedded `JsonModelConnection { class: ...; url: '...'; }` islands.
+- **Missing**: (1) the Typer/value vocabulary for let-bound runtime
+  values — `^JsonModelConnection(...)`, `^ModelChainConnection(...)`,
+  `^Runtime(...)`, `^ConnectionStore(...)`, `^ModelStore()`, and the
+  `^$var(...)` COPY-CONSTRUCTOR over a runtime-typed let; (2) a
+  RELATION source for a JSON ModelStore class (the data: URL's rows);
+  (3) execution-context threading of the extra connections into
+  ClassSources (which mapping/store serves which set).
+
+## The legend-lite design (tenet: Java orchestrates, database executes)
+
+The engine brokers cross-store navigation OBJECT-BY-OBJECT (or batch
+IN-lists) across two executors. We have ONE executor (DuckDB) and a
+resolver that composes relations — so the whole cross-store query
+lowers to ONE SQL plan:
+
+1. **JSON ModelStore class = a relation**: a `JsonModelConnection`
+   data: URL is STATIC ROWS. `S_Trade` becomes a typed frame —
+   `read_json`/VALUES lowered from the parsed payload, columns from
+   the class's properties (same discipline as model-driven DDL: the
+   class decl is the schema). The M2M set's binding exprs
+   (`split(':')->at(0)`, `parseInteger`) are ordinary scalar lowerings
+   over that frame — the ClassSource for `Trade[trade_set]` is a
+   projection over the S_Trade frame, by the SAME recursive
+   substitution that serves `~src` today.
+2. **XStore association = an ordinary AssocSub**: both ends are now
+   relations; the crossExpression (`$this.prodId == $that.productId`)
+   is the join condition — the existing navigate()/graph-emission
+   machinery applies unchanged. Engine's per-batch IN-list plan shape
+   is a DIVERGENCE WE DOCUMENT (advisory SQL), row equality is the
+   contract.
+3. **ModelChainConnection = resolver composition**: the M2M's `~src
+   Firm` resolves `Firm` through the CHAINED mapping's ClassSource
+   (sources.get(chainedMapping, Firm)) and β-composes — zero new
+   execution machinery, exactly the H5 M2M sketch with the inner
+   mapping taken from the connection instead of the same mapping.
+4. **Runtime values in test bodies**: the harness's exec env gains a
+   RUNTIME VALUE vocabulary — `testRuntime()` as a value, `^Runtime`,
+   `^ConnectionStore`, `^ModelStore`, `^JsonModelConnection`,
+   `^ModelChainConnection` construction, `^$var(...)` copy-ctor, and
+   `.connectionStores->concatenate(...)`. These evaluate to a CONTEXT
+   OBJECT (mapping set + per-store connection facts), consumed by
+   `execute(query, mapping, $runtime, ...)` to seed StoreResolver's
+   Context — the same role the driver-supplied runtime plays today.
+   Loud on any unknown connection kind.
+
+## Slice ladder (each: gate cycle, REVERT ON REGRESSION)
+
+- **Slice 0 — runtime-value vocabulary** (unblocks all 24, converts ~0
+  alone): platform classes + Typer acceptance + exec-env evaluation of
+  the runtime lets and the `^$var` copy-ctor; `execute(...)` consumes
+  the composed runtime. Exit: every cluster test moves PAST `unbound
+  variable` to its true store wall (named, precise). Zero regressions.
+- **Slice 1 — mapping chain (cluster C, 5 tests)**: ModelChainConnection
+  threads the chained mapping into ClassSources for M2M `~src`
+  resolution. Target: testRelationalChainExecutionFlat first (flat
+  projection through the chain — smallest row-verified conversion).
+- **Slice 2 — JSON source frame (cluster B, 4 tests)**: data: URL →
+  typed VALUES frame; M2M set over it; parameters-in-url + date-param
+  variants after the flat case. Target: testSourcingJsonResultToQuery.
+- **Slice 3 — cross-store graphFetch (cluster A core, ~7)**:
+  XStore assoc between the JSON-frame set and relational sets through
+  the standard AssocSub/graph emission; testCrossMappingJsonToDB
+  family + testSimpleOrderedCrossStoreGraphFetch basics.
+- **Slice 4 — union + ordered/property-level variants (~8)**:
+  cross-store unions ride the union arm factory; ordered multi-level /
+  property-level fetch details last.
+
+## Risks / walls to expect
+
+- The JSON payloads in data: URLs are CONCATENATED objects
+  (`{...}{...}` — not a JSON array); the frame builder must split them
+  (engine's JsonModelConnection semantics: one object per row; some
+  tests wrap in `{"s_trades": [...]}` — class-typed roots).
+- Ordered cross-store tests assert ORDER — the engine's per-batch
+  execution preserves root order; our single-SQL plan must ORDER BY
+  the root's natural sequence (row_number over the root frame if
+  needed).
+- testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements
+  chains XStore hops — needs slice 3's assoc route to compose.
+- Property-level fetch details / complex qualifier expressions in
+  XStore conditions may hit the qualifier-inlining long tail.
