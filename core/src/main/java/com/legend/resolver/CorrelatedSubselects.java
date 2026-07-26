@@ -1637,7 +1637,8 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
     static void aggScan(TypedSpec n, String userVar, ClassSource cs,
                          Map<String, List<StoreResolver.AggDemand>> aggOut,
                          Set<List<String>> bareOut,
-                         java.util.function.BiPredicate<ClassSource, String> toManyHead) {
+                         java.util.function.BiPredicate<ClassSource, String> toManyHead,
+                         java.util.function.BiPredicate<ClassSource, String> bareHead) {
         if (n instanceof TypedNativeCall nc
                 && !nc.args().isEmpty()
                 && AGG_FQNS.contains(nc.callee().qualifiedName())) {
@@ -1657,7 +1658,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                             .add(new StoreResolver.AggDemand(nc, spa.property(), null,
                                     ssb.key(), ssb.ascending()));
                     for (int i = 1; i < nc.args().size(); i++) {
-                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead);
+                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead, bareHead);
                     }
                     return;
                 }
@@ -1689,7 +1690,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                             .add(new StoreResolver.AggDemand(nc, null, tmap.mapper(),
                                     mOrder, mAsc));
                     for (int i = 1; i < nc.args().size(); i++) {
-                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead);
+                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead, bareHead);
                     }
                     return;
                 }
@@ -1699,9 +1700,35 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
                         .add(new StoreResolver.AggDemand(nc, path.get(1)));
                 for (int i = 1; i < nc.args().size(); i++) {
-                    aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead);
+                    aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead, bareHead);
                 }
                 return;   // the path is agg-consumed, not bare
+            }
+            // BARE-HEAD COUNT ($x.employees->count()) — the matched
+            // targets' ROW COUNT: encoded as the computed-mapper spelling
+            // over a CONSTANT (one per target row), so the grouped-
+            // subselect fold serves it unchanged (COUNT(agg col), zero-
+            // when-empty join-back). The modelJoin/XStore sub-agg family.
+            if (path != null && path.size() == 1 && isCountFamily(nc)
+                    && bareHead.test(cs, path.get(0))) {
+                var one1 = com.legend.compiler.element.type.Multiplicity
+                        .Bounded.ONE;
+                TypedLambda constMapper = new TypedLambda(List.of("_cnt"),
+                        List.of(new TypedCInteger(1,
+                                new ExprType(Type.Primitive.INTEGER, one1))),
+                        new ExprType(new Type.FunctionType(
+                                List.of(new Type.Param(
+                                        nc.args().get(0).info().type(), one1)),
+                                new Type.Param(Type.Primitive.INTEGER, one1)),
+                                one1));
+                aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
+                        .add(new StoreResolver.AggDemand(nc, null,
+                                constMapper));
+                for (int i = 1; i < nc.args().size(); i++) {
+                    aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut,
+                            toManyHead, bareHead);
+                }
+                return;
             }
             // DEEP leaf ($f.employees.address.name->count()): encode as
             // the COMPUTED-MAPPER spelling (λe.$e.address.name) — the
@@ -1717,7 +1744,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                             .add(new StoreResolver.AggDemand(nc, null, synth));
                     for (int i = 1; i < nc.args().size(); i++) {
                         aggScan(nc.args().get(i), userVar, cs, aggOut,
-                                bareOut, toManyHead);
+                                bareOut, toManyHead, bareHead);
                     }
                     return;
                 }
@@ -1770,7 +1797,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             return;   // shadowing: same stop as consumedPaths
         }
         for (TypedSpec c : n.children()) {
-            aggScan(c, userVar, cs, aggOut, bareOut, toManyHead);
+            aggScan(c, userVar, cs, aggOut, bareOut, toManyHead, bareHead);
         }
     }
 

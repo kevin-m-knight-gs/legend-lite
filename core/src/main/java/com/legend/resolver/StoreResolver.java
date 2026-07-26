@@ -1310,7 +1310,7 @@ public final class StoreResolver {
                 for (TypedSpec b : sb.key().body()) {
                     CorrelatedSubselects.aggScan(b, sb.key().parameters().get(0), cs,
                             aggDemands, projectionPaths,
-                            this::isToManyAssocHead);
+                            this::isToManyAssocHead, this::isAssocOrNavHead);
                 }
             }
         }
@@ -2778,7 +2778,7 @@ public final class StoreResolver {
                 for (TypedSpec b : fn.body()) {
                     CorrelatedSubselects.aggScan(b, fn.parameters().get(0), cs,
                             aggDemands, projectionPaths,
-                            this::isToManyAssocHead);
+                            this::isToManyAssocHead, this::isAssocOrNavHead);
                 }
                 synthetics.corrPredOuterDemand(fn, projectionPaths);
             }
@@ -3195,14 +3195,28 @@ public final class StoreResolver {
         // an aggregate over a lifted head must take the grouped-subselect
         // route, never bare-explode (wrong row counts, silent)
         String real = SyntheticHeads.realHead(head);
+        // findProperty misses ASSOCIATION-DECLARED ends (the modelJoin/
+        // XStore domains declare them on the Association element only —
+        // same gap as chainNavTails' hopTargetClass): fall through to the
+        // association end's own multiplicity.
         boolean toMany = ctx.findProperty(cs.classFqn(), real)
                 .map(pr -> !(pr.multiplicity()
                         instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                         && Integer.valueOf(1).equals(b.upper())))
-                .orElse(false);
-        if (!toMany) {
-            return false;
-        }
+                .orElseGet(() -> ctx.findAssociationOf(cs.classFqn(), real)
+                        .map(a -> !(a.property1().propertyName().equals(real)
+                                ? a.property1() : a.property2()).isToOne())
+                        .orElse(false));
+        return toMany && isAssocOrNavHead(cs, real);
+    }
+
+    /** {@code head} navigates: an unbound association end or a
+     * navigate-slot binding, ANY multiplicity — the bare-count route
+     * (count(rows) is row-correct regardless of the declared bound; the
+     * modelJoin corpus declares [1] ends whose join conditions fan out,
+     * and the engine counts ROWS). */
+    boolean isAssocOrNavHead(ClassSource cs, String head) {
+        String real = SyntheticHeads.realHead(head);
         TypedSpec binding = cs.bindings().get(real);
         if (binding != null) {
             var navSteps = Pipelines.navSteps(cs.pipeline());
