@@ -1949,6 +1949,46 @@ final class Typer {
                 return columnsMeta(rt, ap.property().equals("type"));
             }
         }
+        // .columns.documentation — col()'s optional metadata (TDSColumn
+        // .documentation is String[0..1]: undocumented columns FLATTEN
+        // away). A static fact of the PROJECT node, like name/type above.
+        if (ap.receiver() instanceof AppliedProperty inner2
+                && inner2.property().equals("columns")
+                && ap.property().equals("documentation")) {
+            TypedSpec rel = synth(inner2.receiver(), env);
+            TypedSpec un = rel;
+            // column metadata is invariant under ROW ops — walk through
+            // from() rescopes and relation-in/relation-out wrappers
+            // (at/toOne/first — the Result-envelope peel) to the project
+            boolean walked = true;
+            while (walked) {
+                walked = false;
+                if (un instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+                    un = f.source();
+                    walked = true;
+                } else if (un instanceof TypedNativeCall w
+                        && !w.args().isEmpty()
+                        && w.args().get(0).info().type()
+                                instanceof Type.RelationType) {
+                    un = w.args().get(0);
+                    walked = true;
+                }
+            }
+            if (rel.info().type() instanceof Type.RelationType) {
+                if (un instanceof com.legend.compiler.spec.typed.TypedProject tp) {
+                    return tp.docsFold();
+                }
+                // an ENVELOPE read ($result.values->at(0)...): the project
+                // is only visible after the K-side splice (G-half) — emit
+                // the identity-typed MARKER the splice hook resolves (the
+                // .rows-marker discipline, audit 19d B2)
+                return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                        rel, "columns.documentation",
+                        new ExprType(Type.Primitive.STRING,
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_MANY));
+            }
+        }
         TypedSpec source = synth(ap.receiver(), env);
         if (source.info().type() instanceof Type.RelationType rt2) {
             // TDS surface over relation values (engine TabularDataSet):

@@ -11,9 +11,15 @@ import java.util.Objects;
  * @param name the output column name (the colspec alias)
  * @param fn   the type-checked mapping lambda; its body type is the column's type
  */
-public record TypedFuncCol(String name, TypedLambda fn) {
+public record TypedFuncCol(String name, TypedLambda fn, String documentation) {
     public TypedFuncCol {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(fn, "fn");
+    }
+
+    /** The common undocumented column (documentation is col()'s optional
+     * third argument — real pure tds.pure:289 metadata). */
+    public TypedFuncCol(String name, TypedLambda fn) {
+        this(name, fn, null);
     }
 }

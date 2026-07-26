@@ -3,6 +3,7 @@ package com.legend.compiler.spec;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.model.spec.AppliedFunction;
@@ -52,10 +53,18 @@ final class ProjectChecker {
                 af = new AppliedFunction(af.function(), np);
             }
         }
-        AppliedFunction modern = normalizeLegacyForms(af);
+        java.util.Map<String, String> docs = new java.util.LinkedHashMap<>();
+        AppliedFunction modern = normalizeLegacyForms(af, docs);
         Application a = t.checkGeneric(withMappedColumns(modern), env);
-        return new TypedProject(a.args().get(0), Args.funcCols(a.args().get(1)),
-                clampTdsCells(a.out()));
+        List<TypedFuncCol> cols = Args.funcCols(a.args().get(1));
+        if (!docs.isEmpty()) {
+            // col()'s documentation rides the typed column (the
+            // .columns.documentation static fold reads it back)
+            cols = cols.stream().map(fc -> docs.containsKey(fc.name())
+                    ? new TypedFuncCol(fc.name(), fc.fn(), docs.get(fc.name()))
+                    : fc).toList();
+        }
+        return new TypedProject(a.args().get(0), cols, clampTdsCells(a.out()));
     }
 
     /**
@@ -94,7 +103,8 @@ final class ProjectChecker {
      *       a non-property leaf without a name is loud.</li>
      * </ul>
      */
-    private static AppliedFunction normalizeLegacyForms(AppliedFunction af) {
+    private static AppliedFunction normalizeLegacyForms(AppliedFunction af,
+            java.util.Map<String, String> docsOut) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() == 3) {
             ValueSpecification lambdas = ps.get(1) instanceof PureCollection ? ps.get(1)
@@ -108,7 +118,8 @@ final class ProjectChecker {
                 || isLegacyColumnCall(ps.get(1)))) {
             // scalar legacy column: project(col(fn,'name')) — wrap and recurse
             return normalizeLegacyForms(new AppliedFunction(af.function(),
-                    List.of(ps.get(0), new PureCollection(List.of(ps.get(1))))));
+                    List.of(ps.get(0), new PureCollection(List.of(ps.get(1))))),
+                    docsOut);
         }
         if (ps.size() == 2 && ps.get(1) instanceof PureCollection lambdas) {
             List<ValueSpecification> exprs = new ArrayList<>(lambdas.values().size());
@@ -130,7 +141,7 @@ final class ProjectChecker {
                 // The 3-arg form adds DOCUMENTATION (real pure
                 // tds.pure:289 col(func, name, documentation) —
                 // BasicColumnSpecification metadata, no execution
-                // semantics; discarded here).
+                // semantics; carried to the typed column by NAME).
                 if (v instanceof AppliedFunction colCall
                         && colCall.function().equals("col")
                         && (colCall.parameters().size() == 2
@@ -144,6 +155,10 @@ final class ProjectChecker {
                         fnArg = pc1.values().get(0);
                     }
                     if (fnArg instanceof LambdaFunction fn) {
+                        if (colCall.parameters().size() == 3) {
+                            docsOut.put(cname.value(), ((CString)
+                                    colCall.parameters().get(2)).value());
+                        }
                         exprs.add(fn);
                         names.add(cname);
                         continue;

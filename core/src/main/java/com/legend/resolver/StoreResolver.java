@@ -2959,7 +2959,7 @@ public final class StoreResolver {
         return switch (top) {
             case TypedProject p -> new TypedProject(base,
                     p.columns().stream().map(col -> new TypedFuncCol(col.name(),
-                            sub.apply(col.fn()))).toList(),
+                            sub.apply(col.fn()), col.documentation())).toList(),
                     p.info());
             case TypedGroupBy gb -> new TypedGroupBy(base,
                     gb.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),

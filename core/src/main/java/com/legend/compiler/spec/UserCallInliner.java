@@ -631,7 +631,8 @@ public final class UserCallInliner {
 
 
     private TypedFuncCol funcCol(TypedFuncCol c, Map<String, TypedSpec> env) {
-        return new TypedFuncCol(c.name(), lambda(c.fn(), env));
+        return new TypedFuncCol(c.name(), lambda(c.fn(), env),
+                c.documentation());
     }
 
     private List<TypedFuncCol> funcCols(List<TypedFuncCol> cs, Map<String, TypedSpec> env) {

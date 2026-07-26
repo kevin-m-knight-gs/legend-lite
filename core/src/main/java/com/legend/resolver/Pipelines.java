@@ -512,7 +512,8 @@ final class Pipelines {
                             .toList();
                     cols.add(new TypedFuncCol(
                             col.name(), new TypedLambda(col.fn().parameters(),
-                                    body, col.fn().info())));
+                                    body, col.fn().info()),
+                            col.documentation()));
                 }
                 yield new TypedProject(src, cols, pr.info());
             }
@@ -1070,7 +1071,8 @@ final class Pipelines {
                     tp.columns().stream().map(fc -> new TypedFuncCol(
                             fc.name(),
                             (TypedLambda) rewriteRowReads(fc.fn(), rowVar,
-                                    prefixes, stripped, varRewrite)))
+                                    prefixes, stripped, varRewrite),
+                            fc.documentation()))
                             .toList(),
                     tp.info());
             case TypedFilter tf -> new TypedFilter(tf.source(),

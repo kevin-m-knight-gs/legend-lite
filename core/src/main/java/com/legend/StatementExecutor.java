@@ -626,6 +626,46 @@ final class StatementExecutor {
                             com.legend.compiler.element.type.Type.RelationType) {
                 return rp.source();
             }
+            // the Typer's `.columns.documentation` MARKER: the receiver is
+            // spliced by the time this hook sees the node — walk to the
+            // PROJECT and fold col()'s doc metadata (String[0..1] per
+            // column: undocumented columns flatten away)
+            if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess dm
+                    && dm.property().equals("columns.documentation")) {
+                TypedSpec un = dm.source();
+                boolean walked = true;
+                while (walked) {
+                    walked = false;
+                    if (un instanceof com.legend.compiler.spec.typed.TypedFrom f2) {
+                        un = f2.source();
+                        walked = true;
+                    } else if (un instanceof com.legend.compiler.spec.typed
+                            .TypedNativeCall w2
+                            && !w2.args().isEmpty()
+                            && w2.args().get(0).info().type() instanceof
+                                    com.legend.compiler.element.type
+                                            .Type.RelationType) {
+                        un = w2.args().get(0);
+                        walked = true;
+                    } else if (un instanceof com.legend.compiler.spec.typed
+                            .TypedPropertyAccess pv2) {
+                        // an UNSPLICED envelope read ($result.values):
+                        // resolve through the exec frame ourselves
+                        TypedSpec spl = spliceValuesRead(pv2, execFrames,
+                                letPrefix, specs, env);
+                        if (spl != null) {
+                            un = spl;
+                            walked = true;
+                        }
+                    }
+                }
+                if (un instanceof com.legend.compiler.spec.typed.TypedProject tp2) {
+                    return tp2.docsFold();
+                }
+                throw new IllegalStateException("columns.documentation read"
+                        + " did not reach a project after the splice (source="
+                        + un.getClass().getSimpleName() + ")");
+            }
             // $r->size() / $tds->size(): ONE TDS value, never the row count
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall sz
                     && SIZE_FQNS.contains(sz.callee().qualifiedName())

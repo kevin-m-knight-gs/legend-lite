@@ -31,4 +31,25 @@ public record TypedProject(TypedSpec source, List<TypedFuncCol> columns, ExprTyp
         columns.forEach(c -> out.add(c.fn()));
         return out;
     }
+
+    /** The {@code .columns.documentation} static fold: col()'s doc
+     * metadata per column (String[0..1] — undocumented columns flatten
+     * away). Consumed by the Typer's in-query arm and the K-side
+     * splice hook's marker resolution. */
+    public TypedSpec docsFold() {
+        java.util.List<TypedSpec> docs = new java.util.ArrayList<>();
+        for (TypedFuncCol fc : columns) {
+            if (fc.documentation() != null) {
+                docs.add(new TypedCString(fc.documentation(),
+                        com.legend.compiler.element.type.ExprType.one(
+                                com.legend.compiler.element.type
+                                        .Type.Primitive.STRING)));
+            }
+        }
+        return new TypedCollection(docs,
+                new com.legend.compiler.element.type.ExprType(
+                        com.legend.compiler.element.type.Type.Primitive.STRING,
+                        new com.legend.compiler.element.type.Multiplicity
+                                .Bounded(docs.size(), docs.size())));
+    }
 }
