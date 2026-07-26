@@ -424,8 +424,17 @@ final class StatementExecutor {
                             : java.util.Optional.of(
                                     new com.legend.compiler.spec.typed.TypedPackageableRef(
                                             env.runtimeFqn(), mref.info()));
+            // the execute() RUNTIME ARGUMENT's connection content is
+            // harness-ambient EXCEPT ModelChainConnection mappings — the
+            // XStore chain: an M2M mapping's ~src classes resolve THROUGH
+            // them (same rule as FromChecker's instance-runtime arm)
+            java.util.List<String> chainMappings = ec.args().size() >= 3
+                    ? com.legend.compiler.spec.typed.TypedFrom.chainMappingsIn(
+                            letBound(ec.args().get(2), letPrefix))
+                    : java.util.List.of();
             chain = new com.legend.compiler.spec.typed.TypedFrom(chain,
-                    java.util.Optional.of(mref), runtime, chain.info());
+                    java.util.Optional.of(mref), runtime, chainMappings,
+                    chain.info());
         }
         boolean relationRooted = chain.info().type()
                 instanceof com.legend.compiler.element.type.Type.RelationType;

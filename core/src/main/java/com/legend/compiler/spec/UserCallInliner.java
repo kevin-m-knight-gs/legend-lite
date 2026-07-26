@@ -530,7 +530,7 @@ public final class UserCallInliner {
                     nav.alias(), rewrite(nav.target(), env),
                     lambda(nav.predicate(), env), nav.form(), nav.info());
             case TypedFrom f -> new TypedFrom(rewrite(f.source(), env),
-                    f.mapping(), f.runtime(), f.info());
+                    f.mapping(), f.runtime(), f.chainMappings(), f.info());
             case TypedWrite w -> new TypedWrite(rewrite(w.source(), env),
                     w.destination().map(d -> rewrite(d, env)), w.info());
             // tree ARGS stay VERBATIM: the serialize key renders their

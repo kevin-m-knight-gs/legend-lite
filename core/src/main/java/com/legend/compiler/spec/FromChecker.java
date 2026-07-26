@@ -26,6 +26,7 @@ final class FromChecker {
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         Application a = t.checkGeneric(af, env);
         List<TypedPackageableRef> refs = new ArrayList<>(a.args().size() - 1);
+        List<String> chainMappings = new ArrayList<>();
         for (int i = 1; i < a.args().size(); i++) {
             if (a.args().get(i) instanceof TypedPackageableRef ref) {
                 refs.add(ref);
@@ -41,10 +42,16 @@ final class FromChecker {
             // EMPTY. A runtime-only from() then walls loudly downstream
             // ("class query requires an execution context"). Anything not
             // statically Runtime-typed stays loud here.
+            // EXCEPTION (XStore leg slice 1): a ModelChainConnection inside
+            // the instance carries MAPPING FQNs that change RESOLUTION —
+            // an M2M mapping's ~src classes resolve THROUGH them. Collect
+            // them onto the node; everything else stays harness-owned.
             if (a.args().get(i).info().type()
                     instanceof com.legend.compiler.element.type.Type
                             .ClassType ct
                     && ct.fqn().equals("meta::core::runtime::Runtime")) {
+                chainMappings.addAll(TypedFrom.chainMappingsIn(
+                        a.args().get(i)));
                 continue;
             }
             throw new TypeInferenceException("from() argument " + i
@@ -65,6 +72,7 @@ final class FromChecker {
                     : Optional.of(refs.get(0));
             default -> Optional.of(refs.get(1));
         };
-        return new TypedFrom(a.args().get(0), mapping, runtime, a.out());
+        return new TypedFrom(a.args().get(0), mapping, runtime,
+                List.copyOf(chainMappings), a.out());
     }
 }

@@ -742,4 +742,69 @@ public final class ClassSources {
         }
         return included.isEmpty() ? null : included.get(0);
     }
+
+    /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
+    String dispatch(String explicitMapping, String runtimeFqn,
+            java.util.List<String> chainMappings, String classFqn) {
+        if (explicitMapping != null) {
+            // MAPPING CHAIN (XStore leg slice 1): a class the explicit
+            // mapping does NOT bind resolves through the runtime value's
+            // ModelChainConnection mappings — the M2M ~src route (engine:
+            // the ModelStore's connection IS another mapping). Exactly-one
+            // binder, loud otherwise; no chain = the explicit mapping's
+            // own downstream wall stays.
+            if (!chainMappings.isEmpty()
+                    && !binds(explicitMapping, classFqn)) {
+                List<String> chainBinders = chainMappings.stream()
+                        .distinct()
+                        .filter(m -> binds(m, classFqn))
+                        .toList();
+                if (chainBinders.size() == 1) {
+                    return chainBinders.get(0);
+                }
+                throw new MappingResolutionException("class '" + classFqn
+                        + "' is not mapped in '" + explicitMapping
+                        + "' and its ModelChainConnection "
+                        + chainMappings + " has "
+                        + chainBinders.size() + " binders — chain dispatch"
+                        + " needs exactly one", classFqn);
+            }
+            return explicitMapping;
+        }
+        com.legend.model.RuntimeDefinition rt = ctx.findRuntime(runtimeFqn).orElseThrow(() ->
+                new MappingResolutionException("unknown runtime '"
+                        + runtimeFqn + "'", runtimeFqn));
+        List<String> binders = rt.mappings().stream()
+                .distinct()   // a runtime listing a mapping twice is not ambiguity
+                .filter(m -> binds(m, classFqn))
+                .toList();
+        if (binders.size() != 1) {
+            // a poisoned class mapping (per-class normalization failure)
+            // explains a ZERO-binder miss — surface the recorded reason,
+            // walking includes (the poisoned set may live in an included
+            // mapping). A 2-binder error is ambiguity, not poisoning.
+            StringBuilder why = new StringBuilder();
+            if (binders.isEmpty()) {
+                java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+                java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>(rt.mappings());
+                while (!queue.isEmpty()) {
+                    String m = queue.poll();
+                    if (!seen.add(m)) {
+                        continue;
+                    }
+                    ctx.mappingPoison(m, classFqn).ifPresent(reason ->
+                            why.append("; '").append(m).append("' failed to normalize "
+                                    + "this class: ").append(reason));
+                    ctx.findMapping(m).ifPresent(def -> def.includes().forEach(inc ->
+                            queue.add(inc.mappingPath())));
+                }
+            }
+            throw new MappingResolutionException("runtime '" + runtimeFqn
+                    + "' has " + binders.size() + " mappings binding class '"
+                    + classFqn + "' (of " + rt.mappings().size()
+                    + " candidates); class-query dispatch needs exactly one" + why,
+                    classFqn);
+        }
+        return binders.get(0);
+    }
 }

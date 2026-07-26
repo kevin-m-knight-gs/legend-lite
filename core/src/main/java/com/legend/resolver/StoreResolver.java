@@ -197,7 +197,11 @@ public final class StoreResolver {
      * that binds the class wins; zero or several binders is loud (plan
      * audit catch 1's precedence rule).
      */
-    record Context(String explicitMapping, String runtimeFqn) {
+    record Context(String explicitMapping, String runtimeFqn,
+            List<String> chainMappings) {
+        Context(String explicitMapping, String runtimeFqn) {
+            this(explicitMapping, runtimeFqn, List.of());
+        }
         static final Context NONE = new Context(null, null);
         static Context ofMapping(String fqn) { return new Context(fqn, null); }
         static Context ofRuntime(String fqn) { return new Context(null, fqn); }
@@ -231,12 +235,16 @@ public final class StoreResolver {
                     && !wf.args().isEmpty() ->
                     resolveNode(wf.args().get(0), context);
             case TypedFrom from -> {
-                Context inner = from.mapping().map(m -> Context.ofMapping(m.fullPath()))
+                Context inner = from.mapping()
+                        .map(m -> new Context(m.fullPath(), null,
+                                from.chainMappings()))
                         .orElseGet(() -> from.runtime()
-                                .map(r -> Context.ofRuntime(r.fullPath()))
+                                .map(r -> new Context(null, r.fullPath(),
+                                        from.chainMappings()))
                                 .orElse(context));
                 yield new TypedFrom(resolveNode(from.source(), inner),
-                        from.mapping(), from.runtime(), from.info());
+                        from.mapping(), from.runtime(),
+                        from.chainMappings(), from.info());
             }
             // Bare class fetch: GRAPH output — implicit serialize with a
             // leaf-only tree over the class's SCALAR bindings (plan §E10).
@@ -2536,9 +2544,11 @@ public final class StoreResolver {
             // in-chain from(): re-scopes execution context, contributes NO op
             if (cur instanceof TypedFrom fr) {
                 if (fr.mapping().isPresent()) {
-                    context = Context.ofMapping(fr.mapping().get().fullPath());
+                    context = new Context(fr.mapping().get().fullPath(), null,
+                            fr.chainMappings());
                 } else if (fr.runtime().isPresent()) {
-                    context = Context.ofRuntime(fr.runtime().get().fullPath());
+                    context = new Context(null, fr.runtime().get().fullPath(),
+                            fr.chainMappings());
                 }
                 cur = fr.source();
                 continue;
@@ -2616,7 +2626,12 @@ public final class StoreResolver {
                         // old mixed read (null-check fctx, value from
                         // context) could poison the cache across an
                         // in-chain from() rescope
-                        + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn()));
+                        + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn())
+                        // chain mappings join the key (same rule:
+                        // dispatch is context-dependent)
+                        + (fctx.chainMappings().isEmpty() ? ""
+                                : '\u0000' + String.join(",",
+                                        fctx.chainMappings())));
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
@@ -3450,45 +3465,10 @@ public final class StoreResolver {
         return fns.get(0);
     }
 
-    /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
+    /** Per-class dispatch: the runtime candidate that BINDS the class wins
+     * (chain-aware — ClassSources owns the binding logic). */
     private String dispatch(Context context, String classFqn) {
-        if (context.explicitMapping() != null) {
-            return context.explicitMapping();
-        }
-        RuntimeDefinition rt = ctx.findRuntime(context.runtimeFqn()).orElseThrow(() ->
-                new MappingResolutionException("unknown runtime '"
-                        + context.runtimeFqn() + "'", context.runtimeFqn()));
-        List<String> binders = rt.mappings().stream()
-                .distinct()   // a runtime listing a mapping twice is not ambiguity
-                .filter(m -> sources.binds(m, classFqn))
-                .toList();
-        if (binders.size() != 1) {
-            // a poisoned class mapping (per-class normalization failure)
-            // explains a ZERO-binder miss — surface the recorded reason,
-            // walking includes (the poisoned set may live in an included
-            // mapping). A 2-binder error is ambiguity, not poisoning.
-            StringBuilder why = new StringBuilder();
-            if (binders.isEmpty()) {
-                Set<String> seen = new LinkedHashSet<>();
-                ArrayDeque<String> queue = new ArrayDeque<>(rt.mappings());
-                while (!queue.isEmpty()) {
-                    String m = queue.poll();
-                    if (!seen.add(m)) {
-                        continue;
-                    }
-                    ctx.mappingPoison(m, classFqn).ifPresent(reason ->
-                            why.append("; '").append(m).append("' failed to normalize "
-                                    + "this class: ").append(reason));
-                    ctx.findMapping(m).ifPresent(def -> def.includes().forEach(inc ->
-                            queue.add(inc.mappingPath())));
-                }
-            }
-            throw new MappingResolutionException("runtime '" + context.runtimeFqn()
-                    + "' has " + binders.size() + " mappings binding class '"
-                    + classFqn + "' (of " + rt.mappings().size()
-                    + " candidates); class-query dispatch needs exactly one" + why,
-                    classFqn);
-        }
-        return binders.get(0);
+        return sources.dispatch(context.explicitMapping(),
+                context.runtimeFqn(), context.chainMappings(), classFqn);
     }
 }
