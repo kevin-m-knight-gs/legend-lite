@@ -675,22 +675,10 @@ public final class StoreResolver {
             // non-colliding below-ops splice with THE factory's materials
             // (docs/NESTED_SCOPE_REGISTRIES.md — the Map.of() registries
             // walled multi-hop reads here, fe96e380)
-            Set<List<String>> bHeads = new LinkedHashSet<>();
-            bsp.spliceFull().forEach(p -> bHeads.add(List.of(p.get(0))));
-            NestedScope bs = scopeMaterials(src, bHeads, bsp.spliceFull(),
-                    bsp.spliceOps(), context, src.pipeline(), List.of());
-            Pipelines.Materialized m0 = new Pipelines.Materialized(
-                    bs.pipeline(),
-                    Pipelines.materialize(src.pipeline(), java.util.Set.of(),
-                            src.classFqn()).slotPrefixes(),
-                    Set.of());
-            String bv = CorrelatedSubselects.freshRowVar(src, bsp.spliceOps(),
-                    src.pipeline(), List.of(), List.of(), Map.of(),
-                    () -> freshVarCounter++);
-            spliced = FlattenOps.spliceBelow(bs.pipeline(), bsp.spliceOps(),
-                    fn -> substitution(src, m0, bs.regs().assocs(),
-                            Set.of(), bs.regs().existsSubs(),
-                            Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
+            BelowScope bsc = belowScope(src, bsp.spliceOps(), context,
+                    src.pipeline());
+            spliced = FlattenOps.spliceBelow(bsc.pipeline(),
+                    bsp.spliceOps(), bsc.sub());
         }
         Pipelines.Materialized m = Pipelines.materialize(
                 spliced, java.util.Set.of(), java.util.Set.of(alias),
@@ -815,7 +803,7 @@ public final class StoreResolver {
         // dispatch route) re-roots onto the joined columns — no second join.
         Substitution.AssocSub pre = provOut.remove(hop);
         if (pre != null) {
-            return flattenMaterializedNav(src, pre, belowOps);
+            return flattenMaterializedNav(src, pre, belowOps, context);
         }
         TypedSpec hopBinding = src.bindings().get(hop);
         var navSteps = Pipelines.navSteps(src.pipeline());
@@ -829,14 +817,16 @@ public final class StoreResolver {
                 temporal, src, hop, context, false, heads);
         Pipelines.Materialized m = Pipelines.materialize(
                 src.pipeline(), java.util.Set.of(), src.classFqn());
-        String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
-                src.pipeline(), List.of(), List.of(), Map.of(),
-                () -> freshVarCounter++);
-        TypedSpec left = FlattenOps.applyBelow(m.pipeline(), belowOps,
-                fn -> substitution(src, m, Map.of(), Set.of(), Map.of(),
-                        Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
+        TypedSpec left = m.pipeline();
+        if (!belowOps.isEmpty()) {
+            // slice 3: this splice ran with Map.of() registries — the
+            // below-ops' consumed chains get the factory's materials over
+            // the MATERIALIZED left (the assoc route joins above it)
+            BelowScope bsc = belowScope(src, belowOps, context, m.pipeline());
+            left = FlattenOps.applyBelow(bsc.pipeline(), belowOps, bsc.sub());
+        }
         Type.RelationType leftRow =
-                (Type.RelationType) m.pipeline().info().type();
+                (Type.RelationType) left.info().type();
         List<Type.Column> cols = new ArrayList<>(leftRow.columns());
         for (Type.Column c : aj.targetRow().columns()) {
             cols.add(new Type.Column(aj.prefix() + c.name(),
@@ -873,17 +863,16 @@ public final class StoreResolver {
      * hop's join INNER (flatten row-set contract), re-point the target's
      * bindings through the composed prefix. */
     private ClassSource flattenMaterializedNav(ClassSource src,
-            Substitution.AssocSub pre, List<TypedSpec> belowOps) {
+            Substitution.AssocSub pre, List<TypedSpec> belowOps,
+            Context context) {
         TypedSpec spliced = src.pipeline();
         if (!belowOps.isEmpty()) {
-            Pipelines.Materialized m0 = Pipelines.materialize(
-                    src.pipeline(), java.util.Set.of(), src.classFqn());
-            String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
-                    src.pipeline(), List.of(), List.of(), Map.of(),
-                    () -> freshVarCounter++);
-            spliced = FlattenOps.spliceBelow(src.pipeline(), belowOps,
-                    fn -> substitution(src, m0, Map.of(), Set.of(), Map.of(),
-                            Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
+            // slice 3: the re-root splice ran with Map.of() registries —
+            // factory materials over the composed pipeline
+            BelowScope bsc = belowScope(src, belowOps, context,
+                    src.pipeline());
+            spliced = FlattenOps.spliceBelow(bsc.pipeline(), belowOps,
+                    bsc.sub());
         }
         TypedSpec innerized = FlattenOps.innerizeFlattenJoin(spliced,
                 pre.prefix());
@@ -936,23 +925,6 @@ public final class StoreResolver {
         return new TypedProject(source,
                 List.of(new TypedFuncCol(name, mapper)),
                 new ExprType(row, valueMult));
-    }
-
-    /** A run of CLASS-typed property hops bottoming at an object-space
-     * chain (the auto-map family's `Firm.all().employees` prefix). */
-    private record HopChain(TypedSpec root, List<TypedPropertyAccess> hops) {
-    }
-
-    private static HopChain hopChainOf(TypedSpec n) {
-        java.util.ArrayDeque<TypedPropertyAccess> hops = new java.util.ArrayDeque<>();
-        TypedSpec cur = n;
-        while (cur instanceof TypedPropertyAccess pa
-                && pa.info().type() instanceof Type.ClassType) {
-            hops.addFirst(pa);
-            cur = pa.source();
-        }
-        return !hops.isEmpty() && isObjectSpace(cur)
-                ? new HopChain(cur, List.copyOf(hops)) : null;
     }
 
     /** size()/count() over a class extent = the ROW COUNT of the resolved
@@ -3345,6 +3317,36 @@ public final class StoreResolver {
         }
         return scopeMaterials(t, innerPaths, innerFullPaths, innerOps,
                 context, targetPipe, pathKey);
+    }
+
+    /** A flatten splice's below-op scope: the factory-widened pipeline
+     * and the substitution rewriter over it — ONE construction for all
+     * three flatten splices (nav-slot, assoc-route, re-root; slice 3 of
+     * docs/NESTED_SCOPE_REGISTRIES.md — the latter two ran with
+     * {@code Map.of()} registries). */
+    private record BelowScope(TypedSpec pipeline,
+            java.util.function.Function<TypedLambda, TypedLambda> sub) {
+    }
+
+    private BelowScope belowScope(ClassSource src, List<TypedSpec> ops,
+            Context context, TypedSpec targetPipe) {
+        FlattenOps.BelowSplit bsp = FlattenOps.splitBelowOps(ops, src,
+                null, Pipelines.navSteps(src.pipeline()).keySet());
+        Set<List<String>> bHeads = new LinkedHashSet<>();
+        bsp.spliceFull().forEach(p -> bHeads.add(List.of(p.get(0))));
+        NestedScope bs = scopeMaterials(src, bHeads, bsp.spliceFull(),
+                ops, context, targetPipe, List.of());
+        Pipelines.Materialized base = Pipelines.materialize(
+                src.pipeline(), java.util.Set.of(), src.classFqn());
+        Pipelines.Materialized bm = new Pipelines.Materialized(
+                bs.pipeline(), base.slotPrefixes(), base.stripped());
+        String bv = CorrelatedSubselects.freshRowVar(src, ops,
+                src.pipeline(), List.of(), List.of(), Map.of(),
+                () -> freshVarCounter++);
+        return new BelowScope(bs.pipeline(),
+                fn -> substitution(src, bm, bs.regs().assocs(), Set.of(),
+                        bs.regs().existsSubs(), Map.of(), Map.of(), true,
+                        bv, fn).rewriteLambda(fn));
     }
 
     /** THE registry factory (docs/NESTED_SCOPE_REGISTRIES.md): materials

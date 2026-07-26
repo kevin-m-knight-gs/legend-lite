@@ -9,14 +9,27 @@ pass empty ones. The census (2026-07-25, at ledger 1599):
 | Site | Registries today |
 |---|---|
 | `StoreResolver.resolveChain` root terminals (2869/2877/2919) | FULL (assocs, ends, exists, agg, inQuery) |
-| `StoreResolver.flattenNavSlot` belowOps splice (:675) | `Map.of()` — **the fe96e380 gap** |
-| `StoreResolver.flattenSource` assoc-route splice (:792) | `Map.of()` |
-| `StoreResolver.flattenMaterializedNav` splice (:841) | `Map.of()` |
+| `StoreResolver.flattenNavSlot` belowOps splice | **`belowScope(...)` (factory)** — slices 1–2; hop-colliding ops HOIST above the materialization with the hop's AssocSub |
+| `StoreResolver.flattenSource` assoc-route splice | **`belowScope(...)` (factory)** — slice 3 |
+| `StoreResolver.flattenMaterializedNav` splice | **`belowScope(...)` (factory)** — slice 3 |
 | `registerExistsSubs` nested scopes (navigate + assoc + dotted) | `nestedScope(...)` — **R1/R2, the real factory** |
 | `Substitution.filteredNavLeafRead` predSub (:2086) | ExistsSub.innerRegs (from nestedScope) |
-| `Substitution` class-filter / correlated preds (:2233/:2262) | partial |
+| `Substitution` class-filter / correlated preds (:2233/:2262) | ExistsSub.innerRegs (factory-built via `withInnerRegs`) — the pre-threading "partial" tag is stale |
 | `CorrelatedSubselects.predFilteredPipe` (:1435) | nav-assocs or NONE |
 | `AssociationJoins` condition subs (964/981/1050/1074) | condition-only scopes (no chains legal there) |
+
+## Status (2026-07-26): leg COMPLETE
+
+All three flatten splices consume the ONE factory through
+`StoreResolver.belowScope` (paths from the ops' own lambdas via
+`FlattenOps.splitBelowOps`, scope from `scopeMaterials`, substitution
+against the widened row). The `Substitution` sites consume
+factory-built `ExistsSub.innerRegs`. Remaining `Map.of()` scopes are
+the condition-only sites where chains are structurally illegal.
+Landed: d4cf7dba (factory + slice 1), 9b7e9c30 (slice 2, hop-colliding
+hoist), 28a4af88 (slice 2b, framed-view slot targets), slice 3 (this
+commit). Converted: testIsolationOfInputToIsEmpty,
+testJoinThroughView.
 
 ## The rule (engine parity)
 

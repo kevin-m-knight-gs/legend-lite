@@ -65,8 +65,11 @@ final class FlattenOps {
             for (List<String> pp : opPaths) {
                 TypedSpec hb = src.bindings().get(
                         SyntheticHeads.realHead(pp.get(0)));
-                if (hb != null && alias.equals(InnerDemand.navSlotAlias(
-                        hb, src.rowVar(), navStepKeys))) {
+                // null alias = no hop to collide with (the assoc-route /
+                // re-root splices reuse this splitter for path collection)
+                if (alias != null && hb != null
+                        && alias.equals(InnerDemand.navSlotAlias(
+                                hb, src.rowVar(), navStepKeys))) {
                     collides = true;
                     hopHeads.add(pp.get(0));
                     if (pp.size() >= 2) {
