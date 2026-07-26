@@ -101,7 +101,7 @@ final class InnerDemand {
         Set<String> out = new LinkedHashSet<>();
         for (TypedLambda lam : lambdas(ops, List.of(head))) {
             if (!lam.parameters().isEmpty()) {
-                StoreResolver.collectParamPathHeads(lam,
+                collectParamPathHeads(lam,
                         lam.parameters().get(0), out);
             }
         }
@@ -211,6 +211,42 @@ final class InnerDemand {
         }
         for (TypedSpec ch : n.children()) {
             collectChains(ch, userVar, head, out);
+        }
+    }
+
+    /** Multi-hop paths consumed DIRECTLY under an emptiness-family
+     * call — the class-typed-leaf EXISTS registration keys off these. */
+    static void collectEmptinessChainPaths(TypedSpec n, String userVar,
+            Set<List<String>> out) {
+        if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
+            String key = c.callee().signatureKey();
+            if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
+                    || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
+                    || com.legend.builtin.Pure.nativeNamed("exists", key)) {
+            List<String> p =
+                    Substitution.pathOf(c.args().get(0), userVar);
+                if (p != null && p.size() >= 2) {
+                    out.add(p);
+                }
+            }
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;   // shadowing: the substitution stops here too
+        }
+        for (TypedSpec c : n.children()) {
+            collectEmptinessChainPaths(c, userVar, out);
+        }
+    }
+
+    /** Heads of property paths over {@code param} in the lambda's body. */
+    static void collectParamPathHeads(TypedSpec n, String param,
+            Set<String> out) {
+        List<String> p = Substitution.pathOf(n, param);
+        if (p != null && !p.isEmpty()) {
+            out.add(p.get(0));
+        }
+        for (TypedSpec ch : n.children()) {
+            collectParamPathHeads(ch, param, out);
         }
     }
 

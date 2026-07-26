@@ -95,7 +95,7 @@ final class FlattenOps {
             java.util.Set<String> out) {
         for (TypedSpec n : nodes) {
             if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
-                StoreResolver.collectParamPathHeads(lam,
+                InnerDemand.collectParamPathHeads(lam,
                         lam.parameters().get(0), out);
             }
             collectLambdaHeads(n.children(), out);

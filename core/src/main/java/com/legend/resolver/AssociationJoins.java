@@ -644,7 +644,7 @@ final class AssociationJoins {
             Set<String> withPredLeaves = new LinkedHashSet<>(demandedLeaves);
             for (TypedLambda sp : synthPreds) {
                 for (TypedSpec b : sp.body()) {
-                    StoreResolver.collectParamPathHeads(b, sp.parameters().get(0),
+                    InnerDemand.collectParamPathHeads(b, sp.parameters().get(0),
                             withPredLeaves);
                 }
             }

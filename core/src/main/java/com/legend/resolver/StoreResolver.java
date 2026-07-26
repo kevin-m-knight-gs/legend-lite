@@ -629,7 +629,7 @@ public final class StoreResolver {
     private ClassSource flattenNavSlot(ClassSource src, String alias,
             TypedNavigate step, Set<String> downstreamHeads,
             Map<String, Substitution.AssocSub> provOut,
-            List<TypedSpec> belowOps) {
+            List<TypedSpec> belowOps, Context context) {
         if (!(step.target() instanceof TypedGetAll tg)) {
             throw new NotImplementedException("class flatten through a"
                     + " CHAINED navigate step ('" + alias
@@ -666,13 +666,52 @@ public final class StoreResolver {
         Pipelines.Materialized[] innerM = new Pipelines.Materialized[1];
         TypedSpec spliced = src.pipeline();
         if (!belowOps.isEmpty()) {
-            Pipelines.Materialized m0 = Pipelines.materialize(
-                    src.pipeline(), java.util.Set.of(), src.classFqn());
+            // the below-ops' consumed chains get their materials from THE
+            // factory (docs/NESTED_SCOPE_REGISTRIES.md — the Map.of()
+            // registries walled multi-hop reads here, fe96e380)
+            Set<List<String>> bFull = new LinkedHashSet<>();
+            Set<List<String>> bHeads = new LinkedHashSet<>();
+            for (TypedSpec op : belowOps) {
+                List<TypedLambda> bls = switch (op) {
+                    case TypedFilter f -> List.of(f.predicate());
+                    case TypedSortBy sb -> List.of(sb.key());
+                    case TypedProject p2 -> terminalLambdas(p2);
+                    case TypedGroupBy g2 -> terminalLambdas(g2);
+                    default -> List.of();
+                };
+                for (TypedLambda bl : bls) {
+                    if (bl.parameters().isEmpty()) {
+                        continue;
+                    }
+                    for (TypedSpec b : bl.body()) {
+                        consumedPaths(b, bl.parameters().get(0), bFull);
+                    }
+                }
+            }
+            // a below-read sharing the FLATTEN HOP's head must ride the
+            // hop machinery, not the below scope: widening would consume
+            // the nav step the hop demand needs ('produced no prefix')
+            bFull.removeIf(p -> {
+                TypedSpec hb = src.bindings().get(
+                        SyntheticHeads.realHead(p.get(0)));
+                return hb != null && alias.equals(navSlotAlias(hb,
+                        src.rowVar(),
+                        Pipelines.navSteps(src.pipeline()).keySet()));
+            });
+            bFull.forEach(p -> bHeads.add(List.of(p.get(0))));
+            NestedScope bs = scopeMaterials(src, bHeads, bFull, belowOps,
+                    context, src.pipeline(), List.of());
+            Pipelines.Materialized m0 = new Pipelines.Materialized(
+                    bs.pipeline(),
+                    Pipelines.materialize(src.pipeline(), java.util.Set.of(),
+                            src.classFqn()).slotPrefixes(),
+                    Set.of());
             String bv = CorrelatedSubselects.freshRowVar(src, belowOps,
                     src.pipeline(), List.of(), List.of(), Map.of(),
                     () -> freshVarCounter++);
-            spliced = FlattenOps.spliceBelow(src.pipeline(), belowOps,
-                    fn -> substitution(src, m0, Map.of(), Set.of(), Map.of(),
+            spliced = FlattenOps.spliceBelow(bs.pipeline(), belowOps,
+                    fn -> substitution(src, m0, bs.regs().assocs(),
+                            Set.of(), bs.regs().existsSubs(),
                             Map.of(), Map.of(), true, bv, fn).rewriteLambda(fn));
         }
         Pipelines.Materialized m = Pipelines.materialize(
@@ -779,7 +818,7 @@ public final class StoreResolver {
                 : navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
             return flattenNavSlot(src, alias, navSteps.get(alias),
-                    heads, provOut, belowOps);
+                    heads, provOut, belowOps, context);
         }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
                 temporal, src, hop, context, false, heads);
@@ -1540,14 +1579,14 @@ public final class StoreResolver {
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
-                    collectEmptinessChainPaths(b,
+                    InnerDemand.collectEmptinessChainPaths(b,
                             f.predicate().parameters().get(0),
                             emptinessChainPaths);
                 }
             }
             if (op instanceof TypedSortBy sb) {
                 for (TypedSpec b : sb.key().body()) {
-                    collectEmptinessChainPaths(b, sb.key().parameters().get(0),
+                    InnerDemand.collectEmptinessChainPaths(b, sb.key().parameters().get(0),
                             emptinessChainPaths);
                 }
             }
@@ -1555,7 +1594,7 @@ public final class StoreResolver {
         if (tree == null) {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {
-                    collectEmptinessChainPaths(b, fn.parameters().get(0),
+                    InnerDemand.collectEmptinessChainPaths(b, fn.parameters().get(0),
                             emptinessChainPaths);
                 }
             }
@@ -1625,7 +1664,7 @@ public final class StoreResolver {
                 Set<String> innerDemand = new LinkedHashSet<>();
                 for (TypedLambda il : InnerDemand.lambdas(ops, path)) {
                     if (!il.parameters().isEmpty()) {
-                        collectParamPathHeads(il, il.parameters().get(0),
+                        InnerDemand.collectParamPathHeads(il, il.parameters().get(0),
                                 innerDemand);
                     }
                 }
@@ -2028,7 +2067,7 @@ public final class StoreResolver {
                         InnerDemand.leaves(ops, head));
                 for (TypedLambda liftedPred0 : synthetics.allPreds(head)) {
                     for (TypedSpec b : liftedPred0.body()) {
-                        collectParamPathHeads(b,
+                        InnerDemand.collectParamPathHeads(b,
                                 liftedPred0.parameters().get(0), innerLeaves);
                     }
                 }
@@ -3299,7 +3338,7 @@ public final class StoreResolver {
                 continue;
             }
             Set<String> heads = new LinkedHashSet<>();
-            collectParamPathHeads(lam, lam.parameters().get(0), heads);
+            InnerDemand.collectParamPathHeads(lam, lam.parameters().get(0), heads);
             heads.forEach(h -> innerPaths.add(List.of(h)));
             // FULL paths feed depth-2+ leaf/nav demand (heads-only lost
             // the tails — multi-hop exists family, #70/#78)
@@ -3311,6 +3350,22 @@ public final class StoreResolver {
         if (innerPaths.isEmpty()) {
             return new NestedScope(none, targetPipe, row);
         }
+        return scopeMaterials(t, innerPaths, innerFullPaths, innerOps,
+                context, targetPipe, pathKey);
+    }
+
+    /** THE registry factory (docs/NESTED_SCOPE_REGISTRIES.md): materials
+     * for ANY scope consuming {@code paths} against {@code t} over
+     * {@code targetPipe} — exists + assoc/chain registration, and the
+     * pipeline WIDENED with the nested joins (R2 arm 2: the ordering the
+     * reverted hand-rolled attempts got wrong). */
+    private NestedScope scopeMaterials(ClassSource t,
+            Set<List<String>> innerPaths, Set<List<String>> innerFullPaths,
+            List<TypedSpec> innerOps, Context context, TypedSpec targetPipe,
+            List<String> pathKey) {
+        Substitution.Registries none = Substitution.Registries.NONE;
+        Type.RelationType row =
+                (Type.RelationType) targetPipe.info().type();
         // DATED-HOP cursor: nested registrations run under the hop's
         // own frame (root = hop date, specs re-keyed locally)
         TemporalFrame outerT = temporal;
@@ -3341,42 +3396,6 @@ public final class StoreResolver {
                 pipe, (Type.RelationType) pipe.info().type());
         } finally {
             temporal = outerT;
-        }
-    }
-
-    /** Multi-hop paths consumed DIRECTLY under an emptiness-family
-     * call — the class-typed-leaf EXISTS registration keys off these. */
-    private static void collectEmptinessChainPaths(TypedSpec n, String userVar,
-            Set<List<String>> out) {
-        if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
-            String key = c.callee().signatureKey();
-            if (Pure.nativeNamed("isEmpty", key)
-                    || Pure.nativeNamed("isNotEmpty", key)
-                    || Pure.nativeNamed("exists", key)) {
-                List<String> p =
-                        Substitution.pathOf(c.args().get(0), userVar);
-                if (p != null && p.size() >= 2) {
-                    out.add(p);
-                }
-            }
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
-            return;   // shadowing: the substitution stops here too
-        }
-        for (TypedSpec c : n.children()) {
-            collectEmptinessChainPaths(c, userVar, out);
-        }
-    }
-
-    /** Heads of property paths over {@code param} in the lambda's body. */
-    static void collectParamPathHeads(TypedSpec n, String param,
-            Set<String> out) {
-        List<String> p = Substitution.pathOf(n, param);
-        if (p != null && !p.isEmpty()) {
-            out.add(p.get(0));
-        }
-        for (TypedSpec ch : n.children()) {
-            collectParamPathHeads(ch, param, out);
         }
     }
 
