@@ -596,7 +596,7 @@ final class GraphEmission {
                     && wv.name().equals(cs.rowVar())
                     && wv.info().type() instanceof Type.ClassType wSrc
                     && srcCast != null) {
-                return wholeSrcChild(cs, node, srcCast, wSrc.fqn(),
+                return wholeSrcChild(cs, node, srcCast, wSrc.fqn(), context,
                         parentPipeline);
             }
             // A NAVIGATE-SLOT read ($row.<alias>, the relational
@@ -913,7 +913,8 @@ final class GraphEmission {
      */
     private TypedSerializeGraph.Child wholeSrcChild(ClassSource cs,
             TypedGraphTree node, TypedNewInstanceCast cast,
-            String srcClassFqn, TypedSpec parentPipeline) {
+            String srcClassFqn, StoreResolver.Context context,
+            TypedSpec parentPipeline) {
         ClassSource child = cast.targetSetId() != null
                 ? sources.get(cs.mappingFqn(), cast.classFqn(),
                         cast.targetSetId(), null, "")
@@ -937,20 +938,25 @@ final class GraphEmission {
         var rowInfo = new ExprType(rowT,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         List<TypedFuncCol> leaves = new ArrayList<>();
+        List<TypedSerializeGraph.Child> nested = new ArrayList<>();
         for (TypedGraphTree c : node.children()) {
             TypedSpec e = child.bindings().get(c.property());
-            if (e == null) {
+            // Non-scalar entries — association ends (XStore included),
+            // class-typed bindings, nested whole-source hops — recurse the
+            // ORDINARY graph-child machinery rooted at the child set: the
+            // row is frame-compatible (guarded above), so the child set IS
+            // this row's class source and every dispatch arm applies.
+            if (e == null && c.children().isEmpty()) {
                 throw new MappingResolutionException("property '"
                         + c.property() + "' of whole-source child '"
                         + node.property() + "' on class '" + cast.classFqn()
                         + "' is not mapped in mapping '" + cs.mappingFqn()
                         + "'", cast.classFqn());
             }
-            if (e.info().type() instanceof Type.ClassType) {
-                throw new NotImplementedException("whole-source graph child '"
-                        + node.property() + "." + c.property()
-                        + "' is class-typed — nested hops under a"
-                        + " whole-source child are not supported yet");
+            if (e == null || e.info().type() instanceof Type.ClassType) {
+                nested.add(graphChild(child, c, context, cs.rowVar(), rowT,
+                        parentPipeline));
+                continue;
             }
             TypedSpec e2 = renameRowVar(e, child.rowVar(), cs.rowVar(),
                     rowInfo);
@@ -966,7 +972,7 @@ final class GraphEmission {
                                             .Multiplicity.Bounded.ONE))));
         }
         TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
-                cs.rowVar(), leaves, List.of(), false, false, cast.classFqn(),
+                cs.rowVar(), leaves, nested, false, false, cast.classFqn(),
                 rowInfo, true);
         return new TypedSerializeGraph.Child(keyOf(node), nodeG);
     }
@@ -1453,7 +1459,7 @@ final class GraphEmission {
      * otherwise-fallback emissions: project ONE leaf column over the
      * corr-filtered relation, LIMIT 1 (pure toOne semantics — a plain
      * scalar subquery, never a LIST aggregation). */
-    private static TypedSpec scalarLeafSubquery(TypedSpec rel, String rowVar,
+    static TypedSpec scalarLeafSubquery(TypedSpec rel, String rowVar,
             Type.RelationType targetRow, String leafName, TypedSpec leafBind) {
         var leafFn = new Type.FunctionType(
                 List.of(new Type.Param(targetRow,

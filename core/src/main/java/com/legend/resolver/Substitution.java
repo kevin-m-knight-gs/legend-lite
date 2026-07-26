@@ -1427,6 +1427,11 @@ final class Substitution {
             // means nothing inside reads this scope's vars
             case TypedProject rp when rp.info().type()
                     instanceof Type.RelationType -> n;
+            // ...and the [0..1] LIMIT-1 tail of a correlated scalar
+            // subquery (parentNavCondReads / navLeafSubquery emissions):
+            // its correlation binds a FRESH row var, never this scope's
+            case TypedLimit rl when rl.source().info().type()
+                    instanceof Type.RelationType -> n;
             case com.legend.compiler.spec.typed.TypedTds ignored -> n;
             // graphFetch in VALUE position is SOURCE-PRESERVING (engine
             // GraphFetchLowering = lower(source); the tree shapes only a

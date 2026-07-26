@@ -826,7 +826,8 @@ final class AssociationJoins {
             // to the column-space emission (leftRow=PARENT, rightRow=TARGET)
             oriented = propertyCondToColumns(pm.cond(), pm.reverse(), cs,
                     target, tMat.slotPrefixes(),
-                    (Type.RelationType) tMat.pipeline().info().type());
+                    (Type.RelationType) tMat.pipeline().info().type(),
+                    temporal, context);
         } else {
             TypedLambda cond = pm.cond();
             oriented = rewriteNestedAssocCondReads(cond, condTgtVar,
@@ -989,7 +990,8 @@ final class AssociationJoins {
      */
     private TypedLambda propertyCondToColumns(TypedLambda cond,
             boolean reverse, ClassSource parent, ClassSource target,
-            Map<String, String> targetSlotPrefixes, Type.RelationType tgtRow) {
+            Map<String, String> targetSlotPrefixes, Type.RelationType tgtRow,
+            TemporalFrame temporal, StoreResolver.Context context) {
         String parentParam = cond.parameters().get(reverse ? 1 : 0);
         String targetParam = cond.parameters().get(reverse ? 0 : 1);
         Set<String> taken = new LinkedHashSet<>(cond.parameters());
@@ -1004,6 +1006,15 @@ final class AssociationJoins {
                 Pipelines.slotAliases(target.pipeline()));
         unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
         TypedSpec body = cond.body().get(cond.body().size() - 1);
+        // DERIVED-property calls ($srcRow.productId()) β-inline first —
+        // the cond then reads plain or navigation properties
+        body = inlineDerivedCondCalls(body, 0);
+        // PARENT-side navigation reads ($srcRow.product.productId after
+        // inlining) become CORRELATED SCALAR SUBQUERIES over the parent's
+        // OWN association join, correlated on the fresh source binder —
+        // the engine's qualifier-in-condition emission
+        body = parentNavCondReads(body, parentParam, parent, temporal,
+                context, srcVar, srcRow);
         Substitution tgtSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(targetParam, tgtVar,
                         target.classFqn(), target.mappingFqn(),
@@ -1033,6 +1044,122 @@ final class AssociationJoins {
                 new Type.Param(Type.Primitive.BOOLEAN, one));
         return new TypedLambda(List.of(srcVar, tgtVar), List.of(body),
                 new ExprType(ft, one));
+    }
+
+    /** β-inline SYNTHESIZED derived-property calls ({@code $row.productId()})
+     * inside a property-space condition — recognized by the callee's
+     * {@code synthesizedFrom} PROP hat (exact, never name-parsed); params
+     * substitute positionally ({@code $this} ← the receiver). Recursive:
+     * a derived body calling another derived inlines too, depth-guarded. */
+    private TypedSpec inlineDerivedCondCalls(TypedSpec n, int depth) {
+        if (depth > 16) {
+            throw new IllegalStateException("resolver bug: derived-property"
+                    + " inlining in an XStore condition exceeded depth 16");
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && uc.callee().definition()
+                        instanceof com.legend.model.FunctionDefinition fd
+                && fd.synthesizedFrom() != null
+                && fd.synthesizedFrom().hat() == com.legend.model.SynthHat.PROP) {
+            var cf = specs.compile(uc.callee());
+            if (cf.body().size() != 1
+                    || cf.signature().parameters().size() != uc.args().size()) {
+                throw new NotImplementedException("derived property '"
+                        + uc.callee().qualifiedName() + "' in an XStore"
+                        + " condition has an uninlinable body shape ("
+                        + cf.body().size() + " statements, "
+                        + cf.signature().parameters().size() + " params for "
+                        + uc.args().size() + " args)");
+            }
+            TypedSpec b = cf.body().get(0);
+            for (int i = 0; i < uc.args().size(); i++) {
+                b = substCondVar(b,
+                        cf.signature().parameters().get(i).name(),
+                        uc.args().get(i));
+            }
+            return inlineDerivedCondCalls(b, depth + 1);
+        }
+        return SyntheticHeads.rebuildChildren(n,
+                c -> inlineDerivedCondCalls(c, depth));
+    }
+
+    private static TypedSpec substCondVar(TypedSpec n, String name,
+            TypedSpec value) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(name)) {
+            return value;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(name)) {
+            return l;   // shadowed: substitution stops
+        }
+        return SyntheticHeads.rebuildChildren(n,
+                c -> substCondVar(c, name, value));
+    }
+
+    private static TypedSpec unwrapOnes(TypedSpec n) {
+        while (n instanceof TypedNativeCall w && w.args().size() == 1
+                && (w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first"))) {
+            n = w.args().get(0);
+        }
+        return n;
+    }
+
+    /** {@code $parentParam.<assocProp>.<leaf>} in a property-space
+     * condition (wrappers tolerated) → a [0..1] CORRELATED SCALAR
+     * SUBQUERY: the parent's OWN association join for the hop, its
+     * condition's parent-side reads re-pointed at the fresh source
+     * binder, projecting the leaf binding, LIMIT 1 (the navLeafSubquery
+     * discipline, condition position). Deeper chains keep their loud
+     * substitution wall. */
+    private TypedSpec parentNavCondReads(TypedSpec n, String parentParam,
+            ClassSource parent, TemporalFrame temporal,
+            StoreResolver.Context context, String srcVar,
+            Type.RelationType srcRow) {
+        if (n instanceof TypedPropertyAccess leaf
+                && unwrapOnes(leaf.source()) instanceof TypedPropertyAccess hop
+                && unwrapOnes(hop.source())
+                        instanceof com.legend.compiler.spec.typed.TypedVariable pv
+                && pv.name().equals(parentParam)
+                && ctx.findAssociationOf(parent.classFqn(), hop.property())
+                        .isPresent()) {
+            AssocJoin aj = associationJoin(temporal, parent, hop.property(),
+                    context, /*forExists*/ true,
+                    java.util.Set.of(leaf.property()), hop.property(),
+                    java.util.Set.of());
+            TypedSpec leafBind = aj.target().bindings().get(leaf.property());
+            if (leafBind == null
+                    || leafBind.info().type() instanceof Type.ClassType) {
+                throw new NotImplementedException("XStore condition read '$"
+                        + parentParam + "." + hop.property() + "."
+                        + leaf.property() + "' has no scalar binding on the"
+                        + " hop target '" + aj.target().classFqn() + "'");
+            }
+            var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+            String pVar = aj.condition().parameters().get(0);
+            String tVar = aj.condition().parameters().get(1);
+            List<TypedSpec> corrBody = aj.condition().body().stream()
+                    .map(cb -> Pipelines.rewriteRowReads(cb, pVar, Map.of(),
+                            java.util.Set.of(),
+                            v -> new com.legend.compiler.spec.typed
+                                    .TypedVariable(srcVar,
+                                            new ExprType(srcRow, one))))
+                    .toList();
+            var boolFn = new Type.FunctionType(
+                    List.of(new Type.Param(aj.targetRow(), one)),
+                    new Type.Param(Type.Primitive.BOOLEAN, one));
+            TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                    new ExprType(boolFn, one));
+            TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+                    aj.targetPipeline(), corr, aj.targetPipeline().info());
+            return GraphEmission.scalarLeafSubquery(rel,
+                    aj.target().rowVar(), aj.targetRow(), leaf.property(),
+                    leafBind);
+        }
+        return SyntheticHeads.rebuildChildren(n, c -> parentNavCondReads(
+                c, parentParam, parent, temporal, context, srcVar, srcRow));
     }
 
     /** The correlation pass: two sequential substitutions over the lifted

@@ -22,6 +22,7 @@ import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedJoin;
 import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNavigate;
 import com.legend.compiler.spec.typed.TypedProject;
@@ -1054,6 +1055,28 @@ final class Pipelines {
                             rewriteRowReads(c.source(), rowVar, prefixes, stripped, varRewrite),
                             c.target(), c.info());
             case TypedTypeRef ignored -> n;
+            // CORRELATED SCALAR SUBQUERY in condition position (the
+            // parentNavCondReads emission: LIMIT-1 over project over
+            // corr-filter): the correlation lambda reads THIS row var and
+            // re-points with it; relation SOURCES below the filter are
+            // self-contained resolved material and pass through untouched.
+            case TypedLimit tl -> new TypedLimit(
+                    rewriteRowReads(tl.source(), rowVar, prefixes, stripped,
+                            varRewrite),
+                    tl.count(), tl.info());
+            case TypedProject tp -> new TypedProject(
+                    rewriteRowReads(tp.source(), rowVar, prefixes, stripped,
+                            varRewrite),
+                    tp.columns().stream().map(fc -> new TypedFuncCol(
+                            fc.name(),
+                            (TypedLambda) rewriteRowReads(fc.fn(), rowVar,
+                                    prefixes, stripped, varRewrite)))
+                            .toList(),
+                    tp.info());
+            case TypedFilter tf -> new TypedFilter(tf.source(),
+                    (TypedLambda) rewriteRowReads(tf.predicate(), rowVar,
+                            prefixes, stripped, varRewrite),
+                    tf.info());
             default -> throw new IllegalStateException(
                     "resolver bug: row-read rewrite hit "
                             + n.getClass().getSimpleName()
