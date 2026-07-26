@@ -8,10 +8,14 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -248,6 +252,41 @@ public class RelationalCorpusRunner {
                 parentKey = cand;
             }
         }
+        // CROSS-FAMILY DEPENDENCY CLOSURE: a Database include naming a db
+        // DEFINED IN ANOTHER FAMILY's file pulls that file in MODEL-ONLY
+        // (the engine compiles the whole PURE graph together; the pulled
+        // elements compile, its tests do NOT run here). First-wins module
+        // semantics keep this family's own elements on duplicate FQNs.
+        {
+            Set<String> defined = new HashSet<>();
+            List<String> all = new ArrayList<>(familySources);
+            all.addAll(testSources.values());
+            for (String s2 : all) {
+                collectDbNames(s2, defined);
+            }
+            Deque<String> pending = new ArrayDeque<>(all);
+            Set<Path> pulledFiles = new HashSet<>(files);
+            while (!pending.isEmpty()) {
+                String s2 = pending.poll();
+                for (String line : s2.lines().map(String::strip).toList()) {
+                    if (!line.startsWith("include ")) {
+                        continue;
+                    }
+                    String fqn = line.substring("include ".length()).strip();
+                    if (defined.contains(fqn)) {
+                        continue;
+                    }
+                    Path dep = dbIndex().get(fqn);
+                    if (dep == null || !pulledFiles.add(dep)) {
+                        continue;   // unknown stays a loud downstream wall
+                    }
+                    String depSrc = Files.readString(dep);
+                    modelOnly.add(depSrc);
+                    collectDbNames(depSrc, defined);
+                    pending.add(depSrc);
+                }
+            }
+        }
         runner.useFamily(family, familySources, modelOnly, parentKey);
         for (Map.Entry<Path, String> e : testSources.entrySet()) {
             runner.useFile(e.getKey().toString(), e.getValue());
@@ -265,5 +304,41 @@ public class RelationalCorpusRunner {
             }
         }
         return outcomes;
+    }
+
+    /** Database FQNs defined in {@code src} (line-level indexing only —
+     * the model itself still compiles through the platform). */
+    private static void collectDbNames(String src, Set<String> out) {
+        src.lines().map(String::strip)
+                .filter(l -> l.startsWith("Database "))
+                .forEach(l -> out.add(dbNameOf(l)));
+    }
+
+    private static String dbNameOf(String databaseLine) {
+        return databaseLine.substring("Database ".length())
+                .replace("(", " ").strip().split("\\s+")[0];
+    }
+
+    /** Corpus-wide Database index: FQN -> defining file (first in sorted
+     * walk order — deterministic across sibling duplicates). */
+    private static Map<String, Path> dbIndexCache;
+
+    private static Map<String, Path> dbIndex() throws Exception {
+        if (dbIndexCache == null) {
+            Map<String, Path> ix = new LinkedHashMap<>();
+            try (Stream<Path> s = Files.walk(Corpus.RELATIONAL)) {
+                for (Path f : s.filter(x -> x.toString().endsWith(".pure"))
+                        .sorted().toList()) {
+                    for (String l : Files.readAllLines(f)) {
+                        String t = l.strip();
+                        if (t.startsWith("Database ")) {
+                            ix.putIfAbsent(dbNameOf(t), f);
+                        }
+                    }
+                }
+            }
+            dbIndexCache = ix;
+        }
+        return dbIndexCache;
     }
 }
