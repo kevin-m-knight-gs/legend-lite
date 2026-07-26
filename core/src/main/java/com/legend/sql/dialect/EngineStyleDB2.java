@@ -32,8 +32,55 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                     ? "trim(" + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
             case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
+            // parse-date family: DB2's to_date/timestamp_format take the
+            // whole string with the Java-style pattern (no substring, no
+            // space after the comma — the goldens' exact text)
+            case STRPTIME -> {
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit f) {
+                    String java = db2DatePattern(f.value());
+                    if (java != null) {
+                        boolean dateOnly = !f.value().contains("%H");
+                        yield (dateOnly ? "to_date(" : "timestamp_format(")
+                                + expr(a.get(0), 0) + ",'" + java + "')";
+                    }
+                }
+                throw new IllegalStateException("strptime format has no"
+                        + " engine-DB2 spelling yet: " + a);
+            }
             default -> super.call(c, parentPrec);
         };
+    }
+
+    /** C-style strptime directives → DB2's pattern spelling; null when a
+     * directive has no mapping (the caller throws — never a silent
+     * fallback). DB2 spells hours {@code hh} and millis {@code mmm}. */
+    private static String db2DatePattern(String cFormat) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < cFormat.length(); i++) {
+            char ch = cFormat.charAt(i);
+            if (ch != '%') {
+                out.append(ch);
+                continue;
+            }
+            if (++i >= cFormat.length()) {
+                return null;
+            }
+            String java = switch (cFormat.charAt(i)) {
+                case 'Y' -> "yyyy";
+                case 'm' -> "MM";
+                case 'd' -> "dd";
+                case 'H' -> "hh";
+                case 'M' -> "mm";
+                case 'S' -> "ss";
+                case 'g' -> "mmm";
+                default -> null;
+            };
+            if (java == null) {
+                return null;
+            }
+            out.append(java);
+        }
+        return out.toString();
     }
 
     @Override
@@ -42,6 +89,14 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         if (c.target() instanceof SqlType.Scalar s
                 && s == SqlType.Scalar.VARCHAR) {
             return "cast(" + expr(c.value(), 0) + " as varchar(16000))";
+        }
+        // to_date/timestamp_format are already date-typed — the IR's
+        // parse-cast renders bare (the goldens carry no cast)
+        if (c.target() instanceof SqlType.Scalar s2
+                && (s2 == SqlType.Scalar.DATE || s2 == SqlType.Scalar.TIMESTAMP)
+                && c.value() instanceof SqlExpr.Call pc
+                && pc.fn() == com.legend.sql.SqlFn.STRPTIME) {
+            return expr(pc, 0);
         }
         return super.variantAwareCast(c);
     }
