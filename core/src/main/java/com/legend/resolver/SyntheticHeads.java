@@ -935,7 +935,7 @@ final class SyntheticHeads {
      * built on this are best-effort by design (an unvisited shape keeps
      * its loud downstream error, never silent SQL).
      */
-    private static TypedSpec rebuildChildren(TypedSpec n,
+    static TypedSpec rebuildChildren(TypedSpec n,
             UnaryOperator<TypedSpec> f) {
         return switch (n) {
             case TypedProject p ->
@@ -958,6 +958,9 @@ final class SyntheticHeads {
                     gb.info());
             case TypedSortBy sb -> new TypedSortBy(f.apply(sb.source()),
                     (TypedLambda) f.apply(sb.key()), sb.ascending(), sb.info());
+            case com.legend.compiler.spec.typed.TypedSort so ->
+                    new com.legend.compiler.spec.typed.TypedSort(
+                            f.apply(so.source()), so.keys(), so.info());
             case TypedLimit l -> new TypedLimit(f.apply(l.source()),
                     l.count(), l.info());
             case TypedDrop d -> new TypedDrop(f.apply(d.source()),

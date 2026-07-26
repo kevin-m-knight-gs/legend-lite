@@ -242,7 +242,12 @@ public final class StoreResolver {
                                 .map(r -> new Context(null, r.fullPath(),
                                         from.chainMappings()))
                                 .orElse(context));
-                yield new TypedFrom(resolveNode(from.source(), inner),
+                // in-query CLASS SUBQUERIES under lambdas lift FIRST
+                // (SubQueryLift): the sub-chain resolves under THIS
+                // from()'s context into a [0..1] scalar-subquery relation
+                TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
+                        inner, ctx, specs, letBindings);
+                yield new TypedFrom(resolveNode(liftedSrc, inner),
                         from.mapping(), from.runtime(),
                         from.chainMappings(), from.info());
             }
@@ -1238,7 +1243,7 @@ public final class StoreResolver {
         return branch;
     }
 
-    private static boolean containsGetAll(TypedSpec n) {
+    static boolean containsGetAll(TypedSpec n) {
         if (n instanceof TypedGetAll) {
             return true;
         }
