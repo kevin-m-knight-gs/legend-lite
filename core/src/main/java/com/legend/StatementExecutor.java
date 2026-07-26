@@ -492,6 +492,37 @@ final class StatementExecutor {
 
     /** A let-bound argument resolves through the caller's let prefix
      * ({@code let q = |...|; execute($q, ...)}). */
+
+    /** Inliner-consumed lets prefix the lowering as TypedLet statements
+     * (the classic lower(List) path records them as letBindings) so a
+     * surviving $let read — a graph-tree qualifier ARG, engine
+     * inScopeVars — resolves at the leaf. A let whose value has no
+     * scalar lowering (runtime handles, relation frames) is not seeded:
+     * its reads keep their existing loud walls. */
+    private static java.util.List<com.legend.compiler.spec.typed.TypedSpec>
+            withQueryLetPrefix(
+                    java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+                    ExecEnv env, com.legend.compiler.element.ModelContext ctx) {
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> out =
+                new java.util.ArrayList<>();
+        for (var qe : env.queryLets().entrySet()) {
+            var let = new com.legend.compiler.spec.typed.TypedLet(
+                    qe.getKey(), qe.getValue(), qe.getValue().info());
+            try {
+                new com.legend.lowering.Lowerer(
+                        t -> com.legend.compiler.element.ClassLayouts
+                                .layoutOf(ctx, t),
+                        f -> ctx.findClass(f).isPresent())
+                        .lower(java.util.List.of(let, qe.getValue()));
+                out.add(let);
+            } catch (RuntimeException notScalar) {
+                // not seedable — reads of this let keep their loud walls
+            }
+        }
+        out.addAll(body);
+        return out;
+    }
+
     private static TypedSpec letBound(TypedSpec arg,
             java.util.List<TypedSpec> letPrefix) {
         if (arg instanceof com.legend.compiler.spec.typed.TypedVariable v) {
@@ -1072,7 +1103,8 @@ final class StatementExecutor {
         }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent()).lower(body);
+                f -> ctx.findClass(f).isPresent())
+                .lower(withQueryLetPrefix(body, env, ctx));
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
