@@ -2178,6 +2178,18 @@ public final class TestBody {
                 yield new LambdaFunction(lf.parameters(),
                         substituteAll(lf.body(), visible));
             }
+            // ^X(prop=$let, ...) / ^$let(prop=...) — the binding
+            // EXPRESSIONS read lets too (the XStore runtime copy-ctors:
+            // ^$dbRuntime(connectionStores=$dbRuntime.connectionStores
+            // ->concatenate(...)) reached the Typer with free vars)
+            case NewInstance ni -> {
+                Map<String, KeyExpression> props = new LinkedHashMap<>();
+                ni.properties().forEach((k, ke) -> props.put(k,
+                        new KeyExpression(substitute(ke.value(), lets),
+                                ke.isAdd(), ke.isLocal())));
+                yield new NewInstance(ni.className(), ni.typeArguments(),
+                        props);
+            }
             default -> v;
         };
     }

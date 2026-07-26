@@ -411,7 +411,9 @@ class NativeFunctionTest {
         // 67: +FunctionDefinition/ConcreteFunctionDefinition/LambdaFunction
         //     (the m3 function-carrier hierarchy under Function<F> — corpus
         //     annotations like LambdaFunction<{->TabularDataSet[1]}>).
-        assertEquals(67, Pure.allNativeClasses().size(),
+        // 70: +PureModelConnection/JsonModelConnection/ModelChainConnection
+        //     (XStore leg slice 0 — real modelToModel.pure:43/:58/:82).
+        assertEquals(70, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -448,6 +450,14 @@ class NativeFunctionTest {
                     // relationalRuntimeExtension.pure:23-26
                     "meta::external::store::relational::runtime::GenerationFeaturesConfig",
                     List.of("enabled", "disabled"));
+
+    /** XStore leg slice 0 (real core/pure/mapping/modelToModel.pure:58/:82). */
+    private static final java.util.Map<String, List<String>> STORE_MODEL_SURFACE_PROPERTIES =
+            java.util.Map.of(
+                    "meta::external::store::model::JsonModelConnection",
+                    List.of("class", "url"),
+                    "meta::external::store::model::ModelChainConnection",
+                    List.of("mappings"));
 
     /** task #78 step-1 TDS + aggregationAware surfaces (Map.of caps at 10
      * pairs — second map, same contract). */
@@ -491,6 +501,10 @@ class NativeFunctionTest {
                 // as REAL legend-pure declares them — runtime.pure:17-32,
                 // relationalRuntime.pure:26-105, functions.pure:50-65
                 assertEquals(RUNTIME_SURFACE_PROPERTIES.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real legend-pure");
+            } else if (STORE_MODEL_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
+                assertEquals(STORE_MODEL_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
                         () -> c.qualifiedName() + " must match real legend-pure");
             } else {

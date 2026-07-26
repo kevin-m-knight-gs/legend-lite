@@ -235,6 +235,12 @@ public final class Pure {
     public static final ClassDefinition STORE = nativeClass("native Class meta::pure::store::Store extends meta::pure::metamodel::ModelElement {}");
     /** Real core/pure/mapping/modelToModel.pure:37 (toString() qualified property omitted until demanded). */
     public static final ClassDefinition MODEL_STORE = nativeClass("native Class meta::external::store::model::ModelStore extends meta::pure::store::Store {}");
+    /** Real core/pure/mapping/modelToModel.pure:43 (empty marker; the connection VALUES never evaluate — declarations exist so runtime-construction chains TYPE, XStore leg slice 0). */
+    public static final ClassDefinition PURE_MODEL_CONNECTION = nativeClass("native Class meta::external::store::model::PureModelConnection extends meta::core::runtime::Connection {}");
+    /** Real core/pure/mapping/modelToModel.pure:58 ('class: Class&lt;Any&gt;[1]' — a class REFERENCE value; declared Any here, the reference's own type conforms). */
+    public static final ClassDefinition JSON_MODEL_CONNECTION = nativeClass("native Class meta::external::store::model::JsonModelConnection extends meta::external::store::model::PureModelConnection { class: meta::pure::metamodel::type::Any[1]; url: meta::pure::metamodel::type::String[1]; }");
+    /** Real core/pure/mapping/modelToModel.pure:82. */
+    public static final ClassDefinition MODEL_CHAIN_CONNECTION = nativeClass("native Class meta::external::store::model::ModelChainConnection extends meta::core::runtime::Connection { mappings: meta::pure::mapping::Mapping[*]; }");
     /** Real relationalRuntimeExtension.pure:15-27 (constraints noDuplicates/knownFeatures not ported). */
     public static final ClassDefinition GENERATION_FEATURES_CONFIG = nativeClass("native Class meta::external::store::relational::runtime::GenerationFeaturesConfig extends meta::external::store::relational::runtime::RelationalQueryGenerationConfig { enabled: meta::pure::metamodel::type::String[*]; disabled: meta::pure::metamodel::type::String[*]; }");
     /** Real platform_dsl_mapping/grammar/mapping.pure:26 (extends PackageableElement, Testable — ModelElement analog). The mapping METACLASS: a mapping reference is a value of this type. */
