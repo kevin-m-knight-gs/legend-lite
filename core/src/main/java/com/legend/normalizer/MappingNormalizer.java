@@ -811,6 +811,17 @@ public final class MappingNormalizer {
                     && rootedAt(ps.get(1), srcVar)) {
                 ps = List.of(ps.get(1), ps.get(0));
             }
+            // AND/OR are commutative: the two direction lines may order
+            // conjuncts differently ((eq && date) vs (date && eq) —
+            // crossMapping2); a deterministic operand order makes pure
+            // commutation compare equal (the direction-specific wall stays
+            // for genuinely different predicates)
+            if (("and".equals(af.function()) || "&&".equals(af.function())
+                    || "or".equals(af.function()) || "||".equals(af.function()))
+                    && ps.size() == 2
+                    && ps.get(0).toString().compareTo(ps.get(1).toString()) > 0) {
+                ps = List.of(ps.get(1), ps.get(0));
+            }
             return new AppliedFunction(af.function(), ps);
         }
         return v;

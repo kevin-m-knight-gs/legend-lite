@@ -1101,18 +1101,20 @@ final class AssociationJoins {
                 && (w.callee().qualifiedName().equals(
                         "meta::pure::functions::multiplicity::toOne")
                     || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOneMany")
+                    || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             n = w.args().get(0);
         }
         return n;
     }
 
-    /** {@code $parentParam.<assocProp>.<leaf>} in a property-space
-     * condition (wrappers tolerated) → a [0..1] CORRELATED SCALAR
-     * SUBQUERY: the parent's OWN association join for the hop, its
-     * condition's parent-side reads re-pointed at the fresh source
-     * binder, projecting the leaf binding, LIMIT 1 (the navLeafSubquery
-     * discipline, condition position). Deeper chains keep their loud
+    /** Parent-nav reads in a property-space condition → a [0..1]
+     * CORRELATED SCALAR SUBQUERY (the navLeafSubquery discipline,
+     * condition position). Two spellings of the same read:
+     * {@code $p.<assocProp>.<leaf>} and the auto-map desugar
+     * {@code $p.<assocProp>->map(x|$x.<leaf>)->toOne()} (toOne/toOneMany/
+     * first wrappers tolerated everywhere). Deeper chains keep their loud
      * substitution wall. */
     private TypedSpec parentNavCondReads(TypedSpec n, String parentParam,
             ClassSource parent, TemporalFrame temporal,
@@ -1125,41 +1127,71 @@ final class AssociationJoins {
                 && pv.name().equals(parentParam)
                 && ctx.findAssociationOf(parent.classFqn(), hop.property())
                         .isPresent()) {
-            AssocJoin aj = associationJoin(temporal, parent, hop.property(),
-                    context, /*forExists*/ true,
-                    java.util.Set.of(leaf.property()), hop.property(),
-                    java.util.Set.of());
-            TypedSpec leafBind = aj.target().bindings().get(leaf.property());
-            if (leafBind == null
-                    || leafBind.info().type() instanceof Type.ClassType) {
-                throw new NotImplementedException("XStore condition read '$"
-                        + parentParam + "." + hop.property() + "."
-                        + leaf.property() + "' has no scalar binding on the"
-                        + " hop target '" + aj.target().classFqn() + "'");
-            }
-            var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-            String pVar = aj.condition().parameters().get(0);
-            String tVar = aj.condition().parameters().get(1);
-            List<TypedSpec> corrBody = aj.condition().body().stream()
-                    .map(cb -> Pipelines.rewriteRowReads(cb, pVar, Map.of(),
-                            java.util.Set.of(),
-                            v -> new com.legend.compiler.spec.typed
-                                    .TypedVariable(srcVar,
-                                            new ExprType(srcRow, one))))
-                    .toList();
-            var boolFn = new Type.FunctionType(
-                    List.of(new Type.Param(aj.targetRow(), one)),
-                    new Type.Param(Type.Primitive.BOOLEAN, one));
-            TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
-                    new ExprType(boolFn, one));
-            TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
-                    aj.targetPipeline(), corr, aj.targetPipeline().info());
-            return GraphEmission.scalarLeafSubquery(rel,
-                    aj.target().rowVar(), aj.targetRow(), leaf.property(),
-                    leafBind);
+            return parentNavSubquery(parentParam, parent, temporal, context,
+                    srcVar, srcRow, hop.property(), leaf.property());
+        }
+        if (n instanceof TypedNativeCall oneW && oneW.args().size() == 1
+                && (oneW.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || oneW.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first"))
+                && oneW.args().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && tm.mapper().parameters().size() == 1
+                && tm.mapper().body().size() == 1
+                && unwrapOnes(tm.mapper().body().get(0))
+                        instanceof TypedPropertyAccess mLeaf
+                && mLeaf.source()
+                        instanceof com.legend.compiler.spec.typed.TypedVariable mv
+                && mv.name().equals(tm.mapper().parameters().get(0))
+                && unwrapOnes(tm.source()) instanceof TypedPropertyAccess mHop
+                && unwrapOnes(mHop.source())
+                        instanceof com.legend.compiler.spec.typed.TypedVariable mpv
+                && mpv.name().equals(parentParam)
+                && ctx.findAssociationOf(parent.classFqn(), mHop.property())
+                        .isPresent()) {
+            return parentNavSubquery(parentParam, parent, temporal, context,
+                    srcVar, srcRow, mHop.property(), mLeaf.property());
         }
         return SyntheticHeads.rebuildChildren(n, c -> parentNavCondReads(
                 c, parentParam, parent, temporal, context, srcVar, srcRow));
+    }
+
+    private TypedSpec parentNavSubquery(String parentParam, ClassSource parent,
+            TemporalFrame temporal, StoreResolver.Context context,
+            String srcVar, Type.RelationType srcRow, String hopProp,
+            String leafProp) {
+        AssocJoin aj = associationJoin(temporal, parent, hopProp,
+                context, /*forExists*/ true,
+                java.util.Set.of(leafProp), hopProp,
+                java.util.Set.of());
+        TypedSpec leafBind = aj.target().bindings().get(leafProp);
+        if (leafBind == null
+                || leafBind.info().type() instanceof Type.ClassType) {
+            throw new NotImplementedException("XStore condition read '$"
+                    + parentParam + "." + hopProp + "."
+                    + leafProp + "' has no scalar binding on the"
+                    + " hop target '" + aj.target().classFqn() + "'");
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        String pVar = aj.condition().parameters().get(0);
+        String tVar = aj.condition().parameters().get(1);
+        List<TypedSpec> corrBody = aj.condition().body().stream()
+                .map(cb -> Pipelines.rewriteRowReads(cb, pVar, Map.of(),
+                        java.util.Set.of(),
+                        v -> new com.legend.compiler.spec.typed
+                                .TypedVariable(srcVar,
+                                        new ExprType(srcRow, one))))
+                .toList();
+        var boolFn = new Type.FunctionType(
+                List.of(new Type.Param(aj.targetRow(), one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new ExprType(boolFn, one));
+        TypedSpec rel = new com.legend.compiler.spec.typed.TypedFilter(
+                aj.targetPipeline(), corr, aj.targetPipeline().info());
+        return GraphEmission.scalarLeafSubquery(rel,
+                aj.target().rowVar(), aj.targetRow(), leafProp, leafBind);
     }
 
     /** The correlation pass: two sequential substitutions over the lifted

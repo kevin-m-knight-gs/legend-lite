@@ -201,3 +201,30 @@ resolve-time owns.
    emission can still terminate in a 5-arg legacyAssocPredicate whose
    END args are set-pinned class extents, with the cond substituted at
    the resolver.
+
+## Design note: union Pure-set members (banked 2026-07-26)
+
+Four XStoreUnion tests wall at UnionSynthesis.synthUnion's member-kind
+gate (:322-329 — members must be Relational/Relation(~func)). The phase
+tension is route A's exactly: synthUnion is NORMALIZE-time, a Pure
+member's relation is the RESOLVE-time M2M composition (JSON frame +
+binding expressions).
+
+Two routes considered:
+- (a) property-space MEMBER MARKER threads in the emission, arm factory
+  materializes them at resolve — spreads the marker vocabulary into the
+  union emission; rejected.
+- (b) RESOLVER-SIDE union synthesis for MIXED-kind unions (chosen): when
+  any member is a Pure set, the class-level synthesis defers (set-pinned
+  class marker, loud if consumed outside the resolver); ClassSources'
+  union route builds the arm list itself — per member,
+  get(mapping, class, memberSetId) composes the ClassSource (Relational
+  members compose exactly as today; Pure members ride the M2M/JSON-frame
+  composition landed in route A), each arm projects the SHARED scalar
+  properties to property-named columns, arms concatenate with the
+  engine's _N member-suffix discipline. One construction site, no new
+  emission vocabulary — the leg-3 arm-factory discipline's natural home.
+
+Interactions to hold: member key-column demand (c_PersonID family),
+associations INTO union targets (U3 dispatch by member set), milestoned
+members (temporal stamps are per-arm), include-closure member resolution.
