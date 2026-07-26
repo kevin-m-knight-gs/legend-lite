@@ -138,6 +138,6 @@ final class JsonSourceFrame {
                     new ExprType(c.type(), c.multiplicity())));
         }
         return new ClassSource(mappingFqn, classFqn, "json", pipeline,
-                rowVar, bindings, rowType);
+                rowVar, bindings, rowType, classFqn);
     }
 }

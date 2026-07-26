@@ -42,9 +42,20 @@ public record ClassSource(
         TypedSpec pipeline,
         String rowVar,
         Map<String, TypedSpec> bindings,
-        Type.RelationType rowType) {
+        Type.RelationType rowType,
+        String sourceClass) {
 
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
+    }
+
+    /** No known upstream source class (relational sets, synthesized
+     * unions) — consumers requiring source identity fall back to
+     * structural checks (audit 24 F4). */
+    public ClassSource(String mappingFqn, String classFqn, String setId,
+            TypedSpec pipeline, String rowVar,
+            Map<String, TypedSpec> bindings, Type.RelationType rowType) {
+        this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
+                rowType, null);
     }
 }

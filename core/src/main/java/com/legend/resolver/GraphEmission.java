@@ -1032,6 +1032,20 @@ final class GraphEmission {
                 : sources.get(cs.mappingFqn(), cast.classFqn());
         Type.RelationType rowT = (Type.RelationType)
                 parentPipeline.info().type();
+        // audit 24 F4: SOURCE-CLASS identity is the real same-frame check —
+        // two frames can share every column NAME (S_Trade vs S_Trade2) and
+        // a name-subset proxy alone would silently serve the parent's rows
+        // as the other class's data. The structural subset check remains
+        // as the fallback ONLY when the child's source class is unknown.
+        if (child.sourceClass() != null
+                && !child.sourceClass().equals(srcClassFqn)) {
+            throw new NotImplementedException("whole-source graph child '"
+                    + node.property() + "' of '" + cs.classFqn()
+                    + "': set '" + cast.classFqn() + "' composes over source"
+                    + " class '" + child.sourceClass() + "' but the marker's"
+                    + " row is a '" + srcClassFqn + "' frame — different"
+                    + " sources never share a row");
+        }
         Set<String> parentCols = new LinkedHashSet<>();
         for (Type.Column pc : rowT.columns()) {
             parentCols.add(pc.name());

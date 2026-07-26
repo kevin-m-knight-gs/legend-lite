@@ -890,8 +890,12 @@ public final class ClassSources {
             composed.put(e.getKey(), substituteSourceReads(e.getValue(), srcVar,
                     inner, classFqn, mappingFqn));
         }
+        // audit 24 F4: the composition's FRAME IDENTITY — the deep source
+        // class (jsonSources key); two sets sharing it share the frame
         return new ClassSource(mappingFqn, classFqn, binding.setId(),
-                composedPipeline, inner.rowVar(), composed, inner.rowType());
+                composedPipeline, inner.rowVar(), composed, inner.rowType(),
+                inner.sourceClass() != null ? inner.sourceClass()
+                        : inner.classFqn());
     }
 
     /**
