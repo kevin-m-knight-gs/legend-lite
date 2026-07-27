@@ -108,6 +108,44 @@ public final class PlanText {
                 + "    )\n)\n";
     }
 
+    /** A SCALAR-projection Relational node (an Allocation's query value
+     * — {@code ->toOne().lastName} bodies): bare primitive type line,
+     * resultColumns spelled as the RAW column expression, and the SQL
+     * rendered WITHOUT projection aliases (the engine's scalar select
+     * form). Rendering stays in the root layer — the caller supplies the
+     * alias-less SQL text and the post-render alias spelling. */
+    public static String scalarRelational(ModelContext ctx, String dbFqn,
+            SqlSelect plan, String typeName, String sizeRange, String sql,
+            java.util.function.UnaryOperator<String> aliasSpell) {
+        StringBuilder rc = new StringBuilder();
+        for (SqlSelect.Projection p : plan.projections()) {
+            if (rc.length() > 0) {
+                rc.append(", ");
+            }
+            if (!(p.expr() instanceof SqlExpr.Column c)) {
+                throw new NotImplementedException("plan: computed scalar"
+                        + " projection spelling pending");
+            }
+            String table = tableOf(plan.from(), c.table());
+            var td = ctx.findTableDefinition(dbFqn, table).orElseThrow(
+                    () -> new NotImplementedException("plan: table '"
+                            + table + "' not in '" + dbFqn + "'"));
+            var cd = td.columns().stream()
+                    .filter(x -> x.name().equalsIgnoreCase(c.name()))
+                    .findFirst().orElseThrow();
+            rc.append("(\"").append(aliasSpell.apply(c.table()))
+                    .append("\".").append(c.name()).append(", ")
+                    .append(spell(cd.dataType())).append(')');
+        }
+        return "Relational\n(\n"
+                + "  type = " + typeName + "\n"
+                + "  resultSizeRange = " + sizeRange + "\n"
+                + "  resultColumns = [" + rc + "]\n"
+                + "  sql = " + sql + "\n"
+                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + ")\n";
+    }
+
     /** {@code Constant} — a literal-valued Allocation body (the engine
      * spells {@code values=[...]} without spaces). */
     public static String constant(String typeName, String valueText) {

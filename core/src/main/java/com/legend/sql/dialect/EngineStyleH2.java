@@ -106,6 +106,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return renames.getOrDefault(alias, alias);
     }
 
+    /** The engine-style spelling of an alias AFTER a render pass — the
+     * plan printer's resultColumns spell the renamed alias ("root", not
+     * t0); call only on the instance that rendered the SQL. */
+    public String renderedAlias(String alias) {
+        return rename(alias);
+    }
+
     // == single-line lowercase clause assembly ==========================
 
     @Override

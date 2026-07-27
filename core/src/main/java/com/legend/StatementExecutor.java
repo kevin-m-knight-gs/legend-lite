@@ -364,7 +364,8 @@ final class StatementExecutor {
                 throw new com.legend.error.NotImplementedException(
                         "plan: non-let intermediate statement");
             }
-            children.add(allocationNode(let));
+            children.add(allocationNode(let, mappingFqn, specs, env,
+                    params));
             params.put(let.name(), let.info().type()
                     == com.legend.compiler.element.type.Type.Primitive.STRING);
         }
@@ -389,13 +390,17 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
-    /** An Allocation child for one plan let; only LITERAL values have a
-     * node form here (Constant) — query-valued lets (scalar-projection
-     * Relational bodies) stay a named wall. */
+    /** An Allocation child for one plan let: LITERAL values print as
+     * Constant nodes, query values as SCALAR-projection Relational
+     * nodes (bare-typed, alias-less select — the engine's Allocation
+     * value form). */
     private static String allocationNode(
-            com.legend.compiler.spec.typed.TypedLet let) {
+            com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            java.util.Map<String, Boolean> params) {
         String typeName = com.legend.plan.PlanText
                 .pureTypeName(let.info().type());
+        String size = sizeRange(let.info().multiplicity());
         String inner;
         if (let.value()
                 instanceof com.legend.compiler.spec.typed.TypedCString cs) {
@@ -405,12 +410,36 @@ final class StatementExecutor {
             inner = com.legend.plan.PlanText.constant(typeName,
                     String.valueOf(ci.value()));
         } else {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: Allocation over a non-literal let value —"
-                    + " scalar-projection plan node pending");
+            String rootClass = rootGetAllClass(
+                    java.util.List.of(let.value()));
+            if (rootClass == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan: Allocation value without a getAll root");
+            }
+            EngineSql es = engineSql(java.util.List.of(let.value()),
+                    mappingFqn, specs, env,
+                    new com.legend.sql.dialect.EngineStyleH2(), params);
+            if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan: Allocation value lowers to a non-select");
+            }
+            String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+                    env.ctx(), mappingFqn, rootClass);
+            com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
+                    sel.projections().stream().map(p ->
+                            new com.legend.sql.SqlSelect.Projection(
+                                    p.expr(), null)).toList(),
+                    sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
+                    sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
+                    sel.offset(), sel.outputs());
+            var renderer = new com.legend.sql.dialect.EngineStyleH2();
+            String bareSql = renderer.render(bareSel);
+            inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
+                    impl[2], sel, typeName, size, bareSql,
+                    renderer::renderedAlias);
         }
         return com.legend.plan.PlanText.allocation(let.name(), typeName,
-                sizeRange(let.info().multiplicity()), inner);
+                size, inner);
     }
 
     private static String multBracket(
