@@ -17,7 +17,16 @@ import java.util.List;
  * @param info      the source type unchanged ({@code T[m]})
  */
 public record TypedSortBy(TypedSpec source, TypedLambda key, boolean ascending,
-                          ExprType info) implements TypedSpec {
+                          String keyAlias, ExprType info) implements TypedSpec {
+
+    /** The common alias-less sort ({@code keyAlias} is the engine's
+     * {@code !alias} path suffix — a sortBy path key materializes as the
+     * root form's {@code o_<alias>} column). */
+    public TypedSortBy(TypedSpec source, TypedLambda key, boolean ascending,
+            ExprType info) {
+        this(source, key, ascending, null, info);
+    }
+
     @Override
     public List<TypedSpec> children() {
         return List.of(source, key);

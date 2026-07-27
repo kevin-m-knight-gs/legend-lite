@@ -240,6 +240,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return s.substring(0, p).toLowerCase(Locale.ROOT) + s.substring(p);
     }
 
+    /** Engine sort keys spell the direction EXPLICITLY and lowercase
+     * ({@code asc}/{@code desc} — every ordered golden's spelling). */
+    @Override
+    protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
+        String s = expr(k.expr(), 0) + (k.ascending() ? " asc" : " desc");
+        if (k.nullOrder() != null) {
+            s += k.nullOrder() == com.legend.sql.SqlSelect.SortKey
+                    .NullOrder.NULLS_FIRST ? " nulls first" : " nulls last";
+        }
+        return s;
+    }
+
     /** Engine window text is lowercase: {@code sum(...) over (partition
      * by ... order by ...)} (the window-col goldens' spelling). */
     @Override

@@ -510,7 +510,8 @@ public final class UserCallInliner {
                     aggCols(a.aggs(), env), a.info());
             case TypedSort s -> new TypedSort(rewrite(s.source(), env), s.keys(), s.info());
             case TypedSortBy sb -> new TypedSortBy(rewrite(sb.source(), env),
-                    lambda(sb.key(), env), sb.ascending(), sb.info());
+                    lambda(sb.key(), env), sb.ascending(), sb.keyAlias(),
+                    sb.info());
             case TypedSelect s -> new TypedSelect(rewrite(s.source(), env),
                     s.columns(), s.info());
             case TypedRename r -> new TypedRename(rewrite(r.source(), env),

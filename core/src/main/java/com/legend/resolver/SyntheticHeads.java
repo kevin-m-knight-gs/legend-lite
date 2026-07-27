@@ -460,7 +460,7 @@ final class SyntheticHeads {
             case TypedSortBy sb -> new TypedSortBy(
                     liftFilteredHeads(sb.source(), enabled),
                     (TypedLambda) liftFilteredHeads(sb.key(), enabled),
-                    sb.ascending(), sb.info());
+                    sb.ascending(), sb.keyAlias(), sb.info());
             case TypedLimit l -> new TypedLimit(
                     liftFilteredHeads(l.source(), enabled), l.count(), l.info());
             case TypedDrop d -> new TypedDrop(
@@ -958,7 +958,8 @@ final class SyntheticHeads {
                             .toList(),
                     gb.info());
             case TypedSortBy sb -> new TypedSortBy(f.apply(sb.source()),
-                    (TypedLambda) f.apply(sb.key()), sb.ascending(), sb.info());
+                    (TypedLambda) f.apply(sb.key()), sb.ascending(),
+                    sb.keyAlias(), sb.info());
             case com.legend.compiler.spec.typed.TypedSort so ->
                     new com.legend.compiler.spec.typed.TypedSort(
                             f.apply(so.source()), so.keys(), so.info());

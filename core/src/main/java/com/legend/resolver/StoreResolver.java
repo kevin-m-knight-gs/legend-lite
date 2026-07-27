@@ -375,7 +375,8 @@ public final class StoreResolver {
                     new TypedCast(
                             resolveNode(c.source(), context), c.target(), c.info());
             case TypedSortBy sb when containsGetAll(sb.source()) -> new TypedSortBy(
-                    resolveNode(sb.source(), context), sb.key(), sb.ascending(), sb.info());
+                    resolveNode(sb.source(), context), sb.key(), sb.ascending(),
+                    sb.keyAlias(), sb.info());
             case TypedLimit l when containsGetAll(l.source()) -> new TypedLimit(
                     resolveNode(l.source(), context), l.count(), l.info());
             case TypedDrop d when containsGetAll(d.source()) -> new TypedDrop(
@@ -2903,7 +2904,7 @@ public final class StoreResolver {
                         pipeline.info());
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
                         substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh, sb.key()).rewriteLambda(sb.key()),
-                        sb.ascending(), pipeline.info());
+                        sb.ascending(), sb.keyAlias(), pipeline.info());
                 case TypedDistinct d -> {
                     // dedup by the MAPPED row (engine instance identity):
                     // narrow to the class's own columns so joined helper

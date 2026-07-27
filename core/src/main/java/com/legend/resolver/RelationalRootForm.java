@@ -89,6 +89,24 @@ public final class RelationalRootForm {
                             new ExprType(fnType, one))));
         }
         cols.addAll(g.leaves());
+        // sortBy PATH ALIASES materialize as o_<alias> sort-key columns
+        // (engine buildColumnNameOutOfPath — the flat form projects the
+        // sort key; column order: pk_, props, o_* last)
+        TypedSpec spine = g.source();
+        while (true) {
+            if (spine instanceof com.legend.compiler.spec.typed.TypedSortBy sb) {
+                if (sb.keyAlias() != null) {
+                    cols.add(new TypedFuncCol("o_" + sb.keyAlias(), sb.key()));
+                }
+                spine = sb.source();
+            } else if (spine instanceof TypedLimit l2) {
+                spine = l2.source();
+            } else if (spine instanceof TypedSlice s2) {
+                spine = s2.source();
+            } else {
+                break;
+            }
+        }
         List<Type.Column> outCols = new ArrayList<>();
         for (TypedFuncCol c : cols) {
             var last = c.fn().body().get(c.fn().body().size() - 1).info();
