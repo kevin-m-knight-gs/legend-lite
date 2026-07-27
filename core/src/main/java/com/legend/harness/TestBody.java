@@ -351,11 +351,10 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af && af.function().equals("letFunction")
                     && af.parameters().size() == 2
                     && af.parameters().get(0) instanceof CString name) {
-                ValueSpecification rhs =
-                        substitute(af.parameters().get(1), lets);
-                // literal-if over zero-param thunks folds at bind time —
-                // the helper pattern let q = if(\$checked, |{|...}, |{|...})
-                rhs = foldLiteralIf(rhs);
+                // bind-time folds: literal-if thunks + parse-through-
+                // our-own-parser grammar strings (foldLiteralIf / clgArm)
+                ValueSpecification rhs = clgArm(foldLiteralIf(
+                        substitute(af.parameters().get(1), lets)), lets);
                 // #46 arms: generateTestData binding / literal read
                 // inlining / plan-transparent executionPlan chain
                 TdgLet tl = tdgLetArm(name, rhs, lets, tdg, planLets,
@@ -722,6 +721,54 @@ public final class TestBody {
             return out;
         }
         return null;
+    }
+
+    /** {@code meta::legend::compileLegendGrammar(<foldable string>)}
+     * behind optional {@code ->at(i)}/{@code ->cast(@...)} wraps: parse
+     * the grammar with the platform's own parser and return the selected
+     * FunctionDefinition's BODY as a zero-arg lambda; any other shape
+     * passes through untouched. */
+    private static ValueSpecification clgArm(ValueSpecification rhs,
+            Map<String, ValueSpecification> lets) {
+        ValueSpecification cur = rhs;
+        long idx = 0;
+        while (cur instanceof AppliedFunction af
+                && !af.parameters().isEmpty()) {
+            String n = simpleName(af.function());
+            if (n.equals("cast") || n.equals("toOne")) {
+                cur = af.parameters().get(0);
+            } else if (n.equals("at") && af.parameters().size() == 2
+                    && af.parameters().get(1)
+                            instanceof com.legend.model.spec.CInteger ci) {
+                idx = ci.value().longValue();
+                cur = af.parameters().get(0);
+            } else {
+                break;
+            }
+        }
+        if (!(cur instanceof AppliedFunction clg)
+                || !harnessVocabName(clg.function())
+                || !simpleName(clg.function()).equals("compileLegendGrammar")
+                || clg.parameters().size() != 1) {
+            return rhs;
+        }
+        String src = TestDataGenForm.foldString(
+                substitute(clg.parameters().get(0), lets));
+        if (src == null) {
+            return rhs;
+        }
+        List<com.legend.model.FunctionDefinition> fns = new ArrayList<>();
+        for (com.legend.model.PackageableElement el
+                : com.legend.parser.ElementParser.parse(src).elements()) {
+            if (el instanceof com.legend.model.FunctionDefinition fd) {
+                fns.add(fd);
+            }
+        }
+        if (idx < 0 || idx >= fns.size()) {
+            return rhs;
+        }
+        return new LambdaFunction(List.of(),
+                new ArrayList<>(fns.get((int) idx).body()));
     }
 
     /** One assert's terminal outcome from its checkAssert result, or
