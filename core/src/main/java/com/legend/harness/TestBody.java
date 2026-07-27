@@ -389,7 +389,7 @@ public final class TestBody {
                 if (sw != null) {
                     return sw;
                 }
-                lets.put(name.value(), rhs);
+                lets.put(name.value(), purifiedSetup(rhs, ctx));
                 continue;
             }
             // The per-driver golden idiom:
@@ -897,6 +897,70 @@ public final class TestBody {
             return new Outcome.Unsupported("let-bound setup: "
                     + String.valueOf(e.getMessage()).split("\\n")[0]);
         }
+    }
+
+    /** The lazy binding a RAN setup helper leaves behind: its RETURN
+     * EXPRESSION (body's last statement, own lets substituted forward,
+     * executed side-effect statements dropped). A raw multi-statement
+     * call would hit the inliner's non-let wall when a consumer reads
+     * the binding — but the statements already ran through the platform
+     * (letSetupArm), so the value IS the remainder. 0-arg helpers only;
+     * anything else keeps the raw call (walls stay honest). */
+    private static ValueSpecification purifiedSetup(ValueSpecification rhs,
+            ModelContext ctx) {
+        if (!(rhs instanceof AppliedFunction af)
+                || !af.parameters().isEmpty()) {
+            return rhs;
+        }
+        var fd = ctx.findFunctionDefinition(af.function());
+        if (fd.isEmpty()) {
+            for (String c : af.candidateFqns()) {
+                fd = ctx.findFunctionDefinition(c);
+                if (fd.isPresent()) {
+                    break;
+                }
+            }
+        }
+        if (fd.isEmpty() || fd.get().body().isEmpty()
+                || !fd.get().parameters().isEmpty()) {
+            return rhs;
+        }
+        List<ValueSpecification> body = fd.get().body();
+        // ONLY the genuine setup shape purifies: statement-position
+        // executeInDb side effects (the setUp() DDL/seed idiom). An
+        // extension BUILDER whose executeInDb hides inside constructor
+        // lambdas keeps its raw call — inlining its body would drag
+        // module-private references into the consumer's compile scope.
+        boolean setupShape = false;
+        for (int i = 0; i < body.size() - 1; i++) {
+            if (body.get(i) instanceof AppliedFunction sf
+                    && !sf.function().equals("letFunction")
+                    && hasExecuteInDb(List.of(body.get(i)))) {
+                setupShape = true;
+                break;
+            }
+        }
+        if (!setupShape) {
+            return rhs;
+        }
+        Map<String, ValueSpecification> inner = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < body.size() - 1; i++) {
+            if (body.get(i) instanceof AppliedFunction lf
+                    && lf.function().equals("letFunction")
+                    && lf.parameters().size() == 2
+                    && lf.parameters().get(0) instanceof CString ln) {
+                inner.put(ln.value(),
+                        substitute(lf.parameters().get(1), inner));
+            }
+            // non-let side-effect statements already executed — dropped
+        }
+        ValueSpecification last = body.get(body.size() - 1);
+        if (last instanceof AppliedFunction lf2
+                && lf2.function().equals("letFunction")
+                && lf2.parameters().size() == 2) {
+            last = lf2.parameters().get(1);
+        }
+        return substitute(last, inner);
     }
 
     private static boolean hasExecuteInDb(List<ValueSpecification> body) {

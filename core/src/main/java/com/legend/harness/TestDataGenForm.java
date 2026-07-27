@@ -122,7 +122,7 @@ final class TestDataGenForm {
         TestDataGenerator.MilestoningDates[] dates =
                 new TestDataGenerator.MilestoningDates[1];
         for (int i = 3; i < ps.size(); i++) {
-            classifyArg(ps.get(i), rowIds, dates);
+            classifyArg(ps.get(i), rowIds, dates, new boolean[1]);
         }
         String mappingFqn = qualify(mp.fullPath(), ctx, imports);
         LambdaFunction resolved = (LambdaFunction) NameResolver
@@ -152,33 +152,31 @@ final class TestDataGenForm {
         List<TestDataGenerator.TableRowIds> rowIds = new ArrayList<>();
         TestDataGenerator.MilestoningDates[] dates =
                 new TestDataGenerator.MilestoningDates[1];
+        boolean[] hash = new boolean[1];
         for (int i = 3; i < ps.size(); i++) {
-            classifyArg(ps.get(i), rowIds, dates);
+            classifyArg(ps.get(i), rowIds, dates, hash);
         }
         String mappingFqn = qualify(mp.fullPath(), ctx, imports);
         LambdaFunction resolved = (LambdaFunction) NameResolver
                 .resolveQuery(query, imports, ctx.elementFqns());
         return TestDataGenerator.generate(ctx, resolved, mappingFqn,
-                rowIds, dates[0], conn);
+                rowIds, dates[0], hash[0], conn);
     }
 
     /** Recognized trailing args: TableRowIdentifiers (single or
-     * collection), hashStrings=false, extensions/runtime calls, empty
+     * collection), the hashStrings flag, extensions/runtime calls, empty
      * collections. Anything else is a LOUD wall — never silently
      * ignored. */
     private static void classifyArg(ValueSpecification arg,
             List<TestDataGenerator.TableRowIds> rowIds,
-            TestDataGenerator.MilestoningDates[] dates) {
+            TestDataGenerator.MilestoningDates[] dates, boolean[] hash) {
         if (arg instanceof CBoolean b) {
-            if (b.value()) {
-                throw new NotImplementedException(
-                        "testDataGen: hashStrings pending");
-            }
+            hash[0] = b.value();
             return;
         }
         if (arg instanceof PureCollection pc) {
             for (ValueSpecification e : pc.values()) {
-                classifyArg(e, rowIds, dates);
+                classifyArg(e, rowIds, dates, hash);
             }
             return;
         }

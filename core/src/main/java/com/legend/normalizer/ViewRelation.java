@@ -40,6 +40,24 @@ final class ViewRelation {
     private ViewRelation() {
     }
 
+    /** A class's MAIN SOURCE as a relation expression: the physical
+     * tableReference, or — when the ~mainTable is a VIEW — the view's
+     * RELATION expression (the identity-carrying frame; a bare
+     * tableReference would name an unknown physical table). */
+    static ValueSpecification mainSourceRef(LegacyMappingDefinition md,
+            String classFqn, ModelBuilder model) {
+        LegacyMappingDefinition.TableReference ref =
+                MappingNormalizer.mainTableDefOf(md, classFqn, model);
+        String table = MappingNormalizer.canonicalTable(ref.table());
+        DatabaseDefinition.ViewDefinition view =
+                model.findView(ref.database(), table).orElse(null);
+        return view != null
+                ? viewRelationExpr(view, table, ref.database(), model, md)
+                : new AppliedFunction("tableReference", List.of(
+                        new PackageableElementPtr(ref.database()),
+                        new CString(table)));
+    }
+
     /**
      * A VIEW as a standalone RELATION expression — the join-hop target:
      * {@code tableReference(physRoot) -> [~filter] -> (groupBy | project)

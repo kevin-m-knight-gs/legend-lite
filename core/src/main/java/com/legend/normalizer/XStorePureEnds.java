@@ -101,7 +101,7 @@ final class XStorePureEnds {
                     }
                 }
                 return new XEnd(
-                        MappingNormalizer.mainTableRefOf(md, classFqn, model),
+                        ViewRelation.mainSourceRef(md, classFqn, model),
                         new ClassMapping.RelationFunction(classFqn,
                                 MappingNormalizer.setIdOf(rcm), null, rcm.root(),
                                 "<relational>", cols),

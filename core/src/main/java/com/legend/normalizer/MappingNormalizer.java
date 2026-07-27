@@ -2989,7 +2989,7 @@ public final class MappingNormalizer {
     }
 
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
-    private static LegacyMappingDefinition.TableReference mainTableDefOf(
+    static LegacyMappingDefinition.TableReference mainTableDefOf(
             LegacyMappingDefinition md, String classFqn, ModelBuilder model) {
         // The ROOT set's table — with multiple set IDs, .all() and every
         // synthesized association predicate anchor on the root; taking the
@@ -3021,14 +3021,6 @@ public final class MappingNormalizer {
     }
 
     /** The {@code #>{db.T}#}-shaped source of {@code classFqn}'s ~mainTable row. */
-    static ValueSpecification mainTableRefOf(LegacyMappingDefinition md, String classFqn,
-            ModelBuilder model) {
-        LegacyMappingDefinition.TableReference ref = mainTableDefOf(md, classFqn, model);
-        return new AppliedFunction("tableReference", List.of(
-                new PackageableElementPtr(ref.database()),
-                new CString(canonicalTable(ref.table()))));
-    }
-
     static String mainTableOf(LegacyMappingDefinition md, String classFqn,
             ModelBuilder model) {
         return mainTableDefOf(md, classFqn, model).table();

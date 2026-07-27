@@ -162,6 +162,14 @@ public final class TestDataGenerator {
             LambdaFunction resolvedQuery, String mappingFqn,
             List<TableRowIds> rowIds, MilestoningDates dates,
             Connection conn) throws SQLException {
+        return generate(ctx, resolvedQuery, mappingFqn, rowIds, dates,
+                false, conn);
+    }
+
+    public static Result generate(ModelContext ctx,
+            LambdaFunction resolvedQuery, String mappingFqn,
+            List<TableRowIds> rowIds, MilestoningDates dates,
+            boolean hashStrings, Connection conn) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         // a VIEW-backed root generates for its UNDERLYING tree (engine
@@ -187,7 +195,7 @@ public final class TestDataGenerator {
                 fetchRoot(ctx, r, rowIds, st, sqls, fetched, temps, colMap,
                         dates);
             }
-            String csv = renderCsv(st, fetched);
+            String csv = renderCsv(st, fetched, hashStrings);
             return new Result(List.copyOf(sqls), csv);
         } finally {
             dropTemps(conn, temps);
@@ -741,7 +749,8 @@ public final class TestDataGenerator {
     // ===== CSV =====
 
     private static String renderCsv(Statement st,
-            Map<String, Fetched> fetched) throws SQLException {
+            Map<String, Fetched> fetched, boolean hashStrings)
+            throws SQLException {
         StringBuilder out = new StringBuilder();
         for (Fetched f : fetched.values()) {
             if (out.length() > 0) {
@@ -770,7 +779,8 @@ public final class TestDataGenerator {
                     + String.join(", ", cs.stream().map(
                             TestDataGenerator::q).toList())
                     + " from (" + union + ") order by all")) {
-                int n = rs.getMetaData().getColumnCount();
+                var md = rs.getMetaData();
+                int n = md.getColumnCount();
                 while (rs.next()) {
                     StringBuilder row = new StringBuilder();
                     for (int i = 1; i <= n; i++) {
@@ -778,6 +788,13 @@ public final class TestDataGenerator {
                             row.append(',');
                         }
                         String v = rs.getString(i);
+                        // hashStrings applies to STRING-typed values only
+                        // (engine hashStrings(): s:String -> hash, Any
+                        // passes through) — column type decides
+                        if (v != null && hashStrings && isTextType(
+                                md.getColumnType(i))) {
+                            v = hashString(v);
+                        }
                         row.append(v == null ? "---null---"
                                 : v.replace('\'', ' ').replace(',', ';')
                                         .replace('\n', ' '));
@@ -790,6 +807,35 @@ public final class TestDataGenerator {
             out.append("-----\n");
         }
         return out.toString();
+    }
+
+    private static boolean isTextType(int sqlType) {
+        return sqlType == java.sql.Types.VARCHAR
+                || sqlType == java.sql.Types.CHAR
+                || sqlType == java.sql.Types.LONGVARCHAR;
+    }
+
+    /** The engine's {@code hashString} (testDataGeneration.pure:656):
+     * the first 5 hex chars of SHA-256, TILED to the original string's
+     * length (whole repeats + the LAST len%5 chars). */
+    static String hashString(String s) {
+        java.security.MessageDigest md;
+        try {
+            md = java.security.MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+        byte[] d = md.digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder();
+        for (byte b : d) {
+            hex.append(String.format("%02x", b));
+        }
+        String h = hex.substring(0, 5);
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < s.length() / 5; i++) {
+            out.append(h);
+        }
+        return out.append(h.substring(5 - s.length() % 5)).toString();
     }
 
     // ===== assertTestData (engine: setUpDataSQLs + assertSameElements) =====

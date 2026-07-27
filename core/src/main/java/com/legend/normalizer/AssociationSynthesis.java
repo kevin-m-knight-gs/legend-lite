@@ -416,8 +416,8 @@ final class AssociationSynthesis {
         // re-deriving them from the classes' mappings.
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
                 a, b,
-                MappingNormalizer.mainTableRefOf(md, classA, model),
-                MappingNormalizer.mainTableRefOf(md, classB, model),
+                ViewRelation.mainSourceRef(md, classA, model),
+                ViewRelation.mainSourceRef(md, classB, model),
                 new LambdaFunction(List.of(srcRow, tgtRow),
                                          List.of(predicateBody))));
 
@@ -470,11 +470,19 @@ final class AssociationSynthesis {
                     null);
             String targetTable = MappingNormalizer.determineTargetTable(cond2, sourceTable,
                     hop.joinName(), associationName, 1, md.qualifiedName());
-            MappingNormalizer.requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.
             String classBTable = MappingNormalizer.mainTableOf(md, classB, model);
+            if (!targetTable.equals(classBTable)) {
+                // a join landing on classB's OWN main source is fine even
+                // when that source is a VIEW — the class-source override
+                // already expands it, so tgtRow IS the view relation's row
+                // (declared column names); any OTHER view target stays a
+                // named wall
+                MappingNormalizer.requireNonViewTarget(targetTable, hopDb,
+                        hop.joinName(), model, md);
+            }
             if (!targetTable.equals(classBTable)) {
                 throw new NotImplementedException(
                         "AssociationMapping join '" + hop.joinName() + "' lands on table '"
