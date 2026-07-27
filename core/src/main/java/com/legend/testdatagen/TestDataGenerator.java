@@ -205,6 +205,14 @@ public final class TestDataGenerator {
         String temp = "tdg_" + temps.size() + "_"
                 + table.replaceAll("[^A-Za-z0-9_]", "_");
         st.execute("CREATE TEMPORARY TABLE " + temp + " AS " + sql);
+        if (System.getenv("LL_TMP_DEBUG") != null) {
+            try (var rs = st.executeQuery(
+                    "SELECT COUNT(*) FROM " + temp)) {
+                rs.next();
+                System.err.println("[tdg] " + rs.getLong(1) + " rows <- "
+                        + sql);
+            }
+        }
         temps.add(temp);
         return temp;
     }

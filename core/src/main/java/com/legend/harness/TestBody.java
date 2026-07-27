@@ -384,6 +384,11 @@ public final class TestBody {
                     executed++;
                     continue;
                 }
+                Outcome sw = letSetupArm(rhs, lets, tdg, ctx, imports,
+                        runtimeFqn, conn, seedFailures);
+                if (sw != null) {
+                    return sw;
+                }
                 lets.put(name.value(), rhs);
                 continue;
             }
@@ -852,6 +857,61 @@ public final class TestBody {
      * rewritten) rhs for the ordinary let path. */
     private record TdgLet(Outcome wall, ValueSpecification rhs,
             boolean consumed) {
+    }
+
+    /** A let-bound SETUP HELPER (a corpus function whose body issues
+     * executeInDb DDL/inserts — {@code let runtime = model::setUp()})
+     * runs NOW for its side effects through the platform; the binding
+     * itself still rides lazily (its value is the runtime handle).
+     * Returns null normally, an Outcome wall on compile failure. */
+    private static Outcome letSetupArm(ValueSpecification rhs,
+            Map<String, ValueSpecification> lets,
+            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
+            ModelContext ctx, ImportScope imports, String runtimeFqn,
+            Connection conn, List<String> seedFailures)
+            throws java.sql.SQLException {
+        if (!(rhs instanceof AppliedFunction af)) {
+            return null;
+        }
+        var fd = ctx.findFunctionDefinition(af.function());
+        if (fd.isEmpty()) {
+            for (String c : af.candidateFqns()) {
+                fd = ctx.findFunctionDefinition(c);
+                if (fd.isPresent()) {
+                    break;
+                }
+            }
+        }
+        if (fd.isEmpty() || !hasExecuteInDb(fd.get().body())) {
+            return null;
+        }
+        try {
+            Compiler.executeResolved(NameResolver.resolveQuery(
+                    TestDataGenForm.inlineReads(substitute(rhs, lets), tdg),
+                    imports, ctx.elementFqns()),
+                    ctx, runtimeFqn, conn,
+                    seedFailures == null ? null : seedFailures::add);
+            return null;
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.error.LegendCompileException e) {
+            return new Outcome.Unsupported("let-bound setup: "
+                    + String.valueOf(e.getMessage()).split("\\n")[0]);
+        }
+    }
+
+    private static boolean hasExecuteInDb(List<ValueSpecification> body) {
+        for (ValueSpecification v : body) {
+            if (v instanceof AppliedFunction af
+                    && (simpleName(af.function()).equals("executeInDb")
+                            || hasExecuteInDb(af.parameters()))) {
+                return true;
+            }
+            if (v instanceof AppliedFunction af2
+                    && hasExecuteInDb(af2.parameters())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Test-level lets the plan lambda reads, injected as LEADING
