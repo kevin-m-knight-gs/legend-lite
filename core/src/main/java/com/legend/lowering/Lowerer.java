@@ -169,6 +169,14 @@ public final class Lowerer {
     /** Query-level let bindings ({@code |let a = ...; ...$a...}), lowered once. */
     private final Map<String, SqlExpr> letBindings = new HashMap<>();
 
+    /** Pre-bind a free variable to an execution-plan TEMPLATE parameter
+     * ({@code ${name}} — the plan printer's vocabulary): the variable
+     * resolves through the ordinary let-binding channel. */
+    public Lowerer bindPlanParam(String name, boolean stringTyped) {
+        letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
+        return this;
+    }
+
     /**
      * Lower a typed QUERY BODY: leading {@code let} statements bind their
      * lowered values into query scope (substitution — the lean output has no
@@ -833,6 +841,7 @@ public final class Lowerer {
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;
             // Leaves: no reducer can hide below.
+            case SqlExpr.PlanParam ignored -> e;
             case SqlExpr.Column ignored -> e;
             case SqlExpr.Star ignored -> e;
             case SqlExpr.StarExcept ignored -> e;

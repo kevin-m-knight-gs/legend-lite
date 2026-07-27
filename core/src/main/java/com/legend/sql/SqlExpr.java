@@ -15,7 +15,7 @@ public sealed interface SqlExpr
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlAgg.Reducer {
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlAgg.Reducer {
 
     /** A column reference, optionally qualified by a source alias. */
     record Column(String table, String name) implements SqlExpr {
@@ -55,6 +55,14 @@ public sealed interface SqlExpr
     }
 
     /** ISO timestamp; renders as a typed TIMESTAMP literal. */
+    /** An execution-plan TEMPLATE parameter ({@code ${name}} — the
+     * engine's freemarker placeholder for a function parameter or an
+     * Allocation-bound variable). Plan-text vocabulary only: it renders
+     * through the engine-style dialect and is a loud error in any
+     * executable dialect. */
+    record PlanParam(String name, boolean stringTyped) implements SqlExpr {
+    }
+
     record TimestampLit(String iso) implements SqlExpr {
     }
 

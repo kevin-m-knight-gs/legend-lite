@@ -1110,8 +1110,9 @@ public final class TestBody {
                 // CONTAIN sql text but the compare is the LITERAL plan
                 // string through the K-native (toSQLString doctrine):
                 // skip the golden-SQL advisory routing entirely
-                if (containsPlanToString(args.get(0))
-                        || containsPlanToString(args.get(args.size() - 1))) {
+                if (containsPlanToString(substitute(args.get(0), lets))
+                        || containsPlanToString(
+                                substitute(args.get(args.size() - 1), lets))) {
                     // plan-text compare with NAMED walls staying SHAPE
                     try {
                         Eval pe = eval(args.get(0), lets, execStmts,
@@ -1128,6 +1129,9 @@ public final class TestBody {
                         // the PLAN surface is a pending vocabulary —
                         // its typing/resolution walls are SHAPE, scoped
                         // to plan asserts only
+                        if (System.getenv("LL_TMP_DEBUG") != null) {
+                            System.err.println("[plan-wall] " + pw);
+                        }
                         return UNSUPPORTED_MARKER;
                     }
                 } else {

@@ -257,16 +257,29 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer) {
+        return engineSql(lam.body(), mappingFqn, specs, env, renderer,
+                java.util.Map.of());
+    }
+
+    /** The body form, with plan-TEMPLATE parameters: each named free
+     * variable lowers to the engine's {@code ${name}} placeholder
+     * (value = string-typed, driving the freemarker quote template). */
+    private static EngineSql engineSql(java.util.List<TypedSpec> raw,
+            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer,
+            java.util.Map<String, Boolean> planParams) {
         java.util.List<TypedSpec> body =
                 new com.legend.compiler.spec.UserCallInliner(specs)
-                        .inlineBody(lam.body());
+                        .inlineBody(raw);
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .resolve(body, env.runtimeFqn(), mappingFqn);
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
-        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
+        com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
-                f -> env.ctx().findClass(f).isPresent()).lower(body);
+                f -> env.ctx().findClass(f).isPresent());
+        planParams.forEach(lw::bindPlanParam);
+        com.legend.sql.SqlQuery plan = lw.lower(body);
         return new EngineSql(plan, renderer.render(plan), body);
     }
 
@@ -293,10 +306,8 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "executionPlan mapping argument must be a reference");
         }
-        if (!lam.parameters().isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
-                    "plan: parameterized query — Allocation/Sequence"
-                    + " envelope pending");
+        if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
+            return sequencePlan(lam, pr.fullPath(), specs, env);
         }
         String rootClass = rootGetAllClass(lam.body());
         if (rootClass == null) {
@@ -314,6 +325,108 @@ final class StatementExecutor {
                         // (post-H everything is a relation)
                         lam.body()),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The SEQUENCE envelope: parameterized lambdas open with a
+     * FunctionParametersValidationNode, each let becomes an Allocation
+     * (literal values = Constant nodes), and the terminal Relational
+     * lowers with every open variable as a {@code ${name}} plan-template
+     * parameter. */
+    private static ExecutionResult sequencePlan(
+            com.legend.compiler.spec.typed.TypedLambda lam,
+            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            ExecEnv env) {
+        var fnType = (com.legend.compiler.element.type.Type.FunctionType)
+                lam.info().type();
+        java.util.LinkedHashMap<String, Boolean> params =
+                new java.util.LinkedHashMap<>();
+        java.util.List<String> children = new java.util.ArrayList<>();
+        if (!lam.parameters().isEmpty()) {
+            StringBuilder ps = new StringBuilder();
+            for (int i = 0; i < lam.parameters().size(); i++) {
+                var p = fnType.params().get(i);
+                if (i > 0) {
+                    ps.append(", ");
+                }
+                ps.append(lam.parameters().get(i)).append(':')
+                        .append(com.legend.plan.PlanText
+                                .pureTypeName(p.type()))
+                        .append(multBracket(p.multiplicity()));
+                params.put(lam.parameters().get(i), p.type()
+                        == com.legend.compiler.element.type.Type.Primitive.STRING);
+            }
+            children.add(com.legend.plan.PlanText
+                    .functionParametersNode(ps.toString()));
+        }
+        for (int i = 0; i < lam.body().size() - 1; i++) {
+            if (!(lam.body().get(i)
+                    instanceof com.legend.compiler.spec.typed.TypedLet let)) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan: non-let intermediate statement");
+            }
+            children.add(allocationNode(let));
+            params.put(let.name(), let.info().type()
+                    == com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
+        TypedSpec term = lam.body().get(lam.body().size() - 1);
+        String rootClass = rootGetAllClass(java.util.List.of(term));
+        if (rootClass == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "plan: sequence terminal without a getAll root");
+        }
+        EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
+                env, new com.legend.sql.dialect.EngineStyleH2(), params);
+        children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
+                mappingFqn, es.plan(), es.sql(), java.util.List.of(term)));
+        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+                env.ctx(), mappingFqn, rootClass);
+        return new ExecutionResult.Scalar(
+                com.legend.plan.PlanText.sequence(
+                        com.legend.plan.PlanText.typeBlock(env.ctx(),
+                                rootClass, impl, es.plan(),
+                                java.util.List.of(term)),
+                        children),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** An Allocation child for one plan let; only LITERAL values have a
+     * node form here (Constant) — query-valued lets (scalar-projection
+     * Relational bodies) stay a named wall. */
+    private static String allocationNode(
+            com.legend.compiler.spec.typed.TypedLet let) {
+        String typeName = com.legend.plan.PlanText
+                .pureTypeName(let.info().type());
+        String inner;
+        if (let.value()
+                instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+            inner = com.legend.plan.PlanText.constant(typeName, cs.value());
+        } else if (let.value()
+                instanceof com.legend.compiler.spec.typed.TypedCInteger ci) {
+            inner = com.legend.plan.PlanText.constant(typeName,
+                    String.valueOf(ci.value()));
+        } else {
+            throw new com.legend.error.NotImplementedException(
+                    "plan: Allocation over a non-literal let value —"
+                    + " scalar-projection plan node pending");
+        }
+        return com.legend.plan.PlanText.allocation(let.name(), typeName,
+                sizeRange(let.info().multiplicity()), inner);
+    }
+
+    private static String multBracket(
+            com.legend.compiler.element.type.Multiplicity m) {
+        return "[" + sizeRange(m) + "]";
+    }
+
+    private static String sizeRange(
+            com.legend.compiler.element.type.Multiplicity m) {
+        if (m instanceof com.legend.compiler.element.type.Multiplicity
+                .Bounded b && b.lower() == 1 && Integer.valueOf(1)
+                        .equals(b.upper())) {
+            return "1";
+        }
+        throw new com.legend.error.NotImplementedException(
+                "plan: multiplicity spelling for " + m + " pending");
     }
 
     private static String rootGetAllClass(java.util.List<TypedSpec> body) {

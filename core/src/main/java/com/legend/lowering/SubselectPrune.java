@@ -163,6 +163,8 @@ final class SubselectPrune {
                     r.starred().add("*");
                 }
             }
+            case SqlExpr.PlanParam v -> {
+            }
             case SqlExpr.StringLit v -> {
             }
             case SqlExpr.IntLit v -> {

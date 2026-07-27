@@ -13,19 +13,19 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 2 | 8 | 28 | 72 |
-| functions/tests | 258 | 216 | 10 | 20 | 12 |
+| executionPlan/tests | 110 | 6 | 12 | 9 | 83 |
+| functions/tests | 258 | 216 | 11 | 20 | 11 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 7 | 15 | 6 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 97 | 10 | 33 | 3 |
+| graphFetch/tests | 143 | 98 | 9 | 32 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 17 | 0 | 0 | 32 |
 | milestoning/tests | 224 | 192 | 7 | 9 | 16 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
-| modelToModelToRelational | 5 | 0 | 0 | 4 | 1 |
+| modelToModelToRelational | 5 | 0 | 1 | 0 | 4 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
 | postprocessor | 7 | 0 | 0 | 7 | 0 |
 | postprocessor/tests | 30 | 20 | 0 | 6 | 4 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **1873** | 85 | 230 | 350 |
+| **total** | 2538 | **1878** | 90 | 206 | 364 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7700,10 +7700,8 @@ in-process Alloy-shaped path).
 
 ### top error buckets
 
-- 13x lambda has 1 parameter(s) but the function type expects 0
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
-- 7x lambda has 2 parameter(s) but the function type expects 0
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x unknown function 'generateObjectReferences'
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
@@ -7717,7 +7715,7 @@ in-process Alloy-shaped path).
 - 3x unknown enumeration 'ProductSynonymType'
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
-- 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy::da…
+- 2x no overload of 'executionPlan' matches the argument types
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
@@ -7729,7 +7727,9 @@ in-process Alloy-shaped path).
 - 2x unknown function 'parseJSON'
 - 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
 - 2x unknown function 'tdsRows'
-- 2x in function 'meta::relational::tests::m2m2r::runtime': unknown class 'meta::external::store::relational::runtime::RelationalDatabaseConnection' in ^meta::external::store::relational::runtime::RelationalDatabaseConnection(…)
+- 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
+- 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
+- 2x cannot access 'name' on String
 
 ### per-test outcomes (non-passing)
 
@@ -7745,46 +7745,42 @@ in-process Alloy-shaped path).
 - SHAPE testFilterEqualsWithOptionalParameter_DB2 [executionPlan/tests]: no execute(|...) call
 - SHAPE testFilterEqualsWithOptionalParameter_Composite [executionPlan/tests]: no execute(|...) call
 - SHAPE testFilterEqualsWithOptionalParameter_H2 [executionPlan/tests]: no execute(|...) call
-- ERROR testFilterEqualsWithOptionalParameterString [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithOptionalParameterFloat [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithOptionalParameterInteger [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithOptionalParameterDate [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithOptionalParameterDateTimeWithNoTimeZone [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithOptionalParameterDateTimeWithTimeZone [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithTwoOptionalParametersString [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithTwoOptionalParametersInteger [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithTwoOptionalParametersFloat [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithTwoOptionalParametersDate [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
-- ERROR testFilterEqualsWithTwoOptionalParametersDateTimeWithNoTimeZone [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
-- SHAPE testFilterEqualsWithTwoOptionalParameterDateTimeWithTimeZone [executionPlan/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testFilterEqualsWithOptionalParameterString [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualsWithOptionalParameterFloat [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualsWithOptionalParameterInteger [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- FAIL testFilterEqualsWithOptionalParameterDate [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Location | simpleRelationalMappingInc.meta_relational_tests_model_simple_Location)]\n         as meta::relational::tests::model::simple::Location\n  resultSizeRange = *\n  (\n    FunctionParametersValid
+- SHAPE testFilterEqualsWithOptionalParameterDateTimeWithNoTimeZone [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualsWithOptionalParameterDateTimeWithTimeZone [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualsWithTwoOptionalParametersString [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualsWithTwoOptionalParametersInteger [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- FAIL testFilterEqualsWithTwoOptionalParametersFloat [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Address | simpleRelationalMappingInc.meta_relational_tests_model_simple_Address)]\n         as meta::relational::tests::model::simple::Address\n  resultSizeRange = *\n  (\n    FunctionParametersValidati
+- FAIL testFilterEqualsWithTwoOptionalParametersDate [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Address | simpleRelationalMappingInc.meta_relational_tests_model_simple_Address)]\n         as meta::relational::tests::model::simple::Address\n  resultSizeRange = *\n  (\n    FunctionParametersValidati
+- FAIL testFilterEqualsWithTwoOptionalParametersDateTimeWithNoTimeZone [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Address | simpleRelationalMappingInc.meta_relational_tests_model_simple_Address)]\n         as meta::relational::tests::model::simple::Address\n  resultSizeRange = *\n  (\n    FunctionParametersValidati
+- FAIL testFilterEqualsWithTwoOptionalParameterDateTimeWithTimeZone [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Address | simpleRelationalMappingInc.meta_relational_tests_model_simple_Address)]\n         as meta::relational::tests::model::simple::Address\n  resultSizeRange = *\n  (\n    FunctionParametersValidati
 - SHAPE testGreaterThanLessThanEqualsWithOptionalParameter_H2 [executionPlan/tests]: no execute(|...) call
 - SHAPE testLessThanGreaterThanEqualsWithOptionalParameter_H2 [executionPlan/tests]: no execute(|...) call
-- ERROR testPlanGenerationForMultipleExpressionsWithPropertyPath [executionPlan/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy:
-- ERROR testFilterEqualAndInWithEnumParameter [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterNotEqualAndNotInWithEnumParameter [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testFilterEqualAndInWithMultipleEnumParameters [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
-- ERROR testIfEnumParameterInProject [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testIfEnumParameterWithClassPropInProject [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testIfOpFilterEnumValueWithClassPropInProject [executionPlan/tests]: plan: computed TDS column 'name' type spelling pending
-- ERROR testOptionalEnumParameterEqualsClassProp [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
+- SHAPE testPlanGenerationForMultipleExpressionsWithPropertyPath [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualAndInWithEnumParameter [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterNotEqualAndNotInWithEnumParameter [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterEqualAndInWithMultipleEnumParameters [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testIfEnumParameterInProject [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testIfEnumParameterWithClassPropInProject [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testIfOpFilterEnumValueWithClassPropInProject [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testOptionalEnumParameterEqualsClassProp [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testPlanForDateTimeConstantParameterNoTimeZone [executionPlan/tests]: no execute(|...) call
 - SHAPE testPlanForDateTimeConstantParameterGMTTimeZone [executionPlan/tests]: no execute(|...) call
 - SHAPE testPlanForDateTimeConstantParameterESTTimeZone [executionPlan/tests]: no execute(|...) call
 - SHAPE testPlanForDateTimeVariableNoTimeZone [executionPlan/tests]: no execute(|...) call
 - SHAPE testPlanForDateTimeVariableESTTimeZone [executionPlan/tests]: no execute(|...) call
 - SHAPE inheritance [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE simpleExpressionWithVariable [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE simpleExpressionWithMultipleVariables [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - FAIL testClassPropertyOpenVariable [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::groupBy::datePeriods::domain::SalesCredit | myMapping.meta_relational_tests_groupBy_datePeriods_domain_SalesCredit)]\n         as meta::relational::tests::groupBy::datePeriods::domain::SalesCredit\n  resultSizeRange =
 - FAIL testGroupByWithOpenVariableInAgg [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Sales Division, String, VARCHAR(30), ""), (Income Function, Number, FLOAT, "")]\n  (\n    Allocation\n    (\n      type = Class[impls=(meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate | myMapping.meta_relational_tests_groupBy
 - FAIL testGroupByWithTwoOpenVariablesInAggAndFilter [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Sales Division, String, VARCHAR(30), ""), (Income Function, Number, FLOAT, "")]\n  (\n    Allocation\n    (\n      type = StrictDate\n      resultSizeRange = 1\n      name = startDate\n      value = \n        (\n          Constant\n          (\n     
 - SHAPE testMapWithOpenVariable [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL testFilterWithOpenVariable [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Firm | simpleRelationalMappingInc.meta_relational_tests_model_simple_Firm)]\n         as meta::relational::tests::model::simple::Firm\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type = Str
 - ERROR testPlanForExecutionOption [executionPlan/tests]: unknown class 'ExecutionOptionContext' in ^ExecutionOptionContext(…)
 - SHAPE testRoutingContextBuilderFunctions [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testMapWithOpenVariableOutsideBlock [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE twoRoutedExpressions [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL twoExpressionWithConstant [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n         as meta::relational::tests::model::simple::Person\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type
 - SHAPE tdsWithEnumReturn [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - ERROR withPlatform [executionPlan/tests]: LIST_AGG reached a dialect without a list encoding
 - SHAPE testPreprocessFunctionOnRuntime [executionPlan/tests]: no execute(|...) call
@@ -7816,17 +7812,17 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPlanGenerationForInWithIntegerCollection [executionPlan/tests]: no execute(|...) call
 - SHAPE testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: no execute(|...) call
 - SHAPE testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: no execute(|...) call
-- SHAPE testPlanGenerationForInWithCollectionParameterHavingTimeZoneForH2 [executionPlan/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testPlanGenerationForInWithCollectionParameterHavingTimeZoneForH2 [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(TradeId, Integer, INT, "")]\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [optionalDateTime:DateTime[*]]\n    )\n    Relational\n    (\n      type = TDS[(TradeId, Integer, INT, "")]\n      resultColumns = [("TradeId", 
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testSupportStreamFlagSimple [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagWithTdsJoinForOneDB [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: no execute(|...) call
-- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: lambda has 2 parameter(s) but the function type expects 0
+- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagGraphFetchSimple [executionPlan/tests]: no execute(|...) call
-- ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: lambda has 1 parameter(s) but the function type expects 0
+- ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: no overload of 'executionPlan' matches the argument types
 - FAIL testQuoteIdentifiersFlag [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Product | simpleRelationalMapping.meta_relational_tests_model_simple_Product)]\n         as meta::relational::tests::model::simple::Product\n  resultSizeRange = *\n  resultColumns = [("pk_0", INT), ("
 - FAIL testQuoteIdentifiersFlagInOrderByClause [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(200), "")]\n  resultColumns = [("name", VARCHAR(200))]\n  sql = select "root"."NAME" as "name" from "productSchema"."productTable" as "root" order by "name" asc\n  connection = TestDatabaseConnection(type = "H2")\n)\n, got Rel
 - SHAPE testQuoteIdentifiersFlagInGroupBy [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
@@ -7848,7 +7844,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
+- FAIL testConcatenateClassAgg [functions/tests]: h2-advisory divergence: golden SQL on H2 gave 4 row(s) [Firm A|ISIN2|CUSIP2, Firm C|ISIN3|CUSIP3, Firm D|<null>, Firm X|ISIN1|CUSIP1], our pipeline gave 4 row(s) [Firm A|CUSIP2|ISIN2, Firm C|CUSIP3|ISIN3, Firm D|<null>, Firm X|CUSIP1|ISIN1]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -7888,7 +7884,7 @@ in-process Alloy-shaped path).
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: no execute(|...) call
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={n
-- SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: assert form 'assertEquals/2' is not supported yet
+- FAIL testSortByLambda_QueryWithParameters_Plan [functions/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n         as meta::relational::tests::model::simple::Person\n  resultSizeRange = *\n  (\n    FunctionParametersValidationN
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
@@ -7936,7 +7932,7 @@ in-process Alloy-shaped path).
 - ERROR testWithAssociationFromRootMappingWithFilter [graphFetch/tests]: property 'bondClassification' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedParent' [otherwise fallback=ABSENT]
 - ERROR testComplexPropertyOtherwiseGetterDeepTraversal [graphFetch/tests]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
-- ERROR testMilestonedProperty [graphFetch/tests]: plan: computed projection 'result' type spelling pending
+- SHAPE testMilestonedProperty [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - FAIL testInnerJoinIsolationAtRoot [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].id expected 2, got 3 | expected [{cancelProductActivityCreatedBy=null, id=2}, {cancelProductActivityCreatedBy=null, id=3}], got [{id=3, cancelProductActivityCreatedBy=null}, {id=2, cancelProductActivityCreatedBy=null}]
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
@@ -7949,7 +7945,6 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
 - FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
 - FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
@@ -8049,11 +8044,11 @@ in-process Alloy-shaped path).
 - SHAPE testJoinWithInequalities [modelJoins]: no execute(|...) call
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: no execute(|...) call
 - ERROR testPersonToFirmUsingFromProject [modelJoins]: class meta::pure::metamodel::type::Any has no property 'rootExecutionNode'
-- ERROR testProp1 [modelToModelToRelational]: in function 'meta::relational::tests::m2m2r::runtime': unknown class 'meta::external::store::relational::runtime::RelationalDatabaseConnection' in ^meta::external::store::relational::runtime::RelationalDatabaseConnection(…)
-- ERROR testProp2 [modelToModelToRelational]: in function 'meta::relational::tests::m2m2r::runtime': unknown class 'meta::external::store::relational::runtime::RelationalDatabaseConnection' in ^meta::external::store::relational::runtime::RelationalDatabaseConnection(…)
-- SHAPE testProp3 [modelToModelToRelational]: sql-only: 2 advisory golden-SQL assert(s), no row verification
-- ERROR testProp4 [modelToModelToRelational]: lambda has 1 parameter(s) but the function type expects 0
-- ERROR testPreeavalOnSort [modelToModelToRelational]: no overload of 'meta::pure::executionPlan::executionPlan' structurally matches the argument types
+- SHAPE testProp1 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testProp2 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
+- FAIL testProp3 [modelToModelToRelational]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop3", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".basis = 0.0 then 0.0 else (((1.0 * "root".entitledQuant
+- SHAPE testProp4 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testPreeavalOnSort [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call
@@ -8061,13 +8056,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'

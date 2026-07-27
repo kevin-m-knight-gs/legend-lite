@@ -33,29 +33,95 @@ public final class PlanText {
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn);
-        com.legend.compiler.spec.typed.TypedSpec last =
-                body.get(body.size() - 1);
-        String typeLine;
-        if (last.info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType rt) {
-            // TDS plans: per-column (name, PureType, DBTYPE, "doc")
-            // tuples and NO resultSizeRange line; the engine quotes the
-            // column name exactly when a documentation string rides it
-            typeLine = "  type = TDS[" + tdsTuples(ctx, impl[2], plan, rt,
-                    docsOf(last)) + "]\n";
-        } else {
-            typeLine = "  type = Class[impls=(" + rootClassFqn + " | "
-                    + impl[0] + "." + impl[1] + ")]\n"
-                    + "         as " + rootClassFqn + "\n"
-                    + "  resultSizeRange = *\n";
-        }
         return "Relational\n(\n"
-                + typeLine
+                + typeBlock(ctx, rootClassFqn, impl, plan, body)
                 + "  resultColumns = [" + resultColumns(ctx, impl[2], plan)
                 + "]\n"
                 + "  sql = " + sql + "\n"
                 + "  connection = TestDatabaseConnection(type = \"H2\")\n"
                 + ")\n";
+    }
+
+    /** The node's {@code type = ...} block (2-space indent, trailing
+     * newline): TDS tuple form (no resultSizeRange), Class impls form,
+     * or a bare primitive. */
+    public static String typeBlock(ModelContext ctx, String rootClassFqn,
+            String[] impl, SqlQuery plan,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
+        com.legend.compiler.spec.typed.TypedSpec last =
+                body.get(body.size() - 1);
+        if (last.info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType rt) {
+            // TDS plans: per-column (name, PureType, DBTYPE, "doc")
+            // tuples and NO resultSizeRange line; the engine quotes the
+            // column name exactly when a documentation string rides it
+            return "  type = TDS[" + tdsTuples(ctx, impl[2], plan, rt,
+                    docsOf(last)) + "]\n";
+        }
+        return "  type = Class[impls=(" + rootClassFqn + " | "
+                + impl[0] + "." + impl[1] + ")]\n"
+                + "         as " + rootClassFqn + "\n"
+                + "  resultSizeRange = *\n";
+    }
+
+    /** Every line of {@code block} (newline-terminated) shifted right by
+     * {@code pad}. */
+    public static String indent(String block, String pad) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : block.split("\n")) {
+            sb.append(pad).append(line).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** The multi-node envelope: type/size lines from the TERMINAL,
+     * children (validation node, allocations, terminal Relational) in
+     * declaration order at 4-space indent. */
+    public static String sequence(String typeBlock,
+            java.util.List<String> children) {
+        StringBuilder sb = new StringBuilder("Sequence\n(\n")
+                .append(typeBlock).append("  (\n");
+        for (String c : children) {
+            sb.append(indent(c, "    "));
+        }
+        return sb.append("  )\n)\n").toString();
+    }
+
+    /** {@code FunctionParametersValidationNode} — parameterized plan
+     * lambdas validate their arguments first. */
+    public static String functionParametersNode(String paramsSpell) {
+        return "FunctionParametersValidationNode\n(\n"
+                + "  functionParameters = [" + paramsSpell + "]\n)\n";
+    }
+
+    /** {@code Allocation} — a let binding materialized as a named node;
+     * {@code inner} is the value's own plan node text. */
+    public static String allocation(String name, String typeName,
+            String sizeRange, String inner) {
+        return "Allocation\n(\n"
+                + "  type = " + typeName + "\n"
+                + "  resultSizeRange = " + sizeRange + "\n"
+                + "  name = " + name + "\n"
+                + "  value = \n"
+                + "    (\n"
+                + indent(inner, "      ")
+                + "    )\n)\n";
+    }
+
+    /** {@code Constant} — a literal-valued Allocation body (the engine
+     * spells {@code values=[...]} without spaces). */
+    public static String constant(String typeName, String valueText) {
+        return "Constant\n(\n"
+                + "  type = " + typeName + "\n"
+                + "  resultSizeRange = 1\n"
+                + "  values=[" + valueText + "]\n)\n";
+    }
+
+    /** Engine pure-type spelling for plan type lines ({@code String},
+     * {@code Integer}, ...). */
+    public static String pureTypeName(
+            com.legend.compiler.element.type.Type t) {
+        return pureName(t);
     }
 
     private static java.util.Map<String, String> docsOf(

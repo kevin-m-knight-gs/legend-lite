@@ -120,6 +120,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Star st -> st;
             case SqlExpr.StarExcept se -> se;
+            case SqlExpr.PlanParam ignored -> e;
             case SqlExpr.StringLit ignored -> e;
             case SqlExpr.IntLit ignored -> e;
             case SqlExpr.FloatLit ignored -> e;
@@ -219,6 +220,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                     unwrapElemRefs(f.init(), elem), f.accIsList(), f.homogeneous());
             // Leaves and structures that cannot contain the element ref:
             case SqlExpr.Star st -> st;
+            case SqlExpr.PlanParam v -> v;
             case SqlExpr.StringLit v -> v;
             case SqlExpr.IntLit v -> v;
             case SqlExpr.FloatLit v -> v;

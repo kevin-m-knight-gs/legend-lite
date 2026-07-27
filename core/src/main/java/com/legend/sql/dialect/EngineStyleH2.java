@@ -198,6 +198,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     protected String expr(SqlExpr e, int parentPrec) {
+        // plan-template parameter (engine freemarker): strings are
+        // single-quoted with the engine's escape template
+        if (e instanceof SqlExpr.PlanParam p) {
+            return p.stringTyped()
+                    ? "'${" + p.name() + "?replace(\"'\", \"''\")}'"
+                    : "${" + p.name() + "}";
+        }
         // alias part quoted, physical column bare — "root".FIRSTNAME
         if (e instanceof SqlExpr.Column c) {
             return c.table() == null ? c.name()
@@ -215,7 +222,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 case AND -> {
                     java.util.List<String> terms = new java.util.ArrayList<>();
                     flattenAnd(bc, terms);
-                    return "(" + String.join(" and ", terms) + ")";
+                    // Observed engine output: a WHERE-top chain of 3+
+                    // conjuncts renders BARE (plan ${var} goldens flatten
+                    // the null-guard into the chain), while the standalone
+                    // 2-term null-guard group keeps its parens
+                    // (relative-date goldens, H2 and DB2). Nested position
+                    // always parenthesizes.
+                    return parentPrec == 0 && terms.size() > 2
+                            ? String.join(" and ", terms)
+                            : "(" + String.join(" and ", terms) + ")";
                 }
                 case IS_NULL -> {
                     return expr(bc.args().get(0), 4) + " is null";

@@ -1327,7 +1327,7 @@ final class Typer {
             }
         }
 
-        TypedFunction chosen = selectByPresentArgs(af.function(), arity, typed);
+        TypedFunction chosen = selectByPresentArgs(af.function(), arity, typed, raw);
 
         Bindings b = new Bindings();
         for (int i = 0; i < raw.size(); i++) {
@@ -1510,6 +1510,17 @@ final class Typer {
 
     /** Pick the best-scoring overload by its already-typed arguments (deferred slots are skipped). */
     private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed) {
+        return selectByPresentArgs(name, arity, typed, null);
+    }
+
+    /** With {@code raw} supplied, a candidate whose function-typed
+     * parameter cannot accept a deferred lambda argument's ARITY is
+     * filtered before scoring — non-lambda args tie between the
+     * {@code Function<{->T}>} / {@code Function<{P1->T}>} overload
+     * families, and declaration-order first-max would otherwise pin the
+     * wrong one (the executionPlan P1/P2 family). */
+    private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed,
+            List<ValueSpecification> raw) {
         List<ExprType> argTypes = new ArrayList<>(typed.length);
         for (TypedSpec t : typed) {
             argTypes.add(t == null ? null : t.info());   // null = deferred slot, not yet typed
@@ -1517,6 +1528,9 @@ final class Typer {
         TypedFunction best = null;
         long bestScore = -1;
         for (TypedFunction c : arity) {
+            if (raw != null && !lambdaAritiesFit(c, raw, typed)) {
+                continue;
+            }
             long s = kernel.scoreNonLambda(c, argTypes);
             if (s > bestScore) {
                 best = c;
@@ -1528,6 +1542,47 @@ final class Typer {
                     "no overload of '" + name + "' matches the argument types");
         }
         return best;
+    }
+
+    /** Whether every DEFERRED lambda argument's parameter count fits the
+     * candidate's function-typed parameter at that slot. TypeVar params
+     * accept any lambda (self-typable); a non-function param facing a
+     * lambda rejects the candidate. */
+    private static boolean lambdaAritiesFit(TypedFunction c,
+            List<ValueSpecification> raw, TypedSpec[] typed) {
+        for (int i = 0; i < raw.size() && i < c.parameters().size(); i++) {
+            if (typed[i] != null) {
+                continue;
+            }
+            Type pt = c.parameters().get(i).type();
+            if (pt instanceof Type.TypeVar) {
+                continue;
+            }
+            Integer want;
+            try {
+                want = extractFunctionType(pt).params().size();
+            } catch (TypeInferenceException e) {
+                // a deferred LAMBDA against a non-function, non-variable
+                // param can never type
+                if (raw.get(i) instanceof LambdaFunction) {
+                    return false;
+                }
+                continue;
+            }
+            if (raw.get(i) instanceof LambdaFunction lf
+                    && lf.parameters().size() != want) {
+                return false;
+            }
+            if (raw.get(i) instanceof PureCollection pc) {
+                for (ValueSpecification v : pc.values()) {
+                    if (v instanceof LambdaFunction lf2
+                            && lf2.parameters().size() != want) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /** Type a lambda argument against its function-type parameter, with type vars partly solved in {@code b}. */
@@ -1552,11 +1607,26 @@ final class Typer {
 
         Env lambdaScope = env;
         List<String> names = new ArrayList<>();
+        List<Type.Param> scopeParams = new ArrayList<>();
         for (int i = 0; i < lam.parameters().size(); i++) {
             Type paramType = kernel.resolve(ftype.params().get(i).type(), b);   // T -> the solved element type
-            String name = lam.parameters().get(i).name();
-            names.add(name);
-            lambdaScope = lambdaScope.with(name, new ExprType(paramType, ftype.params().get(i).multiplicity()));
+            Multiplicity paramMult = ftype.params().get(i).multiplicity();
+            Variable pv = lam.parameters().get(i);
+            // a SOURCE annotation refines a signature-side Any (real pure:
+            // the declared annotation is authoritative for the lambda's
+            // own scope — executionPlan's Function<{Any[1]->Any[*]}>
+            // param family relies on it for {var:String[1]|...})
+            if (pv.type() != null && paramType instanceof Type.ClassType ct
+                    && "meta::pure::metamodel::type::Any".equals(ct.fqn())) {
+                paramType = namedType(pv.type());
+                if (pv.multiplicity() != null) {
+                    paramMult = Multiplicity.from(pv.multiplicity());
+                }
+            }
+            names.add(pv.name());
+            scopeParams.add(new Type.Param(paramType, paramMult));
+            lambdaScope = lambdaScope.with(pv.name(),
+                    new ExprType(paramType, paramMult));
         }
 
         // ZERO-ARG multi-statement bodies: leading lets bind into scope
@@ -1620,7 +1690,7 @@ final class Typer {
         }
 
         ExprType info = new ExprType(
-                new Type.FunctionType(ftype.params(),
+                new Type.FunctionType(scopeParams,
                         new Type.Param(body.info().type(), body.info().multiplicity())),
                 Multiplicity.Bounded.ONE);
         typedStmts.add(body);

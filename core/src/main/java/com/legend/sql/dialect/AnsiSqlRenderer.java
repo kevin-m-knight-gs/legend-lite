@@ -237,6 +237,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     protected String expr(SqlExpr e, int parentPrec) {
         return switch (e) {
+            case SqlExpr.PlanParam p -> throw new IllegalStateException(
+                    "plan parameter '${" + p.name() + "}' reached an"
+                    + " executable dialect — plan templates render via the"
+                    + " engine-style dialect only");
             case SqlExpr.Column c -> c.table() == null
                     ? ident(c.name()) : ident(c.table()) + "." + ident(c.name());
             case SqlExpr.Star s -> s.table() == null ? "*" : ident(s.table()) + ".*";
