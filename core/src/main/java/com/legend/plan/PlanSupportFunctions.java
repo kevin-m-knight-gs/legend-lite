@@ -82,6 +82,45 @@ public final class PlanSupportFunctions {
             + "<#return result?reverse?join(separator, defaultValue)>"
             + "</#function>";
 
+    /** The DYNAMIC freemarker enum-map function an enum-typed plan
+     * parameter adds to processingTemplateFunctions — enum value to
+     * source values (strings quoted, integers bare), the engine's
+     * relationalMappingExecution enum-template emission. */
+    public static String enumMapTemplateFunction(String fnName,
+            com.legend.model.EnumerationMapping em) {
+        StringBuilder map = new StringBuilder();
+        for (var vm : em.valueMappings()) {
+            if (map.length() > 0) {
+                map.append(", ");
+            }
+            StringBuilder src = new StringBuilder();
+            for (var sv : vm.sourceValues()) {
+                if (src.length() > 0) {
+                    src.append(", ");
+                }
+                src.append(switch (sv) {
+                    case com.legend.model.EnumerationMapping.SourceValue
+                            .StringValue st -> "'" + st.value() + "'";
+                    case com.legend.model.EnumerationMapping.SourceValue
+                            .IntegerValue iv -> String.valueOf(iv.value());
+                    default -> throw new com.legend.error
+                            .NotImplementedException("plan: enum-map"
+                            + " template for source value " + sv);
+                });
+            }
+            map.append('"').append(vm.enumValue()).append("\":\"")
+                    .append(src).append('"');
+        }
+        return "<#function " + fnName + " inputVal><#assign enumMap = {"
+                + map + "}><#if inputVal?has_content>"
+                + "<#if inputVal?is_sequence><#assign results = []>"
+                + "<#list inputVal as item>"
+                + "<#assign results += [enumMap[item]!\"\"]></#list>"
+                + "<#return results?join(\", \")>"
+                + "<#else><#return enumMap[inputVal]!\"\"></#if>"
+                + "<#else><#return \"\"> </#if> </#function>";
+    }
+
     /** {@code relationalPlanSupportFunctions(connection)} — population
      * order preserved; {@code timeZone} null/GMT omits the TZ pair. */
     public static List<String> relationalPlanSupportFunctions(

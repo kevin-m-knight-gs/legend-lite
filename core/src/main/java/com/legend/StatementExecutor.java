@@ -237,14 +237,40 @@ final class StatementExecutor {
                     && com.legend.compiler.element.type.PlatformTypes
                             .EXECUTION_PLAN.equals(
                                     pep.callee().qualifiedName())) {
-                result = new ExecutionResult.Collection(
-                        java.util.List.copyOf(com.legend.plan
-                                .PlanSupportFunctions
+                java.util.List<Object> supportFns = new java.util.ArrayList<>(
+                        com.legend.plan.PlanSupportFunctions
                                 .relationalPlanSupportFunctions(
                                         pep.args().size() > 2
                                                 ? timeZoneOf(
                                                         pep.args().get(2))
-                                                : null)),
+                                                : null));
+                // enum-typed plan parameters ADD their dynamic enum-map
+                // freemarker function (deduped plan-wide)
+                if (pep.args().get(0) instanceof com.legend.compiler.spec
+                                .typed.TypedLambda plam
+                        && pep.args().get(1) instanceof com.legend.compiler
+                                .spec.typed.TypedPackageableRef pmr
+                        && plam.info().type() instanceof com.legend.compiler
+                                .element.type.Type.FunctionType pft) {
+                    java.util.Set<String> seenFns =
+                            new java.util.LinkedHashSet<>();
+                    for (var prm : pft.params()) {
+                        if (!(prm.type() instanceof com.legend.compiler
+                                .element.type.Type.EnumType et)) {
+                            continue;
+                        }
+                        String fn = com.legend.plan.PlanText.enumMapFnOf(
+                                env.ctx(), pmr.fullPath(), et.fqn());
+                        var em = com.legend.plan.PlanText.enumMappingOf(
+                                env.ctx(), pmr.fullPath(), et.fqn());
+                        if (fn != null && em != null && seenFns.add(fn)) {
+                            supportFns.add(com.legend.plan
+                                    .PlanSupportFunctions
+                                    .enumMapTemplateFunction(fn, em));
+                        }
+                    }
+                }
+                result = new ExecutionResult.Collection(supportFns,
                         com.legend.compiler.element.type.Type
                                 .Primitive.STRING);
                 continue;
@@ -355,6 +381,14 @@ final class StatementExecutor {
                 f -> env.ctx().findClass(f).isPresent());
         planParams.values().forEach(lw::bindPlanParam);
         com.legend.sql.SqlQuery plan = lw.lower(body);
+        // engine plans keep enum columns RAW (host-side decode) — the
+        // plan-text form of enum-mapped columns/parameters
+        if (plan instanceof com.legend.sql.SqlSelect sel
+                && body.get(body.size() - 1).info().type()
+                        instanceof com.legend.compiler.element.type.Type
+                                .RelationType rt) {
+            plan = com.legend.plan.PlanEnumForm.apply(sel, rt);
+        }
         return new EngineSql(plan, renderer.render(plan), body);
     }
 
@@ -442,11 +476,16 @@ final class StatementExecutor {
                                 .Bounded ob
                         && ob.lower() == 0
                         && Integer.valueOf(1).equals(ob.upper());
+                String emFn = p.type() instanceof com.legend.compiler
+                        .element.type.Type.EnumType et
+                        ? com.legend.plan.PlanText.enumMapFnOf(env.ctx(),
+                                mappingFqn, et.fqn())
+                        : null;
                 params.put(lam.parameters().get(i),
                         new com.legend.sql.SqlExpr.PlanParam(
                                 lam.parameters().get(i),
                                 com.legend.lowering.PlanParams.kindOf(
-                                        p.type()), opt));
+                                        p.type()), opt, emFn));
             }
             children.add(com.legend.plan.PlanText
                     .functionParametersNode(ps.toString()));
@@ -481,7 +520,7 @@ final class StatementExecutor {
                 com.legend.plan.PlanText.sequence(
                         com.legend.plan.PlanText.typeBlock(env.ctx(),
                                 rootClass, impl, es.plan(),
-                                java.util.List.of(term)),
+                                java.util.List.of(term), mappingFqn),
                         children),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }

@@ -134,6 +134,26 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The {@code varPlaceHolderToString} spelling of an optional
      * parameter; a non-default connection timeZone wraps DATETIME
      * placeholders in {@code GMTtoTZ}. */
+    /** The {@code (${optionalVarPlaceHolderOperationSelector(name,
+     * equalEnumOperationSelector(fn(name), 'col in (...)', 'col = ...'),
+     * '0 = 1')})} spelling for {@code rawColumn = enumParam}; null when
+     * the expression is not that shape. */
+    private String enumSelector(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Call c)
+                || c.fn() != com.legend.sql.SqlFn.EQUAL
+                || c.args().size() != 2
+                || !(c.args().get(1) instanceof SqlExpr.PlanParam p)
+                || p.enumMapFn() == null) {
+            return null;
+        }
+        String col = expr(c.args().get(0), 4);
+        String fn = p.enumMapFn() + "(" + p.name() + ")";
+        return "(${optionalVarPlaceHolderOperationSelector(" + p.name()
+                + ", equalEnumOperationSelector(" + fn + ", '" + col
+                + " in (${" + fn + "})', '" + col + " = ${" + fn
+                + "}'), '0 = 1')})";
+    }
+
     private String holder(SqlExpr.PlanParam p) {
         String inner = p.name() + "![]";
         if (p.kind() == SqlExpr.PlanParam.Kind.DATETIME
@@ -297,6 +317,21 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 case DATE, DATETIME -> "TIMESTAMP'${" + p.name() + "}'";
                 case FLOAT, OTHER -> "${" + p.name() + "}";
             };
+        }
+        // ENUM parameter comparison: one selector template covers = and
+        // in (equalEnumOperationSelector picks by the mapped value's
+        // cardinality); negation spells lowercase not around it
+        if (e instanceof SqlExpr.Call nc
+                && nc.fn() == com.legend.sql.SqlFn.NOT
+                && nc.args().size() == 1) {
+            String et = enumSelector(nc.args().get(0));
+            if (et != null) {
+                return "not " + et;
+            }
+        }
+        String et0 = enumSelector(e);
+        if (et0 != null) {
+            return et0;
         }
         // an OPTIONAL parameter in a comparison renders the engine's
         // freemarker SELECTOR template: present -> the comparison with a

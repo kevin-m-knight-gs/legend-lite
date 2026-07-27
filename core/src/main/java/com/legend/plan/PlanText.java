@@ -45,7 +45,7 @@ public final class PlanText {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn);
         return "Relational\n(\n"
-                + typeBlock(ctx, rootClassFqn, impl, plan, body)
+                + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
                 + "  resultColumns = [" + resultColumns(ctx, impl[2], plan)
                 + "]\n"
                 + "  sql = " + sql + "\n"
@@ -60,6 +60,13 @@ public final class PlanText {
     public static String typeBlock(ModelContext ctx, String rootClassFqn,
             String[] impl, SqlQuery plan,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
+        return typeBlock(ctx, rootClassFqn, impl, plan, body, null);
+    }
+
+    public static String typeBlock(ModelContext ctx, String rootClassFqn,
+            String[] impl, SqlQuery plan,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+            String mappingFqn) {
         com.legend.compiler.spec.typed.TypedSpec last =
                 body.get(body.size() - 1);
         if (last.info().type()
@@ -68,7 +75,7 @@ public final class PlanText {
             // tuples and NO resultSizeRange line; the engine quotes the
             // column name exactly when a documentation string rides it
             return "  type = TDS[" + tdsTuples(ctx, impl[2], plan, rt,
-                    docsOf(last)) + "]\n";
+                    docsOf(last), mappingFqn) + "]\n";
         }
         String size = "*";
         if (last.info().multiplicity()
@@ -213,7 +220,7 @@ public final class PlanText {
     private static String tdsTuples(ModelContext ctx, String dbFqn,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
-            java.util.Map<String, String> docs) {
+            java.util.Map<String, String> docs, String mappingFqn) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
                     "plan: non-select TDS top query pending");
@@ -249,9 +256,62 @@ public final class PlanText {
                     .append(doc.isEmpty() ? name : "\"" + name + "\"")
                     .append(", ").append(pureName(cols.get(i).type()))
                     .append(", ").append(db)
-                    .append(", \"").append(doc).append("\"").append(')');
+                    .append(", \"").append(doc).append("\"");
+            // ENUM columns append their ENUMERATION-MAPPING id (the
+            // engine's 5-element tuple: (type, <enumFqn>, VARCHAR(20),
+            // "", Foo))
+            if (cols.get(i).type()
+                    instanceof com.legend.compiler.element.type.Type
+                            .EnumType et2 && mappingFqn != null) {
+                String emid = enumMappingIdOf(ctx, mappingFqn, et2.fqn());
+                if (emid != null) {
+                    sb.append(", ").append(emid);
+                }
+            }
+            sb.append(')');
         }
         return sb.toString();
+    }
+
+    /** The mapping's ENUMERATION-MAPPING for an enum FQN (exact match
+     * first, simple-name second — parsed mappings may hold either
+     * spelling), or null. */
+    public static com.legend.model.EnumerationMapping enumMappingOf(
+            ModelContext ctx, String mappingFqn, String enumFqn) {
+        var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        if (md == null) {
+            return null;
+        }
+        String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
+        for (var em : md.enumerationMappings()) {
+            if (em.enumName().equals(enumFqn)) {
+                return em;
+            }
+        }
+        for (var em : md.enumerationMappings()) {
+            if (em.enumName().equals(simple)
+                    || em.enumName().endsWith("::" + simple)) {
+                return em;
+            }
+        }
+        return null;
+    }
+
+    private static String enumMappingIdOf(ModelContext ctx,
+            String mappingFqn, String enumFqn) {
+        var em = enumMappingOf(ctx, mappingFqn, enumFqn);
+        return em == null ? null : em.mappingId();
+    }
+
+    /** The engine's dynamic freemarker enum-map FUNCTION NAME —
+     * {@code enumMap_<mapping fqn underscored>_<enum-mapping id>}
+     * (relationalMappingExecution enum templates), or null when the
+     * mapping carries no enumeration mapping for the enum. */
+    public static String enumMapFnOf(ModelContext ctx, String mappingFqn,
+            String enumFqn) {
+        String id = enumMappingIdOf(ctx, mappingFqn, enumFqn);
+        return id == null ? null
+                : "enumMap_" + mappingFqn.replace("::", "_") + "_" + id;
     }
 
     private static String pureName(
@@ -282,6 +342,10 @@ public final class PlanText {
         }
         if (t == com.legend.compiler.element.type.Type.Primitive.NUMBER) {
             return "Number";
+        }
+        // enum-typed columns/parameters spell the enumeration FQN
+        if (t instanceof com.legend.compiler.element.type.Type.EnumType et) {
+            return et.fqn();
         }
         throw new NotImplementedException("plan: pure type name for " + t);
     }
