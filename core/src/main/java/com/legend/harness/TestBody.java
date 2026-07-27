@@ -1000,6 +1000,16 @@ public final class TestBody {
             lets.put(name.value(), rhs);
             return new TdgLet(null, null, true);
         }
+        if (TestDataGenForm.hasCsvCensus(rhs)) {
+            try {
+                tdg.put(name.value(),
+                        TestDataGenForm.runCsvCensus(rhs, ctx, imports));
+            } catch (com.legend.error.NotImplementedException e) {
+                return new TdgLet(new Outcome.Unsupported(String.valueOf(
+                        e.getMessage()).split("\\n")[0]), null, false);
+            }
+            return new TdgLet(null, null, true);
+        }
         if (TestDataGenForm.hasGenerate(rhs)) {
             try {
                 tdg.put(name.value(), TestDataGenForm.run(rhs, ctx,
@@ -1182,6 +1192,10 @@ public final class TestBody {
                 }
             }
         }
+        String cz = csvCensusAssert(af, args, lets, tdg);
+        if (cz != NOT_TDG_MARKER) {
+            return cz;
+        }
         if (!planText.isEmpty()) {
             for (ValueSpecification arg : args) {
                 if (referencesAnyVar(arg, planText)) {
@@ -1214,6 +1228,106 @@ public final class TestBody {
             }
         }
         return NOT_TDG_MARKER;
+    }
+
+    /** getRelationalCSVDataFromQuery reads: {@code $x.tables->size()}
+     * and the schema/table/values map-join idiom — host-side over the
+     * census triples. */
+    private static String csvCensusAssert(AppliedFunction af,
+            List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg) {
+        if (!simpleName(af.function()).equals("assertEquals")
+                || args.size() != 2) {
+            return NOT_TDG_MARKER;
+        }
+        ValueSpecification actual = args.get(1);
+        if (actual instanceof AppliedFunction sz
+                && simpleName(sz.function()).equals("size")
+                && sz.parameters().size() == 1
+                && sz.parameters().get(0) instanceof AppliedProperty tp
+                && tp.property().equals("tables")
+                && tp.receiver() instanceof Variable v
+                && tdg.get(v.name()) != null
+                && tdg.get(v.name()).tables() != null) {
+            long got = tdg.get(v.name()).tables().size();
+            if (!(args.get(0)
+                    instanceof com.legend.model.spec.CInteger ci)) {
+                return NOT_TDG_MARKER;
+            }
+            return ci.value().longValue() == got ? null
+                    : "assertEquals: expected " + ci.value() + ", got "
+                            + got;
+        }
+        if (actual instanceof AppliedFunction js
+                && simpleName(js.function()).equals("joinStrings")
+                && js.parameters().size() == 2
+                && js.parameters().get(1) instanceof CString sep
+                && js.parameters().get(0) instanceof AppliedFunction mp2
+                && simpleName(mp2.function()).equals("map")
+                && mp2.parameters().size() == 2
+                && mp2.parameters().get(1) instanceof LambdaFunction ml
+                && propertyReadOrder(ml).equals(
+                        List.of("schema", "table", "values"))) {
+            // the source may carry an optional sortBy(schema+table)
+            ValueSpecification src = mp2.parameters().get(0);
+            boolean sorted = false;
+            if (src instanceof AppliedFunction sb
+                    && simpleName(sb.function()).equals("sortBy")
+                    && sb.parameters().size() == 2
+                    && sb.parameters().get(1) instanceof LambdaFunction sl
+                    && propertyReadOrder(sl).equals(
+                            List.of("schema", "table"))) {
+                sorted = true;
+                src = sb.parameters().get(0);
+            }
+            if (!(src instanceof AppliedProperty tp2
+                    && tp2.property().equals("tables")
+                    && tp2.receiver() instanceof Variable v2
+                    && tdg.get(v2.name()) != null
+                    && tdg.get(v2.name()).tables() != null)) {
+                return NOT_TDG_MARKER;
+            }
+            List<String[]> triples =
+                    new ArrayList<>(tdg.get(v2.name()).tables());
+            if (sorted) {
+                triples.sort(java.util.Comparator.comparing(
+                        t -> t[0] + t[1]));
+            }
+            String got = triples.stream()
+                    .map(t -> t[0] + "\n" + t[1] + "\n" + t[2])
+                    .collect(java.util.stream.Collectors
+                            .joining(sep.value()));
+            String exp = TestDataGenForm.foldString(
+                    substitute(args.get(0), lets));
+            return got.equals(exp) ? null
+                    : "assertEquals: expected " + exp + ", got " + got;
+        }
+        return NOT_TDG_MARKER;
+    }
+
+    /** The lambda body's property-read names in source order (the
+     * census join idiom pin — anything else stays a wall). */
+    private static List<String> propertyReadOrder(LambdaFunction ml) {
+        List<String> out = new ArrayList<>();
+        java.util.ArrayDeque<ValueSpecification> work =
+                new java.util.ArrayDeque<>(ml.body());
+        while (!work.isEmpty()) {
+            ValueSpecification v = work.poll();
+            if (v instanceof AppliedProperty ap) {
+                out.add(ap.property());
+            } else if (v instanceof AppliedFunction f) {
+                // left-to-right over plus chains
+                for (int i = f.parameters().size() - 1; i >= 0; i--) {
+                    work.addFirst(f.parameters().get(i));
+                }
+            } else if (v instanceof PureCollection pc) {
+                for (int i = pc.values().size() - 1; i >= 0; i--) {
+                    work.addFirst(pc.values().get(i));
+                }
+            }
+        }
+        return out;
     }
 
     private static boolean referencesAnyVar(ValueSpecification v,

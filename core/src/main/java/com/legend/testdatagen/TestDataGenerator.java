@@ -64,8 +64,89 @@ public final class TestDataGenerator {
             String snapshot) {
     }
 
-    public record Result(List<String> sqls, String dataCsvString) {
+    public record Result(List<String> sqls, String dataCsvString,
+            List<String[]> tables) {
+        public Result(List<String> sqls, String dataCsvString) {
+            this(sqls, dataCsvString, null);
+        }
     }
+
+    /** The engine's getRelationalCSVDataFromQuery: the NECESSARY column
+     * census per table — (schema, table, comma-joined demanded columns)
+     * triples in first-touch order, no execution. */
+    public static List<String[]> necessaryColumns(ModelContext ctx,
+            LambdaFunction resolvedQuery, String mappingFqn) {
+        List<ScanRelations.Rel> roots =
+                ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
+        roots = roots.stream().map(r -> expandIfView(ctx, r, null))
+                .toList();
+        // engine generateRelationColumnMap ENCOUNTER order (no sort):
+        // pks ++ non-nullable ++ temporal milestoning ++ tree columns,
+        // deduplicated by name
+        Map<String, java.util.LinkedHashSet<String>> cm =
+                new LinkedHashMap<>();
+        for (ScanRelations.Rel r : roots) {
+            censusCols(ctx, r, cm);
+        }
+        List<String[]> out = new ArrayList<>();
+        for (Map.Entry<String, java.util.LinkedHashSet<String>> e
+                : cm.entrySet()) {
+            String[] st = e.getKey().split("\n", 2);
+            out.add(new String[]{st[0], st[1],
+                    String.join(",", e.getValue())});
+        }
+        return out;
+    }
+
+    private static void censusCols(ModelContext ctx, ScanRelations.Rel rel,
+            Map<String, java.util.LinkedHashSet<String>> cm) {
+        rel = expandIfView(ctx, rel, null);
+        Located loc = locate(ctx, rel.db(), rel.table());
+        java.util.LinkedHashSet<String> cols = cm.computeIfAbsent(
+                loc.schema() + "\n" + rel.table(),
+                k -> new java.util.LinkedHashSet<>());
+        for (DatabaseDefinition.ColumnDefinition c : loc.def().columns()) {
+            if (c.primaryKey()) {
+                cols.add(c.name());
+            }
+        }
+        for (DatabaseDefinition.ColumnDefinition c : loc.def().columns()) {
+            if (c.notNull() && !c.primaryKey()) {
+                cols.add(c.name());
+            }
+        }
+        for (String c : rel.cols()) {
+            cols.add(loc.def().columns().stream()
+                    .map(DatabaseDefinition.ColumnDefinition::name)
+                    .filter(n -> n.equalsIgnoreCase(c))
+                    .findFirst().orElse(c));
+        }
+        var ms = loc.def().milestoning();
+        if (ms != null) {
+            if (ms.business() != null) {
+                for (String c : new String[]{ms.business().from(),
+                        ms.business().thru(),
+                        ms.business().snapshotDate()}) {
+                    if (c != null) {
+                        cols.add(c);
+                    }
+                }
+            }
+            if (ms.processing() != null) {
+                for (String c : new String[]{ms.processing().in(),
+                        ms.processing().out(),
+                        ms.processing().snapshotDate()}) {
+                    if (c != null) {
+                        cols.add(c);
+                    }
+                }
+            }
+        }
+        for (ScanRelations.Rel child : rel.children()) {
+            censusCols(ctx, child, cm);
+        }
+    }
+
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,

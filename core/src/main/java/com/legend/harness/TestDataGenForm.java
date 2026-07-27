@@ -53,6 +53,31 @@ final class TestDataGenForm {
         return findCall(rhs, "planTestDataGeneration") != null;
     }
 
+    /** Whether the rhs carries a getRelationalCSVDataFromQuery call. */
+    static boolean hasCsvCensus(ValueSpecification rhs) {
+        return findCall(rhs, "getRelationalCSVDataFromQuery") != null;
+    }
+
+    /** Run the NECESSARY-column census (engine
+     * getRelationalCSVDataFromQuery — no execution). */
+    static TestDataGenerator.Result runCsvCensus(ValueSpecification rhs,
+            ModelContext ctx, ImportScope imports) {
+        AppliedFunction call =
+                findCall(rhs, "getRelationalCSVDataFromQuery");
+        List<ValueSpecification> ps = call.parameters();
+        if (ps.size() < 2 || !(ps.get(0) instanceof LambdaFunction query)
+                || !(ps.get(1) instanceof PackageableElementPtr mp)) {
+            throw new NotImplementedException(
+                    "testDataGen: unrecognized csv-census call shape");
+        }
+        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        LambdaFunction resolved = (LambdaFunction) NameResolver
+                .resolveQuery(query, imports, ctx.elementFqns());
+        return new TestDataGenerator.Result(List.of(), null,
+                TestDataGenerator.necessaryColumns(ctx, resolved,
+                        mappingFqn));
+    }
+
     /** The planTestDataGeneration PLAN TEXT for a substituted assert
      * argument, or null when the argument carries no such call. Walls
      * throw {@link NotImplementedException}. */
