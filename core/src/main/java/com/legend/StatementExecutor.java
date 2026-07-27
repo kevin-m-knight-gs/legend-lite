@@ -179,6 +179,15 @@ final class StatementExecutor {
                 result = toSqlString(tsc, specs, env);
                 continue;
             }
+            // planToString(executionPlan(q, m, rt, ...), ext) — the plan
+            // surface (#47): LITERAL engine plan text (toSQLString
+            // doctrine) over the same engine-style SQL pipeline
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall pln
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .PLAN_TO_STRING.equals(pln.callee().qualifiedName())) {
+                result = planToString(pln, specs, env);
+                continue;
+            }
             // execute() in RESULT position: the eager frame run IS the value
             // (the Result envelope is typing-only — the chain's rows are what
             // a reader observes).
@@ -232,19 +241,91 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "toSQLString mapping argument must be a mapping reference");
         }
+        EngineSql es = engineSql(lam, pr.fullPath(), specs, env, renderer);
+        return new ExecutionResult.Scalar(es.sql(),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The engine-style SQL pipeline shared by toSQLString and the plan
+     * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
+     * form, I lower — IR plus rendered text. */
+    private record EngineSql(com.legend.sql.SqlQuery plan, String sql,
+            java.util.List<TypedSpec> body) {
+    }
+
+    private static EngineSql engineSql(
+            com.legend.compiler.spec.typed.TypedLambda lam,
+            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer) {
         java.util.List<TypedSpec> body =
                 new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(lam.body());
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                .resolve(body, env.runtimeFqn(), pr.fullPath());
+                .resolve(body, env.runtimeFqn(), mappingFqn);
         body = com.legend.resolver.RelationalRootForm.apply(
-                body, env.ctx(), pr.fullPath());
+                body, env.ctx(), mappingFqn);
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent()).lower(body);
+        return new EngineSql(plan, renderer.render(plan), body);
+    }
+
+    /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
+     * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
+     * com.legend.plan.PlanText owns the format). */
+    private static ExecutionResult planToString(
+            com.legend.compiler.spec.typed.TypedNativeCall call,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        if (!(call.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)
+                || !com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTION_PLAN.equals(ep.callee().qualifiedName())) {
+            throw new com.legend.error.NotImplementedException(
+                    "planToString over a non-executionPlan value");
+        }
+        if (!(ep.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
+            throw new com.legend.error.NotImplementedException(
+                    "executionPlan whose query argument is not a lambda");
+        }
+        if (!(ep.args().get(1) instanceof
+                com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+            throw new com.legend.error.NotImplementedException(
+                    "executionPlan mapping argument must be a reference");
+        }
+        if (!lam.parameters().isEmpty()) {
+            throw new com.legend.error.NotImplementedException(
+                    "plan: parameterized query — Allocation/Sequence"
+                    + " envelope pending");
+        }
+        String rootClass = rootGetAllClass(lam.body());
+        if (rootClass == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "planToString: no getAll root (multi-node plans"
+                    + " pending)");
+        }
+        EngineSql es = engineSql(lam, pr.fullPath(), specs, env,
+                new com.legend.sql.dialect.EngineStyleH2());
         return new ExecutionResult.Scalar(
-                renderer.render(plan),
+                com.legend.plan.PlanText.single(env.ctx(), rootClass,
+                        pr.fullPath(), es.plan(), es.sql(),
+                        // PRE-resolution body: the TDS-vs-Class shape and
+                        // the documentation channel live in the G output
+                        // (post-H everything is a relation)
+                        lam.body()),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    private static String rootGetAllClass(java.util.List<TypedSpec> body) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
+                return ga.classFqn();
+            }
+            work.addAll(t.children());
+        }
+        return null;
     }
 
     // =====================================================================

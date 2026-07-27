@@ -766,6 +766,22 @@ public final class TestBody {
         }
     }
 
+    private static boolean containsPlanToString(ValueSpecification v) {
+        if (v instanceof AppliedFunction af) {
+            if (simpleName(af.function()).equals("planToString")) {
+                return true;
+            }
+            for (ValueSpecification x : af.parameters()) {
+                if (containsPlanToString(x)) {
+                    return true;
+                }
+            }
+        } else if (v instanceof AppliedProperty ap) {
+            return containsPlanToString(ap.receiver());
+        }
+        return false;
+    }
+
     /** The exec-frame variable an expression reads through (receiver /
      * first-arg chains), or null. */
     private static String rootExecVar(ValueSpecification v,
@@ -832,15 +848,29 @@ public final class TestBody {
                 && (ep.function().equals("executionPlan")
                         || ep.function().startsWith("meta::"))
                 && ep.parameters().size() >= 3) {
+            // recorded for the plan->execute desugar; the binding ALSO
+            // rides the ordinary lazy let so planToString reads type
+            // through the platform (the #47 plan-text K-native)
             planLets.put(name.value(), ep);
-            return new TdgLet(null, null, true);
+            return new TdgLet(null, rhs, false);
         }
-        if (rhs instanceof AppliedFunction pe
-                && simpleName(pe.function()).equals("execute")
-                && !pe.parameters().isEmpty()
-                && substitute(pe.parameters().get(0), lets)
-                        instanceof Variable pv
-                && planLets.containsKey(pv.name())) {
+        // the plan binding ALSO rides the lazy lets (planToString typing),
+        // so rhs arrives with $plan already substituted to the
+        // executionPlan CALL — match either spelling
+        AppliedFunction planSrc = null;
+        if (rhs instanceof AppliedFunction pe0
+                && simpleName(pe0.function()).equals("execute")
+                && !pe0.parameters().isEmpty()) {
+            ValueSpecification p0 = pe0.parameters().get(0);
+            if (p0 instanceof Variable pv && planLets.containsKey(pv.name())) {
+                planSrc = planLets.get(pv.name());
+            } else if (p0 instanceof AppliedFunction epc
+                    && simpleName(epc.function()).equals("executionPlan")
+                    && epc.parameters().size() >= 3) {
+                planSrc = epc;
+            }
+        }
+        if (planSrc != null && rhs instanceof AppliedFunction pe) {
             if (pe.parameters().size() >= 2
                     && !(substitute(pe.parameters().get(1), lets)
                             instanceof PureCollection epc
@@ -848,7 +878,7 @@ public final class TestBody {
                 return new TdgLet(new Outcome.Unsupported(
                         "plan->execute with bound parameters"), null, false);
             }
-            AppliedFunction plan = planLets.get(pv.name());
+            AppliedFunction plan = planSrc;
             rhs = new AppliedFunction("execute",
                     List.of(plan.parameters().get(0),
                             plan.parameters().get(1),
@@ -1027,6 +1057,31 @@ public final class TestBody {
                 if (args.size() < 2) {
                     return UNSUPPORTED_MARKER;
                 }
+                // plan-text asserts read planToString — their goldens
+                // CONTAIN sql text but the compare is the LITERAL plan
+                // string through the K-native (toSQLString doctrine):
+                // skip the golden-SQL advisory routing entirely
+                if (containsPlanToString(args.get(0))
+                        || containsPlanToString(args.get(args.size() - 1))) {
+                    // plan-text compare with NAMED walls staying SHAPE
+                    try {
+                        Eval pe = eval(args.get(0), lets, execStmts,
+                                execVars, execChains, ctx, imports,
+                                runtimeFqn, conn);
+                        Eval pa = eval(args.get(1), lets, execStmts,
+                                execVars, execChains, ctx, imports,
+                                runtimeFqn, conn);
+                        return compare(pe, pa, true) ? null
+                                : "assertEquals: expected " + pe.render()
+                                        + ", got " + pa.render();
+                    } catch (com.legend.error.NotImplementedException
+                            | com.legend.error.LegendCompileException pw) {
+                        // the PLAN surface is a pending vocabulary —
+                        // its typing/resolution walls are SHAPE, scoped
+                        // to plan asserts only
+                        return UNSUPPORTED_MARKER;
+                    }
+                } else {
                 // legacy 3-arg H2-compat: (legacySql, h2NewSql, actual) —
                 // the NEW golden is H2 2.1.214, exactly the advisory
                 // second target's dialect: verify by ROWS through it
@@ -1049,6 +1104,7 @@ public final class TestBody {
                     }
                     return h2Upgrade(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
+                }
                 }
                 Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && e.size() == 0) {

@@ -184,7 +184,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected String projection(SqlSelect.Projection p) {
         String e = expr(p.expr(), 0);
-        return p.alias() == null ? e : e + " as \"" + p.alias() + '"';
+        if (p.alias() == null) {
+            return e;
+        }
+        // a PRE-QUOTED alias (the corpus's '"firstName"' spellings)
+        // must not double-wrap — the engine prints one quote level
+        String a = p.alias();
+        if (a.length() > 1 && a.startsWith("\"") && a.endsWith("\"")) {
+            return e + " as " + a;
+        }
+        return e + " as \"" + a + '"';
     }
 
     @Override

@@ -104,6 +104,13 @@ public final class PlatformTypes {
     public static final String SET_UP_DATA_SQLS =
             "meta::alloy::service::execution::setUpDataSQLs";
 
+    /** The plan surface (#47) — PLATFORM-OWNED opaque handle + K-native
+     * literal plan-text rendering (toSQLString doctrine). */
+    public static final String EXECUTION_PLAN =
+            "meta::pure::executionPlan::executionPlan";
+    public static final String PLAN_TO_STRING =
+            "meta::pure::executionPlan::toString::planToString";
+
     /** The engine's execution entry — K-dispatched as a RESULT FRAME
      * (audit 19d B2: {@code Result} is a typing surface plus an
      * orchestration handle, never a host object graph; reads over it
@@ -130,6 +137,8 @@ public final class PlatformTypes {
                 || isDdlStatementFn(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
+                || EXECUTION_PLAN.equals(fqn)
+                || PLAN_TO_STRING.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 
@@ -158,6 +167,8 @@ public final class PlatformTypes {
                 || TO_SQL_STRING.equals(fqn)
                 || SET_UP_DATA_SQLS_V2.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
+                || EXECUTION_PLAN.equals(fqn)
+                || PLAN_TO_STRING.equals(fqn)
                 || EXECUTE.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }

@@ -489,6 +489,11 @@ public final class Runner {
         // 133/150 graphFetch execute calls were walled by this alone).
         Map<String, com.legend.model.spec.ValueSpecification> lets =
                 new LinkedHashMap<>();
+        // executionPlan only counts as an execute shape when the body
+        // READS the plan text — the printer's servable contract; plan
+        // handles walked via other properties stay walled until built
+        boolean planRead = body.stream().anyMatch(v ->
+                containsCallNamed(v, "planToString"));
         java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
@@ -516,7 +521,11 @@ public final class Runner {
                                 // ids, ...) — #46: TestDataGenForm routes
                                 // at TestBody
                                 || simple.equals("generateTestData")
-                                || simple.equals("planTestDataGeneration"))
+                                || simple.equals("planTestDataGeneration")
+                                // executionPlan(q, MAPPING, rt, ext) —
+                                // #47: the plan-text K-native routes at
+                                // the platform
+                                || simple.equals("executionPlan") && planRead)
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;

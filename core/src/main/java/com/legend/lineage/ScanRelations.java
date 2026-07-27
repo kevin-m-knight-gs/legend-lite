@@ -479,6 +479,30 @@ public final class ScanRelations {
         return false;
     }
 
+    /** The engine's set-implementation identity for a class under a
+     * mapping (#47 plan printer): {@code [definingMappingName, setId,
+     * dbFqn, mainTable]} — the DEFINING mapping is the include-child
+     * declaring the set; the default setId is the class FQN with
+     * underscores. Loud when the class maps ambiguously. */
+    public static String[] rootImpl(ModelContext ctx, String mappingFqn,
+            String classFqn) {
+        LegacyMappingDefinition md = mapping(ctx, mappingFqn);
+        for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
+            for (ClassMapping.Relational r : allClassMappings(m)) {
+                if (typeMatches(r.className(), classFqn)) {
+                    String name = m.qualifiedName().substring(
+                            m.qualifiedName().lastIndexOf(':') + 1);
+                    String setId = r.setId() != null ? r.setId()
+                            : r.className().replace("::", "_");
+                    return new String[]{name, setId, mainDbOf(r),
+                            mainTableOf(r)};
+                }
+            }
+        }
+        throw new NotImplementedException("plan: no class mapping for '"
+                + classFqn + "' under '" + mappingFqn + "'");
+    }
+
     private static Rel toRel(Node n) {
         List<Rel> kids = new ArrayList<>();
         for (Node c : n.children.values()) {
