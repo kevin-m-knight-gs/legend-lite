@@ -187,6 +187,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     protected String timestampLit(String iso) {
+        // the engine spells the datetime separator as a SPACE
+        // (TIMESTAMP'9999-12-31 00:00:00.0000'), never ISO 'T'
+        if (iso.length() > 10 && iso.charAt(10) == 'T') {
+            iso = iso.substring(0, 10) + ' ' + iso.substring(11);
+        }
         return "TIMESTAMP'" + iso + "'";
     }
 
@@ -422,12 +427,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 case COALESCE -> {
                     // the null-guarded in() (pure in never returns null;
                     // COALESCE(x in (...), false) is our EXECUTION idiom)
-                    // spells the BARE in-template in engine text
+                    // spells the BARE in in engine text — plan-param
+                    // templates and literal lists alike
                     if (bc.args().size() == 2
                             && bc.args().get(0) instanceof SqlExpr.Call ic0
                             && ic0.fn() == com.legend.sql.SqlFn.IN
-                            && ic0.args().size() == 2
-                            && ic0.args().get(1) instanceof SqlExpr.PlanParam
                             && bc.args().get(1) instanceof SqlExpr.BoolLit bl0
                             && !bl0.value()) {
                         return expr(ic0, parentPrec);
@@ -445,6 +449,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                 + "![] \",\" " + holderArgs(cp.kind())
                                 + " \"null\")})";
                     }
+                    // engine keyword text is lowercase
+                    StringBuilder items = new StringBuilder();
+                    for (int i = 1; i < bc.args().size(); i++) {
+                        if (items.length() > 0) {
+                            items.append(", ");
+                        }
+                        items.append(expr(bc.args().get(i), 0));
+                    }
+                    return expr(bc.args().get(0), 4) + " in (" + items + ")";
                 }
                 case IS_NULL -> {
                     return expr(bc.args().get(0), 4) + " is null";
