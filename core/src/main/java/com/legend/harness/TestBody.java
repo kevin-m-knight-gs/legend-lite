@@ -3016,6 +3016,9 @@ public final class TestBody {
      */
     private static ValueSpecification substitute(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
+        if (v == null) {
+            return null;
+        }
         // ^TDSNull() in a TEST literal is the engine's null-cell INSTANCE
         // (a real value, not a pure empty — an empty would VANISH from
         // [^TDSNull(), 5.0] and break the comparison): it travels as the
@@ -3064,6 +3067,22 @@ public final class TestBody {
                 }
                 yield new LambdaFunction(lf.parameters(), body);
             }
+            // graph-tree NODE ARGS read lets too (milestoned property
+            // calls in fetch trees: authors($businessDate) { ... } — the
+            // tree rides its own let and the date var must inline like
+            // any other read)
+            case com.legend.model.spec.ColSpecArray csa ->
+                    new com.legend.model.spec.ColSpecArray(
+                            csa.colSpecs().stream().map(cs2 ->
+                                    new com.legend.model.spec.ColSpec(
+                                            cs2.name(),
+                                            (LambdaFunction) substitute(
+                                                    cs2.function1(), lets),
+                                            (LambdaFunction) substitute(
+                                                    cs2.function2(), lets),
+                                            cs2.alias(),
+                                            substituteAll(cs2.args(), lets)))
+                                    .toList());
             // ^X(prop=$let, ...) / ^$let(prop=...) — the binding
             // EXPRESSIONS read lets too (the XStore runtime copy-ctors:
             // ^$dbRuntime(connectionStores=$dbRuntime.connectionStores

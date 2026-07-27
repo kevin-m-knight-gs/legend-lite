@@ -1460,6 +1460,20 @@ final class Substitution {
             return milestoneColumnRead(target.milestoneColumns().get(leaf),
                     target.freshRowVar(), target.rowType(), "", original);
         }
+        // a TEMPORAL class mapped WITHOUT milestone columns (engine
+        // noMilestoningMap: allVersions over a plain table): the
+        // generated struct's dates read NULL — `null as "from"` — never
+        // the undemanded-navigation invariant error
+        if (head.equals("milestoning")
+                && target.milestoneColumns().isEmpty()
+                && !target.bindings().containsKey("milestoning")) {
+            return new com.legend.compiler.spec.typed.TypedCollection(
+                    java.util.List.of(),
+                    new com.legend.compiler.element.type.ExprType(
+                            original.info().type(),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ZERO_ONE));
+        }
         TypedSpec headBinding = target.bindings().get(head);
         if (headBinding != null) {
             TypedSpec inner = headBinding;
