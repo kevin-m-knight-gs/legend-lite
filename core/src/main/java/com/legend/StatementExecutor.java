@@ -306,8 +306,10 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "executionPlan mapping argument must be a reference");
         }
+        boolean quote = ep.args().size() > 2
+                && quoteIdentifiersOf(ep.args().get(2));
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
-            return sequencePlan(lam, pr.fullPath(), specs, env);
+            return sequencePlan(lam, pr.fullPath(), specs, env, quote);
         }
         String rootClass = rootGetAllClass(lam.body());
         if (rootClass == null) {
@@ -315,8 +317,9 @@ final class StatementExecutor {
                     "planToString: no getAll root (multi-node plans"
                     + " pending)");
         }
-        EngineSql es = engineSql(lam, pr.fullPath(), specs, env,
-                new com.legend.sql.dialect.EngineStyleH2());
+        EngineSql es = engineSql(lam.body(), pr.fullPath(), specs, env,
+                new com.legend.sql.dialect.EngineStyleH2(quote),
+                java.util.Map.of());
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
                         pr.fullPath(), es.plan(), es.sql(),
@@ -335,7 +338,7 @@ final class StatementExecutor {
     private static ExecutionResult sequencePlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env) {
+            ExecEnv env, boolean quote) {
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
         java.util.LinkedHashMap<String, Boolean> params =
@@ -365,7 +368,7 @@ final class StatementExecutor {
                         "plan: non-let intermediate statement");
             }
             children.add(allocationNode(let, mappingFqn, specs, env,
-                    params));
+                    params, quote));
             params.put(let.name(), let.info().type()
                     == com.legend.compiler.element.type.Type.Primitive.STRING);
         }
@@ -376,7 +379,7 @@ final class StatementExecutor {
                     "plan: sequence terminal without a getAll root");
         }
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
-                env, new com.legend.sql.dialect.EngineStyleH2(), params);
+                env, new com.legend.sql.dialect.EngineStyleH2(quote), params);
         children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
                 mappingFqn, es.plan(), es.sql(), java.util.List.of(term)));
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
@@ -398,7 +401,7 @@ final class StatementExecutor {
     private static String allocationNode(
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            java.util.Map<String, Boolean> params) {
+            java.util.Map<String, Boolean> params, boolean quote) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -426,7 +429,7 @@ final class StatementExecutor {
         }
         EngineSql es = engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env,
-                new com.legend.sql.dialect.EngineStyleH2(), params);
+                new com.legend.sql.dialect.EngineStyleH2(quote), params);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
@@ -455,7 +458,7 @@ final class StatementExecutor {
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());
-        var renderer = new com.legend.sql.dialect.EngineStyleH2();
+        var renderer = new com.legend.sql.dialect.EngineStyleH2(quote);
         String bareSql = renderer.render(bareSel);
         String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
                 impl[2], sel, typeName, size, bareSql,
@@ -479,6 +482,25 @@ final class StatementExecutor {
         }
         throw new com.legend.error.NotImplementedException(
                 "plan: multiplicity spelling for " + m + " pending");
+    }
+
+    /** The engine connection's quoteIdentifiers flag, read off the
+     * executionPlan call's RUNTIME argument (a Runtime instance literal
+     * carrying a TestDatabaseConnection(quoteIdentifiers=true)). */
+    private static boolean quoteIdentifiersOf(TypedSpec runtimeArg) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(runtimeArg);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                    && ni.properties().get("quoteIdentifiers")
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedCBoolean b2) {
+                return b2.value();
+            }
+            work.addAll(t.children());
+        }
+        return false;
     }
 
     private static String rootGetAllClass(java.util.List<TypedSpec> body) {

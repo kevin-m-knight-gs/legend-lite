@@ -26,6 +26,23 @@ import java.util.stream.Collectors;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer {
 
+    /** The engine connection's {@code quoteIdentifiers} flag: every
+     * physical identifier (schema, table, column) renders double-quoted
+     * (plan goldens testQuoteIdentifiersFlag*). */
+    private final boolean quoteIdentifiers;
+
+    public EngineStyleH2() {
+        this(false);
+    }
+
+    public EngineStyleH2(boolean quoteIdentifiers) {
+        this.quoteIdentifiers = quoteIdentifiers;
+    }
+
+    private String phys(String name) {
+        return quoteIdentifiers ? '"' + name + '"' : name;
+    }
+
     private final Map<String, String> renames = new LinkedHashMap<>();
 
     @Override
@@ -162,7 +179,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     protected void source(StringBuilder sb, SqlSource src, int depth) {
         switch (src) {
             case SqlSource.Table t -> {
-                sb.append(t.name());
+                sb.append(quoteIdentifiers
+                        ? java.util.Arrays.stream(t.name().split("\\.", -1))
+                                .map(x -> '"' + x + '"')
+                                .collect(java.util.stream.Collectors
+                                        .joining("."))
+                        : t.name());
                 if (t.alias() != null) {
                     sb.append(" as \"").append(rename(t.alias())).append('"');
                 }
@@ -214,8 +236,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
         // alias part quoted, physical column bare — "root".FIRSTNAME
         if (e instanceof SqlExpr.Column c) {
-            return c.table() == null ? c.name()
-                    : '"' + rename(c.table()) + "\"." + c.name();
+            return c.table() == null ? phys(c.name())
+                    : '"' + rename(c.table()) + "\"." + phys(c.name());
         }
         String dd = engineDateDiff(e);
         if (dd != null) {
@@ -275,7 +297,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * ({@code asc}/{@code desc} — every ordered golden's spelling). */
     @Override
     protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
-        String s = expr(k.expr(), 0) + (k.ascending() ? " asc" : " desc");
+        // a table-less column key is an OUTPUT-column reference (TDS
+        // ->sort): the engine spells it quoted — `order by "name" asc`
+        String e = k.expr() instanceof SqlExpr.Column c && c.table() == null
+                ? '"' + c.name() + '"'
+                : expr(k.expr(), 0);
+        String s = e + (k.ascending() ? " asc" : " desc");
         if (k.nullOrder() != null) {
             s += k.nullOrder() == com.legend.sql.SqlSelect.SortKey
                     .NullOrder.NULLS_FIRST ? " nulls first" : " nulls last";
