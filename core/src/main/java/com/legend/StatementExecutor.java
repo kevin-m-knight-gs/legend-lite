@@ -188,6 +188,20 @@ final class StatementExecutor {
                 result = planToString(pln, specs, env);
                 continue;
             }
+            // planToStringWithoutFormatting = planToString minus newlines
+            // and spaces (executionPlan_print.pure:27)
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall pwf
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .PLAN_TO_STRING_WITHOUT_FORMATTING
+                            .equals(pwf.callee().qualifiedName())) {
+                ExecutionResult r0 = planToString(pwf, specs, env);
+                result = new ExecutionResult.Scalar(
+                        String.valueOf(((ExecutionResult.Scalar) r0).value())
+                                .replace("\n", "").replace(" ", ""),
+                        com.legend.compiler.element.type.Type
+                                .Primitive.STRING);
+                continue;
+            }
             // $plan.processingTemplateFunctions — the ExecutionPlan class
             // property (executionPlan.pure:67): every relational node
             // carries relationalPlanSupportFunctions(connection), deduped

@@ -934,6 +934,22 @@ final class Substitution {
                                         innerCmp.callee().signatureKey())
                                 || Pure.nativeNamed("contains",
                                         innerCmp.callee().signatureKey())))) {
+                    // ORDERING comparisons keep the engine's THREE-VALUED
+                    // semantics: no processNotLessThan exists — the
+                    // emission is a plain not() over the joined read and
+                    // NULL rows DROP (no pass-constant compensation)
+                    if (lc.args().get(0) instanceof TypedNativeCall oc2
+                            && (Pure.nativeNamed("lessThan",
+                                            oc2.callee().signatureKey())
+                                    || Pure.nativeNamed("lessThanEqual",
+                                            oc2.callee().signatureKey())
+                                    || Pure.nativeNamed("greaterThan",
+                                            oc2.callee().signatureKey())
+                                    || Pure.nativeNamed("greaterThanEqual",
+                                            oc2.callee().signatureKey()))) {
+                        return new TypedNativeCall(lc.callee(),
+                                rewriteAll(lc.args()), lc.info());
+                    }
                     throw new NotImplementedException("negated '"
                             + (lc.args().get(0) instanceof TypedNativeCall ic
                                     ? ic.callee().qualifiedName()

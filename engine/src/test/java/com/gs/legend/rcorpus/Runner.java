@@ -498,7 +498,8 @@ public final class Runner {
                 if (simple.equals("execute") || simple.equals("toSQLString")
                         || simple.equals("from")
                         || simple.equals("executionPlan")
-                        || simple.equals("planToString")) {
+                        || simple.equals("planToString")
+                        || simple.equals("planToStringWithoutFormatting")) {
                     return true;
                 }
                 work.addAll(af.parameters());
@@ -527,7 +528,9 @@ public final class Runner {
         // READS the plan text — the printer's servable contract; plan
         // handles walked via other properties stay walled until built
         boolean planRead = body.stream().anyMatch(v ->
-                containsCallNamed(v, "planToString"));
+                containsCallNamed(v, "planToString")
+                        || containsCallNamed(v,
+                                "planToStringWithoutFormatting"));
         java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {

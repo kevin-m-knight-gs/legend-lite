@@ -13,17 +13,17 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 20 | 9 | 9 | 72 |
-| functions/tests | 258 | 217 | 10 | 20 | 11 |
+| executionPlan/tests | 110 | 20 | 11 | 9 | 70 |
+| functions/tests | 258 | 218 | 9 | 20 | 11 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 7 | 15 | 6 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 102 | 12 | 26 | 3 |
+| graphFetch/tests | 143 | 101 | 13 | 26 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 18 | 1 | 0 | 30 |
-| milestoning/tests | 224 | 194 | 5 | 7 | 18 |
+| milestoning/tests | 224 | 195 | 5 | 6 | 18 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **1918** | 88 | 198 | 334 |
+| **total** | 2538 | **1919** | 90 | 197 | 332 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7693,7 +7693,7 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x unknown function 'generateObjectReferences'
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
@@ -7733,7 +7733,7 @@ in-process Alloy-shaped path).
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: no execute(|...) call
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: no execute(|...) call
-- SHAPE testFilterInWithResultSorcedFromAnExpression [executionPlan/tests]: no execute(|...) call
+- FAIL testFilterInWithResultSorcedFromAnExpression [executionPlan/tests]: assertEquals: expected Sequence(type=TDS[(firm,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[y:String[1]])Allocation(type=StringresultSizeRange=*name=zvalue=(PureExp(type=StringresultSizeRange=*requires=[y(String[1])]expression=$y->split(','))))RelationalBlockExecutio
 - FAIL testFilterEqualsWithOptionalParameter_DB2 [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Time, Integer, INT, "")]\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [optionalID:String[0..1], optionalActive:Boolean[0..1]]\n    )\n    Relational\n    (\n      type = TDS[(Time, Integer, INT, "")]\n      resultColu
 - FAIL testFilterEqualsWithOptionalParameter_Composite [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Time, Integer, INT, "")]\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [optionalID:String[0..1], optionalActive:Boolean[0..1]]\n    )\n    Relational\n    (\n      type = TDS[(Time, Integer, INT, "")]\n      resultColu
 - FAIL testFilterEqualsWithOptionalParameter_H2 [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Time, Integer, INT, "")]\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [optionalID:String[0..1], optionalActive:Boolean[0..1]]\n    )\n    Relational\n    (\n      type = TDS[(Time, Integer, INT, "")]\n      resultColu
@@ -7788,9 +7788,9 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPLanGenerationForFrom [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testExecutionPLanGenerationForFromWithMultiClusters [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testExecutionPlanGenerationForInWithIntegerCollection [executionPlan/tests]: no execute(|...) call
-- SHAPE testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: no execute(|...) call
-- SHAPE testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: no execute(|...) call
+- SHAPE testExecutionPlanGenerationForInWithIntegerCollection [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testPlanGenerationForInWithCollectionParameterHavingTimeZoneForH2 [executionPlan/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
@@ -7804,7 +7804,7 @@ in-process Alloy-shaped path).
 - ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: no overload of 'executionPlan' matches the argument types
 - FAIL testQuoteIdentifiersFlagInOrderByClause [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(200), "")]\n  resultColumns = [("name", VARCHAR(200))]\n  sql = select "root"."NAME" as "name" from "productSchema"."productTable" as "root" order by "name" asc\n  connection = TestDatabaseConnection(type = "H2")\n)\n, got Rel
 - FAIL testQuoteIdentifiersFlagInGroupBy [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(prodName, String, VARCHAR(200), ""), (cnt, Integer, INT, "")]\n  resultColumns = [("prodName", VARCHAR(200)), ("cnt", "")]\n  sql = select "root"."NAME" as "prodName", count(*) as "cnt" from "productSchema"."productTable" as "root" group by "prodNa
-- SHAPE testQuoteIdentifiersFlagWithGraphFetch [executionPlan/tests]: no execute(|...) call
+- FAIL testQuoteIdentifiersFlagWithGraphFetch [executionPlan/tests]: assertEquals: expected PureExp(type=Stringexpression=->serialize(#{meta::relational::tests::model::simple::Product{name}}#)(StoreMappingGlobalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],prop
 - SHAPE testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: no execute(|...) call
 - SHAPE testRelationalProjectionWithExternalFormat [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
@@ -7822,7 +7822,6 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -7843,7 +7842,7 @@ in-process Alloy-shaped path).
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: emptiness check over a toOne()-pierced navigation through the ~filter-mapped set of 'firm' needs the strict-read filter hoist — not supported yet
-- SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
+- SHAPE testIsEmptyOnCollection [functions/tests]: assert form 'assertEquals/2' is not supported yet
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - FAIL testGroupByWithJoinH2 [functions/tests]: assertSize: expected 1, got 6
@@ -7858,8 +7857,8 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInWithObjReferenceOutput [functions/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSQLComments [functions/tests]: unknown type 'RelationalActivity' in @RelationalActivity
-- SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
-- SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: no execute(|...) call
+- SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={n
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
@@ -7874,8 +7873,8 @@ in-process Alloy-shaped path).
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations#f1' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testParametrizedEnumFilter [functions/tests/projection]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
-- SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: no execute(|...) call
-- SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: no execute(|...) call
+- SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - SHAPE testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -7920,8 +7919,9 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].pnl expected 200.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=100.0, supportContactName=Peter Smith}, {pnl=150.0, supportContactN
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -7979,7 +7979,6 @@ in-process Alloy-shaped path).
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call
 - FAIL testBiTemporalDateInjectionFromVarReference [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [<null>, <null>], our pipeline gave 2 row(s) [<null>, STOCK]
-- ERROR testConstraintUsageOfThisMilestoningContext1b [milestoning/tests]: negated 'meta::pure::functions::boolean::lessThan' over a to-many crossing — the engine null-compensates only equal/in; this operator's emission is not transcribed yet
 - ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: unknown function 'tdsRows'
 - ERROR testConstraintUsageOfThisMilestoningContext2 [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProductWithConstraint2' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
 - ERROR testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProductWithConstraint3' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
@@ -8026,13 +8025,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -8209,7 +8208,7 @@ in-process Alloy-shaped path).
 - SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR relationalResultSourcingOfDateList [tests/advanced]: object-space expression node TypedLimit is not substitutable yet (H2 vocabulary): TypedLimit[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::distinct, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=s, type=TypeVar[name=T], 
-- SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
+- SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: assert form 'assertEquals/2' is not supported yet
 - FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
 - ERROR testProjectThroughAssociation [tests/injection]: auto-map mapper body node TypedFilter is not inlinable yet
@@ -8296,10 +8295,10 @@ in-process Alloy-shaped path).
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
-- SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
+- SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy:

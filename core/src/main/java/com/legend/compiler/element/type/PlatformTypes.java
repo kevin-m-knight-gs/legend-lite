@@ -110,6 +110,10 @@ public final class PlatformTypes {
             "meta::pure::executionPlan::executionPlan";
     public static final String PLAN_TO_STRING =
             "meta::pure::executionPlan::toString::planToString";
+    /** {@code planToString} minus newlines and spaces (real
+     * executionPlan_print.pure:27). */
+    public static final String PLAN_TO_STRING_WITHOUT_FORMATTING =
+            "meta::pure::executionPlan::toString::planToStringWithoutFormatting";
 
     /** The engine's execution entry — K-dispatched as a RESULT FRAME
      * (audit 19d B2: {@code Result} is a typing surface plus an
@@ -139,6 +143,7 @@ public final class PlatformTypes {
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
                 || PLAN_TO_STRING.equals(fqn)
+                || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 
@@ -169,6 +174,7 @@ public final class PlatformTypes {
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
                 || PLAN_TO_STRING.equals(fqn)
+                || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
                 || EXECUTE.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }

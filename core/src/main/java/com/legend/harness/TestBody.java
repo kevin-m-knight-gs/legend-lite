@@ -818,7 +818,9 @@ public final class TestBody {
 
     private static boolean containsPlanToString(ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
-            if (simpleName(af.function()).equals("planToString")) {
+            if (simpleName(af.function()).equals("planToString")
+                    || simpleName(af.function())
+                            .equals("planToStringWithoutFormatting")) {
                 return true;
             }
             for (ValueSpecification x : af.parameters()) {
