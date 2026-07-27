@@ -766,6 +766,51 @@ public final class TestBody {
         }
     }
 
+    /** {@code assertEquals/assertSameElements(cols, pkOfFunc(fnRef))} —
+     * PK auto-inference (#78): the referenced corpus function's parsed
+     * body walks through {@link com.legend.lineage.PkInference}; list
+     * equality VERIFIES (assertSameElements order-insensitively). */
+    private static String pkAssert(AppliedFunction af,
+            List<ValueSpecification> args, ModelContext ctx) {
+        String fn = simpleName(af.function());
+        if (!(fn.equals("assertEquals") || fn.equals("assertSameElements"))
+                || args.size() != 2) {
+            return NOT_TDG_MARKER;
+        }
+        AppliedFunction pk = args.get(1) instanceof AppliedFunction c
+                && simpleName(c.function()).equals("pkOfFunc") ? c : null;
+        if (pk == null || pk.parameters().size() != 1
+                || !(pk.parameters().get(0)
+                        instanceof com.legend.model.spec
+                                .PackageableElementPtr ptr)) {
+            return NOT_TDG_MARKER;
+        }
+        String path = ptr.fullPath();
+        int mangle = path.indexOf("__");
+        String fqn = mangle > 0 ? path.substring(0, mangle) : path;
+        var fd = ctx.findFunctionDefinition(fqn);
+        if (fd.isEmpty() || fd.get().body().isEmpty()) {
+            return NOT_TDG_MARKER;
+        }
+        List<String> got = com.legend.lineage.PkInference.infer(ctx,
+                fd.get().body().get(0));
+        List<String> expected = new ArrayList<>();
+        ValueSpecification e = args.get(0);
+        List<ValueSpecification> items = e instanceof PureCollection pc
+                ? pc.values() : List.of(e);
+        for (ValueSpecification it : items) {
+            if (!(it instanceof CString cs)) {
+                return NOT_TDG_MARKER;
+            }
+            expected.add(cs.value());
+        }
+        boolean ok = fn.equals("assertSameElements")
+                ? new java.util.HashSet<>(expected)
+                        .equals(new java.util.HashSet<>(got))
+                : expected.equals(got);
+        return ok ? null : "pkOfFunc: expected " + expected + ", got " + got;
+    }
+
     private static boolean containsPlanToString(ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
             if (simpleName(af.function()).equals("planToString")) {
@@ -1025,6 +1070,10 @@ public final class TestBody {
                 conn);
         if (tdgOut != NOT_TDG_MARKER) {
             return tdgOut;
+        }
+        String pkOut = pkAssert(af, args, ctx);
+        if (pkOut != NOT_TDG_MARKER) {
+            return pkOut;
         }
         switch (simpleName(af.function())) {
             case "assert", "assertFalse" -> {

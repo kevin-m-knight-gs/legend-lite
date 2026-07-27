@@ -260,6 +260,17 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public Optional<com.legend.model.FunctionDefinition>
+            findFunctionDefinition(String fqn) {
+        for (com.legend.model.Function f : model.findFunction(fqn)) {
+            if (f instanceof com.legend.model.FunctionDefinition fd) {
+                return Optional.of(fd);
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public Optional<Type.RelationType> findTable(String dbFqn, String name) {
         Objects.requireNonNull(dbFqn, "dbFqn");
         Objects.requireNonNull(name, "name");

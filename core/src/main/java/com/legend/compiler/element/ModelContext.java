@@ -177,6 +177,13 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** The PARSED definition of a user function (module-resolved body) —
+     * spec-walking consumers (PK inference #78, derived-property scans). */
+    default Optional<com.legend.model.FunctionDefinition>
+            findFunctionDefinition(String fqn) {
+        return Optional.empty();
+    }
+
     /** The table's temporal columns, when it declares a milestoning block. */
     default Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {

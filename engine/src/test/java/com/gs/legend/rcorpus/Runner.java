@@ -573,13 +573,33 @@ public final class Runner {
         // matched a call shape, but the module is still defined by the
         // test's let-bound element pointers (mapping/db) — pull those so
         // the setup statements can run (#46 _Alloy subfamily).
-        if (out.isEmpty() && lets.values().stream().anyMatch(v ->
-                v != null && containsCallNamed(v, "mayExecuteAlloyTest"))
-                || out.isEmpty() && body.stream().anyMatch(v ->
-                containsCallNamed(v, "mayExecuteAlloyTest"))) {
-            for (com.legend.model.spec.ValueSpecification v : lets.values()) {
+        boolean fallback = out.isEmpty() && body.stream().anyMatch(v ->
+                containsCallNamed(v, "mayExecuteAlloyTest")
+                        || containsCallNamed(v, "pkOfFunc"));
+        if (fallback) {
+            java.util.List<com.legend.model.spec.ValueSpecification> ptrs =
+                    new ArrayList<>(lets.values());
+            java.util.ArrayDeque<com.legend.model.spec.ValueSpecification>
+                    w2 = new java.util.ArrayDeque<>(body);
+            while (!w2.isEmpty()) {
+                var v = w2.poll();
+                if (v instanceof com.legend.model.spec.PackageableElementPtr) {
+                    ptrs.add(v);
+                } else if (v instanceof com.legend.model.spec.AppliedFunction f2) {
+                    w2.addAll(f2.parameters());
+                } else if (v instanceof com.legend.model.spec.PureCollection c2) {
+                    w2.addAll(c2.values());
+                }
+            }
+            for (com.legend.model.spec.ValueSpecification v : ptrs) {
                 if (v instanceof com.legend.model.spec.PackageableElementPtr p2) {
-                    String ref = qualify(p2.fullPath(), t);
+                    String path = p2.fullPath();
+                    // fn-ref spellings carry the __<sig>_ mangle
+                    int mangle = path.indexOf("__");
+                    if (mangle > 0) {
+                        path = path.substring(0, mangle);
+                    }
+                    String ref = qualify(path, t);
                     if (ref.matches("[\\w:]+") && !out.contains(ref)) {
                         out.add(ref);
                     }
