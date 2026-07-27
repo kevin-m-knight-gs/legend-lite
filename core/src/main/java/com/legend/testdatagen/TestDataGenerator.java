@@ -1075,21 +1075,8 @@ public final class TestDataGenerator {
         if (ms == null || d == null) {
             return null;
         }
+        // engine bitemporal order: PROCESSING dimension first
         List<String> parts = new ArrayList<>();
-        if (ms.business() != null) {
-            var b = ms.business();
-            if (b.snapshotDate() != null) {
-                parts.add(alias + "." + b.snapshotDate() + " = DATE'"
-                        + requireDate(d.snapshot(), def, "snapshotDate")
-                        + "'");
-            } else {
-                String bd = requireDate(d.business(), def, "businessDate");
-                parts.add(alias + "." + b.from() + " <= DATE'" + bd + "'");
-                parts.add(alias + "." + b.thru()
-                        + (b.thruIsInclusive() ? " >= DATE'" : " > DATE'")
-                        + bd + "'");
-            }
-        }
         if (ms.processing() != null) {
             var pr = ms.processing();
             if (pr.snapshotDate() != null) {
@@ -1103,6 +1090,20 @@ public final class TestDataGenerator {
                 parts.add(alias + "." + pr.out()
                         + (pr.outIsInclusive() ? " >= DATE'" : " > DATE'")
                         + pd + "'");
+            }
+        }
+        if (ms.business() != null) {
+            var b = ms.business();
+            if (b.snapshotDate() != null) {
+                parts.add(alias + "." + b.snapshotDate() + " = DATE'"
+                        + requireDate(d.snapshot(), def, "snapshotDate")
+                        + "'");
+            } else {
+                String bd = requireDate(d.business(), def, "businessDate");
+                parts.add(alias + "." + b.from() + " <= DATE'" + bd + "'");
+                parts.add(alias + "." + b.thru()
+                        + (b.thruIsInclusive() ? " >= DATE'" : " > DATE'")
+                        + bd + "'");
             }
         }
         return parts.isEmpty() ? null : String.join(" and ", parts);
