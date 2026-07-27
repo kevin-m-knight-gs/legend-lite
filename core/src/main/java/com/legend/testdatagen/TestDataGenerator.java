@@ -66,12 +66,17 @@ public final class TestDataGenerator {
             List<TableRowIds> rowIds, Connection conn) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
+        // a VIEW-backed root generates for its UNDERLYING tree (engine
+        // generateTestDataForNestedViewTree): the view's seed table is
+        // the row-identifier target and its join web fetches as children
+        roots = roots.stream().map(r -> expandIfView(ctx, r, null))
+                .toList();
         // engine generateRelationColumnMap: column demand merges PER
         // TABLE across ALL tree nodes (a self-join's two fetches of one
         // table share one column set)
         Map<String, List<String>> colMap = new LinkedHashMap<>();
         for (ScanRelations.Rel r : roots) {
-            collectColMap(ctx, r, colMap);
+            collectColMap(ctx, r, colMap, null);
         }
         List<String> sqls = new ArrayList<>();
         // tableKey (schema\ntable) -> fetch temps, in first-fetch order
@@ -91,7 +96,9 @@ public final class TestDataGenerator {
     }
 
     private static void collectColMap(ModelContext ctx,
-            ScanRelations.Rel rel, Map<String, List<String>> colMap) {
+            ScanRelations.Rel rel, Map<String, List<String>> colMap,
+            String parentDb) {
+        rel = expandIfView(ctx, rel, parentDb);
         Located loc = locate(ctx, rel.db(), rel.table());
         String key = loc.schema() + "\n" + rel.table();
         // engine sortBy(name) is effectively case-insensitive (goldens:
@@ -102,7 +109,7 @@ public final class TestDataGenerator {
         merged.addAll(fetchCols(ctx, loc, rel));
         colMap.put(key, List.copyOf(merged));
         for (ScanRelations.Rel child : rel.children()) {
-            collectColMap(ctx, child, colMap);
+            collectColMap(ctx, child, colMap, rel.db());
         }
     }
 
@@ -169,6 +176,7 @@ public final class TestDataGenerator {
             List<String> sqls, Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap)
             throws SQLException {
+        child = expandIfView(ctx, child, parent.db());
         Located loc = locate(ctx, child.db(), child.table());
         List<String> cols = colMap.get(loc.schema() + "\n" + child.table());
         RelationalOperation op = child.cond() != null ? child.cond()
@@ -358,6 +366,90 @@ public final class TestDataGenerator {
             default -> throw new NotImplementedException("testDataGen: join '"
                     + joinName + "' condition node "
                     + op.getClass().getSimpleName() + " pending");
+        };
+    }
+
+    /** A VIEW-backed relation swaps in its seed-table expansion (engine
+     * generateTestDataForNestedViewTree): the seed fetches with the
+     * view's internal join web as children; the view node's own join
+     * condition and its class-join children translate view-side refs to
+     * base columns. {@code parentDb} resolves the connecting join when
+     * the view is a CHILD. */
+    private static ScanRelations.Rel expandIfView(ModelContext ctx,
+            ScanRelations.Rel r, String parentDb) {
+        if (!ScanRelations.isView(ctx, r.db(), r.table())) {
+            return r;
+        }
+        ScanRelations.ViewExpansion ve =
+                ScanRelations.viewExpansion(ctx, r.db(), r.table());
+        ScanRelations.Rel base = ve.tree();
+        RelationalOperation cond = null;
+        if (r.cond() != null || r.joinName() != null) {
+            RelationalOperation op = r.cond() != null ? r.cond()
+                    : findJoin(ctx, r.joinName(), r.db(), parentDb)
+                            .operation();
+            cond = substituteViewRefs(op, r.table(), ve.mainTable(),
+                    ve.colToBase());
+        }
+        List<ScanRelations.Rel> kids = new ArrayList<>(base.children());
+        for (ScanRelations.Rel c : r.children()) {
+            RelationalOperation op = c.cond() != null ? c.cond()
+                    : findJoin(ctx, c.joinName(), c.db(), r.db())
+                            .operation();
+            kids.add(new ScanRelations.Rel(c.db(), c.table(), c.joinName(),
+                    substituteViewRefs(op, r.table(), ve.mainTable(),
+                            ve.colToBase()),
+                    c.cols(), c.children()));
+        }
+        return new ScanRelations.Rel(base.db(), base.table(), r.joinName(),
+                cond, base.cols(), kids);
+    }
+
+    /** Rewrite {@code op}'s refs to {@code viewName} as refs to the
+     * view's SEED table with the column translated through the plain
+     * column map (a view-side join condition against the fetch temp). */
+    private static RelationalOperation substituteViewRefs(
+            RelationalOperation op, String viewName, String mainTable,
+            Map<String, String> colToBase) {
+        return switch (op) {
+            case RelationalOperation.ColumnRef r -> {
+                if (!viewName.equals(r.table())) {
+                    yield r;
+                }
+                String base = colToBase.get(r.column());
+                if (base == null) {
+                    throw new NotImplementedException("testDataGen: view"
+                            + " join reads '" + r.column() + "' of '"
+                            + viewName + "' which is not a plain"
+                            + " column-mapped view column");
+                }
+                yield new RelationalOperation.ColumnRef(r.databaseName(),
+                        mainTable, base);
+            }
+            case RelationalOperation.Comparison c ->
+                    new RelationalOperation.Comparison(
+                            substituteViewRefs(c.left(), viewName,
+                                    mainTable, colToBase),
+                            c.op(),
+                            substituteViewRefs(c.right(), viewName,
+                                    mainTable, colToBase));
+            case RelationalOperation.BooleanOp b ->
+                    new RelationalOperation.BooleanOp(
+                            substituteViewRefs(b.left(), viewName,
+                                    mainTable, colToBase),
+                            b.op(),
+                            substituteViewRefs(b.right(), viewName,
+                                    mainTable, colToBase));
+            case RelationalOperation.Group g ->
+                    new RelationalOperation.Group(substituteViewRefs(
+                            g.inner(), viewName, mainTable, colToBase));
+            case RelationalOperation.IsNull n ->
+                    new RelationalOperation.IsNull(substituteViewRefs(
+                            n.operand(), viewName, mainTable, colToBase));
+            case RelationalOperation.IsNotNull n ->
+                    new RelationalOperation.IsNotNull(substituteViewRefs(
+                            n.operand(), viewName, mainTable, colToBase));
+            default -> op;
         };
     }
 

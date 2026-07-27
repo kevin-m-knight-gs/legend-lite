@@ -503,6 +503,85 @@ public final class ScanRelations {
                 + classFqn + "' under '" + mappingFqn + "'");
     }
 
+    /** Whether {@code name} is a VIEW of {@code db} (include closure). */
+    public static boolean isView(ModelContext ctx, String db, String name) {
+        return db != null && findView(ctx, db, name) != null;
+    }
+
+    /** The view's INTERNAL relation tree as a {@link Rel} (the tdg view
+     * fetch): root = the view's seed table carrying every plain
+     * column-mapped base column, with the view's own join web (column
+     * expressions + ~filter) as children — the engine's nestedViewTree.
+     * Nested views (a view whose seed is itself a view) stay a named
+     * wall. */
+    public static Rel viewTree(ModelContext ctx, String db,
+            String viewName) {
+        return viewExpansion(ctx, db, viewName).tree();
+    }
+
+    /** A view's tdg expansion: the internal tree plus the seed (main)
+     * table identity and the PLAIN column-mapped view-column &rarr;
+     * base-column map (join-navigated columns are absent). */
+    public record ViewExpansion(Rel tree, String db, String mainTable,
+            java.util.Map<String, String> colToBase) {
+    }
+
+    public static ViewExpansion viewExpansion(ModelContext ctx, String db,
+            String viewName) {
+        DatabaseDefinition.ViewDefinition vd = findView(ctx, db, viewName);
+        if (vd == null) {
+            throw new NotImplementedException("scanRelations: view '"
+                    + viewName + "' not found in '" + db + "'");
+        }
+        Node root = expandView(ctx, db, vd, true);
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
+                : vd.columnMappings()) {
+            if (cm.expression()
+                    instanceof RelationalOperation.JoinNavigation) {
+                continue;
+            }
+            List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+            columnRefs(cm.expression(), refs);
+            if (refs.size() == 1) {
+                m.put(cm.name(), refs.get(0).column());
+            }
+        }
+        if (isView(ctx, root.db, root.table)) {
+            // NESTED VIEW: the seed is itself a view — compose through
+            // the inner expansion (plain-column composition; a nested
+            // view with its own join webs stays a named wall)
+            if (!root.children.isEmpty()) {
+                throw new NotImplementedException("scanRelations: nested"
+                        + " view '" + root.table + "' with join webs"
+                        + " under '" + viewName + "' pending");
+            }
+            ViewExpansion inner = viewExpansion(ctx, root.db, root.table);
+            java.util.Map<String, String> composed =
+                    new java.util.LinkedHashMap<>();
+            for (java.util.Map.Entry<String, String> e : m.entrySet()) {
+                String base = inner.colToBase().get(e.getValue());
+                if (base == null) {
+                    throw new NotImplementedException("scanRelations:"
+                            + " nested view column '" + e.getValue()
+                            + "' of '" + root.table + "' is not plain"
+                            + " column-mapped");
+                }
+                composed.put(e.getKey(), base);
+            }
+            java.util.LinkedHashSet<String> cols =
+                    new java.util.LinkedHashSet<>(inner.tree().cols());
+            root.cols.forEach(c -> cols.add(
+                    inner.colToBase().getOrDefault(c, c)));
+            Rel merged = new Rel(inner.tree().db(), inner.tree().table(),
+                    inner.tree().joinName(), inner.tree().cond(),
+                    List.copyOf(cols), inner.tree().children());
+            return new ViewExpansion(merged, inner.db(),
+                    inner.mainTable(), composed);
+        }
+        return new ViewExpansion(toRel(root), root.db, root.table, m);
+    }
+
     private static Rel toRel(Node n) {
         List<Rel> kids = new ArrayList<>();
         for (Node c : n.children.values()) {
@@ -600,6 +679,15 @@ public final class ScanRelations {
      * ~filter fold their join chains off it. */
     private static Node expandView(ModelContext ctx, String dbName,
             DatabaseDefinition.ViewDefinition vd) {
+        return expandView(ctx, dbName, vd, false);
+    }
+
+    /** {@code perWebChildren}: each column mapping's join web builds its
+     * OWN child chain even when a prefix repeats (the engine's tdg
+     * nestedViewTree fetches per web — testSimpleViewRoot pins 5 sqls);
+     * the treeString printer keeps the merged form. */
+    private static Node expandView(ModelContext ctx, String dbName,
+            DatabaseDefinition.ViewDefinition vd, boolean perWebChildren) {
         Node root = null;
         List<RelationalOperation.ColumnRef> plainRefs = new ArrayList<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
@@ -629,7 +717,18 @@ public final class ScanRelations {
                 : vd.columnMappings()) {
             if (cm.expression()
                     instanceof RelationalOperation.JoinNavigation jn) {
-                foldJoinNavigation(ctx, root, dbName, jn);
+                // per-web fork key = the CHAIN IDENTITY: columns sharing
+                // one chain share one fetch, distinct chains fork even
+                // on a shared prefix (engine per-web fetch counts)
+                String suffix = "";
+                if (perWebChildren) {
+                    StringBuilder sb2 = new StringBuilder("#");
+                    for (JoinChainElement el : jn.chain()) {
+                        sb2.append(el.joinName()).append('>');
+                    }
+                    suffix = sb2.toString();
+                }
+                foldJoinNavigation(ctx, root, dbName, jn, suffix);
             }
         }
         com.legend.model.FilterMapping fm = vd.filter();
@@ -668,10 +767,11 @@ public final class ScanRelations {
     }
 
     private static void foldJoinNavigation(ModelContext ctx, Node root,
-            String dbName, RelationalOperation.JoinNavigation jn) {
+            String dbName, RelationalOperation.JoinNavigation jn,
+            String keySuffix) {
         Node at = joinChain(ctx, null, root,
                 jn.databaseName() != null ? jn.databaseName() : dbName,
-                jn.chain());
+                jn.chain(), keySuffix);
         if (jn.terminal() != null) {
             List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
             columnRefs(jn.terminal(), refs);
@@ -1101,6 +1201,12 @@ public final class ScanRelations {
      * condition columns to its node; returns the DEEPEST node. */
     private static Node joinChain(ModelContext ctx, LegacyMappingDefinition md,
             Node parent, String db, List<JoinChainElement> joins) {
+        return joinChain(ctx, md, parent, db, joins, "");
+    }
+
+    private static Node joinChain(ModelContext ctx, LegacyMappingDefinition md,
+            Node parent, String db, List<JoinChainElement> joins,
+            String keySuffix) {
         Node cur = parent;
         for (JoinChainElement el : joins) {
             final Node at = cur;
@@ -1131,7 +1237,7 @@ public final class ScanRelations {
                     .map(RelationalOperation.ColumnRef::databaseName)
                     .filter(Objects::nonNull).findFirst().orElse(dbName);
             Node child = at.children.computeIfAbsent(
-                    other + "(" + el.joinName() + ")",
+                    other + "(" + el.joinName() + ")" + keySuffix,
                     k -> new Node(otherDb, other, el.joinName()));
             for (RelationalOperation.ColumnRef r : refs) {
                 if (bare(r.table()).equals(at.table)) {
