@@ -276,6 +276,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     protected String expr(SqlExpr e, int parentPrec) {
         // plan-template parameter (engine freemarker): strings are
         // single-quoted with the engine's escape template
+        // engine h2New text spells case/when lowercase and float
+        // literals as cast(v as float) — the ANSI DOUBLE-cast is a
+        // DuckDB execution idiom, not engine text
+        if (e instanceof SqlExpr.FloatLit f) {
+            return "cast(" + f.value() + " as float)";
+        }
         if (e instanceof SqlExpr.PlanParam p) {
             // an OPTIONAL parameter spells the varPlaceHolderToString
             // template in EVERY position (comparisons, null guards) —
@@ -490,6 +496,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && isSundayIndexDifference(cs.otherwise())) {
             return "datediff(week, " + expr(dayDiff.args().get(2), 0)
                     + ", " + expr(dayDiff.args().get(1), 0) + ")";
+        }
+        // GENERIC case spelling (engine text): lowercase keywords —
+        // placed BELOW the specialized recognizers (week-diff) that
+        // fold whole CASE shapes into engine idioms
+        if (e instanceof SqlExpr.Case c) {
+            StringBuilder sb = new StringBuilder("case");
+            for (SqlExpr.Case.When w : c.whens()) {
+                sb.append(" when ").append(expr(w.condition(), 0))
+                        .append(" then ").append(expr(w.then(), 0));
+            }
+            if (c.otherwise() != null) {
+                sb.append(" else ").append(expr(c.otherwise(), 0));
+            }
+            return sb.append(" end").toString();
         }
         return null;
     }

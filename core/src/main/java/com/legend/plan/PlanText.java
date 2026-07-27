@@ -235,8 +235,14 @@ public final class PlanText {
                         .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
                         .findFirst().orElseThrow().dataType());
             } else {
-                throw new NotImplementedException("plan: computed TDS"
-                        + " column '" + name + "' type spelling pending");
+                // COMPUTED TDS column: the db slot spells the PURE type's
+                // engine equivalent (aggregate Number -> FLOAT — the
+                // engine's inferRelationalType over dynafunctions)
+                db = pureDbSpelling(cols.get(i).type());
+                if (db == null) {
+                    throw new NotImplementedException("plan: computed TDS"
+                            + " column '" + name + "' type spelling pending");
+                }
             }
             sb.append('(')
                     .append(doc.isEmpty() ? name : "\"" + name + "\"")
@@ -297,9 +303,12 @@ public final class PlanText {
                 sb.append(", ");
             }
             if (!(p.expr() instanceof SqlExpr.Column c)) {
-                throw new NotImplementedException("plan: computed"
-                        + " projection '" + p.outputName()
-                        + "' type spelling pending");
+                // COMPUTED projection (aggregate, expression): the engine
+                // spells an EMPTY QUOTED type (inferRelationalType has no
+                // physical column) — golden ("Income Function", "")
+                sb.append("(\"").append(strip(p.outputName()))
+                        .append("\", \"\")");
+                continue;
             }
             String table = tableOf(s.from(), c.table());
             var td = ctx.findTableDefinition(dbFqn, table).orElseThrow(
@@ -315,6 +324,21 @@ public final class PlanText {
                     .append("\", ").append(spell(cd.dataType())).append(')');
         }
         return sb.toString();
+    }
+
+    /** The engine dataType a computed column's PURE type infers to
+     * (executionPlan goldens: aggregate Number/Float -> FLOAT); null =
+     * no known spelling (stays a named wall). */
+    private static String pureDbSpelling(
+            com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                || t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+            return "FLOAT";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
+            return "INT";
+        }
+        return null;
     }
 
     /** The physical table behind a FROM-tree alias. */
