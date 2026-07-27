@@ -215,12 +215,16 @@ final class RelationalGrammarParser {
     }
 
     DatabaseDefinition.ColumnDefinition parseColumnDefinition() {
+        // a DOUBLE-QUOTED declaration carries case-sensitive identity —
+        // the engine renders such columns quoted in every SQL spelling
+        boolean quoted = p.peek() == TokenType.QUOTED_STRING;
         String columnName = parseRelationalIdentifier();
         RelationalDataType dataType = parseColumnDataType();
         boolean primaryKey = p.match(TokenType.PRIMARY_KEY);
         // PRIMARY KEY implies NOT NULL (engine parity).
         boolean notNull = primaryKey || p.match(TokenType.NOT_NULL);
-        return new DatabaseDefinition.ColumnDefinition(columnName, dataType, primaryKey, notNull);
+        return new DatabaseDefinition.ColumnDefinition(columnName, dataType,
+                primaryKey, notNull, quoted);
     }
 
     /**

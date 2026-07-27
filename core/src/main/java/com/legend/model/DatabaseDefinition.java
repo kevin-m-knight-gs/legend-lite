@@ -122,10 +122,17 @@ public record DatabaseDefinition(
      *                   (implied by {@code PRIMARY KEY} in engine; we
      *                   preserve the same semantics)
      */
-    public record ColumnDefinition(String name, RelationalDataType dataType, boolean primaryKey, boolean notNull) {
+    public record ColumnDefinition(String name, RelationalDataType dataType, boolean primaryKey, boolean notNull,
+                                   boolean quoted) {
         public ColumnDefinition {
             Objects.requireNonNull(name, "Column name cannot be null");
             Objects.requireNonNull(dataType, "Data type cannot be null");
+        }
+
+        /** Unquoted-declaration compatibility constructor. */
+        public ColumnDefinition(String name, RelationalDataType dataType,
+                boolean primaryKey, boolean notNull) {
+            this(name, dataType, primaryKey, notNull, false);
         }
     }
 
