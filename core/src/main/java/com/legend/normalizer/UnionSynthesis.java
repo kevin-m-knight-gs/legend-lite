@@ -254,9 +254,17 @@ final class UnionSynthesis {
                     continue;
                 } else if (rootOrSole) {
                     routes.add(new UnionRoute(-1, j));
+                } else if (e.getValue().size() == 1) {
+                    // a SINGLE set-pinned route to a NON-root set: the
+                    // navigate emits un-routed and DISPATCHES through the
+                    // recorded routed-set hint at resolve (getForNav ->
+                    // set-pinned ClassSources.get — the target set's own
+                    // ~filter pipeline rides). employees2[p2] over
+                    // multi-set Person; no union machinery involved.
+                    routes.add(new UnionRoute(-1, j));
                 } else {
                     poison = "NON-root mapping set '" + j.targetSetId()
-                            + "' — multi-set dispatch outside union members"
+                            + "' — MULTI-route dispatch outside union members"
                             + " is a roadmap feature";
                     break;
                 }
