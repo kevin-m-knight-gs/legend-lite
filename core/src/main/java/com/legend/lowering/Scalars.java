@@ -133,7 +133,7 @@ final class Scalars {
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args),
                                     new SqlExpr.BoolLit(true)))
-                    : new SqlExpr.Call(SqlFn.AND, args));
+                    : Fold.mergeAnd(args.toArray(new SqlExpr[0])));
         }
         for (String f : Pure.nativeKeysAt("or")) {
             RULES.put(f, (n, args) -> args.size() == 1

@@ -261,17 +261,26 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.Call bc) {
             switch (bc.fn()) {
                 case AND -> {
+                    // engine 'and' renders FLAT with no parens at any
+                    // arity (extensionDefaults.pure:189) — parens come
+                    // only from explicit Group nodes and opposite-operator
+                    // nesting (the OR arm below)
                     java.util.List<String> terms = new java.util.ArrayList<>();
                     flattenAnd(bc, terms);
-                    // Observed engine output: a WHERE-top chain of 3+
-                    // conjuncts renders BARE (plan ${var} goldens flatten
-                    // the null-guard into the chain), while the standalone
-                    // 2-term null-guard group keeps its parens
-                    // (relative-date goldens, H2 and DB2). Nested position
-                    // always parenthesizes.
-                    return parentPrec == 0 && terms.size() > 2
-                            ? String.join(" and ", terms)
-                            : "(" + String.join(" and ", terms) + ")";
+                    return String.join(" and ", terms);
+                }
+                case OR -> {
+                    // and-under-or parenthesizes (the engine's
+                    // newAndOrDynaFunctionRelaxedBrackets opposite-operator
+                    // group, pureToSQLQuery.pure:5376)
+                    java.util.List<String> ops = new java.util.ArrayList<>();
+                    for (SqlExpr o : bc.args()) {
+                        boolean andLike = o instanceof SqlExpr.Call oc
+                                && oc.fn() == com.legend.sql.SqlFn.AND;
+                        ops.add(andLike ? "(" + expr(o, 0) + ")"
+                                : expr(o, 0));
+                    }
+                    return String.join(" or ", ops);
                 }
                 case IS_NULL -> {
                     return expr(bc.args().get(0), 4) + " is null";

@@ -840,6 +840,8 @@ public final class Lowerer {
             case SqlExpr.ScalarSubquery s -> s;
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;
+            case SqlExpr.Group g -> new SqlExpr.Group(
+                    windowize(g.inner(), partitionBy, orderBy, frame));
             // Leaves: no reducer can hide below.
             case SqlExpr.PlanParam ignored -> e;
             case SqlExpr.Column ignored -> e;
@@ -1203,11 +1205,11 @@ public final class Lowerer {
         }
         return switch (slot) {
             case WHERE -> src.withWhere(src.where() == null ? predicate
-                    : SqlExpr.Call.of(SqlFn.AND, src.where(), predicate));
+                    : Fold.mergeAnd(src.where(), predicate));
             case HAVING -> src.withHaving(src.having() == null ? predicate
-                    : SqlExpr.Call.of(SqlFn.AND, src.having(), predicate));
+                    : Fold.mergeAnd(src.having(), predicate));
             case QUALIFY -> src.withQualify(src.qualify() == null ? predicate
-                    : SqlExpr.Call.of(SqlFn.AND, src.qualify(), predicate));
+                    : Fold.mergeAnd(src.qualify(), predicate));
             case ISOLATE -> throw new IllegalStateException("unreachable: isolated above");
         };
     }
@@ -3424,7 +3426,7 @@ public final class Lowerer {
             pred = SqlExpr.Call.of(SqlFn.NOT, pred);
         }
         return sub.withWhere(sub.where() == null ? pred
-                : SqlExpr.Call.of(SqlFn.AND, sub.where(), pred));
+                : Fold.mergeAnd(sub.where(), pred));
     }
 
     // ==================================================================

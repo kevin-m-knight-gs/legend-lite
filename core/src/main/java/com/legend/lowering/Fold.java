@@ -22,6 +22,35 @@ import java.util.List;
  */
 final class Fold {
 
+    /** Combine conjuncts into one AND, FLATTENING same-operator nesting
+     * and Group-of-AND operands (the engine's andFilters: same-operator
+     * chains never keep their group — a guard group survives only
+     * standalone or under or/not). */
+    static com.legend.sql.SqlExpr mergeAnd(com.legend.sql.SqlExpr... parts) {
+        java.util.List<com.legend.sql.SqlExpr> flat =
+                new java.util.ArrayList<>();
+        for (com.legend.sql.SqlExpr p2 : parts) {
+            flattenInto(p2, flat);
+        }
+        return flat.size() == 1 ? flat.get(0)
+                : new com.legend.sql.SqlExpr.Call(
+                        com.legend.sql.SqlFn.AND, flat);
+    }
+
+    private static void flattenInto(com.legend.sql.SqlExpr e,
+            java.util.List<com.legend.sql.SqlExpr> out) {
+        if (e instanceof com.legend.sql.SqlExpr.Group g
+                && g.inner() instanceof com.legend.sql.SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.AND) {
+            c.args().forEach(x -> flattenInto(x, out));
+        } else if (e instanceof com.legend.sql.SqlExpr.Call c2
+                && c2.fn() == com.legend.sql.SqlFn.AND) {
+            c2.args().forEach(x -> flattenInto(x, out));
+        } else {
+            out.add(e);
+        }
+    }
+
     private Fold() {
     }
 

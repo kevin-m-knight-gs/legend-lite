@@ -15,7 +15,7 @@ public sealed interface SqlExpr
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlAgg.Reducer {
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlAgg.Reducer {
 
     /** A column reference, optionally qualified by a source alias. */
     record Column(String table, String name) implements SqlExpr {
@@ -55,6 +55,16 @@ public sealed interface SqlExpr
     }
 
     /** ISO timestamp; renders as a typed TIMESTAMP literal. */
+    /** An EXPLICIT parenthesization group — the engine's {@code group}
+     * dynafunction (extensionDefaults.pure:224, format '(%s)'). Parens
+     * are STRUCTURAL, never derived from operator arity: the engine
+     * emits group when an and/or nests under the OPPOSITE operator and
+     * when a predicate merges with its null-guards under or/not
+     * (pureToSQLQuery newAndOrDynaFunctionRelaxedBrackets:5376,
+     * moveExtraFilterToFilter:4610). */
+    record Group(SqlExpr inner) implements SqlExpr {
+    }
+
     /** An execution-plan TEMPLATE parameter ({@code ${name}} — the
      * engine's freemarker placeholder for a function parameter or an
      * Allocation-bound variable). Plan-text vocabulary only: it renders

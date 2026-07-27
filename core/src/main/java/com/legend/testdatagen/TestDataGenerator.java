@@ -80,9 +80,13 @@ public final class TestDataGenerator {
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         roots = roots.stream().map(r -> expandIfView(ctx, r, null))
                 .toList();
-        // engine generateRelationColumnMap ENCOUNTER order (no sort):
-        // pks ++ non-nullable ++ temporal milestoning ++ tree columns,
-        // deduplicated by name
+        // ENCOUNTER order (no sort): pks ++ non-nullable ++ tree
+        // columns ++ temporal milestoning, deduplicated by name.
+        // AUDIT-25 NOTE: generateRelationColumnMap (testDataGeneration
+        // .pure:573) spells temporal BEFORE tree, but the census golden
+        // (testGenerateNecessaryTableColumnsForMilestoningTable) pins
+        // tree-before-temporal — getRelationalCSVDataFromQuery evidently
+        // assembles differently; the golden is authoritative here
         Map<String, java.util.LinkedHashSet<String>> cm =
                 new LinkedHashMap<>();
         for (ScanRelations.Rel r : roots) {
@@ -1062,7 +1066,8 @@ public final class TestDataGenerator {
             throw new NotImplementedException("testDataGen plan: no row"
                     + " identifiers for root '" + rel.table() + "'");
         }
-        // engine orFilters folds the identifier rows in REVERSE order;
+        // engine combineFilters explicitly reverses its operand list
+        // ($ns->reverse(), pureToSqlQuery.pure:389 — audit 25 verified);
         // a single-condition row spells bare, a multi-condition row
         // parenthesizes its and-group
         List<String> rows = new ArrayList<>();
@@ -1093,6 +1098,10 @@ public final class TestDataGenerator {
             ScanRelations.Rel parent, ScanRelations.Rel child,
             List<String> cols, String res, MilestoningDates dates) {
         String parentRes = res.substring(0, res.lastIndexOf("_c"));
+        // the engine's per-query alias-group index: each child fetch SQL
+        // joins exactly ONE table by construction, so its group index is
+        // always 0 (audit 25 — a multi-join child would need the full
+        // group counter)
         String alias = child.table().toLowerCase(java.util.Locale.ROOT)
                 + "_0";
         RelationalOperation op = child.cond() != null ? child.cond()

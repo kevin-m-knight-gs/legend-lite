@@ -47,7 +47,11 @@ final class NullSemantics {
             return cmp;
         }
         conj.add(cmp);
-        return new SqlExpr.Call(SqlFn.AND, conj);
+        // the engine carries guard+comparison as a GROUP (its
+        // moveExtraFilterToFilter wrap): standalone it renders
+        // parenthesized; merged into a larger and-chain the group
+        // flattens away (mergeAnd)
+        return new SqlExpr.Group(new SqlExpr.Call(SqlFn.AND, conj));
     }
 
     private static boolean isOptional(

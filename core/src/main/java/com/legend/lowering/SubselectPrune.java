@@ -165,6 +165,7 @@ final class SubselectPrune {
             }
             case SqlExpr.PlanParam v -> {
             }
+            case SqlExpr.Group g -> collectExpr(g.inner(), r);
             case SqlExpr.StringLit v -> {
             }
             case SqlExpr.IntLit v -> {
