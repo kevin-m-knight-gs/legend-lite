@@ -276,7 +276,15 @@ public final class Pure {
     // real executionPlan.pure:60-73 (func/mapping/runtime/rootExecutionNode
     // omitted until demanded — each declared property matches the REAL
     // class member-for-member)
-    public static final ClassDefinition EXECUTION_PLAN_CLASS = nativeClass("native Class meta::pure::executionPlan::ExecutionPlan extends meta::pure::metamodel::type::Any { processingTemplateFunctions: meta::pure::metamodel::type::String[*]; }");
+    public static final ClassDefinition EXECUTION_PLAN_CLASS = nativeClass("native Class meta::pure::executionPlan::ExecutionPlan extends meta::pure::metamodel::type::Any { rootExecutionNode: meta::pure::executionPlan::ExecutionNode[1]; processingTemplateFunctions: meta::pure::metamodel::type::String[*]; }");
+    // the plan NODE surface (real executionPlan.pure:73-83/:178-205 +
+    // relational executionPlan.pure:63-90) — declared subsets; values
+    // answer through the K-side plan model (the plan-handle walks)
+    public static final ClassDefinition EXECUTION_NODE = nativeClass("native Class meta::pure::executionPlan::ExecutionNode extends meta::pure::metamodel::type::Any { executionNodes: meta::pure::executionPlan::ExecutionNode[*]; }");
+    public static final ClassDefinition FUNCTION_PARAMETERS_VALIDATION_NODE = nativeClass("native Class meta::pure::executionPlan::FunctionParametersValidationNode extends meta::pure::executionPlan::ExecutionNode { functionParameters: meta::pure::executionPlan::FunctionParameter[*]; }");
+    public static final ClassDefinition FUNCTION_PARAMETER = nativeClass("native Class meta::pure::executionPlan::FunctionParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; supportsStream: meta::pure::metamodel::type::Boolean[0..1]; }");
+    public static final ClassDefinition SQL_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::SQLExecutionNode extends meta::pure::executionPlan::ExecutionNode { sqlQuery: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition RELATIONAL_INSTANTIATION_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::RelationalInstantiationExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
 
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
@@ -1139,6 +1147,8 @@ public final class Pure {
     public static final NativeFunctionDefinition PLAN_TO_STRING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToString(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // real executionPlan_print.pure:27 — planToString minus '\n' and ' '
     public static final NativeFunctionDefinition PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToStringWithoutFormatting(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
+    // real executionPlan_execution.pure:67 — the node-tree flatten
+    public static final NativeFunctionDefinition ALL_NODES__EXECUTION_NODE_1__ANY_MANY = signature("native function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*];");
     // pure-only plan shapes (no store): 2/3-arg spellings type; their
     // plan text is a PureExp node — a named wall at the K-arm until built
     // parameterized query lambdas (Allocation/Sequence plans): they

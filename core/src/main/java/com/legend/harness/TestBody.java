@@ -816,6 +816,37 @@ public final class TestBody {
         return ok ? null : "pkOfFunc: expected " + expected + ", got " + got;
     }
 
+    /** A plan-handle WALK chain: reads rootExecutionNode over an
+     * executionPlan call — its terminal value (sqlQuery text) compares
+     * LITERALLY like plan text. */
+    private static boolean containsPlanWalk(ValueSpecification v) {
+        return walkHasProp(v, "rootExecutionNode") && walkHasCall(v);
+    }
+
+    private static boolean walkHasProp(ValueSpecification v, String name) {
+        if (v instanceof AppliedProperty ap) {
+            return name.equals(ap.property())
+                    || walkHasProp(ap.receiver(), name);
+        }
+        if (v instanceof AppliedFunction af) {
+            return af.parameters().stream()
+                    .anyMatch(x -> walkHasProp(x, name));
+        }
+        return false;
+    }
+
+    private static boolean walkHasCall(ValueSpecification v) {
+        if (v instanceof AppliedFunction af) {
+            return simpleName(af.function()).equals("executionPlan")
+                    || af.parameters().stream()
+                            .anyMatch(TestBody::walkHasCall);
+        }
+        if (v instanceof AppliedProperty ap) {
+            return walkHasCall(ap.receiver());
+        }
+        return false;
+    }
+
     private static boolean containsPlanToString(ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
             if (simpleName(af.function()).equals("planToString")
@@ -1525,9 +1556,11 @@ public final class TestBody {
                 // CONTAIN sql text but the compare is the LITERAL plan
                 // string through the K-native (toSQLString doctrine):
                 // skip the golden-SQL advisory routing entirely
+                ValueSpecification lastSub =
+                        substitute(args.get(args.size() - 1), lets);
                 if (containsPlanToString(substitute(args.get(0), lets))
-                        || containsPlanToString(
-                                substitute(args.get(args.size() - 1), lets))) {
+                        || containsPlanToString(lastSub)
+                        || containsPlanWalk(lastSub)) {
                     return planTextAssert(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
                 } else {

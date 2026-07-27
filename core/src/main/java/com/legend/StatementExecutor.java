@@ -249,6 +249,19 @@ final class StatementExecutor {
                                 .Primitive.STRING);
                 continue;
             }
+            // PLAN-HANDLE WALKS ($plan.rootExecutionNode->allNodes(...)
+            // ->filter(instanceOf(X))->cast(@X).sqlQuery — the engine's
+            // own plan API): evaluate over the PLAN NODE MODEL
+            Object walked = planWalk(preRoot, specs, env);
+            if (walked != null) {
+                result = walkResult(walked);
+                continue;
+            }
+            if (System.getenv("LL_TMP_DEBUG") != null
+                    && preRoot.toString().contains("rootExecutionNode")) {
+                System.err.println("[walk-miss] " + preRoot.getClass()
+                        .getSimpleName() + ": " + preRoot);
+            }
             // execute() in RESULT position: the eager frame run IS the value
             // (the Result envelope is typing-only — the chain's rows are what
             // a reader observes).
@@ -628,6 +641,249 @@ final class StatementExecutor {
             work.addAll(t.children());
         }
         return "TestDatabaseConnection";
+    }
+
+    // ===== the plan-handle WALK vocabulary (plan node model) =========
+
+    /** Non-null when {@code n} is a walk chain bottoming in an
+     * executionPlan call; the value is the walked result (node, list,
+     * param, scalar). Unknown steps return null — the chain falls back
+     * to the ordinary pipeline and its own walls. */
+    private static Object planWalk(TypedSpec n,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ep
+                && com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTION_PLAN.equals(ep.callee().qualifiedName())) {
+            return planModel(ep, specs, env);
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
+            Object recv = planWalk(pa.source(), specs, env);
+            if (recv == null) {
+                return null;
+            }
+            return walkProp(recv, pa.property());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedCast tc) {
+            return planWalk(tc.source(), specs, env);
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedFilter tf) {
+            Object recvF = planWalk(tf.source(), specs, env);
+            return recvF instanceof java.util.List<?> lf
+                    ? walkFilter(lf, tf.predicate()) : null;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && !c.args().isEmpty()) {
+            String fn = c.callee().qualifiedName();
+            String simple = fn.substring(fn.lastIndexOf(':') + 1);
+            Object recv = planWalk(c.args().get(0), specs, env);
+            if (recv == null) {
+                return null;
+            }
+            switch (simple) {
+                case "allNodes" -> {
+                    if (recv instanceof com.legend.plan.PlanNode pn) {
+                        return new java.util.ArrayList<Object>(pn.allNodes());
+                    }
+                }
+                case "filter" -> {
+                    if (recv instanceof java.util.List<?> l
+                            && c.args().get(1)
+                                    instanceof com.legend.compiler.spec.typed
+                                            .TypedLambda lam2) {
+                        return walkFilter(l, lam2);
+                    }
+                }
+                case "cast", "toOne", "toOneMany" -> {
+                    return recv;
+                }
+                case "at" -> {
+                    if (recv instanceof java.util.List<?> l
+                            && c.args().get(1)
+                                    instanceof com.legend.compiler.spec.typed
+                                            .TypedCInteger ix) {
+                        return l.get((int) (long) ix.value());
+                    }
+                }
+                case "first" -> {
+                    if (recv instanceof java.util.List<?> l) {
+                        return l.isEmpty() ? null : l.get(0);
+                    }
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Property step, AUTO-MAPPING over lists (pure semantics). */
+    private static Object walkProp(Object recv, String prop) {
+        if (recv instanceof java.util.List<?> l) {
+            java.util.List<Object> out = new java.util.ArrayList<>();
+            for (Object e : l) {
+                Object v = walkProp(e, prop);
+                if (v instanceof java.util.List<?> vl) {
+                    out.addAll(vl);
+                } else if (v != null) {
+                    out.add(v);
+                }
+            }
+            return out;
+        }
+        if (recv instanceof com.legend.plan.PlanNode pn) {
+            return switch (prop) {
+                case "rootExecutionNode" -> pn;
+                case "executionNodes" ->
+                        new java.util.ArrayList<Object>(pn.children());
+                case "sqlQuery" -> pn.sqlQuery();
+                case "functionParameters" ->
+                        new java.util.ArrayList<Object>(
+                                pn.functionParameters());
+                default -> null;
+            };
+        }
+        if (recv instanceof com.legend.plan.PlanNode.Param pp) {
+            return switch (prop) {
+                case "name" -> pp.name();
+                case "supportsStream" -> pp.supportsStream();
+                default -> null;
+            };
+        }
+        return null;
+    }
+
+    /** filter lambda bodies the walk understands: instanceOf($n, X) and
+     * {@code $p.name == 'lit'}. */
+    private static Object walkFilter(java.util.List<?> l,
+            com.legend.compiler.spec.typed.TypedLambda lam) {
+        TypedSpec body = lam.body().get(lam.body().size() - 1);
+        if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall io
+                && io.callee().qualifiedName().endsWith("instanceOf")
+                && io.args().size() == 2) {
+            String cls = typeRefSimple(io.args().get(1));
+            if (cls == null) {
+                return null;
+            }
+            java.util.List<Object> out = new java.util.ArrayList<>();
+            for (Object e : l) {
+                if (e instanceof com.legend.plan.PlanNode pn
+                        && pn.kind().equals(cls)) {
+                    out.add(e);
+                }
+            }
+            return out;
+        }
+        if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall eq
+                && eq.callee().qualifiedName().endsWith("equal")
+                && eq.args().size() == 2
+                && eq.args().get(0)
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedPropertyAccess pa2
+                && pa2.property().equals("name")
+                && eq.args().get(1)
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedCString lit) {
+            java.util.List<Object> out = new java.util.ArrayList<>();
+            for (Object e : l) {
+                if (e instanceof com.legend.plan.PlanNode.Param pp
+                        && pp.name().equals(lit.value())) {
+                    out.add(e);
+                }
+            }
+            return out;
+        }
+        return null;
+    }
+
+    /** The SIMPLE class name a type-valued argument refers to. */
+    private static String typeRefSimple(TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr2) {
+            String f = pr2.fullPath();
+            return f.substring(f.lastIndexOf(':') + 1);
+        }
+        return null;
+    }
+
+    private static ExecutionResult walkResult(Object w) {
+        if (w instanceof java.util.List<?> l) {
+            java.util.List<Object> vals = new java.util.ArrayList<>(l);
+            return new ExecutionResult.Collection(vals,
+                    vals.stream().allMatch(x -> x instanceof Boolean)
+                            ? com.legend.compiler.element.type.Type
+                                    .Primitive.BOOLEAN
+                            : com.legend.compiler.element.type.Type
+                                    .Primitive.STRING);
+        }
+        if (w instanceof Boolean b3) {
+            return new ExecutionResult.Scalar(b3,
+                    com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
+        }
+        return new ExecutionResult.Scalar(String.valueOf(w),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The PLAN NODE MODEL for an executionPlan call — same shapes the
+     * text printer spells (Sequence / FunctionParametersValidation /
+     * RelationalInstantiation / SQLExecution). */
+    private static com.legend.plan.PlanNode planModel(
+            com.legend.compiler.spec.typed.TypedNativeCall ep,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        if (!(ep.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedLambda lam)
+                || !(ep.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+            throw new com.legend.error.NotImplementedException(
+                    "plan walk: executionPlan argument shapes pending");
+        }
+        boolean quote = ep.args().size() > 2
+                && quoteIdentifiersOf(ep.args().get(2));
+        String tz = ep.args().size() > 2
+                ? timeZoneOf(ep.args().get(2)) : null;
+        var fnType = (com.legend.compiler.element.type.Type.FunctionType)
+                lam.info().type();
+        java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
+                params = new java.util.LinkedHashMap<>();
+        java.util.List<com.legend.plan.PlanNode.Param> fps =
+                new java.util.ArrayList<>();
+        for (int i = 0; i < lam.parameters().size(); i++) {
+            var p = fnType.params().get(i);
+            boolean many = !(p.multiplicity()
+                    instanceof com.legend.compiler.element.type.Multiplicity
+                            .Bounded ob
+                    && Integer.valueOf(1).equals(ob.upper()));
+            boolean opt = p.multiplicity()
+                    instanceof com.legend.compiler.element.type.Multiplicity
+                            .Bounded ob2
+                    && ob2.lower() == 0
+                    && Integer.valueOf(1).equals(ob2.upper());
+            params.put(lam.parameters().get(i),
+                    new com.legend.sql.SqlExpr.PlanParam(
+                            lam.parameters().get(i),
+                            com.legend.lowering.PlanParams.kindOf(p.type()),
+                            opt));
+            // supportsStream: TRUE for collection-multiplicity params
+            fps.add(new com.legend.plan.PlanNode.Param(
+                    lam.parameters().get(i), many));
+        }
+        TypedSpec term = lam.body().get(lam.body().size() - 1);
+        EngineSql es = engineSql(java.util.List.of(term), pr.fullPath(),
+                specs, env, new com.legend.sql.dialect.EngineStyleH2(quote,
+                        tz), params);
+        com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
+                "SQLExecutionNode", java.util.List.of(), es.sql(),
+                java.util.List.of());
+        com.legend.plan.PlanNode rel = new com.legend.plan.PlanNode(
+                "RelationalInstantiationExecutionNode",
+                java.util.List.of(sqlNode), null, java.util.List.of());
+        if (lam.parameters().isEmpty() && lam.body().size() == 1) {
+            return rel;
+        }
+        com.legend.plan.PlanNode fpvn = new com.legend.plan.PlanNode(
+                "FunctionParametersValidationNode", java.util.List.of(),
+                null, fps);
+        return new com.legend.plan.PlanNode("SequenceExecutionNode",
+                java.util.List.of(fpvn, rel), null, java.util.List.of());
     }
 
     private static String rootGetAllClass(java.util.List<TypedSpec> body) {

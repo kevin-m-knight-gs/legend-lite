@@ -755,7 +755,7 @@ final class TemporalFrame {
                     return new TypedPropertyAccess(new com.legend.compiler
                             .spec.typed.TypedVariable(vn, new ExprType(row,
                                     Multiplicity.Bounded.ONE)),
-                            c.name(), new ExprType(c.type(), c.multiplicity()));
+                            c.name(), new ExprType(c.type(), Multiplicity.Bounded.ONE));
                 };
         java.util.function.BiFunction<String, TypedSpec, TypedSpec> dexpr =
                 (var outerCol, var literal) -> outerCol != null
@@ -1344,10 +1344,12 @@ final class TemporalFrame {
                     .orElseThrow(() -> new MappingResolutionException(
                             "milestoning column '" + name + "' is not on the"
                                     + " pipeline row of '" + classFqn + "'", classFqn));
+            // MACHINE columns window UNGUARDED (h2New plan goldens) —
+            // [1] keeps comparison-site null guards out of stamps
             return new TypedPropertyAccess(
                     new TypedVariable(v, rowT),
                     c.name(), new ExprType(
-                            c.type(), c.multiplicity()));
+                            c.type(), Multiplicity.Bounded.ONE));
         };
         ExprType boolT =
                 new ExprType(
@@ -1787,10 +1789,12 @@ final class TemporalFrame {
                     .orElseThrow(() -> new MappingResolutionException(
                             "milestoning column '" + name + "' is not on the"
                                     + " pipeline row of '" + classFqn + "'", classFqn));
+            // MACHINE columns window UNGUARDED (h2New plan goldens) —
+            // [1] keeps comparison-site null guards out of stamps
             return new TypedPropertyAccess(
                     new TypedVariable(v, rowT),
                     c.name(), new ExprType(
-                            c.type(), c.multiplicity()));
+                            c.type(), Multiplicity.Bounded.ONE));
         };
         ExprType boolT =
                 new ExprType(

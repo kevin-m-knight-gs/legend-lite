@@ -582,7 +582,8 @@ public final class Runner {
         boolean planRead = body.stream().anyMatch(v ->
                 containsCallNamed(v, "planToString")
                         || containsCallNamed(v,
-                                "planToStringWithoutFormatting"));
+                                "planToStringWithoutFormatting")
+                        || containsPropertyNamed(v, "rootExecutionNode"));
         java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
@@ -737,6 +738,30 @@ public final class Runner {
         return false;
     }
 
+
+    private static boolean containsPropertyNamed(
+            com.legend.model.spec.ValueSpecification n, String name) {
+        if (n instanceof com.legend.model.spec.AppliedProperty ap) {
+            return name.equals(ap.property())
+                    || containsPropertyNamed(ap.receiver(), name);
+        }
+        if (n instanceof com.legend.model.spec.AppliedFunction af) {
+            for (com.legend.model.spec.ValueSpecification p
+                    : af.parameters()) {
+                if (containsPropertyNamed(p, name)) {
+                    return true;
+                }
+            }
+        }
+        if (n instanceof com.legend.model.spec.PureCollection pc) {
+            for (com.legend.model.spec.ValueSpecification e : pc.values()) {
+                if (containsPropertyNamed(e, name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     /** Qualify a bare mapping reference via the test's imports + the
      * PARSED element index — never substring search over source text

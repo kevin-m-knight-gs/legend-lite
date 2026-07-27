@@ -419,7 +419,11 @@ class NativeFunctionTest {
         //     surface's processingTemplateFunctions property).
         // 75: +Checked/Defect (real dataQuality.pure:39/:20 — the
         //     graphFetchChecked envelope carriers, opaque).
-        assertEquals(75, Pure.allNativeClasses().size(),
+        // 80: +ExecutionNode/FunctionParametersValidationNode/
+        //     FunctionParameter/SQLExecutionNode/
+        //     RelationalInstantiationExecutionNode (the plan NODE surface
+        //     — real executionPlan.pure:73-205 + relational :63-90).
+        assertEquals(80, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -457,11 +461,20 @@ class NativeFunctionTest {
                     "meta::external::store::relational::runtime::GenerationFeaturesConfig",
                     List.of("enabled", "disabled"));
 
-    /** The plan surface (real executionPlan.pure:60-73 — declared subset). */
+    /** The plan surface (real executionPlan.pure:60-205 + relational
+     * executionPlan.pure:63-90 — declared subsets). */
     private static final java.util.Map<String, List<String>> PLAN_SURFACE_PROPERTIES =
             java.util.Map.of(
                     "meta::pure::executionPlan::ExecutionPlan",
-                    List.of("processingTemplateFunctions"));
+                    List.of("rootExecutionNode", "processingTemplateFunctions"),
+                    "meta::pure::executionPlan::ExecutionNode",
+                    List.of("executionNodes"),
+                    "meta::pure::executionPlan::FunctionParametersValidationNode",
+                    List.of("functionParameters"),
+                    "meta::pure::executionPlan::FunctionParameter",
+                    List.of("name", "supportsStream"),
+                    "meta::relational::mapping::SQLExecutionNode",
+                    List.of("sqlQuery"));
 
     /** XStore leg slice 0 (real core/pure/mapping/modelToModel.pure:58/:82). */
     private static final java.util.Map<String, List<String>> STORE_MODEL_SURFACE_PROPERTIES =
@@ -657,7 +670,9 @@ class NativeFunctionTest {
                 // the plan surface (#47: ExecutionPlan)
                 "meta::pure::executionPlan",
                 // the checked-result surface (graphFetchChecked)
-                "meta::pure::dataQuality");
+                "meta::pure::dataQuality",
+                // the relational plan-node surface (SQLExecutionNode)
+                "meta::relational::mapping");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
