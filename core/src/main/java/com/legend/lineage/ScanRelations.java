@@ -22,8 +22,10 @@ import com.legend.model.spec.ValueSpecification;
 import com.legend.model.spec.Variable;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -65,6 +67,12 @@ public final class ScanRelations {
         final String joinName;    // null on the root table node
         final Set<String> cols = new TreeSet<>();
         final TreeMap<String, Node> children = new TreeMap<>();
+        // SYNTHETIC edge condition (tableToTDS ->join lambdas — no named
+        // store join exists); null on model-join edges
+        RelationalOperation cond;
+        // a BARE tableToTDS side (no project): the whole table is the
+        // demand — string retention must not narrow it
+        boolean keepAll;
 
         Node(String db, String table, String joinName) {
             this.db = db;
@@ -90,7 +98,14 @@ public final class ScanRelations {
      * print time); the consumer sees the view node itself.
      */
     public record Rel(String db, String table, String joinName,
-            List<String> cols, List<Rel> children) {
+            RelationalOperation cond, List<String> cols,
+            List<Rel> children) {
+
+        /** Model-join edge (no synthetic condition). */
+        public Rel(String db, String table, String joinName,
+                List<String> cols, List<Rel> children) {
+            this(db, table, joinName, null, cols, children);
+        }
     }
 
     public static List<Rel> relTree(ModelContext ctx, LambdaFunction query,
@@ -135,17 +150,38 @@ public final class ScanRelations {
     private static List<Node> tableToTdsRoots(ModelContext ctx,
             ValueSpecification n) {
         List<Node> out = new ArrayList<>();
+        if (containsCall(n, "join")) {
+            // ->join(tableToTDS(...), TYPE, {a,b|...}) chains: each right
+            // side becomes a CHILD of the node owning its left-side
+            // column, with the lambda as a SYNTHETIC edge condition
+            // (aliases resolve through the project cols)
+            ValueSpecification top = n instanceof LambdaFunction lf
+                    && !lf.body().isEmpty()
+                    ? lf.body().get(lf.body().size() - 1) : n;
+            // peel post-join wrapper ops (olapGroupBy, sort, ...) down to
+            // the join spine
+            while (top instanceof AppliedFunction w
+                    && !w.function()
+                            .substring(w.function().lastIndexOf(':') + 1)
+                            .equals("join")
+                    && !w.parameters().isEmpty()
+                    && containsCall(w.parameters().get(0), "join")) {
+                top = w.parameters().get(0);
+            }
+            Map<String, String[]> aliases = new LinkedHashMap<>();
+            Map<String, Node> byTable = new LinkedHashMap<>();
+            parseTdsJoinChain(ctx, top, out, aliases, byTable);
+            // chain nodes narrowed per-source in parseTdsSource (the
+            // global string pool cross-matches other sources' aliases)
+            return out;
+        }
         collectTableToTds(ctx, n, out);
         if (out.isEmpty()) {
             return out;
         }
-        if (containsCall(n, "join")) {
-            throw new NotImplementedException(
-                    "scanRelations: tableToTDS join steps pending");
-        }
         Set<String> strings = new LinkedHashSet<>();
         collectStrings(n, strings);
-        for (Node node : out) {
+        for (Node node : walkAll(out)) {
             Set<String> demanded = new TreeSet<>();
             for (String s : strings) {
                 for (String c : node.cols) {
@@ -159,6 +195,199 @@ public final class ScanRelations {
             }
         }
         return out;
+    }
+
+    private static List<Node> walkAll(List<Node> roots) {
+        List<Node> all = new ArrayList<>();
+        java.util.ArrayDeque<Node> work = new java.util.ArrayDeque<>(roots);
+        while (!work.isEmpty()) {
+            Node x = work.poll();
+            all.add(x);
+            work.addAll(x.children.values());
+        }
+        return all;
+    }
+
+    /** Recursive descent over {@code join(left, right, TYPE, lambda)}
+     * spines; the base tds source becomes the root. Alias map entries are
+     * {@code alias -> [table, physicalColumn]}. */
+    private static void parseTdsJoinChain(ModelContext ctx,
+            ValueSpecification v, List<Node> roots,
+            Map<String, String[]> aliases, Map<String, Node> byTable) {
+        if (v instanceof AppliedFunction af && af.function()
+                .substring(af.function().lastIndexOf(':') + 1)
+                .equals("join") && af.parameters().size() >= 3) {
+            parseTdsJoinChain(ctx, af.parameters().get(0), roots, aliases,
+                    byTable);
+            TdsSrc right = parseTdsSource(ctx, af.parameters().get(1),
+                    aliases, byTable);
+            if (!(lastParam(af) instanceof LambdaFunction cl)
+                    || cl.parameters().size() != 2 || cl.body().isEmpty()) {
+                throw new NotImplementedException("scanRelations:"
+                        + " tableToTDS join without a 2-param condition"
+                        + " lambda");
+            }
+            attachTdsJoin(cl, right, aliases, byTable);
+            return;
+        }
+        TdsSrc base = parseTdsSource(ctx, v, aliases, byTable);
+        roots.add(base.node());
+    }
+
+    /** A parsed tds source with ITS OWN alias map (alias ->
+     * [table, physicalColumn]). */
+    private record TdsSrc(Node node, Map<String, String[]> own) {
+    }
+
+    private static ValueSpecification lastParam(AppliedFunction af) {
+        return af.parameters().get(af.parameters().size() - 1);
+    }
+
+    /** {@code $a.getX('L') == $b.getX('R')}: resolve L through the
+     * accumulated alias map to (ownerTable, physCol); the owner's node
+     * gains the child. The RIGHT side rides as {@code {target}} so the
+     * renderer aliases it even on self-joins. */
+    private static void attachTdsJoin(LambdaFunction cl, TdsSrc rightSrc,
+            Map<String, String[]> aliases, Map<String, Node> byTable) {
+        Node right = rightSrc.node();
+        ValueSpecification body = cl.body().get(cl.body().size() - 1);
+        String leftVar = cl.parameters().get(0).name();
+        if (!(body instanceof AppliedFunction eq
+                && eq.function().substring(eq.function().lastIndexOf(':') + 1)
+                        .equals("equal")
+                && eq.parameters().size() == 2)) {
+            throw new NotImplementedException("scanRelations: tableToTDS"
+                    + " join condition beyond a single equality pending");
+        }
+        String[] l = null;
+        String r = null;
+        for (ValueSpecification side : eq.parameters()) {
+            String[] read = tdsColRead(side);
+            if (read == null) {
+                throw new NotImplementedException("scanRelations:"
+                        + " tableToTDS join side is not a column read");
+            }
+            if (read[0].equals(leftVar)) {
+                l = aliases.get(read[1]);
+                if (l == null) {
+                    throw new NotImplementedException("scanRelations:"
+                            + " tableToTDS join alias '" + read[1]
+                            + "' is not a projected column");
+                }
+            } else {
+                // the right side reads ITS OWN projected alias
+                String[] own = rightSrc.own().get(read[1]);
+                r = own != null ? own[1] : read[1];
+            }
+        }
+        if (l == null || r == null) {
+            throw new NotImplementedException("scanRelations: tableToTDS"
+                    + " join condition must compare left and right sides");
+        }
+        Node parent = byTable.get(l[0]);
+        parent.cols.add(l[1]);
+        right.cols.add(r);
+        right.cond = new RelationalOperation.Comparison(
+                new RelationalOperation.ColumnRef(null, l[0], l[1]),
+                com.legend.model.ComparisonOp.EQ,
+                new RelationalOperation.TargetColumnRef(r));
+        parent.children.put(right.table + "(tds_join_"
+                + parent.children.size() + ")", right);
+    }
+
+    /** {@code $v.getX('COL')} -> [varName, COL]. */
+    private static String[] tdsColRead(ValueSpecification v) {
+        if (v instanceof AppliedFunction af
+                && af.function().substring(af.function().lastIndexOf(':') + 1)
+                        .startsWith("get")
+                && af.parameters().size() == 2
+                && af.parameters().get(0)
+                        instanceof com.legend.model.spec.Variable var
+                && af.parameters().get(1)
+                        instanceof com.legend.model.spec.CString c) {
+            return new String[]{var.name(), c.value()};
+        }
+        return null;
+    }
+
+    /** A tds source: {@code tableToTDS(tableReference(...))} optionally
+     * under {@code ->project([col(r|$r.getX('PHYS'), 'alias'), ...])};
+     * merges its alias map (or the identity map) into {@code aliases}. */
+    private static TdsSrc parseTdsSource(ModelContext ctx,
+            ValueSpecification v, Map<String, String[]> aliases,
+            Map<String, Node> byTable) {
+        List<AppliedFunction> projects = new ArrayList<>();
+        ValueSpecification cur = v;
+        while (cur instanceof AppliedFunction af && af.function()
+                .substring(af.function().lastIndexOf(':') + 1)
+                .equals("project")) {
+            projects.add(af);
+            cur = af.parameters().get(0);
+        }
+        List<Node> found = new ArrayList<>();
+        collectTableToTds(ctx, cur, found);
+        if (found.size() != 1) {
+            throw new NotImplementedException("scanRelations: tableToTDS"
+                    + " join side is not a single table source");
+        }
+        Node node = found.get(0);
+        // LEFT-owner registry: a same-table RIGHT side must not shadow
+        // the accumulated left (the self-join test's parent lookup)
+        byTable.putIfAbsent(node.table, node);
+        Map<String, String[]> own = new LinkedHashMap<>();
+        if (projects.isEmpty()) {
+            node.keepAll = true;
+            for (String c : node.cols) {
+                own.put(c, new String[]{node.table, c});
+            }
+        } else {
+            for (AppliedFunction p : projects) {
+                for (ValueSpecification e
+                        : flatValues(p.parameters().get(1))) {
+                    if (e instanceof AppliedFunction colFn
+                            && colFn.function().substring(
+                                    colFn.function().lastIndexOf(':') + 1)
+                                    .equals("col")
+                            && colFn.parameters().size() >= 2
+                            && colFn.parameters().get(1)
+                                    instanceof com.legend.model.spec.CString a
+                            && colFn.parameters().get(0)
+                                    instanceof LambdaFunction cl
+                            && !cl.body().isEmpty()) {
+                        String[] read = tdsColRead(
+                                cl.body().get(cl.body().size() - 1));
+                        if (read != null) {
+                            own.put(a.value(),
+                                    new String[]{node.table, read[1]});
+                        }
+                    }
+                }
+            }
+        }
+        if (!node.keepAll) {
+            // demand = this source's OWN projected physical columns
+            Set<String> phys = new TreeSet<>();
+            for (String[] t : own.values()) {
+                if (t[0].equals(node.table)) {
+                    phys.add(t[1]);
+                }
+            }
+            node.cols.retainAll(phys);
+        }
+        // accumulated view: LEFT-most binding wins duplicate names
+        own.forEach(aliases::putIfAbsent);
+        return new TdsSrc(node, own);
+    }
+
+    private static List<ValueSpecification> flatValues(ValueSpecification v) {
+        if (v instanceof com.legend.model.spec.PureCollection pc) {
+            List<ValueSpecification> out = new ArrayList<>();
+            for (ValueSpecification e : pc.values()) {
+                out.addAll(flatValues(e));
+            }
+            return out;
+        }
+        return List.of(v);
     }
 
     private static void collectStrings(ValueSpecification n,
@@ -255,7 +484,7 @@ public final class ScanRelations {
         for (Node c : n.children.values()) {
             kids.add(toRel(c));
         }
-        return new Rel(n.db, n.table, n.joinName,
+        return new Rel(n.db, n.table, n.joinName, n.cond,
                 List.copyOf(n.cols), kids);
     }
 

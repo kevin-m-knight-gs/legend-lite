@@ -171,12 +171,13 @@ public final class TestDataGenerator {
             throws SQLException {
         Located loc = locate(ctx, child.db(), child.table());
         List<String> cols = colMap.get(loc.schema() + "\n" + child.table());
-        DatabaseDefinition.JoinDefinition join =
-                findJoin(ctx, child.joinName(), child.db(), parent.db());
+        RelationalOperation op = child.cond() != null ? child.cond()
+                : findJoin(ctx, child.joinName(), child.db(),
+                        parent.db()).operation();
         String alias = child.table().equals(parent.table())
                 ? "t_" + child.table() : child.table();
-        String cond = renderCondition(join.operation(), parent.table(),
-                child.table(), alias, join.name());
+        String cond = renderCondition(op, parent.table(),
+                child.table(), alias, String.valueOf(child.joinName()));
         String sql = "select " + String.join(", ",
                 cols.stream().map(c -> q(alias) + "." + q(c)).toList())
                 + " from " + parentTemp + " as main inner join "
@@ -248,15 +249,17 @@ public final class TestDataGenerator {
         // fetch joins the parent TEMP table, so its condition columns
         // must have been fetched)
         for (ScanRelations.Rel child : rel.children()) {
-            DatabaseDefinition.JoinDefinition jd =
-                    findJoin(ctx, child.joinName(), child.db(), rel.db());
-            collectTableCols(jd.operation(), rel.table(), out, known);
+            RelationalOperation op = child.cond() != null ? child.cond()
+                    : findJoin(ctx, child.joinName(), child.db(),
+                            rel.db()).operation();
+            collectTableCols(op, rel.table(), out, known);
         }
-        if (rel.joinName() != null) {
+        if (rel.joinName() != null || rel.cond() != null) {
             // this node's own inbound-join child-side columns
-            DatabaseDefinition.JoinDefinition jd =
-                    findJoin(ctx, rel.joinName(), rel.db(), rel.db());
-            collectTableCols(jd.operation(), rel.table(), out, known);
+            RelationalOperation op = rel.cond() != null ? rel.cond()
+                    : findJoin(ctx, rel.joinName(), rel.db(),
+                            rel.db()).operation();
+            collectTableCols(op, rel.table(), out, known);
         }
         return List.copyOf(out);
     }
