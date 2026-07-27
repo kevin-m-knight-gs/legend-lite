@@ -606,6 +606,18 @@ final class GraphEmission {
             TypedSpec targetPipeline, TypedLambda cond,
             TypedPropertyAccess colRead,
             String parentRowVar, Type.RelationType parentRowType) {
+        return primitiveArrayChild(property, targetPipeline, cond, colRead,
+                parentRowVar, parentRowType,
+                java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@code valueWrap} rebuilds any per-element wrapper calls
+     * (toString/datePart chains) over the correlated child-row read. */
+    private TypedSerializeGraph.Child primitiveArrayChild(String property,
+            TypedSpec targetPipeline, TypedLambda cond,
+            TypedPropertyAccess colRead,
+            String parentRowVar, Type.RelationType parentRowType,
+            java.util.function.UnaryOperator<TypedSpec> valueWrap) {
         Type.RelationType targetRow =
                 (Type.RelationType) targetPipeline.info().type();
         String pVar = cond.parameters().get(0);
@@ -639,12 +651,12 @@ final class GraphEmission {
         do {
             childVar = "_r" + freshVar.getAsInt();
         } while (pcParams.contains(childVar));
-        TypedSpec value = new TypedPropertyAccess(
+        TypedSpec value = valueWrap.apply(new TypedPropertyAccess(
                 new TypedVariable(childVar,
                         new ExprType(targetRow,
                                 com.legend.compiler.element.type
                                         .Multiplicity.Bounded.ONE)),
-                colRead.property(), colRead.info());
+                colRead.property(), colRead.info()));
         var fnType = new Type.FunctionType(
                 List.of(new Type.Param(targetRow,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
@@ -1322,28 +1334,65 @@ final class GraphEmission {
             // the inline read would take ONE joined row — the engine
             // serializes the AGGREGATED array; same correlated emission
             // as the top-level to-many slot-read arm
-            if (ei instanceof TypedPropertyAccess colPa2
+            // single-arg WRAPPER CALLS peel for detection and REBUILD
+            // over the correlated child row (authorId:
+            // toString(@Book_Authorship | ...) — per-element scalar fns)
+            TypedSpec peeled2 = ei;
+            java.util.List<TypedNativeCall> wraps2 = new ArrayList<>();
+            while (peeled2 instanceof TypedNativeCall wc2
+                    && wc2.args().size() == 1) {
+                wraps2.add(wc2);
+                peeled2 = wc2.args().get(0);
+            }
+            // the guard is the DECLARED property multiplicity (the
+            // Inline-splice read types per COLUMN — [0..1] — masking the
+            // property's [*])
+            var declProp2 = ctx.findProperty(childClass, c.property())
+                    .orElse(null);
+            boolean many2 = declProp2 != null && !(declProp2.multiplicity()
+                    instanceof com.legend.compiler.element.type
+                            .Multiplicity.Bounded dm2
+                    && Integer.valueOf(1).equals(dm2.upper()));
+            if (many2 && peeled2 instanceof TypedPropertyAccess colPa2
                     && colPa2.source() instanceof TypedPropertyAccess slotPa2
                     && slotPa2.source() instanceof TypedVariable sv2
-                    && sv2.name().equals(cs.rowVar())
-                    && !(colPa2.info().multiplicity()
-                            instanceof com.legend.compiler.element.type
-                                    .Multiplicity.Bounded bm2
-                            && Integer.valueOf(1).equals(bm2.upper()))) {
+                    && sv2.name().equals(cs.rowVar())) {
+                java.util.function.UnaryOperator<TypedSpec> rewrap =
+                        v0 -> {
+                            TypedSpec out2 = v0;
+                            for (int wi = wraps2.size() - 1; wi >= 0; wi--) {
+                                TypedNativeCall w3 = wraps2.get(wi);
+                                out2 = new TypedNativeCall(w3.callee(),
+                                        List.of(out2), w3.info());
+                            }
+                            return out2;
+                        };
+                // the hop's date context WINDOWS the correlated target
+                // (authors($businessDate): unstamped it collects every
+                // version row — the 5002 leak)
+                TemporalContext hc3 = temporal.contextAt(node.property(),
+                        childClass, TemporalContext.NONE);
+                java.util.function.UnaryOperator<TypedSpec> window3 =
+                        t3 -> !hc3.isEmpty()
+                                && temporal.temporalStrategy(childClass)
+                                        != null
+                                ? temporal.stampForClassOrDefer(t3, hc3,
+                                        childClass, node.property())
+                                : t3;
                 var navE = Pipelines.outerNavSteps(cs.pipeline())
                         .get(slotPa2.property());
                 if (navE != null) {
                     nested.add(primitiveArrayChild(keyOf(c),
-                            navE.target(), navE.predicate(), colPa2,
-                            cs.rowVar(), rowT));
+                            window3.apply(navE.target()), navE.predicate(),
+                            colPa2, cs.rowVar(), rowT, rewrap));
                     continue;
                 }
                 var slotE = Pipelines.joinSlots(cs.pipeline())
                         .get(slotPa2.property());
                 if (slotE != null) {
                     nested.add(primitiveArrayChild(keyOf(c),
-                            slotE.target(), slotE.condition(), colPa2,
-                            cs.rowVar(), rowT));
+                            window3.apply(slotE.target()), slotE.condition(),
+                            colPa2, cs.rowVar(), rowT, rewrap));
                     continue;
                 }
             }
