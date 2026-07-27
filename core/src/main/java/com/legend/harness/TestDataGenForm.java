@@ -53,6 +53,34 @@ final class TestDataGenForm {
         return findCall(rhs, "planTestDataGeneration") != null;
     }
 
+    /** The planTestDataGeneration PLAN TEXT for a substituted assert
+     * argument, or null when the argument carries no such call. Walls
+     * throw {@link NotImplementedException}. */
+    static String planText(ValueSpecification subArg, ModelContext ctx,
+            ImportScope imports) {
+        AppliedFunction call = findCall(subArg, "planTestDataGeneration");
+        if (call == null) {
+            return null;
+        }
+        List<ValueSpecification> ps = call.parameters();
+        if (ps.size() < 4 || !(ps.get(0) instanceof LambdaFunction query)
+                || !(ps.get(1) instanceof PackageableElementPtr mp)) {
+            throw new NotImplementedException(
+                    "testDataGen plan: unrecognized call shape");
+        }
+        List<TestDataGenerator.TableRowIds> rowIds = new ArrayList<>();
+        TestDataGenerator.MilestoningDates[] dates =
+                new TestDataGenerator.MilestoningDates[1];
+        for (int i = 3; i < ps.size(); i++) {
+            classifyArg(ps.get(i), rowIds, dates);
+        }
+        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        LambdaFunction resolved = (LambdaFunction) NameResolver
+                .resolveQuery(query, imports, ctx.elementFqns());
+        return TestDataGenerator.planText(ctx, resolved, mappingFqn,
+                rowIds, dates[0]);
+    }
+
     /** Parse + run. Walls throw {@link NotImplementedException}. */
     static TestDataGenerator.Result run(ValueSpecification rhs,
             ModelContext ctx, ImportScope imports, Connection conn)

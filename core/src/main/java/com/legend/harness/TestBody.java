@@ -991,11 +991,13 @@ public final class TestBody {
             ImportScope imports, Connection conn)
             throws java.sql.SQLException {
         if (TestDataGenForm.hasPlanGenerate(rhs)) {
-            // the binding itself is inert; only an ASSERT over the plan
-            // text is the pending contract (checkTdgAssert walls it) —
+            // the binding rides lets so a plan-text assert can
+            // substitute $plan back to the planTestDataGeneration call
+            // (checkTdgAssert builds the MultiResultSequence text);
             // wrapper-only tests that never read the plan keep their
             // engine-parity pass
             planText.add(name.value());
+            lets.put(name.value(), rhs);
             return new TdgLet(null, null, true);
         }
         if (TestDataGenForm.hasGenerate(rhs)) {
@@ -1183,8 +1185,31 @@ public final class TestBody {
         if (!planText.isEmpty()) {
             for (ValueSpecification arg : args) {
                 if (referencesAnyVar(arg, planText)) {
-                    // plan-text contract — pending the tdg plan printer
-                    return UNSUPPORTED_MARKER;
+                    String text;
+                    try {
+                        text = TestDataGenForm.planText(
+                                substitute(arg, lets), ctx, imports);
+                    } catch (com.legend.error.NotImplementedException e) {
+                        return UNSUPPORTED_MARKER;
+                    }
+                    if (text == null) {
+                        return UNSUPPORTED_MARKER;
+                    }
+                    // literal plan-text compare — EITHER golden of the
+                    // H2Compatible pair may match
+                    for (ValueSpecification g : args) {
+                        if (g == arg) {
+                            continue;
+                        }
+                        if (text.equals(TestDataGenForm.foldString(
+                                substitute(g, lets)))) {
+                            return null;
+                        }
+                    }
+                    return "assertEquals: expected "
+                            + TestDataGenForm.foldString(
+                                    substitute(args.get(0), lets))
+                            + ", got " + text;
                 }
             }
         }

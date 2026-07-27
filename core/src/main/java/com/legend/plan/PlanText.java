@@ -324,7 +324,7 @@ public final class PlanText {
 
     /** The engine's resultColumns type spelling (dataTypeToSqlText):
      * INT (not INTEGER), sized VARCHAR/CHAR, etc. */
-    private static String spell(RelationalDataType t) {
+    public static String spell(RelationalDataType t) {
         return switch (t) {
             case RelationalDataType.Integer_ ignored -> "INT";
             case RelationalDataType.BigInt ignored -> "BIGINT";

@@ -115,12 +115,19 @@ public final class TestDataGenerator {
         rel = expandIfView(ctx, rel, parentDb);
         Located loc = locate(ctx, rel.db(), rel.table());
         String key = loc.schema() + "\n" + rel.table();
-        // engine sortBy(name) is effectively case-insensitive (goldens:
-        // B_PERSONID < ID, FROM_Z < ID < IN_Z)
-        TreeSet<String> merged =
-                new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        // engine sortBy(name) is the plain pure string sort — ASCII
+        // case-sensitive (bitemporal golden: ID < PLACE < from_z; the
+        // earlier all-uppercase evidence fit either order)
+        TreeSet<String> merged = new TreeSet<>();
         merged.addAll(colMap.getOrDefault(key, List.of()));
-        merged.addAll(fetchCols(ctx, loc, rel));
+        for (String c : fetchCols(ctx, loc, rel)) {
+            // demanded names arrive in MAPPING spelling — canonicalize
+            // to the DDL case before the (case-sensitive) engine sort
+            merged.add(loc.def().columns().stream()
+                    .map(DatabaseDefinition.ColumnDefinition::name)
+                    .filter(n -> n.equalsIgnoreCase(c))
+                    .findFirst().orElse(c));
+        }
         colMap.put(key, List.copyOf(merged));
         for (ScanRelations.Rel child : rel.children()) {
             collectColMap(ctx, child, colMap, rel.db());
@@ -657,13 +664,22 @@ public final class TestDataGenerator {
                 union = "select distinct * from " + f.temps().get(0);
             }
             // engine parity: H2 UPPERCASES unquoted result labels; plain
-            // identifiers print uppercase, exotic names ride as-is
+            // identifiers print uppercase, exotic names ride as-is.
+            // The CSV column order sorts on the DISPLAY (uppercased)
+            // name — the fetch/plan order stays the stored-name sort
+            // (bitemporal plan text pins ID < PLACE < from_z while the
+            // CSV goldens pin B_PERSONID < ID)
+            List<String> cs = new ArrayList<>(f.cols());
+            cs.sort(java.util.Comparator.comparing(
+                    TestDataGenerator::headerCase));
             out.append(f.schema()).append('\n').append(f.table())
-                    .append('\n').append(String.join(",", f.cols().stream()
+                    .append('\n').append(String.join(",", cs.stream()
                             .map(TestDataGenerator::headerCase).toList()))
                     .append('\n');
-            try (ResultSet rs = st.executeQuery(
-                    "select * from (" + union + ") order by all")) {
+            try (ResultSet rs = st.executeQuery("select "
+                    + String.join(", ", cs.stream().map(
+                            TestDataGenerator::q).toList())
+                    + " from (" + union + ") order by all")) {
                 int n = rs.getMetaData().getColumnCount();
                 while (rs.next()) {
                     StringBuilder row = new StringBuilder();
@@ -874,6 +890,226 @@ public final class TestDataGenerator {
         }
         throw new NotImplementedException(
                 "testDataGen: row identifier value " + v.getClass());
+    }
+
+    // ===== the tdg PLAN PRINTER (planTestDataGeneration text) =====
+
+    /** The engine's planTestDataGeneration plan text: MultiResultSequence
+     * of per-fetch Allocations (res_cN names in tree order), each a
+     * Relational node whose SQL is the ENGINE-H2 spelling of the fetch —
+     * parents referenced as {@code ${res_cN}} placeholders. Pure text,
+     * no execution. */
+    public static String planText(ModelContext ctx,
+            LambdaFunction resolvedQuery, String mappingFqn,
+            List<TableRowIds> rowIds, MilestoningDates dates) {
+        List<ScanRelations.Rel> roots =
+                ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
+        roots = roots.stream().map(r -> expandIfView(ctx, r, null))
+                .toList();
+        Map<String, List<String>> colMap = new LinkedHashMap<>();
+        for (ScanRelations.Rel r : roots) {
+            collectColMap(ctx, r, colMap, null);
+        }
+        StringBuilder kids = new StringBuilder();
+        int ri = 0;
+        for (ScanRelations.Rel r : roots) {
+            planNode(ctx, r, null, "res_c" + ri++, rowIds, dates, colMap,
+                    kids);
+        }
+        return "MultiResultSequence\n(\n"
+                + "  type = meta::pure::metamodel::type::Any\n"
+                + "  (\n"
+                + com.legend.plan.PlanText.indent(kids.toString(), "    ")
+                + "  )\n)\n";
+    }
+
+    private static void planNode(ModelContext ctx, ScanRelations.Rel rel,
+            ScanRelations.Rel parent, String res, List<TableRowIds> rowIds,
+            MilestoningDates dates, Map<String, List<String>> colMap,
+            StringBuilder out) {
+        Located loc = locate(ctx, rel.db(), rel.table());
+        List<String> cols = colMap.get(loc.schema() + "\n" + rel.table());
+        String relType = relationType(rel, loc, cols);
+        String sql = parent == null
+                ? planRootSql(loc, rel, cols, rowIds, dates)
+                : planChildSql(ctx, loc, parent, rel, cols, res, dates);
+        String inner = "Relational\n(\n"
+                + "  type = " + relType + "\n"
+                + "  resultSizeRange = *\n"
+                + "  resultColumns = [" + cols.stream()
+                        .map(c -> "(\"" + c + "\", "
+                                + com.legend.plan.PlanText.spell(
+                                        column(loc.def(), c).dataType())
+                                + ")")
+                        .collect(java.util.stream.Collectors
+                                .joining(", ")) + "]\n"
+                + "  sql = " + sql + "\n"
+                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + ")\n";
+        out.append(com.legend.plan.PlanText.allocation(res,
+                "  type = " + relType + "\n  resultSizeRange = *\n",
+                inner));
+        int ci = 0;
+        for (ScanRelations.Rel child : rel.children()) {
+            planNode(ctx, child, rel, res + "_c" + ci++, rowIds, dates,
+                    colMap, out);
+        }
+    }
+
+    private static String relationType(ScanRelations.Rel rel, Located loc,
+            List<String> cols) {
+        return "Relation[name=" + rel.table() + ", type=TABLE, schema="
+                + loc.schema() + ", database=" + rel.db() + ", columns=["
+                + cols.stream().map(c -> "(\"" + c + "\","
+                        + com.legend.plan.PlanText.spell(
+                                column(loc.def(), c).dataType()) + ")")
+                        .collect(java.util.stream.Collectors.joining(", "))
+                + "]]";
+    }
+
+    private static String planRootSql(Located loc, ScanRelations.Rel rel,
+            List<String> cols, List<TableRowIds> rowIds,
+            MilestoningDates dates) {
+        TableRowIds ids = null;
+        for (TableRowIds t : rowIds) {
+            if (t.table().equals(rel.table())
+                    && t.schema().equals(loc.schema())) {
+                ids = t;
+            }
+        }
+        if (ids == null) {
+            throw new NotImplementedException("testDataGen plan: no row"
+                    + " identifiers for root '" + rel.table() + "'");
+        }
+        // engine orFilters folds the identifier rows in REVERSE order;
+        // a single-condition row spells bare, a multi-condition row
+        // parenthesizes its and-group
+        List<String> rows = new ArrayList<>();
+        for (int i = ids.ids().size() - 1; i >= 0; i--) {
+            RowId id = ids.ids().get(i);
+            List<String> conds = new ArrayList<>();
+            for (int c = 0; c < id.cols().size(); c++) {
+                conds.add("\"root\"." + id.cols().get(c) + " = "
+                        + planLit(id.values().get(c)));
+            }
+            rows.add(conds.size() == 1 ? conds.get(0)
+                    : "(" + String.join(" and ", conds) + ")");
+        }
+        String pk = String.join(" or ", rows);
+        if (rows.size() > 1) {
+            pk = "(" + pk + ")";
+        }
+        String mf = planMilestone(loc.def(), "\"root\"", dates);
+        String where = mf == null ? pk : mf + " and " + pk;
+        return "select top 20 " + cols.stream()
+                .map(c -> "\"root\"." + c + " as \"" + c + "\"")
+                .collect(java.util.stream.Collectors.joining(", "))
+                + " from " + qualify(loc.schema(), rel.table())
+                + " as \"root\" where " + where;
+    }
+
+    private static String planChildSql(ModelContext ctx, Located loc,
+            ScanRelations.Rel parent, ScanRelations.Rel child,
+            List<String> cols, String res, MilestoningDates dates) {
+        String parentRes = res.substring(0, res.lastIndexOf("_c"));
+        String alias = child.table().toLowerCase(java.util.Locale.ROOT)
+                + "_0";
+        RelationalOperation op = child.cond() != null ? child.cond()
+                : findJoin(ctx, child.joinName(), child.db(), parent.db())
+                        .operation();
+        String mf = planMilestone(loc.def(), "\"" + alias + "\"", dates);
+        return "select top 20 " + cols.stream()
+                .map(c -> "\"" + alias + "\"." + c + " as \"" + c + "\"")
+                .collect(java.util.stream.Collectors.joining(", "))
+                + " from (select * from (${" + parentRes
+                + "}) as \"root\") as \"root\" inner join "
+                + qualify(loc.schema(), child.table()) + " as \"" + alias
+                + "\" on (" + planCond(op, parent.table(), child.table(),
+                        alias) + ")"
+                + (mf == null ? "" : " where " + mf);
+    }
+
+    /** Engine-text join condition: parent refs read the ALLOCATION's
+     * aliased result columns ({@code "root"."col"}), child refs the
+     * joined table ({@code "alias".col}). */
+    private static String planCond(RelationalOperation op,
+            String parentTable, String childTable, String childAlias) {
+        return switch (op) {
+            case RelationalOperation.ColumnRef r ->
+                    bareTable(r.table()).equals(parentTable)
+                            ? "\"root\".\"" + r.column() + "\""
+                            : "\"" + childAlias + "\"." + r.column();
+            case RelationalOperation.Comparison c ->
+                    planCond(c.left(), parentTable, childTable, childAlias)
+                            + " " + c.op().symbol() + " "
+                            + planCond(c.right(), parentTable, childTable,
+                                    childAlias);
+            case RelationalOperation.BooleanOp b ->
+                    planCond(b.left(), parentTable, childTable, childAlias)
+                    + (b.op() == com.legend.model.LogicalOp.AND ? " and "
+                            : " or ")
+                    + planCond(b.right(), parentTable, childTable,
+                            childAlias);
+            case RelationalOperation.Group g -> "(" + planCond(g.inner(),
+                    parentTable, childTable, childAlias) + ")";
+            case RelationalOperation.IsNull n -> planCond(n.operand(),
+                    parentTable, childTable, childAlias) + " is null";
+            case RelationalOperation.IsNotNull n -> planCond(n.operand(),
+                    parentTable, childTable, childAlias) + " is not null";
+            default -> throw new NotImplementedException(
+                    "testDataGen plan: condition node "
+                    + op.getClass().getSimpleName() + " pending");
+        };
+    }
+
+    private static String bareTable(String t) {
+        int dot = t.lastIndexOf('.');
+        return dot < 0 ? t : t.substring(dot + 1);
+    }
+
+    /** Engine-text milestoning filter — {@code DATE'...'} spelling. */
+    private static String planMilestone(
+            DatabaseDefinition.TableDefinition def, String alias,
+            MilestoningDates d) {
+        var ms = def.milestoning();
+        if (ms == null || d == null) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        if (ms.business() != null) {
+            var b = ms.business();
+            if (b.snapshotDate() != null) {
+                parts.add(alias + "." + b.snapshotDate() + " = DATE'"
+                        + requireDate(d.snapshot(), def, "snapshotDate")
+                        + "'");
+            } else {
+                String bd = requireDate(d.business(), def, "businessDate");
+                parts.add(alias + "." + b.from() + " <= DATE'" + bd + "'");
+                parts.add(alias + "." + b.thru()
+                        + (b.thruIsInclusive() ? " >= DATE'" : " > DATE'")
+                        + bd + "'");
+            }
+        }
+        if (ms.processing() != null) {
+            var pr = ms.processing();
+            if (pr.snapshotDate() != null) {
+                parts.add(alias + "." + pr.snapshotDate() + " = DATE'"
+                        + requireDate(d.processing(), def, "processingDate")
+                        + "'");
+            } else {
+                String pd = requireDate(d.processing(), def,
+                        "processingDate");
+                parts.add(alias + "." + pr.in() + " <= DATE'" + pd + "'");
+                parts.add(alias + "." + pr.out()
+                        + (pr.outIsInclusive() ? " >= DATE'" : " > DATE'")
+                        + pd + "'");
+            }
+        }
+        return parts.isEmpty() ? null : String.join(" and ", parts);
+    }
+
+    private static String planLit(Object v) {
+        return v instanceof String str ? "'" + str + "'" : String.valueOf(v);
     }
 
     private static String qualify(String schema, String table) {
