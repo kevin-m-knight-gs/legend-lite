@@ -213,6 +213,14 @@ public final class Pure {
     public static final ClassDefinition RUNTIME_CONNECTION = nativeClass("native Class meta::core::runtime::Connection {}");
     public static final ClassDefinition CONNECTION_STORE = nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }");
     public static final ClassDefinition RUNTIME = nativeClass("native Class meta::core::runtime::Runtime { connectionStores: meta::core::runtime::ConnectionStore[*]; }");
+    // real executionContext.pure — the corpus instantiates bare
+    // ^ExecutionContext() as a defaults carrier (testDataGeneration
+    // _Alloy plan calls); properties are optional knobs
+    public static final ClassDefinition EXECUTION_CONTEXT = nativeClass("native Class meta::pure::runtime::ExecutionContext {}");
+    // real extension.pure — the plug-in registry class; corpus function
+    // SIGNATURES name it (extensions:Extension[*]) even where the value
+    // only ever passes through
+    public static final ClassDefinition EXTENSION = nativeClass("native Class meta::pure::extension::Extension {}");
     // scalar properties as REAL relationalRuntime.pure declares them (the
     // Function-typed post-processor properties are omitted until demanded);
     // the corpus's testDatabaseConnection(...) constructs these
@@ -824,6 +832,9 @@ public final class Pure {
     public static final NativeFunctionDefinition EXTEND__RELATION_1__WINDOW_1__FUNC_COL_SPEC_1 = signature("native function meta::pure::functions::relation::extend<T,Z,W,R>(r:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], f:meta::pure::metamodel::relation::FuncColSpec<{meta::pure::metamodel::relation::Relation<T>[1],meta::pure::functions::relation::_Window<T>[1],T[1]->meta::pure::metamodel::type::Any[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
     public static final NativeFunctionDefinition EXTEND__RELATION_1__WINDOW_1__FUNC_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::extend<T,Z,W,R>(r:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], f:meta::pure::metamodel::relation::FuncColSpecArray<{meta::pure::metamodel::relation::Relation<T>[1],meta::pure::functions::relation::_Window<T>[1],T[1]->meta::pure::metamodel::type::Any[*]},R>[1]):meta::pure::metamodel::relation::Relation<T+R>[1];");
     public static final NativeFunctionDefinition FILTER__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::filter<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
+    // the TDS-era FQN spelling (real tds.pure filter over TabularDataSet;
+    // the corpus's tableToTDS chains call it FULLY QUALIFIED)
+    public static final NativeFunctionDefinition TDS_FILTER__RELATION_1__FUNCTION_1 = signature("native function meta::pure::tds::filter<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition FILTER__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::filter<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
     public static final NativeFunctionDefinition FIND__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::find<T>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[0..1];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_MONTH__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfMonth(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");

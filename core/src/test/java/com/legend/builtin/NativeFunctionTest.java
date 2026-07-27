@@ -413,7 +413,9 @@ class NativeFunctionTest {
         //     annotations like LambdaFunction<{->TabularDataSet[1]}>).
         // 70: +PureModelConnection/JsonModelConnection/ModelChainConnection
         //     (XStore leg slice 0 — real modelToModel.pure:43/:58/:82).
-        assertEquals(70, Pure.allNativeClasses().size(),
+        // 72: +ExecutionContext/Extension (#46 _Alloy subfamily — bare
+        //     defaults carriers named by corpus signatures).
+        assertEquals(72, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -633,6 +635,9 @@ class NativeFunctionTest {
                 // task #78 step-1 surfaces
                 "meta::pure::store",
                 "meta::external::store::model",
+                // #46: bare defaults carriers (ExecutionContext/Extension)
+                "meta::pure::runtime",
+                "meta::pure::extension",
                 "meta::pure::tds",
                 "meta::relational::metamodel::relation");
         for (ClassDefinition c : Pure.allNativeClasses()) {

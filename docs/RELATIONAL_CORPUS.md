@@ -38,7 +38,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
 | tds/tests | 266 | 221 | 3 | 9 | 33 |
-| testDataGeneration/tests | 68 | 11 | 2 | 2 | 53 |
+| testDataGeneration/tests | 68 | 36 | 2 | 1 | 29 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 41 | 1 | 6 | 20 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
@@ -68,14 +68,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 67 | 5 | 1 | 1 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 |
-| tests/mapping/union | 124 | 99 | 1 | 6 | 18 |
+| tests/mapping/union | 124 | 100 | 0 | 6 | 18 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 71 | 0 | 8 | 4 |
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 2 | 0 | 3 | 3 |
 | validation/tests | 23 | 2 | 0 | 14 | 7 |
-| **total** | 2538 | **1658** | 72 | 212 | 596 |
+| **total** | 2538 | **1684** | 71 | 211 | 572 |
 
 ### mapping walls (dropped at assembly)
 
@@ -384,7 +384,7 @@ in-process Alloy-shaped path).
 - executionPlan/tests duplicate Function::meta::pure::executionPlan::tests::testExecutionPlanGenerationForLambdaFromWithEnumMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/executionPlanTest.pure, kept executionPlan/tests/sibling-2.pure)
 - executionPlan/tests meta::pure::executionPlan::tests::DummyExecutionOption => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::OtherDummyExecutionOption => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- executionPlan/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -396,9 +396,6 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::executeServiceTests => Unknown type: 'Service' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::setUpData => Unknown type: 'Test' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::executionPlan::tests::assertPlanGenerationForOptionalParameter => Unknown type: 'Extension' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::executionPlan::tests::assertPlanGenerationForOptionalParameterWithGreaterThanLessThan => Unknown type: 'Extension' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::executionPlan::tests::runPlanTest => Unknown type: 'Extension' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::datetime::executionPlanForQueryWithDateTimeVariableForDatabaseConnectionTimeZone => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::datetime::executionPlanForQueryWithDateTimeConstantForDatabaseConnectionTimeZone => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
@@ -408,8 +405,6 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -439,7 +434,6 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - executionPlan/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - executionPlan/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping => mapping 'meta::pure::mapping::modelToModel::test::shared::relationalMapping' binds unknown class '_S_Person'
-- executionPlan/tests meta::relational::tds::schema::tests::extensions => Unknown type: 'Extension' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::tests::functions::objectReferenceIn::simpleModelMapping => Circular M2M ~src chain detected in mapping 'meta::relational::tests::functions::objectReferenceIn::simpleModelMapping': Address -> Address
 - functions/tests duplicate DatabaseDefinition::meta::relational::tests::dbInc (functions/tests/sibling-19.pure, kept shared-2.pure)
 - functions/tests duplicate DatabaseDefinition::meta::relational::tests::dbIncWithStoreFilter (functions/tests/sibling-19.pure, kept shared-2.pure)
@@ -528,7 +522,7 @@ in-process Alloy-shaped path).
 - functions/tests duplicate LegacyMappingDefinition::meta::relational::tests::projection::function::concatenate::mapping::testEmbeddedMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testConcatenate.pure, kept functions/tests/sibling-3.pure)
 - functions/tests duplicate LegacyMappingDefinition::meta::relational::tests::projection::function::concatenate::mapping::testEmbeddedMapping2 (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testConcatenate.pure, kept functions/tests/sibling-3.pure)
 - functions/tests meta::relational::tests::functions::objectReferenceIn::simpleModelMapping => Circular M2M ~src chain detected in mapping 'meta::relational::tests::functions::objectReferenceIn::simpleModelMapping': Address -> Address
-- functions/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- functions/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -547,8 +541,6 @@ in-process Alloy-shaped path).
 - functions/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - functions/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- functions/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- functions/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - functions/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -634,7 +626,7 @@ in-process Alloy-shaped path).
 - functions/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests meta::relational::mapping::postProcessQuery => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
+- functions/tests meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::postprocess => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -901,7 +893,7 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable duplicate Function::meta::relational::tests::loadCsv::testLoadCsv() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/loadCsvToDbTable/testLoadCsv.pure, kept functions/tests/loadCsvToDbTable/sibling-0.pure)
 - functions/tests/loadCsvToDbTable duplicate LegacyMappingDefinition::meta::relational::tests::loadCsv::csvMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/loadCsvToDbTable/testLoadCsv.pure, kept functions/tests/loadCsvToDbTable/sibling-0.pure)
 - functions/tests/loadCsvToDbTable duplicate DatabaseDefinition::meta::relational::tests::loadCsv::db (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/loadCsvToDbTable/testLoadCsv.pure, kept functions/tests/loadCsvToDbTable/sibling-0.pure)
-- functions/tests/loadCsvToDbTable meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- functions/tests/loadCsvToDbTable meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -924,7 +916,7 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::relational::functions::toDDL::insertSQLQueryResultIntoTable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- functions/tests/loadCsvToDbTable meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'Join' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::database::constructDb::joinFunctions::createTableAliasColumnFromColumn => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -953,12 +945,9 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::transformRelationFunctionSemiStructuredPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::transformRelationPropertyMappingsToRelational => Unknown type: 'RelationFunctionPropertyMapping' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::mapping::syntheticRelationalAccessorExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::inferPrimaryKeyColumnNames => Unknown type: 'meta::pure::metamodel::valuespecification::ValueSpecification' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -1003,7 +992,7 @@ in-process Alloy-shaped path).
 - functions/tests/projection duplicate Function::meta::relational::tests::projection::aggregation::testDateAggregationWithMax() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testAggregation.pure, kept functions/tests/projection/sibling-0.pure)
 - functions/tests/projection duplicate Function::meta::relational::tests::projection::aggregation::testSubAggregationWithTopLevelIf() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testAggregation.pure, kept functions/tests/projection/sibling-0.pure)
 - functions/tests/projection duplicate Function::meta::relational::tests::projection::aggregation::testIsDistinctSubAggregation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testAggregation.pure, kept functions/tests/projection/sibling-0.pure)
-- functions/tests/projection meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -1020,8 +1009,6 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -1278,7 +1265,7 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::functions::toDDL::insertSQLQueryResultIntoTable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'Join' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::database::constructDb::joinFunctions::createTableAliasColumnFromColumn => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -1307,7 +1294,6 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::transformRelationFunctionSemiStructuredPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::transformRelationPropertyMappingsToRelational => Unknown type: 'RelationFunctionPropertyMapping' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::mapping::syntheticRelationalAccessorExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::inferPrimaryKeyColumnNames => Unknown type: 'meta::pure::metamodel::valuespecification::ValueSpecification' is not a known primitive, class, or enum
@@ -1322,7 +1308,7 @@ in-process Alloy-shaped path).
 - graphFetch/tests duplicate Function::meta::relational::graphFetch::tests::crossDatabase::setUpDBs() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossDatabaseGraphFetch.pure, kept graphFetch/tests/sibling-0.pure)
 - graphFetch/tests duplicate Function::meta::relational::graphFetch::tests::crossDatabase::testCrossMappingWithRelOpWithJoinKeys() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossDatabaseGraphFetch.pure, kept graphFetch/tests/sibling-0.pure)
 - graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping => Circular M2M ~src chain detected in mapping 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping': meta::pure::graphFetch::tests::XStore::milestoning::Trade -> meta::pure::graphFetch::tests::XStore::milestoning::Trade
-- graphFetch/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- graphFetch/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -1339,8 +1325,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -1812,7 +1796,7 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union duplicate Function::meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::testMilestoningWithComplexQualifiedPropertyWithUnionMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/union/relationalGraphFetchUnionWithMilestoning.pure, kept graphFetch/tests/union/sibling-0.pure)
 - graphFetch/tests/union duplicate Function::meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::testMilestoningWithMultiLevelUnionMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/union/relationalGraphFetchUnionWithMilestoning.pure, kept graphFetch/tests/union/sibling-0.pure)
 - graphFetch/tests/union duplicate LegacyMappingDefinition::meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning::MilestoningUnionMap (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/union/relationalGraphFetchUnionWithMilestoning.pure, kept graphFetch/tests/union/sibling-0.pure)
-- graphFetch/tests/union meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- graphFetch/tests/union meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -1829,8 +1813,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -2160,13 +2142,12 @@ in-process Alloy-shaped path).
 - lineage/scanRelations meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - lineage/scanRelations meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - lineage/scanRelations meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::scanRelations => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- lineage/scanRelations meta::pure::lineage::scanRelations::scanRelations => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::scanRelationColumns => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::addAtBottomTreesAndColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::getRelationTree => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::getRelationColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::collectStoreMappingCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::generatRelationalTrees => Unknown type: 'Extension' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::addColumnsToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
@@ -2247,7 +2228,6 @@ in-process Alloy-shaped path).
 - lineage/scanRelations duplicate Function::meta::pure::lineage::scanRelations::test::testTableToTdsWithCrossJoin() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure, kept lineage/scanRelations/sibling-2.pure)
 - lineage/scanRelations duplicate Function::meta::pure::lineage::scanRelations::test::testTdsJoinConcatenateAndJoin() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/lineage/scanRelations/scanRelationsTests.pure, kept lineage/scanRelations/sibling-2.pure)
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$Address => Unknown type: 'Address' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::tds::schema::tests::extensions => Unknown type: 'Extension' is not a known primitive, class, or enum
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::bitemporal::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBiTemporalDateMilestoning.pure, kept milestoning/tests/sibling-3.pure)
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::bitemporal::testBiTemporalAllTypeQuery() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBiTemporalDateMilestoning.pure, kept milestoning/tests/sibling-3.pure)
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::bitemporal::testBiTemporalPropertyUsageInProject() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBiTemporalDateMilestoning.pure, kept milestoning/tests/sibling-3.pure)
@@ -2271,7 +2251,7 @@ in-process Alloy-shaped path).
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::bitemporal::testBiTemporalPropertyUsageAfterExecute() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBiTemporalDateMilestoning.pure, kept milestoning/tests/sibling-3.pure)
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::bitemporal::testGroupByAndMilestoning() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBiTemporalDateMilestoning.pure, kept milestoning/tests/sibling-3.pure)
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::bitemporal::testBiTemporalDateInjectionFromVarReference() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testBiTemporalDateMilestoning.pure, kept milestoning/tests/sibling-3.pure)
-- milestoning/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -2288,8 +2268,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - milestoning/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - milestoning/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -2422,7 +2400,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::milestoning::DateWrapper => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalDateAlias => Unknown type: 'SingleDateTemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::applyMilestoningFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::temporalpostprocessor::dateEqualityTemporalMilestoningProcessor => Unknown type: 'Extension' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::milestoning::temporalpostprocessor::dateEqualityTemporalMilestoningProcessor => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getAllMilestonedTableFilter => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getEqualityMilestonedFiltering => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getEqualityMilestonedFilteringSelect => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
@@ -2500,7 +2478,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::toDDL::insertSQLQueryResultIntoTable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'Join' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::database::constructDb::joinFunctions::createTableAliasColumnFromColumn => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -2529,7 +2507,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::transformRelationFunctionSemiStructuredPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::transformRelationPropertyMappingsToRelational => Unknown type: 'RelationFunctionPropertyMapping' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::mapping::syntheticRelationalAccessorExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::inferPrimaryKeyColumnNames => Unknown type: 'meta::pure::metamodel::valuespecification::ValueSpecification' is not a known primitive, class, or enum
@@ -2705,7 +2682,7 @@ in-process Alloy-shaped path).
 - modelJoins duplicate LegacyMappingDefinition::meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantString (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelJoins/testModelJoinsToRelationalJoins.pure, kept modelJoins/sibling-1.pure)
 - modelJoins duplicate LegacyMappingDefinition::meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDate (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelJoins/testModelJoinsToRelationalJoins.pure, kept modelJoins/sibling-1.pure)
 - modelJoins duplicate LegacyMappingDefinition::meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withInequalities (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelJoins/testModelJoinsToRelationalJoins.pure, kept modelJoins/sibling-1.pure)
-- modelJoins meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- modelJoins meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - modelJoins meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - modelJoins meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelJoins meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -2721,8 +2698,6 @@ in-process Alloy-shaped path).
 - modelJoins meta::external::store::relational::modelJoins::getMainTableAliasForSetId => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - modelJoins meta::external::store::relational::modelJoins::convertToRelationalElement => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - modelJoins meta::external::store::relational::modelJoins::transformExpressionSequenceIntoJoin => Unknown type: 'SimpleFunctionExpression' is not a known primitive, class, or enum
-- modelJoins meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- modelJoins meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - modelJoins meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - modelJoins meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -2746,7 +2721,7 @@ in-process Alloy-shaped path).
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::testWithHardcodedDate_ViaNoArgMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-1.pure)
 - modelToModelToRelational/milestoned duplicate Function::meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::getNoArgMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-1.pure)
 - modelToModelToRelational/milestoned duplicate LegacyMappingDefinition::meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/modelToModelToRelational/milestoned/milestonedSourceToMilestonedTargetProperty.pure, kept modelToModelToRelational/milestoned/sibling-1.pure)
-- modelToModelToRelational/milestoned meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- modelToModelToRelational/milestoned meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -2756,8 +2731,6 @@ in-process Alloy-shaped path).
 - modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -2987,7 +2960,7 @@ in-process Alloy-shaped path).
 - postprocessor meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor meta::relational::mapping::postProcessQuery => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
+- postprocessor meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::postprocess => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -3053,7 +3026,7 @@ in-process Alloy-shaped path).
 - postprocessor/tests duplicate Function::meta::relational::tests::postProcessor::testSQLRealiasCaseSensitiveTableNames() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/tests/testPostProcessor.pure, kept postprocessor/tests/sibling-1.pure)
 - postprocessor/tests duplicate Function::meta::relational::tests::postProcessor::testDb2ColumnRename() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/tests/testPostProcessor.pure, kept postprocessor/tests/sibling-1.pure)
 - postprocessor/tests duplicate Function::meta::relational::tests::postProcessor::testPostProcessTransformJoinOp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/tests/testPostProcessor.pure, kept postprocessor/tests/sibling-1.pure)
-- postprocessor/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -3073,8 +3046,6 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -3111,7 +3082,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests duplicate Function::meta::relational::tests::mergerules::milestoning::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testMergeRules.pure, kept pureToSQLQuery/tests/sibling-0.pure)
 - pureToSQLQuery/tests duplicate Function::meta::relational::tests::mergerules::milestoning::testToOneJoinTreeNodesForMilestoningFilterAndProjectMerge() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testMergeRules.pure, kept pureToSQLQuery/tests/sibling-0.pure)
 - pureToSQLQuery/tests duplicate Function::meta::relational::tests::mergerules::milestoning::testToManyJoinTreeNodesForMilestoningFilterAndProjectDoNotMerge() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testMergeRules.pure, kept pureToSQLQuery/tests/sibling-0.pure)
-- pureToSQLQuery/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -3130,8 +3101,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -3251,9 +3220,7 @@ in-process Alloy-shaped path).
 - router/tests duplicate Function::meta::relational::tests::query::routing::testCompositionInMultiStatementPureExpressions() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure, kept router/tests/sibling-1.pure)
 - router/tests duplicate Function::meta::relational::tests::query::routing::testCompositionInMultiStatementRelationalQuery() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure, kept router/tests/sibling-1.pure)
 - router/tests duplicate Function::meta::relational::tests::query::routing::testCompositionInExtend() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testRouting.pure, kept router/tests/sibling-1.pure)
-- router/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
-- router/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- router/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- router/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - router/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - router/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -3278,7 +3245,7 @@ in-process Alloy-shaped path).
 - tds/tests duplicate Function::meta::relational::tests::tds::distinct::testSimpleDistinctWithTake() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testDistinct.pure, kept tds/tests/sibling-4.pure)
 - tds/tests duplicate Function::meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testDistinct.pure, kept tds/tests/sibling-4.pure)
 - tds/tests duplicate Function::meta::relational::tests::tds::distinct::testSimpleDistinctGroupBy() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testDistinct.pure, kept tds/tests/sibling-4.pure)
-- tds/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tds/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tds/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -3288,7 +3255,6 @@ in-process Alloy-shaped path).
 - tds/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::tds::schema::tests::extensions => Unknown type: 'Extension' is not a known primitive, class, or enum
 - tds/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tds/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -3296,8 +3262,6 @@ in-process Alloy-shaped path).
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tds/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tds/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tds/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tds/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -3437,10 +3401,8 @@ in-process Alloy-shaped path).
 - tds/tests meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - tds/tests meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::sqlstring::toSQLStringPretty => Unknown type: 'Extension' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::sqlstring::toSQL => Unknown type: 'Extension' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::sqlstring::toSQLString => Unknown type: 'Extension' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::sqlstring::toNonExecutableSQLString => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tds/tests meta::relational::functions::sqlstring::toSQL => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
+- tds/tests meta::relational::functions::sqlstring::toSQLString => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlstring::findDBCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlstring::SQLResult$prop$toSQLString => Unknown type: 'Format' is not a known primitive, class, or enum
 - tds/tests duplicate Function::meta::relational::tests::tds::tdsFilter::testSimpleFilter() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testTDSFilter.pure, kept tds/tests/sibling-11.pure)
@@ -3595,7 +3557,7 @@ in-process Alloy-shaped path).
 - tds/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tds/tests meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tds/tests meta::relational::mapping::postProcessQuery => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
+- tds/tests meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::postprocess => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -3729,7 +3691,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests duplicate Function::meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForSingleTable() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure, kept testDataGeneration/tests/sibling-1.pure)
 - testDataGeneration/tests duplicate Function::meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMultiTables() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure, kept testDataGeneration/tests/sibling-1.pure)
 - testDataGeneration/tests duplicate Function::meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMilestoningTable() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/testDataGeneration/tests/testDataGeneration.pure, kept testDataGeneration/tests/sibling-1.pure)
-- testDataGeneration/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -3746,8 +3708,6 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -3768,7 +3728,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::functions::toDDL::insertSQLQueryResultIntoTable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'Join' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::database::constructDb::joinFunctions::createTableAliasColumnFromColumn => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -3797,7 +3757,6 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::transformRelationFunctionSemiStructuredPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::transformRelationPropertyMappingsToRelational => Unknown type: 'RelationFunctionPropertyMapping' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::mapping::syntheticRelationalAccessorExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::inferPrimaryKeyColumnNames => Unknown type: 'meta::pure::metamodel::valuespecification::ValueSpecification' is not a known primitive, class, or enum
@@ -3817,14 +3776,11 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping => mapping 'meta::pure::mapping::modelToModel::test::shared::relationalMapping' binds unknown class '_S_Person'
 - testDataGeneration/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$Address => Unknown type: 'Address' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::TestDataGenResult => Unknown type: 'RelationTree' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::generateTestData => Unknown type: 'Extension' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataWithDefaultPKs => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::generateSeedDataString => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateSeedDataGenerationFunction => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromRoot => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataForNestedViewTree => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromNode => Unknown type: 'RelationTree' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::getRowIdentifiersForTable => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::getRowIdentifiersForTable => Unknown type: 'View' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getRowIdentifiersForChildViewRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateRelationColumnMap => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::findMainTableForView => Unknown type: 'View' is not a known primitive, class, or enum
@@ -3833,18 +3789,42 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::testDataGeneration::parseDateIfRequired => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getMilestoningFilter => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getRelationalCSVDataFromQuery => Unknown type: 'meta::relational::metamodel::data::RelationalCSVData' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planSeedDataGenerationWithParameterNameValuePairs => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planSeedDataGeneration => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationWithParameterValuePairs => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planSeedDataGenerationWithParameterNameValuePairs => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planSeedDataGeneration => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationWithParameterValuePairs => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationStartingFromNode => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationForNestedViewTree => Unknown type: 'RelationTree' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planRowIdentifierExtractionForTable => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planRowIdentifierExtractionForTable => Unknown type: 'View' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::fixRelations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::replaceRelationsInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::doesAliasPointToTempTable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::quoteVarPlaceHolderTableAliasColumnsIfNotQuouted => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::tds::schema::tests::extensions => Unknown type: 'Extension' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::RelationTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::ClusterAndVars => Unknown type: 'ClusteredValueSpecification' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::scanRelations => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::scanRelationColumns => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::addAtBottomTreesAndColumns => Unknown type: 'Column' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::getRelationTree => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::getRelationColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::collectStoreMappingCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::addColumnsToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::addColumnToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::processJoinFromTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::isNull => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceColumn => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceColumnFromSelectSQLQuery => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::extractJoinChildren => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataForNestedViewTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromNode => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::generateRelationColumnMap => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationStartingFromNode => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationForNestedViewTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::RelationTree$prop$view => Unknown type: 'View' is not a known primitive, class, or enum
 - tests/advanced duplicate Function::meta::relational::tests::advanced::contractmoneyscenario::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testContractMoneyScenario.pure, kept tests/advanced/sibling-2.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::contractmoneyscenario::test1() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testContractMoneyScenario.pure, kept tests/advanced/sibling-2.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::contractmoneyscenario::test2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testContractMoneyScenario.pure, kept tests/advanced/sibling-2.pure)
@@ -3853,7 +3833,7 @@ in-process Alloy-shaped path).
 - tests/advanced duplicate Function::meta::relational::tests::advanced::contractmoneyscenario::createTablesAndFillDb() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testContractMoneyScenario.pure, kept tests/advanced/sibling-2.pure)
 - tests/advanced duplicate LegacyMappingDefinition::meta::relational::tests::advanced::contractmoneyscenario::ContractMoney (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testContractMoneyScenario.pure, kept tests/advanced/sibling-2.pure)
 - tests/advanced duplicate DatabaseDefinition::meta::relational::tests::advanced::contractmoneyscenario::db (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testContractMoneyScenario.pure, kept tests/advanced/sibling-2.pure)
-- tests/advanced meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/advanced meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -3869,8 +3849,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilter => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testNonMilestoningQueryWithMilestoneFilterProject => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::qualifier::testDerivedWithFilteringTwoProperties => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
-- tests/advanced meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/advanced meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/advanced meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -3964,7 +3942,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::updateFunctionParamsScope => Unknown type: 'FunctionType' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::toSQLQuery => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processQuery => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::applyPostProcessingForTempTableAsDriver => Unknown type: 'Extension' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::toSelectWithCursor => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::manageDeepMapClassColumns => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::printDebugQuery => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
@@ -3992,14 +3969,13 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::wrapIfNecessary => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processInstanceValue => Unknown type: 'InstanceValue' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processValue => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::processRelationStoreAccessor => Unknown type: 'Extension' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findColumnOnOperationHierarchy => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processColumnFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processObjectGroupBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::isolateNonTerminalGroupByQueryWithEmptyGroupingColumns => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::isolateNonTerminalGroupByQueryWithEmptyGroupingColumns => Unknown type: 'TdsSelectSqlQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processObjectGroupByWithWindowSubSet => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::gatherAllOperations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isolateOrderBy => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -4077,7 +4053,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::findAliasOrFail => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processSortBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processSlice => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::isolateTdsSelect => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::isolateTdsSelect => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isolateSubSelectIfNotLastOperation => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processPaginated => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processTake => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4133,7 +4109,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processSubEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isIfForEnum => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processIfForEnum => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::moveExtraFilterToFilter => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::moveExtraFilterToFilter => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processWindowFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processDivideRound => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processTimeBucket => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4265,7 +4241,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processPath => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::removeUnionColumnsAndJoins => Unknown type: 'Union' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::removeSelectColumnsAndJoins => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::removeColumnsAndJoins => Unknown type: 'Extension' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProjectFunction => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProjectPaths => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProjectFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4276,7 +4251,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processWindowColumns => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProject => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::joinToTemp => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::useTempAsDriver => Unknown type: 'Extension' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::manageIsolation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addedSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::containsInnerJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -4435,7 +4409,7 @@ in-process Alloy-shaped path).
 - tests/datatype duplicate Function::meta::relational::tests::mapping::dataType::model::store::testDataTypeMappingRuntime() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/datatype/testDataTypeMapping.pure, kept tests/datatype/sibling-2.pure)
 - tests/datatype duplicate DatabaseDefinition::meta::relational::tests::mapping::dataType::model::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/datatype/testDataTypeMapping.pure, kept tests/datatype/sibling-2.pure)
 - tests/datatype duplicate LegacyMappingDefinition::meta::relational::tests::mapping::dataType::model::mapping::testMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/datatype/testDataTypeMapping.pure, kept tests/datatype/sibling-2.pure)
-- tests/datatype meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/datatype meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/datatype meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -4447,8 +4421,6 @@ in-process Alloy-shaped path).
 - tests/datatype meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/datatype meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/datatype meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
-- tests/datatype meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/datatype meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/datatype meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -4478,7 +4450,7 @@ in-process Alloy-shaped path).
 - tests/injection duplicate Function::meta::relational::tests::injection::testRuntime() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/injection/testInjection.pure, kept tests/injection/sibling-2.pure)
 - tests/injection duplicate DatabaseDefinition::meta::relational::tests::injection::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/injection/testInjection.pure, kept tests/injection/sibling-2.pure)
 - tests/injection duplicate LegacyMappingDefinition::meta::relational::tests::injection::mapping::myMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/injection/testInjection.pure, kept tests/injection/sibling-2.pure)
-- tests/injection meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/injection meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/injection meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -4490,8 +4462,6 @@ in-process Alloy-shaped path).
 - tests/injection meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/injection meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/injection meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
-- tests/injection meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/injection meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/injection meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -4514,7 +4484,7 @@ in-process Alloy-shaped path).
 - tests/mapping duplicate Function::meta::relational::tests::mapping::boolean::testGet() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/boolean.pure, kept tests/mapping/sibling-2.pure)
 - tests/mapping duplicate Function::meta::relational::tests::mapping::boolean::testQuery() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/boolean.pure, kept tests/mapping/sibling-2.pure)
 - tests/mapping duplicate Function::meta::relational::tests::mapping::boolean::testProject() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/boolean.pure, kept tests/mapping/sibling-2.pure)
-- tests/mapping meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -4531,8 +4501,6 @@ in-process Alloy-shaped path).
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -4578,7 +4546,7 @@ in-process Alloy-shaped path).
 - tests/mapping/association duplicate Function::meta::relational::tests::mapping::association::embedded::testPersonToFirmLocationsInlineEmbedded() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/association/testAssociationEmbedded.pure, kept tests/mapping/association/sibling-0.pure)
 - tests/mapping/association duplicate LegacyMappingDefinition::meta::relational::tests::mapping::association::embedded::associationMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/association/testAssociationEmbedded.pure, kept tests/mapping/association/sibling-0.pure)
 - tests/mapping/association duplicate LegacyMappingDefinition::meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/association/testAssociationEmbedded.pure, kept tests/mapping/association/sibling-0.pure)
-- tests/mapping/association meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/association meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -4595,8 +4563,6 @@ in-process Alloy-shaped path).
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -4747,7 +4713,7 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin duplicate Function::meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testLazyExecution() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/classMappingFilterWithInnerJoin/testClassMappingFilterWithInnerJoin.pure, kept tests/mapping/classMappingFilterWithInnerJoin/sibling-1.pure)
 - tests/mapping/classMappingFilterWithInnerJoin duplicate Function::meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testCorrelatedSubSqlQueryGeneration() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/classMappingFilterWithInnerJoin/testClassMappingFilterWithInnerJoin.pure, kept tests/mapping/classMappingFilterWithInnerJoin/sibling-1.pure)
 - tests/mapping/classMappingFilterWithInnerJoin duplicate Function::meta::relational::tests::mapping::classMappingFilterWithInnerJoin::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/classMappingFilterWithInnerJoin/testClassMappingFilterWithInnerJoin.pure, kept tests/mapping/classMappingFilterWithInnerJoin/sibling-1.pure)
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/classMappingFilterWithInnerJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -4764,8 +4730,6 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -4999,7 +4963,7 @@ in-process Alloy-shaped path).
 - tests/mapping/distinct duplicate LegacyMappingDefinition::meta::relational::tests::mapping::distinct::model::mapping::testMappingWithJoinWithDup (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/distinct/testDistinct.pure, kept tests/mapping/distinct/sibling-0.pure)
 - tests/mapping/distinct duplicate LegacyMappingDefinition::meta::relational::tests::mapping::distinct::model::mapping::testMappingFullDenorm (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/distinct/testDistinct.pure, kept tests/mapping/distinct/sibling-0.pure)
 - tests/mapping/distinct duplicate LegacyMappingDefinition::meta::relational::tests::mapping::distinct::model::mapping::testMappingWithCase (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/distinct/testDistinct.pure, kept tests/mapping/distinct/sibling-0.pure)
-- tests/mapping/distinct meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/distinct meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5009,8 +4973,6 @@ in-process Alloy-shaped path).
 - tests/mapping/distinct meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5038,7 +5000,7 @@ in-process Alloy-shaped path).
 - tests/mapping/dynaJoin duplicate Function::meta::relational::tests::mapping::dynajoin::testSelfJoinWithAggregateFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/dynaJoin/testDynaJoin.pure, kept tests/mapping/dynaJoin/sibling-0.pure)
 - tests/mapping/dynaJoin duplicate Function::meta::relational::tests::mapping::dynajoin::testJoinWithAggregateFunctionQualifier() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/dynaJoin/testDynaJoin.pure, kept tests/mapping/dynaJoin/sibling-0.pure)
 - tests/mapping/dynaJoin duplicate Function::meta::relational::tests::mapping::dynajoin::testJoinWithAggregateFunctionQualifierWithAssociation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/dynaJoin/testDynaJoin.pure, kept tests/mapping/dynaJoin/sibling-0.pure)
-- tests/mapping/dynaJoin meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/dynaJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5055,8 +5017,6 @@ in-process Alloy-shaped path).
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5117,7 +5077,7 @@ in-process Alloy-shaped path).
 - tests/mapping/embedded duplicate LegacyMappingDefinition::meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedMapping.pure, kept tests/mapping/embedded/sibling-0.pure)
 - tests/mapping/embedded duplicate LegacyMappingDefinition::meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbeddedWithFirmDistinct (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedMapping.pure, kept tests/mapping/embedded/sibling-0.pure)
 - tests/mapping/embedded duplicate LegacyMappingDefinition::meta::relational::tests::mapping::embedded::model::mapping::advancedEmbeddedWithChainedJoins (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedMapping.pure, kept tests/mapping/embedded/sibling-0.pure)
-- tests/mapping/embedded meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/embedded meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5127,8 +5087,6 @@ in-process Alloy-shaped path).
 - tests/mapping/embedded meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5282,7 +5240,7 @@ in-process Alloy-shaped path).
 - tests/mapping/enumeration duplicate Function::meta::relational::tests::projection::enumeration::testTdsProjectWithEnumVarEquality() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure, kept tests/mapping/enumeration/sibling-1.pure)
 - tests/mapping/enumeration duplicate Function::meta::relational::tests::projection::enumeration::testEnumValueReturnedInIfExp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure, kept tests/mapping/enumeration/sibling-1.pure)
 - tests/mapping/enumeration duplicate Function::meta::relational::tests::projection::enumeration::testEnumValueReturnedInIfExpNotDistinctTransformers() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure, kept tests/mapping/enumeration/sibling-1.pure)
-- tests/mapping/enumeration meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/enumeration meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5292,8 +5250,6 @@ in-process Alloy-shaped path).
 - tests/mapping/enumeration meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5332,7 +5288,7 @@ in-process Alloy-shaped path).
 - tests/mapping/extends duplicate LegacyMappingDefinition::meta::relational::tests::mapping::extend::embeddedPropertyMapping::testMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForEmbeddedPropertyMapping.pure, kept tests/mapping/extends/sibling-1.pure)
 - tests/mapping/extends duplicate Function::meta::relational::tests::mapping::extend::embeddedPropertyMapping::testEmbeddedPropertyMappingForB() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForEmbeddedPropertyMapping.pure, kept tests/mapping/extends/sibling-1.pure)
 - tests/mapping/extends duplicate Function::meta::relational::tests::mapping::extend::embeddedPropertyMapping::testEmbeddedPropertyMappingForC() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/testExtendsForEmbeddedPropertyMapping.pure, kept tests/mapping/extends/sibling-1.pure)
-- tests/mapping/extends meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/extends meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5349,8 +5305,6 @@ in-process Alloy-shaped path).
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5432,7 +5386,7 @@ in-process Alloy-shaped path).
 - tests/mapping/extends/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::extend::union::embeddedPropertyMapping::testMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/union/testExtendsForEmbeddedPropertyMappingWithUnion.pure, kept tests/mapping/extends/union/sibling-1.pure)
 - tests/mapping/extends/union duplicate Function::meta::relational::tests::mapping::extend::union::embeddedPropertyMapping::testEmbeddedPropertyMappingForUnionForB() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/union/testExtendsForEmbeddedPropertyMappingWithUnion.pure, kept tests/mapping/extends/union/sibling-1.pure)
 - tests/mapping/extends/union duplicate Function::meta::relational::tests::mapping::extend::union::embeddedPropertyMapping::testEmbeddedPropertyMappingForUnionForC() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/union/testExtendsForEmbeddedPropertyMappingWithUnion.pure, kept tests/mapping/extends/union/sibling-1.pure)
-- tests/mapping/extends/union meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/extends/union meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5449,8 +5403,6 @@ in-process Alloy-shaped path).
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5490,7 +5442,7 @@ in-process Alloy-shaped path).
 - tests/mapping/extends/union duplicate Function::meta::relational::tests::mapping::extend::union::propertyMapping::testPropertyMappingOverridesWithUnion() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/extends/union/testExtendsForPropertyMappingWithUnion.pure, kept tests/mapping/extends/union/sibling-3.pure)
 - tests/mapping/filter duplicate Function::meta::relational::tests::mapping::filter::filterMappingWithJoinInFilterAndPropertyGetAll() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/filter/testFilterMapping.pure, kept tests/mapping/filter/sibling-0.pure)
 - tests/mapping/filter duplicate LegacyMappingDefinition::meta::relational::tests::mapping::filter::filterMappingWithJoinInFilterAndProperty (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/filter/testFilterMapping.pure, kept tests/mapping/filter/sibling-0.pure)
-- tests/mapping/filter meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/filter meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5507,8 +5459,6 @@ in-process Alloy-shaped path).
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5576,7 +5526,7 @@ in-process Alloy-shaped path).
 - tests/mapping/groupBy duplicate LegacyMappingDefinition::meta::relational::tests::mapping::groupBy::model::mapping::testMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/groupBy/testGroupBy.pure, kept tests/mapping/groupBy/sibling-0.pure)
 - tests/mapping/groupBy duplicate LegacyMappingDefinition::meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithFilter (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/groupBy/testGroupBy.pure, kept tests/mapping/groupBy/sibling-0.pure)
 - tests/mapping/groupBy duplicate LegacyMappingDefinition::meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/groupBy/testGroupBy.pure, kept tests/mapping/groupBy/sibling-0.pure)
-- tests/mapping/groupBy meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/groupBy meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5586,8 +5536,6 @@ in-process Alloy-shaped path).
 - tests/mapping/groupBy meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5617,7 +5565,7 @@ in-process Alloy-shaped path).
 - tests/mapping/inClause duplicate LegacyMappingDefinition::meta::relational::tests::mapping::in::inClausePrefixMapping1 (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inClause/testInClauseForJoinsAndFilters.pure, kept tests/mapping/inClause/sibling-0.pure)
 - tests/mapping/inClause duplicate LegacyMappingDefinition::meta::relational::tests::mapping::in::inClausePrefixMapping2 (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inClause/testInClauseForJoinsAndFilters.pure, kept tests/mapping/inClause/sibling-0.pure)
 - tests/mapping/inClause duplicate LegacyMappingDefinition::meta::relational::tests::mapping::in::filterMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inClause/testInClauseForJoinsAndFilters.pure, kept tests/mapping/inClause/sibling-0.pure)
-- tests/mapping/inClause meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/inClause meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5627,8 +5575,6 @@ in-process Alloy-shaped path).
 - tests/mapping/inClause meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5714,7 +5660,7 @@ in-process Alloy-shaped path).
 - tests/mapping/inheritance duplicate Function::meta::relational::tests::mapping::inheritance::cross::testFilterProject() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inheritance/testInheritanceMultipleQueries.pure, kept tests/mapping/inheritance/sibling-0.pure)
 - tests/mapping/inheritance duplicate Function::meta::relational::tests::mapping::inheritance::cross::testProjectTwoLambdasWithAutomap() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inheritance/testInheritanceMultipleQueries.pure, kept tests/mapping/inheritance/sibling-0.pure)
 - tests/mapping/inheritance duplicate LegacyMappingDefinition::meta::relational::tests::mapping::inheritance::cross::inheritanceMappingCross (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/inheritance/testInheritanceMultipleQueries.pure, kept tests/mapping/inheritance/sibling-0.pure)
-- tests/mapping/inheritance meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/inheritance meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5731,8 +5677,6 @@ in-process Alloy-shaped path).
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5843,7 +5787,7 @@ in-process Alloy-shaped path).
 - tests/mapping/innerJoin duplicate Function::meta::relational::tests::mapping::innerjoin::isolation::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/innerJoin/testIsolation.pure, kept tests/mapping/innerJoin/sibling-1.pure)
 - tests/mapping/innerJoin duplicate Function::meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/innerJoin/testIsolation.pure, kept tests/mapping/innerJoin/sibling-1.pure)
 - tests/mapping/innerJoin duplicate Function::meta::relational::tests::mapping::innerjoin::isolation::testIsolationForFiltersWithoutAliasAndInnerJoins() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/innerJoin/testIsolation.pure, kept tests/mapping/innerJoin/sibling-1.pure)
-- tests/mapping/innerJoin meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/innerJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5853,8 +5797,6 @@ in-process Alloy-shaped path).
 - tests/mapping/innerJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5904,7 +5846,7 @@ in-process Alloy-shaped path).
 - tests/mapping/join duplicate Function::meta::relational::tests::mapping::join::testSameTableNameDifferentSchema2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/join/testMappingAssociationToAdvancedJoin.pure, kept tests/mapping/join/sibling-2.pure)
 - tests/mapping/join duplicate Function::meta::relational::tests::mapping::join::testRelationalOperationElementWithJoinInnerJoins() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/join/testMappingAssociationToAdvancedJoin.pure, kept tests/mapping/join/sibling-2.pure)
 - tests/mapping/join duplicate Function::meta::relational::tests::mapping::join::testIsNotEmptyCheckWithoutRowExplosion() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/join/testMappingAssociationToAdvancedJoin.pure, kept tests/mapping/join/sibling-2.pure)
-- tests/mapping/join meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/join meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5921,8 +5863,6 @@ in-process Alloy-shaped path).
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -5957,7 +5897,7 @@ in-process Alloy-shaped path).
 - tests/mapping/merge duplicate Function::meta::relational::tests::mapping::merge::testDynafunctionMerge() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/merge/testMerge.pure, kept tests/mapping/merge/sibling-0.pure)
 - tests/mapping/merge duplicate LegacyMappingDefinition::meta::relational::tests::mapping::merge::MergeAliasMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/merge/testMerge.pure, kept tests/mapping/merge/sibling-0.pure)
 - tests/mapping/merge duplicate DatabaseDefinition::meta::relational::tests::mapping::merge::MergeAliasDb (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/merge/testMerge.pure, kept tests/mapping/merge/sibling-0.pure)
-- tests/mapping/merge meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/merge meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -5967,8 +5907,6 @@ in-process Alloy-shaped path).
 - tests/mapping/merge meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/merge meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6011,7 +5949,7 @@ in-process Alloy-shaped path).
 - tests/mapping/modelJoin duplicate Function::meta::relational::tests::mapping::modelJoin::advanced::testQualifiedPropertyInQuery() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/modelJoin/testModelJoinAdvanced.pure, kept tests/mapping/modelJoin/sibling-4.pure)
 - tests/mapping/modelJoin duplicate Function::meta::relational::tests::mapping::modelJoin::advanced::testRelationalSubFilter() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/modelJoin/testModelJoinAdvanced.pure, kept tests/mapping/modelJoin/sibling-4.pure)
 - tests/mapping/modelJoin duplicate Function::meta::relational::tests::mapping::modelJoin::advanced::testSubAggregationRelational() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/modelJoin/testModelJoinAdvanced.pure, kept tests/mapping/modelJoin/sibling-4.pure)
-- tests/mapping/modelJoin meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/modelJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6028,8 +5966,6 @@ in-process Alloy-shaped path).
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6105,7 +6041,7 @@ in-process Alloy-shaped path).
 - tests/mapping/multigrain duplicate DatabaseDefinition::meta::relational::tests::mapping::multigrain::model::store::myDBAccount (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/multigrain/testMultiGrainTableMappings.pure, kept tests/mapping/multigrain/sibling-0.pure)
 - tests/mapping/multigrain duplicate LegacyMappingDefinition::meta::relational::tests::mapping::multigrain::model::mapping::testMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/multigrain/testMultiGrainTableMappings.pure, kept tests/mapping/multigrain/sibling-0.pure)
 - tests/mapping/multigrain duplicate LegacyMappingDefinition::meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/multigrain/testMultiGrainTableMappings.pure, kept tests/mapping/multigrain/sibling-0.pure)
-- tests/mapping/multigrain meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/multigrain meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6115,8 +6051,6 @@ in-process Alloy-shaped path).
 - tests/mapping/multigrain meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6148,7 +6082,7 @@ in-process Alloy-shaped path).
 - tests/mapping/propertyfunc duplicate DatabaseDefinition::meta::relational::tests::mapping::propertyfunc::model::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/propertyfunc/simplePropertyFunc.pure, kept tests/mapping/propertyfunc/sibling-0.pure)
 - tests/mapping/propertyfunc duplicate LegacyMappingDefinition::meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/propertyfunc/simplePropertyFunc.pure, kept tests/mapping/propertyfunc/sibling-0.pure)
 - tests/mapping/propertyfunc duplicate LegacyMappingDefinition::meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMappingWithJoin (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/propertyfunc/simplePropertyFunc.pure, kept tests/mapping/propertyfunc/sibling-0.pure)
-- tests/mapping/propertyfunc meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/propertyfunc meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6158,8 +6092,6 @@ in-process Alloy-shaped path).
 - tests/mapping/propertyfunc meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6228,7 +6160,7 @@ in-process Alloy-shaped path).
 - tests/mapping/relation duplicate Function::meta::relational::tests::mapping::relation::testInlineEmbeddedRelationMappingGroupBy() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/tests.pure, kept tests/mapping/relation/sibling-3.pure)
 - tests/mapping/relation duplicate Function::meta::relational::tests::mapping::relation::testInlineEmbeddedRelationMappingWithAssociation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/tests.pure, kept tests/mapping/relation/sibling-3.pure)
 - tests/mapping/relation duplicate Function::meta::relational::tests::mapping::relation::testInlineEmbeddedRelationMappingWithAssociationAndFilter() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/tests.pure, kept tests/mapping/relation/sibling-3.pure)
-- tests/mapping/relation meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/relation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6245,8 +6177,6 @@ in-process Alloy-shaped path).
 - tests/mapping/relation meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6328,7 +6258,7 @@ in-process Alloy-shaped path).
 - tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-1.pure)
 - tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationMapArithmeticOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-1.pure)
 - tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationJoinStringsOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-1.pure)
-- tests/mapping/relation/aggregation meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6345,8 +6275,6 @@ in-process Alloy-shaped path).
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6385,7 +6313,7 @@ in-process Alloy-shaped path).
 - tests/mapping/selfJoin duplicate Function::meta::relational::tests::mapping::selfJoin::model::store::createTablesAndFillDb() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/selfJoin/selfJoin.pure, kept tests/mapping/selfJoin/sibling-0.pure)
 - tests/mapping/selfJoin duplicate DatabaseDefinition::meta::relational::tests::mapping::selfJoin::model::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/selfJoin/selfJoin.pure, kept tests/mapping/selfJoin/sibling-0.pure)
 - tests/mapping/selfJoin duplicate LegacyMappingDefinition::meta::relational::tests::mapping::selfJoin::model::mapping::orgTestMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/selfJoin/selfJoin.pure, kept tests/mapping/selfJoin/sibling-0.pure)
-- tests/mapping/selfJoin meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/selfJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6395,8 +6323,6 @@ in-process Alloy-shaped path).
 - tests/mapping/selfJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6496,7 +6422,7 @@ in-process Alloy-shaped path).
 - tests/mapping/sqlFunction duplicate Function::meta::relational::tests::mapping::sqlFunction::model::store::testDataTypeMappingRuntime() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/sqlFunction/testSqlFunctionsInMapping.pure, kept tests/mapping/sqlFunction/sibling-0.pure)
 - tests/mapping/sqlFunction duplicate DatabaseDefinition::meta::relational::tests::mapping::sqlFunction::model::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/sqlFunction/testSqlFunctionsInMapping.pure, kept tests/mapping/sqlFunction/sibling-0.pure)
 - tests/mapping/sqlFunction duplicate LegacyMappingDefinition::meta::relational::tests::mapping::sqlFunction::model::mapping::testMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/sqlFunction/testSqlFunctionsInMapping.pure, kept tests/mapping/sqlFunction/sibling-0.pure)
-- tests/mapping/sqlFunction meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/sqlFunction meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6506,8 +6432,6 @@ in-process Alloy-shaped path).
 - tests/mapping/sqlFunction meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6567,7 +6491,7 @@ in-process Alloy-shaped path).
 - tests/mapping/tree duplicate Function::meta::relational::tests::mapping::tree::model::store::createTablesAndFillDb() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/tree/tree.pure, kept tests/mapping/tree/sibling-0.pure)
 - tests/mapping/tree duplicate DatabaseDefinition::meta::relational::tests::mapping::tree::model::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/tree/tree.pure, kept tests/mapping/tree/sibling-0.pure)
 - tests/mapping/tree duplicate LegacyMappingDefinition::meta::relational::tests::mapping::tree::model::mapping::orgTestMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/tree/tree.pure, kept tests/mapping/tree/sibling-0.pure)
-- tests/mapping/tree meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/tree meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6577,8 +6501,6 @@ in-process Alloy-shaped path).
 - tests/mapping/tree meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/tree meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6698,7 +6620,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::unionToUnionMappingWithJoinToSameTableWithDiffKeys (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnion.pure, kept tests/mapping/union/sibling-1.pure)
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::unionWithSinglePropertyMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnion.pure, kept tests/mapping/union/sibling-1.pure)
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::unionMappingWithEnumerationMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnion.pure, kept tests/mapping/union/sibling-1.pure)
-- tests/mapping/union meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -6706,8 +6628,6 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -6775,7 +6695,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::relational::functions::toDDL::insertSQLQueryResultIntoTable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::database::constructDb::joinFunctions::createTableAliasColumnFromColumn => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -6804,12 +6724,10 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::transformRelationFunctionSemiStructuredPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::transformRelationPropertyMappingsToRelational => Unknown type: 'RelationFunctionPropertyMapping' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::mapping::syntheticRelationalAccessorExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::inferPrimaryKeyColumnNames => Unknown type: 'meta::pure::metamodel::valuespecification::ValueSpecification' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::runtime::RelationalExecutionContext => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::runtime::hasFunctionActivatorExecutionContext => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFilters() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnionForSQLQueryMerging.pure, kept tests/mapping/union/sibling-2.pure)
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersDeep() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnionForSQLQueryMerging.pure, kept tests/mapping/union/sibling-2.pure)
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForProjections() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnionForSQLQueryMerging.pure, kept tests/mapping/union/sibling-2.pure)
@@ -6971,7 +6889,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union/relation duplicate Function::meta::relational::tests::mapping::union::relation::testTds(,Generic[name=FunctionDefinition, arguments=[FunctionType[parameters=[], result=TypedParameter[type=NameRef[name=TabularDataSet], multiplicity=[1]]]], multiplicityArguments=[]][1],NameRef[name=Mapping][1],NameRef[name=Database][1],NameRef[name=String][*]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/relation/testRelationUnion.pure, kept tests/mapping/union/relation/sibling-2.pure)
 - tests/mapping/union/relation duplicate Function::meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_EmbeddedFirmProject_Tds() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/relation/testRelationUnion.pure, kept tests/mapping/union/relation/sibling-2.pure)
 - tests/mapping/union/relation duplicate Function::meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/relation/testRelationUnion.pure, kept tests/mapping/union/relation/sibling-2.pure)
-- tests/mapping/union/relation meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/mapping/union/relation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -6988,8 +6906,6 @@ in-process Alloy-shaped path).
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -7023,7 +6939,7 @@ in-process Alloy-shaped path).
 - tests/platformOperations duplicate Function::meta::relational::tests::platform::operations::testIsNotEmptyForRelational_returnsFalse() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure, kept tests/platformOperations/sibling-3.pure)
 - tests/platformOperations duplicate Function::meta::relational::tests::platform::operations::testIsEmptyForRelational_returnsFalse() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure, kept tests/platformOperations/sibling-3.pure)
 - tests/platformOperations duplicate Function::meta::relational::tests::platform::operations::testIsEmptyForRelational_returnsTrue() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/platformOperations/testPlatformOperationsOnRelational.pure, kept tests/platformOperations/sibling-3.pure)
-- tests/platformOperations meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/platformOperations meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -7035,8 +6951,6 @@ in-process Alloy-shaped path).
 - tests/platformOperations meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/platformOperations meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -7087,7 +7001,7 @@ in-process Alloy-shaped path).
 - tests/query duplicate ClassDefinition::meta::relational::tests::groupBy::datePeriods::domain::FiscalYear (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure, kept tests/query/sibling-2.pure)
 - tests/query duplicate DatabaseDefinition::meta::relational::tests::groupBy::datePeriods::store::myDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure, kept tests/query/sibling-2.pure)
 - tests/query duplicate LegacyMappingDefinition::meta::relational::tests::groupBy::datePeriods::mapping::myMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/datePeriods.pure, kept tests/query/sibling-2.pure)
-- tests/query meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/query meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/query meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -7100,8 +7014,6 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
-- tests/query meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- tests/query meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/query meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -7118,10 +7030,8 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
 - tests/query meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - tests/query meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::sqlstring::toSQLStringPretty => Unknown type: 'Extension' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::sqlstring::toSQL => Unknown type: 'Extension' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::sqlstring::toSQLString => Unknown type: 'Extension' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::sqlstring::toNonExecutableSQLString => Unknown type: 'Extension' is not a known primitive, class, or enum
+- tests/query meta::relational::functions::sqlstring::toSQL => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
+- tests/query meta::relational::functions::sqlstring::toSQLString => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlstring::findDBCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/query meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/query meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -7241,7 +7151,7 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::functions::toDDL::insertSQLQueryResultIntoTable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
+- tests/query meta::relational::functions::database::constructDb::joinFunctions::alwaysJoinColumnsWithNameTo => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::database::constructDb::joinFunctions::createTableAliasColumnFromColumn => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -7270,7 +7180,6 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::mapping::ensureRelationFunctionPrimaryKeyResolved => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::transformRelationFunctionSemiStructuredPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::transformRelationPropertyMappingsToRelational => Unknown type: 'RelationFunctionPropertyMapping' is not a known primitive, class, or enum
-- tests/query meta::relational::mapping::syntheticRelationalAccessorExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::resolveRelationFunctionPrimaryKeyColumnNames => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::resolveRelationFunctionPrimaryKey => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::inferPrimaryKeyColumnNames => Unknown type: 'meta::pure::metamodel::valuespecification::ValueSpecification' is not a known primitive, class, or enum
@@ -7329,7 +7238,7 @@ in-process Alloy-shaped path).
 - transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGreatestLeast() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-1.pure)
 - transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-1.pure)
 - transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testHashFunctions() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-1.pure)
-- transform/fromPure/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -7348,8 +7257,6 @@ in-process Alloy-shaped path).
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -7379,10 +7286,8 @@ in-process Alloy-shaped path).
 - transform/fromPure/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping => mapping 'meta::pure::mapping::modelToModel::test::shared::relationalMapping' binds unknown class '_S_Person'
 - transform/fromPure/tests meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::sqlstring::toSQLStringPretty => Unknown type: 'Extension' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::sqlstring::toSQL => Unknown type: 'Extension' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::sqlstring::toSQLString => Unknown type: 'Extension' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::sqlstring::toNonExecutableSQLString => Unknown type: 'Extension' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::sqlstring::toSQL => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::sqlstring::toSQLString => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::sqlstring::findDBCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::sqlstring::SQLResult$prop$toSQLString => Unknown type: 'Format' is not a known primitive, class, or enum
 - validation/showcase duplicate Function::meta::relational::validation::showcase::standalone::validateAllConstraints() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/showcase/validationStandaloneShowcase.pure, kept validation/showcase/sibling-3.pure)
@@ -7398,7 +7303,7 @@ in-process Alloy-shaped path).
 - validation/showcase duplicate LegacyMappingDefinition::meta::relational::validation::showcase::standalone::validationShowcaseMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/showcase/validationStandaloneShowcase.pure, kept validation/showcase/sibling-3.pure)
 - validation/showcase duplicate LegacyMappingDefinition::meta::relational::validation::showcase::standalone::validationShowcaseMappingWithInnerJoinsInFilter (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/showcase/validationStandaloneShowcase.pure, kept validation/showcase/sibling-3.pure)
 - validation/showcase duplicate DatabaseDefinition::meta::relational::validation::showcase::standalone::db (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/showcase/validationStandaloneShowcase.pure, kept validation/showcase/sibling-3.pure)
-- validation/showcase meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- validation/showcase meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - validation/showcase meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -7408,7 +7313,7 @@ in-process Alloy-shaped path).
 - validation/showcase meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/showcase meta::relational::validation::validate => Unknown type: 'Extension' is not a known primitive, class, or enum
+- validation/showcase meta::relational::validation::validate => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::generateValidationQuery => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::functions::tranformPostTDSOperation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::functions::resolveVars => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -7416,8 +7321,6 @@ in-process Alloy-shaped path).
 - validation/showcase meta::relational::validation::functions::generateConstraintNegatedFilteredQuery => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::functions::negatedFunctionExpression => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::functions::getTables => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- validation/showcase meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- validation/showcase meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - validation/showcase meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -7458,7 +7361,7 @@ in-process Alloy-shaped path).
 - validation/tests duplicate Function::meta::relational::validation::complex::validateComplexValidation8() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testComplexValidations.pure, kept validation/tests/sibling-2.pure)
 - validation/tests duplicate Function::meta::relational::validation::complex::validateComplexValidation9() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testComplexValidations.pure, kept validation/tests/sibling-2.pure)
 - validation/tests duplicate Function::meta::relational::validation::complex::validateComplexValidation10() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testComplexValidations.pure, kept validation/tests/sibling-2.pure)
-- validation/tests meta::relational::extension::RelationalExtension => Unknown type: 'Extension' is not a known primitive, class, or enum
+- validation/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - validation/tests meta::relational::runtime::RelationalExecutionContext => Unknown type: 'Column' is not a known primitive, class, or enum
 - validation/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - validation/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -7469,15 +7372,12 @@ in-process Alloy-shaped path).
 - validation/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - validation/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - validation/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/tests meta::relational::validation::validate => Unknown type: 'Extension' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::tranformPostTDSOperation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::resolveVars => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::generateConstraintNegatedProjectQuery => Unknown type: 'Constraint' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::generateConstraintNegatedFilteredQuery => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::negatedFunctionExpression => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::getTables => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- validation/tests meta::relational::extension::relationalExtensions => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
-- validation/tests meta::relational::extension::relationalExtension => Unknown type: 'meta::pure::extension::Extension' is not a known primitive, class, or enum
 - validation/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - validation/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
@@ -7492,7 +7392,6 @@ in-process Alloy-shaped path).
 - validation/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::relationGrammarConfiguration => Unknown type: 'meta::pure::metamodel::serialization::grammar::Configuration' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
-- validation/tests meta::relational::runtime::hasFunctionActivatorExecutionContext => Unknown type: 'meta::pure::runtime::ExecutionContext' is not a known primitive, class, or enum
 - validation/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - validation/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - validation/tests meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$TradePnl => Unknown type: 'TradePnl' is not a known primitive, class, or enum
@@ -7662,6 +7561,7 @@ in-process Alloy-shaped path).
 - validation/tests meta::relational::tests::milestoning::nestedExistsEmbeddedMapping => mapping 'meta::relational::tests::milestoning::nestedExistsEmbeddedMapping' binds unknown class 'ParentEntity'
 - validation/tests meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap => mapping 'meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap' binds unknown class 'RootEntity'
 - validation/tests meta::relational::tests::milestoning::bookCatalogMap => mapping 'meta::relational::tests::milestoning::bookCatalogMap' binds unknown class 'meta::relational::tests::milestoning::inheritance::Author'
+- validation/tests meta::relational::validation::validate => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::generateValidationQuery => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/tests duplicate ClassDefinition::meta::relational::validation::tests::milestoning::Product (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure, kept validation/tests/sibling-3.pure)
 - validation/tests duplicate ClassDefinition::meta::relational::validation::tests::milestoning::ProductClassification (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure, kept validation/tests/sibling-3.pure)
@@ -7705,7 +7605,7 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 6x no overload of 'executionPlan' matches 2 argument(s) of these shapes (no candidates at all)
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -7989,8 +7889,8 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -8084,7 +7984,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - SHAPE testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8128,13 +8028,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -8294,44 +8194,19 @@ in-process Alloy-shaped path).
 - SHAPE testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates [testDataGeneration/tests]: testDataGen: temporalMilestoningDates pending
 - SHAPE testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates [testDataGeneration/tests]: testDataGen: temporalMilestoningDates pending
 - SHAPE testDataGenerationWithSnapshotMilestoning_WithMilestoningDates [testDataGeneration/tests]: testDataGen: temporalMilestoningDates pending
-- ERROR testTableToTdsWithAppliedFunctions [testDataGeneration/tests]: no overload of 'meta::pure::tds::filter' matches 2 argument(s) of these shapes (no candidates at all)
 - SHAPE testTableToTdsWithJoinToSameTable [testDataGeneration/tests]: scanRelations: tableToTDS join steps pending
 - SHAPE testTableToTDSMultipleJoins [testDataGeneration/tests]: scanRelations: tableToTDS join steps pending
 - SHAPE testTableToTdsWithJoinAndUnion [testDataGeneration/tests]: scanRelations: tableToTDS join steps pending
 - SHAPE testTableToTdsWithJoinAndOLAPGroupBy [testDataGeneration/tests]: scanRelations: tableToTDS join steps pending
 - SHAPE testGenerateSeedDataWithQuotedColumns [testDataGeneration/tests]: no execute(|...) call
 - SHAPE TestDatGenForNestedViews [testDataGeneration/tests]: testDataGen: view-backed relation 'ViewOnViewSchool' — view slice pending
-- SHAPE testConstant_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSimpleSingleTable_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSimpleTwoTable_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSimpleTwoTableMultipleStartRows_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSimpleSingleTableWithNoDataToInsert_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testInheritanceMultipleTableJoin_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testInheritanceMultipleLevel_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testQualifier_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSelfJoin_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testUnionToUnionMultipleLevels_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testViewEmbeddedInChainedJoin_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSimpleViewRootToJoin_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testSimpleTableToViewJoin_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testUnionToUnionMultipleLevelsWithStringHashing_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testViewRootWithDefaultSeed_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testViewChild_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testViewWithGroupByRoot_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testViewWithGroupByChild_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testTableToTDSSimple [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testTableToTdsWithAppliedFunctions [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testTableToTdsWithConcatenate [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testTableToTDSMultipleJoins [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testTableToTdsWithJoinAndUnion [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testAlloyTestDatGenWithQuotedColumns [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testAlloyTestDatGenWithViewAsDriver [testDataGeneration/tests]: no execute(|...) call
-- SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: no execute(|...) call
+- SHAPE testConstant_Alloy [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy [testDataGeneration/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
+- SHAPE testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy [testDataGeneration/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
+- SHAPE testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy [testDataGeneration/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
+- SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
+- SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testGenerateNecessaryTableColumnsForSingleTable [testDataGeneration/tests]: no execute(|...) call
 - SHAPE testGenerateNecessaryTableColumnsForMultiTables [testDataGeneration/tests]: no execute(|...) call
 - SHAPE testGenerateNecessaryTableColumnsForMilestoningTable [testDataGeneration/tests]: no execute(|...) call
@@ -8446,7 +8321,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -8543,7 +8418,6 @@ in-process Alloy-shaped path).
 - SHAPE testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification

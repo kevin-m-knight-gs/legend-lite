@@ -46,6 +46,13 @@ final class TestDataGenForm {
         return findCall(rhs, "generateTestData") != null;
     }
 
+    /** planTestDataGeneration: a PLAN-TEXT contract (MultiResultSequence
+     * printout with engine-H2 SQL per fetch) — pending the tdg plan
+     * printer. */
+    static boolean hasPlanGenerate(ValueSpecification rhs) {
+        return findCall(rhs, "planTestDataGeneration") != null;
+    }
+
     /** Parse + run. Walls throw {@link NotImplementedException}. */
     static TestDataGenerator.Result run(ValueSpecification rhs,
             ModelContext ctx, ImportScope imports, Connection conn)

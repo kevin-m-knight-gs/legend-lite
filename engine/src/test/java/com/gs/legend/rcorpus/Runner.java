@@ -515,7 +515,8 @@ public final class Runner {
                                 // generateTestData(q, MAPPING, runtime,
                                 // ids, ...) — #46: TestDataGenForm routes
                                 // at TestBody
-                                || simple.equals("generateTestData"))
+                                || simple.equals("generateTestData")
+                                || simple.equals("planTestDataGeneration"))
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;
@@ -558,8 +559,56 @@ public final class Runner {
                 }
             }
         }
+        // ALLOY-WRAPPER bodies (mayExecuteAlloyTest — the server thunk
+        // never runs here, engine no-server CI parity): nothing above
+        // matched a call shape, but the module is still defined by the
+        // test's let-bound element pointers (mapping/db) — pull those so
+        // the setup statements can run (#46 _Alloy subfamily).
+        if (out.isEmpty() && lets.values().stream().anyMatch(v ->
+                v != null && containsCallNamed(v, "mayExecuteAlloyTest"))
+                || out.isEmpty() && body.stream().anyMatch(v ->
+                containsCallNamed(v, "mayExecuteAlloyTest"))) {
+            for (com.legend.model.spec.ValueSpecification v : lets.values()) {
+                if (v instanceof com.legend.model.spec.PackageableElementPtr p2) {
+                    String ref = qualify(p2.fullPath(), t);
+                    if (ref.matches("[\\w:]+") && !out.contains(ref)) {
+                        out.add(ref);
+                    }
+                }
+            }
+        }
         return out;
     }
+    private static boolean containsCallNamed(
+            com.legend.model.spec.ValueSpecification n, String name) {
+        if (n instanceof com.legend.model.spec.AppliedFunction af) {
+            if (name.equals(af.function()
+                    .substring(af.function().lastIndexOf(':') + 1))) {
+                return true;
+            }
+            for (com.legend.model.spec.ValueSpecification p : af.parameters()) {
+                if (containsCallNamed(p, name)) {
+                    return true;
+                }
+            }
+        } else if (n instanceof com.legend.model.spec.AppliedProperty ap) {
+            return containsCallNamed(ap.receiver(), name);
+        } else if (n instanceof com.legend.model.spec.LambdaFunction lf) {
+            for (com.legend.model.spec.ValueSpecification b : lf.body()) {
+                if (containsCallNamed(b, name)) {
+                    return true;
+                }
+            }
+        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+            for (com.legend.model.spec.ValueSpecification e : pc.values()) {
+                if (containsCallNamed(e, name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 
     /** Qualify a bare mapping reference via the test's imports + the
      * PARSED element index — never substring search over source text

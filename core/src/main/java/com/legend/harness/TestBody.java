@@ -256,15 +256,13 @@ public final class TestBody {
         List<ValueSpecification> execStmts = new ArrayList<>();
         java.util.Set<String> execVars = new java.util.HashSet<>();
         Map<String, ValueSpecification> execChains = new LinkedHashMap<>();
-        // generateTestData bindings (#46) — data lives in DuckDB temp
-        // tables; this holds only the SQL trail + CSV text per let
+        // #46 state — see tdgLetArm/checkTdgAssert for the semantics of
+        // each surface (generator results, plan-transparent executionPlan
+        // bindings, inert plan-text lets)
         Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg =
                 new LinkedHashMap<>();
-        // executionPlan(q,m,rt,ext) bindings: the handle only ever flows
-        // into $plan->execute(...), which re-forms as the execute native
-        // (plan-transparent execution — identical row semantics; nothing
-        // here inspects plan text)
         Map<String, AppliedFunction> planLets = new LinkedHashMap<>();
+        java.util.Set<String> planText = new java.util.HashSet<>();
         int verified = 0;
         int advisory = 0;
         int executed = 0;
@@ -337,10 +335,7 @@ public final class TestBody {
                         + simpleName(wrap.function())
                         + "' carries no zero-arg lambda body");
             }
-            List<ValueSpecification> unrolledLoop = enumDriverLoop(stmt);
-            if (unrolledLoop == null) {
-                unrolledLoop = resultVarLoop(stmt);
-            }
+            List<ValueSpecification> unrolledLoop = spliceForms(stmt);
             if (unrolledLoop != null) {
                 for (int i = unrolledLoop.size() - 1; i >= 0; i--) {
                     work.addFirst(unrolledLoop.get(i));
@@ -359,7 +354,7 @@ public final class TestBody {
                 // #46 arms: generateTestData binding / literal read
                 // inlining / plan-transparent executionPlan chain
                 TdgLet tl = tdgLetArm(name, rhs, lets, tdg, planLets,
-                        ctx, imports, conn);
+                        planText, ctx, imports, conn);
                 if (tl.wall() != null) {
                     return tl.wall();
                 }
@@ -427,7 +422,7 @@ public final class TestBody {
                         execChains, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
                                 || seedFailures != null && !seedFailures.isEmpty(),
-                        tdg);
+                        tdg, planText);
                 if (failure == UNSUPPORTED_MARKER) {
                     return new Outcome.Unsupported("assert form '" + af.function()
                             + "/" + af.parameters().size() + "' is not supported yet");
@@ -663,6 +658,37 @@ public final class TestBody {
     private static final String ADVISORY_MARKER = new String("advisory");
     private static final String NOT_TDG_MARKER = new String("not-tdg");
 
+    /** The statement-splice forms, first match wins: per-driver golden
+     * loops, result-var loops, the alloy fallback. */
+    private static List<ValueSpecification> spliceForms(
+            ValueSpecification stmt) {
+        List<ValueSpecification> out = enumDriverLoop(stmt);
+        if (out == null) {
+            out = resultVarLoop(stmt);
+        }
+        if (out == null) {
+            out = alloyFallback(stmt);
+        }
+        return out;
+    }
+
+    /** {@code mayExecuteAlloyTest(serverThunk, fallbackThunk)}: no Alloy
+     * server exists in this environment, so the FALLBACK thunk's body
+     * splices — the engine's own no-server CI takes the same branch
+     * (usually {@code {|true}}). A non-lambda fallback returns null and
+     * the statement walls loudly downstream. */
+    private static List<ValueSpecification> alloyFallback(
+            ValueSpecification stmt) {
+        if (stmt instanceof AppliedFunction af
+                && simpleName(af.function()).equals("mayExecuteAlloyTest")
+                && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof LambdaFunction fb
+                && fb.parameters().isEmpty()) {
+            return new ArrayList<>(fb.body());
+        }
+        return null;
+    }
+
     /** meta::legend::executeLegendQuery(q, vars, ctx, ext) over a
      * zero-arg lambda: the lambda body IS the query; the result is the
      * engine's SERIALIZED scalar — booleans/numbers match toString;
@@ -708,9 +734,18 @@ public final class TestBody {
     private static TdgLet tdgLetArm(CString name, ValueSpecification rhs,
             Map<String, ValueSpecification> lets,
             Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
-            Map<String, AppliedFunction> planLets, ModelContext ctx,
+            Map<String, AppliedFunction> planLets,
+            java.util.Set<String> planText, ModelContext ctx,
             ImportScope imports, Connection conn)
             throws java.sql.SQLException {
+        if (TestDataGenForm.hasPlanGenerate(rhs)) {
+            // the binding itself is inert; only an ASSERT over the plan
+            // text is the pending contract (checkTdgAssert walls it) —
+            // wrapper-only tests that never read the plan keep their
+            // engine-parity pass
+            planText.add(name.value());
+            return new TdgLet(null, null, true);
+        }
         if (TestDataGenForm.hasGenerate(rhs)) {
             try {
                 tdg.put(name.value(), TestDataGenForm.run(rhs, ctx,
@@ -765,6 +800,7 @@ public final class TestBody {
             List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
+            java.util.Set<String> planText,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
             ImportScope imports, String runtimeFqn, Connection conn)
@@ -831,7 +867,44 @@ public final class TestBody {
                 }
             }
         }
+        if (!planText.isEmpty()) {
+            for (ValueSpecification arg : args) {
+                if (referencesAnyVar(arg, planText)) {
+                    // plan-text contract — pending the tdg plan printer
+                    return UNSUPPORTED_MARKER;
+                }
+            }
+        }
         return NOT_TDG_MARKER;
+    }
+
+    private static boolean referencesAnyVar(ValueSpecification v,
+            java.util.Set<String> names) {
+        if (v instanceof Variable var) {
+            return names.contains(var.name());
+        }
+        if (v instanceof AppliedFunction af2) {
+            for (ValueSpecification p : af2.parameters()) {
+                if (referencesAnyVar(p, names)) {
+                    return true;
+                }
+            }
+        } else if (v instanceof AppliedProperty ap) {
+            return referencesAnyVar(ap.receiver(), names);
+        } else if (v instanceof PureCollection pc) {
+            for (ValueSpecification e : pc.values()) {
+                if (referencesAnyVar(e, names)) {
+                    return true;
+                }
+            }
+        } else if (v instanceof LambdaFunction lf) {
+            for (ValueSpecification b2 : lf.body()) {
+                if (referencesAnyVar(b2, names)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** null = held; ADVISORY_MARKER = golden-SQL; UNSUPPORTED_MARKER; else the failure text. */
@@ -841,13 +914,15 @@ public final class TestBody {
             Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn,
             boolean emptinessUnverifiable,
-            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg)
+            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
+            java.util.Set<String> planText)
             throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
         // testDataGen reads (#46) route to the bound generator result —
         // extracted arm (checkAssert length guardrail)
-        String tdgOut = checkTdgAssert(af, args, lets, tdg, execStmts,
-                execVars, execChains, ctx, imports, runtimeFqn, conn);
+        String tdgOut = checkTdgAssert(af, args, lets, tdg, planText,
+                execStmts, execVars, execChains, ctx, imports, runtimeFqn,
+                conn);
         if (tdgOut != NOT_TDG_MARKER) {
             return tdgOut;
         }
@@ -1139,7 +1214,7 @@ public final class TestBody {
                         String failure = checkAssert(af2, loopLets,
                                 execStmts, execVars, execChains, ctx,
                                 imports, runtimeFqn, conn,
-                                unverifiable, Map.of());
+                                unverifiable, Map.of(), java.util.Set.of());
                         if (failure == UNSUPPORTED_MARKER) {
                             return new Outcome.Unsupported(
                                     "assert form '" + af2.function()
