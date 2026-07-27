@@ -123,7 +123,7 @@ public final class ScanRelations {
             }
             return out;
         }
-        List<Node> roots = buildRoots(ctx, query, mappingFqn);
+        List<Node> roots = buildRoots(ctx, query, mappingFqn, true);
         if (roots.isEmpty()) {
             // constant-only projection: no scanned path, but the root
             // class's table is still the tree (engine testConstant)
@@ -490,6 +490,16 @@ public final class ScanRelations {
 
     private static List<Node> buildRoots(ModelContext ctx,
             LambdaFunction query, String mappingFqn) {
+        return buildRoots(ctx, query, mappingFqn, false);
+    }
+
+    /** {@code tdgMode}: the #46 data consumer — union-mapped JOIN targets
+     * branch a child PER TARGET SET (the engine's testDataGeneration
+     * relation tree fetches every set, its own goldens carry the
+     * duplicate SQLs); treeString's lineage vocabulary keeps the
+     * single-target shape. */
+    private static List<Node> buildRoots(ModelContext ctx,
+            LambdaFunction query, String mappingFqn, boolean tdgMode) {
         LegacyMappingDefinition md = mapping(ctx, mappingFqn);
         String rootClass = rootClassFqn(query);
         // a UNION-mapped root walks ONCE PER SET, one root table node
@@ -511,7 +521,7 @@ public final class ScanRelations {
                 }
             }
             for (int i = 0; i < rootCms.size(); i++) {
-                walk(ctx, md, rootCms.get(i), roots.get(i), p, 0);
+                walk(ctx, md, rootCms.get(i), roots.get(i), p, 0, tdgMode);
             }
         }
         return roots;
@@ -720,7 +730,8 @@ public final class ScanRelations {
     // ------------------------------------------------------------------
 
     private static void walk(ModelContext ctx, LegacyMappingDefinition md,
-            ClassMapping.Relational cm, Node node, List<Seg> path, int i) {
+            ClassMapping.Relational cm, Node node, List<Seg> path, int i,
+            boolean tdgMode) {
         if (i >= path.size()) {
             return;
         }
@@ -746,10 +757,10 @@ public final class ScanRelations {
                 for (List<Seg> sub : expanded.results()) {
                     List<Seg> spliced = new ArrayList<>(sub);
                     spliced.addAll(path.subList(next, path.size()));
-                    walk(ctx, md, cm, node, spliced, 0);
+                    walk(ctx, md, cm, node, spliced, 0, tdgMode);
                 }
                 for (List<Seg> side : expanded.sides()) {
-                    walk(ctx, md, cm, node, side, 0);
+                    walk(ctx, md, cm, node, side, 0, tdgMode);
                 }
                 return;
             }
@@ -797,7 +808,11 @@ public final class ScanRelations {
                     }
                     Node child = joinChain(ctx, md, node, j.database(),
                             j.joins());
-                    walk(ctx, md, target, child, path, next);
+                    walk(ctx, md, target, child, path, next, tdgMode);
+                    if (tdgMode) {
+                        unionSiblings(ctx, md, node, child, target, st,
+                                path, next);
+                    }
                 }
                 case PropertyMapping.JoinTerminalColumn jt -> {
                     Node child = joinChain(ctx, md, node, jt.database(),
@@ -814,6 +829,53 @@ public final class ScanRelations {
                         + pm.getClass().getSimpleName()
                         + " property mapping is not supported yet");
             }
+        }
+    }
+
+    /** #46 union-target expansion: the engine's testDataGeneration tree
+     * fetches a union-mapped JOIN target once PER SET — its own goldens
+     * carry the duplicate per-set SQLs. Each extra set gets a SIBLING of
+     * the walked child (same table/edge) and its own sub-walk. */
+    private static void unionSiblings(ModelContext ctx,
+            LegacyMappingDefinition md, Node parent, Node child,
+            ClassMapping.Relational walked, Seg.SubType st, List<Seg> path,
+            int next) {
+        List<ClassMapping.Relational> sets;
+        try {
+            sets = rootClassMappings(ctx, md, walked.className());
+        } catch (NotImplementedException e) {
+            return;
+        }
+        if (sets.size() < 2) {
+            return;
+        }
+        int k = 0;
+        for (ClassMapping.Relational cm2 : sets) {
+            k++;
+            if (Objects.equals(cm2.setId(), walked.setId())
+                    || st != null
+                       && !typeMatches(cm2.className(), st.classFqn())) {
+                continue;
+            }
+            // only SAME-TABLE sibling sets fetch through the cloned edge
+            // (a different-table set has no rows reachable via this join
+            // — testUnionToUnionMultipleLevels' per-set tables)
+            String mt2;
+            try {
+                mt2 = mainTableOf(cm2);
+            } catch (NotImplementedException e) {
+                continue;
+            }
+            if (!mt2.equals(child.table)) {
+                continue;
+            }
+            String key = child.table + "(" + child.joinName + ")[set" + k
+                    + "]";
+            Node dup = parent.children.computeIfAbsent(key,
+                    x -> new Node(child.db, child.table, child.joinName));
+            dup.cols.addAll(child.cols);
+            dup.cond = child.cond;
+            walk(ctx, md, cm2, dup, path, next, true);
         }
     }
 
@@ -1249,7 +1311,14 @@ public final class ScanRelations {
                 }
             }
         }
-        hits.removeIf(cm -> mainTableOf(cm).equals(bare(fromTable)));
+        // prefer sets on OTHER tables — but a SELF-JOIN's target IS the
+        // from-table, so never empty the candidate list
+        List<ClassMapping.Relational> nonSelf = hits.stream()
+                .filter(cm -> !mainTableOf(cm).equals(bare(fromTable)))
+                .toList();
+        if (!nonSelf.isEmpty()) {
+            hits = new ArrayList<>(nonSelf);
+        }
         if (hits.size() > 1 && targetClassHint != null) {
             // several classes share the join's table: the PROPERTY's
             // declared type picks the set (engine findPropertyMapping

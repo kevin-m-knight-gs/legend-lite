@@ -378,11 +378,9 @@ public final class TestDataGenerator {
                 continue;
             }
             DatabaseDefinition db = dbo.get();
-            for (DatabaseDefinition.TableDefinition t : db.tables()) {
-                if (t.name().equals(table)) {
-                    return new Located("default", t);
-                }
-            }
+            // NAMED schemas first: the top-level table list may flatten
+            // schema-owned tables, and the CSV contract spells the
+            // OWNING schema (testQualifier's productSchema)
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (DatabaseDefinition.TableDefinition t : s.tables()) {
                     if (t.name().equals(table)) {
@@ -395,6 +393,11 @@ public final class TestDataGenerator {
                                 + " view-backed relation '" + table
                                 + "' — view slice pending");
                     }
+                }
+            }
+            for (DatabaseDefinition.TableDefinition t : db.tables()) {
+                if (t.name().equals(table)) {
+                    return new Located("default", t);
                 }
             }
             for (DatabaseDefinition.ViewDefinition v : db.views()) {
