@@ -590,22 +590,47 @@ final class JoinChainEmission {
 
     static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
                                                    List<JoinNavSpec> out) {
+        collectJoinNavigationsInPms(pms, out, null);
+    }
+
+    /** {@code md} non-null resolves Inline splice references — the
+     * referenced set's expression-level {@code @Join} navigations hoist
+     * into the OWNER pipeline exactly like a direct embedded block. */
+    static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
+            List<JoinNavSpec> out, LegacyMappingDefinition md) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.EnumeratedExpression ee -> collectJoinNavigations(ee.expression(), out);
                 case PropertyMapping.Expression expr -> collectJoinNavigations(expr.expression(), out);
-                case PropertyMapping.LocalProperty lp -> collectJoinNavigationsInPms(List.of(lp.body()), out);
-                case PropertyMapping.Embedded emb -> collectJoinNavigationsInPms(emb.propertyMappings(), out);
+                case PropertyMapping.LocalProperty lp -> collectJoinNavigationsInPms(List.of(lp.body()), out, md);
+                case PropertyMapping.Embedded emb -> collectJoinNavigationsInPms(emb.propertyMappings(), out, md);
                 case PropertyMapping.OtherwiseEmbedded oe ->
-                        collectJoinNavigationsInPms(oe.embedded(), out);
+                        collectJoinNavigationsInPms(oe.embedded(), out, md);
                 case PropertyMapping.JoinTerminalColumn jtc ->
                         collectJoinNavigations(jtc.terminalColumn(), out);
-                // Join / Column / EnumeratedColumn / InlineEmbedded:
-                // Join handled by Pass 1; the others don't carry JoinNav.
+                // an Inline splice CARRIES the referenced set's JoinNavs
+                // (bookCatalogMap: authors() Inline[author_impl] whose
+                // author_impl reads @Book_Authorship | ...) — resolvable
+                // only with the enclosing mapping in hand
+                case PropertyMapping.InlineEmbedded ie -> {
+                    if (md != null) {
+                        for (var cm : md.classMappings()) {
+                            if (cm instanceof ClassMapping.Relational r2
+                                    && java.util.Objects.equals(
+                                            MappingNormalizer.setIdOf(r2),
+                                            ie.setId())) {
+                                collectJoinNavigationsInPms(
+                                        r2.propertyMappings(), out, md);
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Join / Column / EnumeratedColumn: Join handled by
+                // Pass 1; the others don't carry JoinNav.
                 case PropertyMapping.Join ignored -> { }
                 case PropertyMapping.Column ignored -> { }
                 case PropertyMapping.EnumeratedColumn ignored -> { }
-                case PropertyMapping.InlineEmbedded ignored -> { }
             }
         }
     }

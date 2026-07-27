@@ -2225,7 +2225,7 @@ public final class MappingNormalizer {
         // Direct filter conditions. Each unique chain becomes a clean
         // join(...) step; dedup via aliasToTargetTable.
         List<JoinChainEmission.JoinNavSpec> nested = new ArrayList<>();
-        JoinChainEmission.collectJoinNavigationsInPms(rcm.propertyMappings(), nested);
+        JoinChainEmission.collectJoinNavigationsInPms(rcm.propertyMappings(), nested, md);
         for (RelationalOperation key : rcm.groupBy()) {
             JoinChainEmission.collectJoinNavigations(key, nested);
         }
