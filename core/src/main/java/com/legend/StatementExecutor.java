@@ -188,6 +188,30 @@ final class StatementExecutor {
                 result = planToString(pln, specs, env);
                 continue;
             }
+            // $plan.processingTemplateFunctions — the ExecutionPlan class
+            // property (executionPlan.pure:67): every relational node
+            // carries relationalPlanSupportFunctions(connection), deduped
+            // plan-wide (executionPlan_generation.pure:215)
+            if (preRoot instanceof com.legend.compiler.spec.typed
+                            .TypedPropertyAccess ppa
+                    && ppa.property().equals("processingTemplateFunctions")
+                    && ppa.source() instanceof com.legend.compiler.spec.typed
+                            .TypedNativeCall pep
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .EXECUTION_PLAN.equals(
+                                    pep.callee().qualifiedName())) {
+                result = new ExecutionResult.Collection(
+                        java.util.List.copyOf(com.legend.plan
+                                .PlanSupportFunctions
+                                .relationalPlanSupportFunctions(
+                                        pep.args().size() > 2
+                                                ? timeZoneOf(
+                                                        pep.args().get(2))
+                                                : null)),
+                        com.legend.compiler.element.type.Type
+                                .Primitive.STRING);
+                continue;
+            }
             // execute() in RESULT position: the eager frame run IS the value
             // (the Result envelope is typing-only — the chain's rows are what
             // a reader observes).
@@ -267,7 +291,8 @@ final class StatementExecutor {
     private static EngineSql engineSql(java.util.List<TypedSpec> raw,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer,
-            java.util.Map<String, Boolean> planParams) {
+            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
+                    planParams) {
         java.util.List<TypedSpec> body =
                 new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(raw);
@@ -278,7 +303,7 @@ final class StatementExecutor {
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent());
-        planParams.forEach(lw::bindPlanParam);
+        planParams.values().forEach(lw::bindPlanParam);
         com.legend.sql.SqlQuery plan = lw.lower(body);
         return new EngineSql(plan, renderer.render(plan), body);
     }
@@ -308,8 +333,14 @@ final class StatementExecutor {
         }
         boolean quote = ep.args().size() > 2
                 && quoteIdentifiersOf(ep.args().get(2));
+        String tz = ep.args().size() > 2
+                ? timeZoneOf(ep.args().get(2)) : null;
+        String connName = ep.args().size() > 2
+                ? connectionNameOf(ep.args().get(2))
+                : "TestDatabaseConnection";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
-            return sequencePlan(lam, pr.fullPath(), specs, env, quote);
+            return sequencePlan(lam, pr.fullPath(), specs, env, quote, tz,
+                    connName);
         }
         String rootClass = rootGetAllClass(lam.body());
         if (rootClass == null) {
@@ -326,7 +357,7 @@ final class StatementExecutor {
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body()),
+                        lam.body(), connName),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -338,11 +369,12 @@ final class StatementExecutor {
     private static ExecutionResult sequencePlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env, boolean quote) {
+            ExecEnv env, boolean quote, String timeZone,
+            String connName) {
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
-        java.util.LinkedHashMap<String, Boolean> params =
-                new java.util.LinkedHashMap<>();
+        java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
+                params = new java.util.LinkedHashMap<>();
         java.util.List<String> children = new java.util.ArrayList<>();
         if (!lam.parameters().isEmpty()) {
             StringBuilder ps = new StringBuilder();
@@ -355,8 +387,16 @@ final class StatementExecutor {
                         .append(com.legend.plan.PlanText
                                 .pureTypeName(p.type()))
                         .append(multBracket(p.multiplicity()));
-                params.put(lam.parameters().get(i), p.type()
-                        == com.legend.compiler.element.type.Type.Primitive.STRING);
+                boolean opt = p.multiplicity() instanceof
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded ob
+                        && ob.lower() == 0
+                        && Integer.valueOf(1).equals(ob.upper());
+                params.put(lam.parameters().get(i),
+                        new com.legend.sql.SqlExpr.PlanParam(
+                                lam.parameters().get(i),
+                                com.legend.lowering.PlanParams.kindOf(
+                                        p.type()), opt));
             }
             children.add(com.legend.plan.PlanText
                     .functionParametersNode(ps.toString()));
@@ -369,8 +409,9 @@ final class StatementExecutor {
             }
             children.add(allocationNode(let, mappingFqn, specs, env,
                     params, quote));
-            params.put(let.name(), let.info().type()
-                    == com.legend.compiler.element.type.Type.Primitive.STRING);
+            params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
+                    let.name(), com.legend.lowering.PlanParams.kindOf(
+                            let.info().type())));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
         String rootClass = rootGetAllClass(java.util.List.of(term));
@@ -379,9 +420,11 @@ final class StatementExecutor {
                     "plan: sequence terminal without a getAll root");
         }
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
-                env, new com.legend.sql.dialect.EngineStyleH2(quote), params);
+                env, new com.legend.sql.dialect.EngineStyleH2(quote,
+                        timeZone), params);
         children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
-                mappingFqn, es.plan(), es.sql(), java.util.List.of(term)));
+                mappingFqn, es.plan(), es.sql(), java.util.List.of(term),
+                connName));
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         return new ExecutionResult.Scalar(
@@ -401,7 +444,8 @@ final class StatementExecutor {
     private static String allocationNode(
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            java.util.Map<String, Boolean> params, boolean quote) {
+            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
+            boolean quote) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -476,9 +520,9 @@ final class StatementExecutor {
     private static String sizeRange(
             com.legend.compiler.element.type.Multiplicity m) {
         if (m instanceof com.legend.compiler.element.type.Multiplicity
-                .Bounded b && b.lower() == 1 && Integer.valueOf(1)
-                        .equals(b.upper())) {
-            return "1";
+                .Bounded b && b.upper() != null) {
+            return b.lower() == b.upper() ? String.valueOf(b.lower())
+                    : b.lower() + ".." + b.upper();
         }
         throw new com.legend.error.NotImplementedException(
                 "plan: multiplicity spelling for " + m + " pending");
@@ -501,6 +545,48 @@ final class StatementExecutor {
             work.addAll(t.children());
         }
         return false;
+    }
+
+    /** The engine connection's timeZone, read off the RUNTIME argument
+     * (an inline DatabaseConnection(timeZone='US/Arizona')). Null when
+     * absent — the default-zone connection. */
+    private static String timeZoneOf(TypedSpec runtimeArg) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(runtimeArg);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                    && ni.properties().get("timeZone")
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedCString tzs) {
+                return tzs.value();
+            }
+            work.addAll(t.children());
+        }
+        return null;
+    }
+
+    /** The runtime connection's CLASS simple name (exact-FQN dispatch)
+     * — the plan text spells the instance's own type. */
+    private static String connectionNameOf(TypedSpec runtimeArg) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(runtimeArg);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed
+                    .TypedNewInstance ni) {
+                if (ni.classFqn().equals("meta::external::store::relational"
+                        + "::runtime::DatabaseConnection")) {
+                    return "DatabaseConnection";
+                }
+                if (ni.classFqn().equals("meta::external::store::relational"
+                        + "::runtime::TestDatabaseConnection")) {
+                    return "TestDatabaseConnection";
+                }
+            }
+            work.addAll(t.children());
+        }
+        return "TestDatabaseConnection";
     }
 
     private static String rootGetAllClass(java.util.List<TypedSpec> body) {

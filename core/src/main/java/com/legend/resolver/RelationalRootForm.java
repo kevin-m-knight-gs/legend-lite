@@ -89,7 +89,13 @@ public final class RelationalRootForm {
                     new TypedLambda(List.of(g.rowVar()), List.of(read),
                             new ExprType(fnType, one))));
         }
-        cols.addAll(g.leaves());
+        // ENUM-typed leaves project the RAW source column in the flat
+        // relational form — the engine's enum transform is host-side
+        // object assembly, never part of this SELECT (plan goldens spell
+        // "root".TYPE with the column's own dataType)
+        for (TypedFuncCol leaf : g.leaves()) {
+            cols.add(enumRawColumn(leaf).orElse(leaf));
+        }
         // sortBy PATH ALIASES materialize as o_<alias> sort-key columns
         // (engine buildColumnNameOutOfPath — the flat form projects the
         // sort key; column order: pk_, props, o_* last)
@@ -132,6 +138,49 @@ public final class RelationalRootForm {
         List<TypedSpec> out = new ArrayList<>(body);
         out.set(out.size() - 1, proj);
         return out;
+    }
+
+    /** An enum-decode leaf reduced to its single source-column read; empty
+     * when the leaf is not enum-typed or reads several columns. */
+    private static java.util.Optional<TypedFuncCol> enumRawColumn(
+            TypedFuncCol leaf) {
+        var body = leaf.fn().body();
+        if (body.isEmpty() || !(body.get(body.size() - 1).info().type()
+                instanceof Type.EnumType)) {
+            return java.util.Optional.empty();
+        }
+        String rowVar = leaf.fn().parameters().isEmpty() ? null
+                : leaf.fn().parameters().get(0);
+        java.util.List<TypedPropertyAccess> reads = new ArrayList<>();
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof TypedPropertyAccess pa
+                    && pa.source() instanceof TypedVariable v
+                    && v.name().equals(rowVar)) {
+                if (reads.stream().noneMatch(
+                        r -> r.property().equals(pa.property()))) {
+                    reads.add(pa);
+                }
+                continue;
+            }
+            work.addAll(t.children());
+        }
+        if (reads.size() != 1) {
+            return java.util.Optional.empty();
+        }
+        TypedPropertyAccess read = reads.get(0);
+        var fnType = new Type.FunctionType(
+                java.util.List.of(new Type.Param(
+                        ((Type.FunctionType) leaf.fn().info().type())
+                                .params().get(0).type(),
+                        Multiplicity.Bounded.ONE)),
+                new Type.Param(read.info().type(),
+                        read.info().multiplicity()));
+        return java.util.Optional.of(new TypedFuncCol(leaf.name(),
+                new TypedLambda(leaf.fn().parameters(),
+                        java.util.List.of(read),
+                        new ExprType(fnType, Multiplicity.Bounded.ONE))));
     }
 
     /**

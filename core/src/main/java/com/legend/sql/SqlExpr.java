@@ -70,15 +70,16 @@ public sealed interface SqlExpr
      * Allocation-bound variable). Plan-text vocabulary only: it renders
      * through the engine-style dialect and is a loud error in any
      * executable dialect. */
-    record PlanParam(String name, Kind kind) implements SqlExpr {
-        public enum Kind { STRING, DATE, OTHER }
+    record PlanParam(String name, Kind kind, boolean optional)
+            implements SqlExpr {
+        public enum Kind { STRING, DATE, DATETIME, FLOAT, OTHER }
 
-        public PlanParam(String name, boolean stringTyped) {
-            this(name, stringTyped ? Kind.STRING : Kind.OTHER);
+        public PlanParam(String name, Kind kind) {
+            this(name, kind, false);
         }
 
-        public boolean stringTyped() {
-            return kind == Kind.STRING;
+        public PlanParam(String name, boolean stringTyped) {
+            this(name, stringTyped ? Kind.STRING : Kind.OTHER, false);
         }
     }
 

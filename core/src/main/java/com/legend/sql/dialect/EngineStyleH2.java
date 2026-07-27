@@ -31,12 +31,22 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * (plan goldens testQuoteIdentifiersFlag*). */
     private final boolean quoteIdentifiers;
 
+    /** The connection's timeZone — a non-default zone wraps DATETIME
+     * placeholders in the engine's {@code GMTtoTZ} template
+     * (relationalPlanSupportFunctions gate). Null = default. */
+    private final String timeZone;
+
     public EngineStyleH2() {
         this(false);
     }
 
     public EngineStyleH2(boolean quoteIdentifiers) {
+        this(quoteIdentifiers, null);
+    }
+
+    public EngineStyleH2(boolean quoteIdentifiers, String timeZone) {
         this.quoteIdentifiers = quoteIdentifiers;
+        this.timeZone = timeZone;
     }
 
     private String phys(String name) {
@@ -116,6 +126,31 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case SqlSource.Table t -> t.name().toLowerCase(Locale.ROOT);
             case SqlSource.Subselect sub -> firstInnerTable(sub.inner());
             case null, default -> "subselect";
+        };
+    }
+
+    /** varPlaceHolderToString prefix/suffix/replace-map per parameter
+     * kind (the engine's optional-parameter templates). */
+    /** The {@code varPlaceHolderToString} spelling of an optional
+     * parameter; a non-default connection timeZone wraps DATETIME
+     * placeholders in {@code GMTtoTZ}. */
+    private String holder(SqlExpr.PlanParam p) {
+        String inner = p.name() + "![]";
+        if (p.kind() == SqlExpr.PlanParam.Kind.DATETIME
+                && timeZone != null) {
+            inner = "GMTtoTZ( \"[" + timeZone + "]\" " + inner + ")";
+        }
+        return "${varPlaceHolderToString(" + inner + " "
+                + holderArgs(p.kind()) + " \"null\")}";
+    }
+
+    private static String holderArgs(SqlExpr.PlanParam.Kind k) {
+        return switch (k) {
+            case STRING -> "\"\\'\" \"\\'\" {\"\\'\" : \"\\'\\'\"}";
+            case DATE -> "\"\\'\" \"\\'\" {}";
+            case DATETIME -> "\"TIMESTAMP\\'\" \"\\'\" {}";
+            case FLOAT -> "\"CAST(\" \" AS FLOAT)\" {}";
+            case OTHER -> "\"\" \"\" {}";
         };
     }
 
@@ -247,9 +282,47 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         + "?replace(\"'\", \"''\")}'";
                 // h2New spells date-typed placeholders with the type
                 // keyword (TIMESTAMP'${reportEndDate.date}')
-                case DATE -> "TIMESTAMP'${" + p.name() + "}'";
-                case OTHER -> "${" + p.name() + "}";
+                case DATE, DATETIME -> "TIMESTAMP'${" + p.name() + "}'";
+                case FLOAT, OTHER -> "${" + p.name() + "}";
             };
+        }
+        // an OPTIONAL parameter in a comparison renders the engine's
+        // freemarker SELECTOR template: present -> the comparison with a
+        // varPlaceHolderToString spelling, absent -> the column null test
+        if (e instanceof SqlExpr.Call oc
+                && oc.fn() == com.legend.sql.SqlFn.EQUAL
+                && oc.args().size() == 2) {
+            SqlExpr l = oc.args().get(0);
+            SqlExpr r = oc.args().get(1);
+            // BOTH operands optional: nested selectors — present/present
+            // compares placeholders, one-sided null is FALSE (1 = 0),
+            // null == null is TRUE (1 = 1)
+            if (l instanceof SqlExpr.PlanParam lp2 && lp2.optional()
+                    && r instanceof SqlExpr.PlanParam rp2
+                    && rp2.optional()) {
+                return "(${optionalVarPlaceHolderOperationSelector("
+                        + lp2.name()
+                        + "![], optionalVarPlaceHolderOperationSelector("
+                        + rp2.name() + "![], '" + holder(lp2) + " = "
+                        + holder(rp2)
+                        + "', '1 = 0'), optionalVarPlaceHolderOperation"
+                        + "Selector(" + rp2.name()
+                        + "![], '1 = 0', '1 = 1'))})";
+            }
+            SqlExpr.PlanParam opt = l instanceof SqlExpr.PlanParam lp
+                    && lp.optional() ? lp
+                    : r instanceof SqlExpr.PlanParam rp && rp.optional()
+                            ? rp : null;
+            if (opt != null) {
+                SqlExpr other = opt == l ? r : l;
+                String otherTx = expr(other, 4);
+                String present = opt == l
+                        ? holder(opt) + " = " + otherTx
+                        : otherTx + " = " + holder(opt);
+                return "(${optionalVarPlaceHolderOperationSelector("
+                        + opt.name() + "![], '" + present
+                        + "', '" + otherTx + " is null')})";
+            }
         }
         // a property read THROUGH a plan parameter spells the engine's
         // dotted placeholder ('${reportEndDate.date}' — Allocation-bound

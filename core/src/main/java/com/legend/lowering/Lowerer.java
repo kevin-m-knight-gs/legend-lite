@@ -177,6 +177,11 @@ public final class Lowerer {
         return this;
     }
 
+    public Lowerer bindPlanParam(SqlExpr.PlanParam proto) {
+        letBindings.put(proto.name(), proto);
+        return this;
+    }
+
     /**
      * Lower a typed QUERY BODY: leading {@code let} statements bind their
      * lowered values into query scope (substitution — the lean output has no

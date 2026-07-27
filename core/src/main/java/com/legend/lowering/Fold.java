@@ -31,10 +31,15 @@ final class Fold {
         }
         if (t == com.legend.compiler.element.type.Type.Primitive.DATE
                 || t == com.legend.compiler.element.type.Type.Primitive
-                        .STRICT_DATE
-                || t == com.legend.compiler.element.type.Type.Primitive
-                        .DATE_TIME) {
+                        .STRICT_DATE) {
             return com.legend.sql.SqlExpr.PlanParam.Kind.DATE;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive
+                .DATE_TIME) {
+            return com.legend.sql.SqlExpr.PlanParam.Kind.DATETIME;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+            return com.legend.sql.SqlExpr.PlanParam.Kind.FLOAT;
         }
         return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
     }

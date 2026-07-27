@@ -31,6 +31,17 @@ public final class PlanText {
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
+        return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
+                "TestDatabaseConnection");
+    }
+
+    /** {@code connectionName}: the runtime connection's CLASS simple name
+     * — the plan spells the instance's own type (an inline
+     * {@code ^DatabaseConnection(...)} prints DatabaseConnection). */
+    public static String single(ModelContext ctx, String rootClassFqn,
+            String mappingFqn, SqlQuery plan, String sql,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+            String connectionName) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn);
         return "Relational\n(\n"
@@ -38,7 +49,8 @@ public final class PlanText {
                 + "  resultColumns = [" + resultColumns(ctx, impl[2], plan)
                 + "]\n"
                 + "  sql = " + sql + "\n"
-                + "  connection = TestDatabaseConnection(type = \"H2\")\n"
+                + "  connection = " + connectionName
+                + "(type = \"H2\")\n"
                 + ")\n";
     }
 

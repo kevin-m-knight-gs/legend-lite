@@ -415,7 +415,9 @@ class NativeFunctionTest {
         //     (XStore leg slice 0 — real modelToModel.pure:43/:58/:82).
         // 72: +ExecutionContext/Extension (#46 _Alloy subfamily — bare
         //     defaults carriers named by corpus signatures).
-        assertEquals(72, Pure.allNativeClasses().size(),
+        // 73: +ExecutionPlan (real executionPlan.pure:60-73 — the plan
+        //     surface's processingTemplateFunctions property).
+        assertEquals(73, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -452,6 +454,12 @@ class NativeFunctionTest {
                     // relationalRuntimeExtension.pure:23-26
                     "meta::external::store::relational::runtime::GenerationFeaturesConfig",
                     List.of("enabled", "disabled"));
+
+    /** The plan surface (real executionPlan.pure:60-73 — declared subset). */
+    private static final java.util.Map<String, List<String>> PLAN_SURFACE_PROPERTIES =
+            java.util.Map.of(
+                    "meta::pure::executionPlan::ExecutionPlan",
+                    List.of("processingTemplateFunctions"));
 
     /** XStore leg slice 0 (real core/pure/mapping/modelToModel.pure:58/:82). */
     private static final java.util.Map<String, List<String>> STORE_MODEL_SURFACE_PROPERTIES =
@@ -507,6 +515,10 @@ class NativeFunctionTest {
                         () -> c.qualifiedName() + " must match real legend-pure");
             } else if (STORE_MODEL_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
                 assertEquals(STORE_MODEL_SURFACE_PROPERTIES.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real legend-pure");
+            } else if (PLAN_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
+                assertEquals(PLAN_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
                         () -> c.qualifiedName() + " must match real legend-pure");
             } else {
@@ -639,7 +651,9 @@ class NativeFunctionTest {
                 "meta::pure::runtime",
                 "meta::pure::extension",
                 "meta::pure::tds",
-                "meta::relational::metamodel::relation");
+                "meta::relational::metamodel::relation",
+                // the plan surface (#47: ExecutionPlan)
+                "meta::pure::executionPlan");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));

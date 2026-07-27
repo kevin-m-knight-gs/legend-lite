@@ -13,12 +13,12 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 9 | 2 | 9 | 90 |
+| executionPlan/tests | 110 | 18 | 2 | 9 | 81 |
 | functions/tests | 258 | 217 | 10 | 20 | 11 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 7 | 15 | 6 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 98 | 9 | 32 | 4 |
+| graphFetch/tests | 143 | 97 | 10 | 32 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -68,14 +68,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 67 | 5 | 1 | 1 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 |
-| tests/mapping/union | 124 | 116 | 1 | 6 | 1 |
+| tests/mapping/union | 124 | 115 | 2 | 6 | 1 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 73 | 1 | 8 | 1 |
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **1899** | 76 | 206 | 357 |
+| **total** | 2538 | **1906** | 78 | 206 | 348 |
 
 ### mapping walls (dropped at assembly)
 
@@ -242,7 +242,6 @@ in-process Alloy-shaped path).
 - calendarAggregation/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::relational::functions::pureToSqlQuery::calendarAggregations::insertCalendarJoins => Unknown type: 'SelectWithCursor' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::relational::functions::pureToSqlQuery::calendarAggregations::processCalendarAggPureToSQL => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -396,9 +395,6 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::executeServiceTests => Unknown type: 'Service' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::setUpData => Unknown type: 'Test' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::executionPlan::tests::datetime::executionPlanForQueryWithDateTimeVariableForDatabaseConnectionTimeZone => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::executionPlan::tests::datetime::executionPlanForQueryWithDateTimeConstantForDatabaseConnectionTimeZone => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -549,7 +545,6 @@ in-process Alloy-shaped path).
 - functions/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::database::viewReference => Unknown type: 'meta::relational::metamodel::relation::View' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::columnProjectionsFromRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
-- functions/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - functions/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - functions/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -918,7 +913,6 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -1017,7 +1011,6 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -1333,7 +1326,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -1821,7 +1813,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -2119,7 +2110,6 @@ in-process Alloy-shaped path).
 - lineage/scanColumns meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - lineage/scanColumns meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - lineage/scanColumns meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
-- lineage/scanColumns meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - lineage/scanColumns meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - lineage/scanColumns meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - lineage/scanColumns meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -2178,7 +2168,6 @@ in-process Alloy-shaped path).
 - lineage/scanRelations meta::pure::lineage::scanRelations::RelationTree$prop$view => Unknown type: 'View' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
-- lineage/scanRelations meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - lineage/scanRelations meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -2276,7 +2265,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - milestoning/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - milestoning/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3041,7 +3029,6 @@ in-process Alloy-shaped path).
 - postprocessor meta::pure::alloy::connections::postProcessor::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
-- postprocessor meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - postprocessor meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3108,7 +3095,6 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::postProcessor::nonExecutable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3163,7 +3149,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::tests::functions::pureToSqlQuery::buildJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::tests::functions::pureToSqlQuery::buildTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3210,7 +3195,6 @@ in-process Alloy-shaped path).
 - router/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - router/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - router/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- router/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - router/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - router/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - router/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3326,7 +3310,6 @@ in-process Alloy-shaped path).
 - tds/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tds/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3777,7 +3760,6 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3865,10 +3847,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::testDataGeneration::parseDateIfRequired => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getMilestoningFilter => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getRelationalCSVDataFromQuery => Unknown type: 'meta::relational::metamodel::data::RelationalCSVData' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planSeedDataGenerationWithParameterNameValuePairs => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planSeedDataGeneration => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationWithParameterValuePairs => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationStartingFromNode => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationForNestedViewTree => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planRowIdentifierExtractionForTable => Unknown type: 'View' is not a known primitive, class, or enum
@@ -3898,6 +3877,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataForNestedViewTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromNode => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateRelationColumnMap => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationStartingFromNode => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationForNestedViewTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::RelationTree$prop$view => Unknown type: 'View' is not a known primitive, class, or enum
@@ -3919,7 +3899,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/advanced meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/advanced meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlapp => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilter => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
@@ -4495,7 +4474,6 @@ in-process Alloy-shaped path).
 - tests/datatype meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/datatype meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/datatype meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/datatype meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
@@ -4536,7 +4514,6 @@ in-process Alloy-shaped path).
 - tests/injection meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/injection meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/injection meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/injection meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
@@ -4570,7 +4547,6 @@ in-process Alloy-shaped path).
 - tests/mapping meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -4632,7 +4608,6 @@ in-process Alloy-shaped path).
 - tests/mapping/association meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -4799,7 +4774,6 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5086,7 +5060,6 @@ in-process Alloy-shaped path).
 - tests/mapping/dynaJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5208,7 +5181,6 @@ in-process Alloy-shaped path).
 - tests/mapping/embedded duplicate LegacyMappingDefinition::meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2 (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedOtherwiseMapping.pure, kept tests/mapping/embedded/sibling-1.pure)
 - tests/mapping/embedded duplicate LegacyMappingDefinition::meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3 (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedOtherwiseMapping.pure, kept tests/mapping/embedded/sibling-1.pure)
 - tests/mapping/embedded duplicate LegacyMappingDefinition::meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwiseWithUnion (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/embedded/testEmbeddedOtherwiseMapping.pure, kept tests/mapping/embedded/sibling-1.pure)
-- tests/mapping/embedded meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5344,7 +5316,6 @@ in-process Alloy-shaped path).
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
-- tests/mapping/enumeration meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5374,7 +5345,6 @@ in-process Alloy-shaped path).
 - tests/mapping/extends meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5472,7 +5442,6 @@ in-process Alloy-shaped path).
 - tests/mapping/extends/union meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5528,7 +5497,6 @@ in-process Alloy-shaped path).
 - tests/mapping/filter meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5746,7 +5714,6 @@ in-process Alloy-shaped path).
 - tests/mapping/inheritance meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -5932,7 +5899,6 @@ in-process Alloy-shaped path).
 - tests/mapping/join meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -6035,7 +6001,6 @@ in-process Alloy-shaped path).
 - tests/mapping/modelJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -6294,7 +6259,6 @@ in-process Alloy-shaped path).
 - tests/mapping/relation duplicate Function::meta::relational::tests::mapping::relation::testInlineEmbeddedRelationMappingWithAssociation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/tests.pure, kept tests/mapping/relation/sibling-3.pure)
 - tests/mapping/relation duplicate Function::meta::relational::tests::mapping::relation::testInlineEmbeddedRelationMappingWithAssociationAndFilter() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/tests.pure, kept tests/mapping/relation/sibling-3.pure)
 - tests/mapping/relation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -6388,7 +6352,6 @@ in-process Alloy-shaped path).
 - tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -6570,7 +6533,6 @@ in-process Alloy-shaped path).
 - tests/mapping/sqlFunction meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - tests/mapping/sqlFunction meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
-- tests/mapping/sqlFunction meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -6811,7 +6773,6 @@ in-process Alloy-shaped path).
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::unionWithSinglePropertyMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnion.pure, kept tests/mapping/union/sibling-1.pure)
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::unionMappingWithEnumerationMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnion.pure, kept tests/mapping/union/sibling-1.pure)
 - tests/mapping/union meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -7159,7 +7120,6 @@ in-process Alloy-shaped path).
 - tests/mapping/union/relation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -7209,7 +7169,6 @@ in-process Alloy-shaped path).
 - tests/platformOperations meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/platformOperations meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
@@ -7272,7 +7231,6 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - tests/query meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
@@ -7510,7 +7468,6 @@ in-process Alloy-shaped path).
 - transform/fromPure/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -7679,7 +7636,6 @@ in-process Alloy-shaped path).
 - validation/tests duplicate LegacyMappingDefinition::meta::relational::validation::tests::milestoning::MilestoneMappingWithDynaFunction (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure, kept validation/tests/sibling-3.pure)
 - validation/tests duplicate LegacyMappingDefinition::meta::relational::validation::tests::milestoning::MilestoneMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure, kept validation/tests/sibling-3.pure)
 - validation/tests duplicate LegacyMappingDefinition::meta::relational::validation::tests::milestoning::MilestoneUnionMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure, kept validation/tests/sibling-3.pure)
-- validation/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - validation/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - validation/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - validation/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -7701,7 +7657,7 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x unknown function 'generateObjectReferences'
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
@@ -7745,18 +7701,9 @@ in-process Alloy-shaped path).
 - SHAPE testFilterEqualsWithOptionalParameter_DB2 [executionPlan/tests]: no execute(|...) call
 - SHAPE testFilterEqualsWithOptionalParameter_Composite [executionPlan/tests]: no execute(|...) call
 - SHAPE testFilterEqualsWithOptionalParameter_H2 [executionPlan/tests]: no execute(|...) call
-- SHAPE testFilterEqualsWithOptionalParameterString [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testFilterEqualsWithOptionalParameterFloat [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testFilterEqualsWithOptionalParameterInteger [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testFilterEqualsWithOptionalParameterDate [executionPlan/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE testFilterEqualsWithOptionalParameterDateTimeWithNoTimeZone [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testFilterEqualsWithOptionalParameterDateTimeWithTimeZone [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testFilterEqualsWithTwoOptionalParametersString [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testFilterEqualsWithTwoOptionalParametersInteger [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testFilterEqualsWithTwoOptionalParametersFloat [executionPlan/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
-- SHAPE testFilterEqualsWithTwoOptionalParametersDate [executionPlan/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
-- SHAPE testFilterEqualsWithTwoOptionalParametersDateTimeWithNoTimeZone [executionPlan/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
-- SHAPE testFilterEqualsWithTwoOptionalParameterDateTimeWithTimeZone [executionPlan/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE testGreaterThanLessThanEqualsWithOptionalParameter_H2 [executionPlan/tests]: no execute(|...) call
 - SHAPE testLessThanGreaterThanEqualsWithOptionalParameter_H2 [executionPlan/tests]: no execute(|...) call
 - SHAPE testPlanGenerationForMultipleExpressionsWithPropertyPath [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
@@ -7940,8 +7887,9 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -8039,7 +7987,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinWithConstantDate [modelJoins]: no execute(|...) call
 - SHAPE testJoinWithInequalities [modelJoins]: no execute(|...) call
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: no execute(|...) call
-- ERROR testPersonToFirmUsingFromProject [modelJoins]: class meta::pure::metamodel::type::Any has no property 'rootExecutionNode'
+- ERROR testPersonToFirmUsingFromProject [modelJoins]: class meta::pure::executionPlan::ExecutionPlan has no property 'rootExecutionNode'
 - SHAPE testProp1 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testProp2 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testProp3 [modelToModelToRelational]: assert form 'assertEqualsH2Compatible/3' is not supported yet
@@ -8052,13 +8000,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessorsConnectionAware'
@@ -8140,7 +8088,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
@@ -8280,7 +8228,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -8324,7 +8272,8 @@ in-process Alloy-shaped path).
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
