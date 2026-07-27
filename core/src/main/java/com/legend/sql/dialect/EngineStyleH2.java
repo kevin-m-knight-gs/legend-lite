@@ -384,6 +384,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     }
                     return String.join(" or ", ops);
                 }
+                case IN -> {
+                    // a COLLECTION-typed plan parameter spells the
+                    // engine's renderCollection template — separator ","
+                    // plus the SAME per-kind prefix/suffix/escape args as
+                    // varPlaceHolderToString (in-collection plan goldens)
+                    if (bc.args().size() == 2
+                            && bc.args().get(1) instanceof SqlExpr.PlanParam cp) {
+                        return expr(bc.args().get(0), 4)
+                                + " in (${renderCollection(" + cp.name()
+                                + "![] \",\" " + holderArgs(cp.kind())
+                                + " \"null\")})";
+                    }
+                }
                 case IS_NULL -> {
                     return expr(bc.args().get(0), 4) + " is null";
                 }
