@@ -105,19 +105,39 @@ public final class ValidateDesugar {
     private static ValueSpecification desugar(AppliedFunction af,
             ModelContext ctx, List<String> imports) {
         LambdaFunction query = (LambdaFunction) af.parameters().get(0);
-        ValueSpecification mapping = af.parameters().get(1);
-        ValueSpecification runtime = af.parameters().get(2);
-        // optional tail: [exeCtx] [constraintIds] [constraintInformation]
-        // extensions — classified by shape, exactly the real overload set
-        // (validation.pure:34-72). ConstraintContextInformation stays a
-        // loud wall until a corpus member needs it.
+        // SHAPE-CLASSIFIED argument scan — the real overload set
+        // (validation.pure) permutes [cols] [postTDS] [ids] around the
+        // mapping/runtime pair, so position alone cannot dispatch:
+        // col-args and a 1-param lambda BEFORE the mapping are the
+        // extended projection form; a string collection is constraint
+        // ids wherever it sits; the FIRST element pointer is the mapping
+        // and the next argument the runtime; instance literals pass;
+        // ConstraintContextInformation resolves through the (possibly
+        // still unqualified) helper's parsed body.
+        int n = af.parameters().size();
+        ValueSpecification extensions = af.parameters().get(n - 1);
+        List<ValueSpecification> userCols = new ArrayList<>();
+        LambdaFunction postTds = null;
+        ValueSpecification mapping = null;
+        ValueSpecification runtime = null;
         List<String> ids = new ArrayList<>();
-        ValueSpecification extensions = af.parameters()
-                .get(af.parameters().size() - 1);
-        for (int i = 3; i < af.parameters().size() - 1; i++) {
+        java.util.Map<String, Object[]> overrides =
+                new java.util.LinkedHashMap<>();
+        for (int i = 1; i < n - 1; i++) {
             ValueSpecification a = af.parameters().get(i);
-            if (a instanceof PureCollection pc
-                    && pc.values().stream().allMatch(v -> v instanceof CString)) {
+            if (mapping == null && isColArg(a)) {
+                collectCols(a, userCols);
+            } else if (mapping == null && a instanceof LambdaFunction pl
+                    && pl.parameters().size() == 1) {
+                postTds = pl;
+            } else if (mapping == null
+                    && a instanceof com.legend.model.spec
+                            .PackageableElementPtr) {
+                mapping = a;
+                runtime = af.parameters().get(++i);
+            } else if (a instanceof PureCollection pc
+                    && pc.values().stream()
+                            .allMatch(v -> v instanceof CString)) {
                 for (ValueSpecification v : pc.values()) {
                     ids.add(((CString) v).value());
                 }
@@ -128,11 +148,19 @@ public final class ValidateDesugar {
                         && "new".equals(nw.function()))) {
                 continue;   // ^RelationalExecutionContext() — PK append is
                             // the pipeline's own root-form concern
+            } else if (contextInfo(a, ctx, imports, overrides)) {
+                continue;   // ConstraintContextInformation overrides
             } else {
+                String probe = a instanceof AppliedFunction pf
+                        ? " [fn=" + pf.function() + "]" : "";
                 throw new NotImplementedException("validate(...) argument #"
-                        + i + " (" + a.getClass().getSimpleName()
-                        + ") is not supported yet");
+                        + i + " (" + a.getClass().getSimpleName() + ")"
+                        + probe + " is not supported yet");
             }
+        }
+        if (mapping == null || runtime == null) {
+            throw new NotImplementedException(
+                    "validate(...): no mapping/runtime argument pair");
         }
         String classFqn = rootClassFqn(query, ctx, imports);
         ClassDefinition cd = ctx.findClassDefinition(classFqn).orElseThrow(
@@ -162,9 +190,16 @@ public final class ValidateDesugar {
                 .get(query.body().size() - 1);
         ValueSpecification tds = null;
         for (ClassDefinition.ConstraintDefinition c : constraints) {
-            ValueSpecification one = constraintProject(queryChain, c);
+            ValueSpecification one = constraintProject(queryChain, c,
+                    userCols, overrides.get(c.name()));
             tds = tds == null ? one
                     : new AppliedFunction("concatenate", List.of(tds, one));
+        }
+        if (postTds != null) {
+            // beta-apply {t|...} over the concatenated violations
+            tds = replaceVar(postTds.body()
+                            .get(postTds.body().size() - 1),
+                    postTds.parameters().get(0).name(), tds);
         }
         // engine parity note: the engine passes ^exeCtx(
         // addDriverTablePkForProject=true) to execute; that metamodel
@@ -193,9 +228,147 @@ public final class ValidateDesugar {
 
     /** {@code chain->filter({this|!body})->project([|'n',|'Error',|''],
      *  [CONSTRAINT_ID, ENFORCEMENT_LEVEL, MESSAGE])}. */
+    /** {@code createConstraintContextInformation(id, Class, Level,
+     * message)} entries — direct, in collections, or through a 0-arg
+     * corpus helper's parsed body. Overrides: [levelName, messageSpec,
+     * messageParamName]. Returns false when {@code v} is not this
+     * vocabulary (the caller keeps its wall). */
+    private static boolean contextInfo(ValueSpecification v,
+            ModelContext ctx, List<String> imports,
+            java.util.Map<String, Object[]> out) {
+        if (v instanceof PureCollection pc) {
+            for (ValueSpecification e : pc.values()) {
+                if (!contextInfo(e, ctx, imports, out)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (!(v instanceof AppliedFunction af)) {
+            return false;
+        }
+        String simple = af.function()
+                .substring(af.function().lastIndexOf(':') + 1);
+        if (simple.equals("createConstraintContextInformation")
+                && af.parameters().size() >= 4
+                && af.parameters().get(0) instanceof CString id) {
+            ValueSpecification level = af.parameters().get(2);
+            String levelName = level
+                    instanceof com.legend.model.spec.EnumValue ev
+                    ? ev.value() : null;
+            ValueSpecification msg = af.parameters().get(3);
+            if (msg instanceof CString cs) {
+                out.put(id.value(),
+                        new Object[]{levelName, cs, null});
+                return true;
+            }
+            if (msg instanceof LambdaFunction ml
+                    && ml.parameters().size() == 1
+                    && !ml.body().isEmpty()) {
+                out.put(id.value(), new Object[]{levelName,
+                        ml.body().get(ml.body().size() - 1),
+                        ml.parameters().get(0).name()});
+                return true;
+            }
+            return false;
+        }
+        if (af.parameters().isEmpty()) {
+            var fd = ctx.findFunctionDefinition(af.function());
+            if (fd.isEmpty()) {
+                for (String c : af.candidateFqns()) {
+                    fd = ctx.findFunctionDefinition(c);
+                    if (fd.isPresent()) {
+                        break;
+                    }
+                }
+            }
+            if (fd.isEmpty() && !af.function().contains("::")) {
+                // pre-resolution body: qualify through the test's imports
+                for (String imp : imports) {
+                    fd = ctx.findFunctionDefinition(
+                            imp + "::" + af.function());
+                    if (fd.isPresent()) {
+                        break;
+                    }
+                }
+            }
+            if (fd.isPresent() && !fd.get().body().isEmpty()) {
+                return contextInfo(fd.get().body()
+                        .get(fd.get().body().size() - 1), ctx, imports,
+                        out);
+            }
+        }
+        return false;
+    }
+
+    private static boolean isColArg(ValueSpecification v) {
+        if (v instanceof PureCollection pc) {
+            return !pc.values().isEmpty()
+                    && pc.values().stream().allMatch(ValidateDesugar::isColArg);
+        }
+        return v instanceof AppliedFunction af
+                && "col".equals(af.function()
+                        .substring(af.function().lastIndexOf(':') + 1))
+                && af.parameters().size() >= 2;
+    }
+
+    private static void collectCols(ValueSpecification v,
+            List<ValueSpecification> out) {
+        if (v instanceof PureCollection pc) {
+            pc.values().forEach(e -> collectCols(e, out));
+        } else {
+            out.add(v);
+        }
+    }
+
+    /** Textbook variable substitution over the parse tree (the postTDS
+     * beta-application). */
+    private static ValueSpecification replaceVar(ValueSpecification v,
+            String name, ValueSpecification with) {
+        if (v instanceof Variable var && name.equals(var.name())) {
+            return with;
+        }
+        if (v instanceof AppliedFunction af) {
+            List<ValueSpecification> ps = new ArrayList<>();
+            boolean changed = false;
+            for (ValueSpecification x : af.parameters()) {
+                ValueSpecification r = replaceVar(x, name, with);
+                ps.add(r);
+                changed |= r != x;
+            }
+            return changed
+                    ? new AppliedFunction(af.function(), ps,
+                            af.candidateFqns()) : v;
+        }
+        if (v instanceof PureCollection pc) {
+            List<ValueSpecification> vs = new ArrayList<>();
+            boolean changed = false;
+            for (ValueSpecification x : pc.values()) {
+                ValueSpecification r = replaceVar(x, name, with);
+                vs.add(r);
+                changed |= r != x;
+            }
+            return changed ? new PureCollection(vs) : v;
+        }
+        if (v instanceof LambdaFunction lf
+                && lf.parameters().stream()
+                        .noneMatch(pv -> name.equals(pv.name()))) {
+            List<ValueSpecification> body = new ArrayList<>();
+            boolean changed = false;
+            for (ValueSpecification b : lf.body()) {
+                ValueSpecification r = replaceVar(b, name, with);
+                body.add(r);
+                changed |= r != b;
+            }
+            return changed ? new LambdaFunction(lf.parameters(), body) : v;
+        }
+        return v;
+    }
+
     private static ValueSpecification constraintProject(
             ValueSpecification chain,
-            ClassDefinition.ConstraintDefinition c) {
+            ClassDefinition.ConstraintDefinition c,
+            List<ValueSpecification> userCols, Object[] override) {
         ValueSpecification body = c.expression();
         // engine negatedFunctionExpression: not(not(x)) collapses
         ValueSpecification negated = body instanceof AppliedFunction nf
@@ -222,16 +395,33 @@ public final class ValidateDesugar {
                                 List.of(c.message()));
         String level = c.enforcementLevel() == null
                 ? "Error" : c.enforcementLevel();
+        if (override != null) {
+            if (override[0] != null) {
+                level = (String) override[0];
+            }
+            if (override[1] instanceof CString oc) {
+                messageCol = constLambda(oc.value());
+            } else if (override[1] instanceof ValueSpecification ov) {
+                messageCol = new LambdaFunction(
+                        List.of(new Variable("this", null, null)),
+                        List.of(replaceVar(ov, (String) override[2],
+                                new Variable("this", null, null))));
+            }
+        }
+        List<ValueSpecification> fns = new ArrayList<>(List.of(
+                constLambda(c.name()), constLambda(level), messageCol));
+        List<ValueSpecification> names = new ArrayList<>(List.of(
+                new CString("CONSTRAINT_ID"),
+                new CString("ENFORCEMENT_LEVEL"),
+                new CString("MESSAGE")));
+        for (ValueSpecification col : userCols) {
+            AppliedFunction cf = (AppliedFunction) col;
+            fns.add(cf.parameters().get(0));
+            names.add(cf.parameters().get(1));
+        }
         return new AppliedFunction("project", List.of(
-                filtered,
-                new PureCollection(List.of(
-                        constLambda(c.name()),
-                        constLambda(level),
-                        messageCol)),
-                new PureCollection(List.of(
-                        new CString("CONSTRAINT_ID"),
-                        new CString("ENFORCEMENT_LEVEL"),
-                        new CString("MESSAGE")))));
+                filtered, new PureCollection(fns),
+                new PureCollection(names)));
     }
 
     private static LambdaFunction constLambda(String value) {

@@ -530,16 +530,23 @@ public final class Runner {
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;
                 if (executeShape || fromShape) {
-                    com.legend.model.spec.ValueSpecification arg =
-                            af.parameters().get(1);
-                    if (arg instanceof com.legend.model.spec.Variable var
-                            && lets.containsKey(var.name())) {
-                        arg = lets.get(var.name());
-                    }
-                    if (arg instanceof com.legend.model.spec.PackageableElementPtr ptr) {
-                        String ref = qualify(ptr.fullPath(), t);
-                        if (ref.matches("[\\w:]+") && !out.contains(ref)) {
-                            out.add(ref);
+                    // validate's EXTENDED overloads put the mapping after
+                    // the col/postTDS args — take the FIRST pointer arg
+                    java.util.List<com.legend.model.spec.ValueSpecification>
+                            cands = simple.equals("validate")
+                                    ? af.parameters()
+                                    : java.util.List.of(af.parameters().get(1));
+                    for (com.legend.model.spec.ValueSpecification arg : cands) {
+                        if (arg instanceof com.legend.model.spec.Variable var
+                                && lets.containsKey(var.name())) {
+                            arg = lets.get(var.name());
+                        }
+                        if (arg instanceof com.legend.model.spec.PackageableElementPtr ptr) {
+                            String ref = qualify(ptr.fullPath(), t);
+                            if (ref.matches("[\\w:]+") && !out.contains(ref)) {
+                                out.add(ref);
+                            }
+                            break;
                         }
                     }
                 }
