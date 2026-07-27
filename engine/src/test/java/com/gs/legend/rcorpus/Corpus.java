@@ -36,6 +36,14 @@ public final class Corpus {
             + "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
             + "src/main/resources/core_relational/relational");
 
+    /** The PLATFORM M2M test model sources (shared::src/dest classes,
+     * createInstances) — the relational corpus's cross-store tests map
+     * onto these; they live in engine-core, outside the relational tree. */
+    public static final Path M2M_TESTS = ENGINE_ROOT.resolve(
+            "legend-engine-core/legend-engine-core-pure/"
+            + "legend-engine-pure-code-compiled-core/"
+            + "src/main/resources/core/store/m2m/tests");
+
     private Corpus() {
     }
 

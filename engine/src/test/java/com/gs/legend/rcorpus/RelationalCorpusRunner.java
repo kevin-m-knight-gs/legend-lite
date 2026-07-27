@@ -269,8 +269,29 @@ public class RelationalCorpusRunner {
             Set<Path> pulledFiles = new HashSet<>(files);
             while (!pending.isEmpty()) {
                 String s2 = pending.poll();
+                // the source's import packages — mapping files declare
+                // class-mapping heads UNQUALIFIED (shared.pure: `_Person :
+                // Relational` under import ...shared::dest::*)
+                List<String> imps = s2.lines().map(String::strip)
+                        .filter(l -> l.startsWith("import ")
+                                && l.endsWith("::*;"))
+                        .map(l -> l.substring(7, l.length() - 4))
+                        .toList();
                 for (String line : s2.lines().map(String::strip).toList()) {
                     List<String> wanted = new ArrayList<>();
+                    java.util.regex.Matcher cmHead = java.util.regex.Pattern
+                            .compile("^\\*?([\\w:]+)(\\[[\\w,]+\\])? *: *(Relational|Pure)\\b")
+                            .matcher(line);
+                    if (cmHead.find()) {
+                        String cn = cmHead.group(1);
+                        if (cn.contains("::")) {
+                            wanted.add(cn);
+                        } else {
+                            for (String imp : imps) {
+                                wanted.add(imp + "::" + cn);
+                            }
+                        }
+                    }
                     if (line.startsWith("include ")) {
                         wanted.add(line.substring("include ".length())
                                 .strip());
@@ -379,15 +400,21 @@ public class RelationalCorpusRunner {
     private static Map<String, Path> classIndex() throws Exception {
         if (classIndexCache == null) {
             Map<String, Path> ix = new LinkedHashMap<>();
-            try (Stream<Path> s = Files.walk(Corpus.RELATIONAL)) {
-                for (Path f : s.filter(x -> x.toString().endsWith(".pure"))
-                        .sorted().toList()) {
-                    for (String l : Files.readAllLines(f)) {
-                        String t = l.strip();
-                        if (t.startsWith("Class ")) {
-                            String n = classNameOf(t);
-                            if (n != null) {
-                                ix.putIfAbsent(n, f);
+            for (Path root : java.util.List.of(Corpus.RELATIONAL,
+                    Corpus.M2M_TESTS)) {
+                if (!Files.isDirectory(root)) {
+                    continue;
+                }
+                try (Stream<Path> s = Files.walk(root)) {
+                    for (Path f : s.filter(x -> x.toString().endsWith(".pure"))
+                            .sorted().toList()) {
+                        for (String l : Files.readAllLines(f)) {
+                            String t = l.strip();
+                            if (t.startsWith("Class ")) {
+                                String n = classNameOf(t);
+                                if (n != null) {
+                                    ix.putIfAbsent(n, f);
+                                }
                             }
                         }
                     }
