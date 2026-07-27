@@ -791,6 +791,28 @@ public final class Runner {
         return name;
     }
 
+    /** The most-called function NAMESPACE of a no-execute body — the
+     * functional identity of the feature the test exercises. */
+    private static String dominantNamespace(
+            List<com.legend.model.spec.ValueSpecification> body) {
+        java.util.Set<String> called = new java.util.LinkedHashSet<>();
+        java.util.Set<String> elements = new java.util.LinkedHashSet<>();
+        for (com.legend.model.spec.ValueSpecification stmt : body) {
+            collectCalledFqns(stmt, called, elements);
+        }
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (String fqn : called) {
+            int cut = fqn.lastIndexOf("::");
+            if (cut < 0) {
+                continue;
+            }
+            counts.merge(fqn.substring(0, cut), 1, Integer::sum);
+        }
+        return counts.entrySet().stream()
+                .max(java.util.Map.Entry.comparingByValue())
+                .map(java.util.Map.Entry::getKey).orElse(null);
+    }
+
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
         // #67: record every raw corpus statement this test executes —
@@ -812,7 +834,12 @@ public final class Runner {
                 expandHelperCalls(t.fn().body(), t, 0);
         List<String> mappingRefs = executeMappingRefs(body, t);
         if (mappingRefs.isEmpty()) {
-            return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...) call");
+            // FUNCTIONAL bucket: what the test exercises instead — the
+            // dominant called namespace names the skipped feature (the
+            // denominator stays honest about WHAT is not built yet)
+            String ns = dominantNamespace(body);
+            return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...)"
+                    + " call" + (ns == null ? "" : " [calls " + ns + "]"));
         }
         // QUALIFIED function/element references in the body pull their
         // defining families too (execute(..., other::family::runtime(),
