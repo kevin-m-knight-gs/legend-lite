@@ -1000,6 +1000,16 @@ public final class TestBody {
             lets.put(name.value(), rhs);
             return new TdgLet(null, null, true);
         }
+        if (TestDataGenForm.hasSeedDataString(rhs)) {
+            try {
+                tdg.put(name.value(), TestDataGenForm.runSeedDataString(
+                        rhs, ctx, imports, conn));
+            } catch (com.legend.error.NotImplementedException e) {
+                return new TdgLet(new Outcome.Unsupported(String.valueOf(
+                        e.getMessage()).split("\\n")[0]), null, false);
+            }
+            return new TdgLet(null, null, true);
+        }
         if (TestDataGenForm.hasCsvCensus(rhs)) {
             try {
                 tdg.put(name.value(),
@@ -1206,6 +1216,20 @@ public final class TestBody {
                     return ADVISORY_MARKER;
                 }
             }
+        }
+        if (simpleName(af.function()).equals("assertEquals")
+                && args.size() == 2
+                && args.get(1) instanceof Variable sv
+                && tdg.get(sv.name()) != null
+                && tdg.get(sv.name()).tables() == null
+                && tdg.get(sv.name()).sqls().isEmpty()
+                && tdg.get(sv.name()).dataCsvString() != null) {
+            // a STRING-product binding (generateSeedDataString): literal
+            String got2 = tdg.get(sv.name()).dataCsvString();
+            String exp2 = TestDataGenForm.foldString(
+                    substitute(args.get(0), lets));
+            return got2.equals(exp2) ? null
+                    : "assertEquals: expected " + exp2 + ", got " + got2;
         }
         String cz = csvCensusAssert(af, args, lets, tdg);
         if (cz != NOT_TDG_MARKER) {

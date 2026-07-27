@@ -524,6 +524,7 @@ public final class Runner {
                                 || simple.equals("planTestDataGeneration")
                                 || simple.equals(
                                         "getRelationalCSVDataFromQuery")
+                                || simple.equals("generateSeedDataString")
                                 // executionPlan(q, MAPPING, rt, ext) —
                                 // #47: the plan-text K-native routes at
                                 // the platform

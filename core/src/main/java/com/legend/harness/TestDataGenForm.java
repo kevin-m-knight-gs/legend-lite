@@ -53,6 +53,31 @@ final class TestDataGenForm {
         return findCall(rhs, "planTestDataGeneration") != null;
     }
 
+    /** Whether the rhs carries a generateSeedDataString call. */
+    static boolean hasSeedDataString(ValueSpecification rhs) {
+        return findCall(rhs, "generateSeedDataString") != null;
+    }
+
+    /** Run generateSeedDataString — the createRowIdentifier SOURCE-CODE
+     * rendering of the demanded rows. */
+    static TestDataGenerator.Result runSeedDataString(
+            ValueSpecification rhs, ModelContext ctx, ImportScope imports,
+            java.sql.Connection conn) throws java.sql.SQLException {
+        AppliedFunction call = findCall(rhs, "generateSeedDataString");
+        List<ValueSpecification> ps = call.parameters();
+        if (ps.size() < 2 || !(ps.get(0) instanceof LambdaFunction query)
+                || !(ps.get(1) instanceof PackageableElementPtr mp)) {
+            throw new NotImplementedException(
+                    "testDataGen: unrecognized seed-data call shape");
+        }
+        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        LambdaFunction resolved = (LambdaFunction) NameResolver
+                .resolveQuery(query, imports, ctx.elementFqns());
+        return new TestDataGenerator.Result(List.of(),
+                TestDataGenerator.seedDataString(ctx, resolved, mappingFqn,
+                        conn));
+    }
+
     /** Whether the rhs carries a getRelationalCSVDataFromQuery call. */
     static boolean hasCsvCensus(ValueSpecification rhs) {
         return findCall(rhs, "getRelationalCSVDataFromQuery") != null;

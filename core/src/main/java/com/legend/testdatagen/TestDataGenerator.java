@@ -982,6 +982,73 @@ public final class TestDataGenerator {
                 "testDataGen: row identifier value " + v.getClass());
     }
 
+    /** The engine's generateSeedDataString: execute the demanded
+     * columns (pks first) of each tree table and format every row as
+     * createRowIdentifier SOURCE CODE — column names spelled by their
+     * QUOTE-BEARING identity. */
+    public static String seedDataString(ModelContext ctx,
+            LambdaFunction resolvedQuery, String mappingFqn,
+            Connection conn) throws SQLException {
+        List<ScanRelations.Rel> roots =
+                ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
+        roots = roots.stream().map(r -> expandIfView(ctx, r, null))
+                .toList();
+        StringBuilder out = new StringBuilder();
+        try (Statement st = conn.createStatement()) {
+            for (ScanRelations.Rel r : roots) {
+                Located loc = locate(ctx, r.db(), r.table());
+                List<String> cols = new ArrayList<>();
+                for (DatabaseDefinition.ColumnDefinition c
+                        : loc.def().columns()) {
+                    if (c.primaryKey()) {
+                        cols.add(c.name());
+                    }
+                }
+                for (String c : r.cols()) {
+                    String bare = c.length() > 1 && c.startsWith("\"")
+                            && c.endsWith("\"")
+                            ? c.substring(1, c.length() - 1) : c;
+                    if (!cols.contains(bare)) {
+                        cols.add(bare);
+                    }
+                }
+                List<String> spelled = cols.stream()
+                        .map(c -> column(loc.def(), c).quoted()
+                                ? "\"" + c + "\"" : c)
+                        .toList();
+                String sql = "select " + String.join(", ",
+                        cols.stream().map(TestDataGenerator::q).toList())
+                        + " from " + qualify(loc.schema(), r.table());
+                out.append('\n')
+                        .append("meta::relational::testDataGeneration::"
+                                + "createTableRowIdentifiers(")
+                        .append(r.db()).append(", '").append(loc.schema())
+                        .append("', '").append(r.table()).append("', [\n");
+                List<String> rows = new ArrayList<>();
+                try (ResultSet rs = st.executeQuery(sql)) {
+                    int n = cols.size();
+                    while (rs.next()) {
+                        List<String> vals = new ArrayList<>();
+                        for (int i = 1; i <= n; i++) {
+                            Object v = rs.getObject(i);
+                            vals.add(v instanceof String str
+                                    ? "'" + str + "'" : String.valueOf(v));
+                        }
+                        rows.add("       meta::relational::"
+                                + "testDataGeneration::createRowIdentifier(["
+                                + spelled.stream().map(c2 -> "'" + c2 + "'")
+                                        .collect(java.util.stream.Collectors
+                                                .joining(","))
+                                + "], ["
+                                + String.join(",", vals) + "])");
+                    }
+                }
+                out.append(String.join(",\n", rows)).append("\n  ])\n");
+            }
+        }
+        return out.toString();
+    }
+
     // ===== the tdg PLAN PRINTER (planTestDataGeneration text) =====
 
     /** The engine's planTestDataGeneration plan text: MultiResultSequence
