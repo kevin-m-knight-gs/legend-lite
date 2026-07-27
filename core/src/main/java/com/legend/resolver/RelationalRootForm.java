@@ -73,7 +73,8 @@ public final class RelationalRootForm {
         int i = 0;
         for (String pk : primaryKeyColumns(g, mappingFqn, ctx)) {
             Type.Column col = rowType.columns().stream()
-                    .filter(c -> c.name().equals(pk))
+                    .filter(c -> c.name().equals(pk)
+                            || stripQ(c.name()).equals(pk))
                     .findFirst().orElse(null);
             if (col == null) {
                 continue;
@@ -174,6 +175,12 @@ public final class RelationalRootForm {
             }
         }
         return out;
+    }
+
+    /** Quote-bearing row columns match their bare store pk spelling. */
+    private static String stripQ(String n) {
+        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
     }
 
     private static List<String> dedup(List<String> names) {

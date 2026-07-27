@@ -1099,6 +1099,21 @@ public final class TestBody {
                 if (compare(p2, pa, true)) {
                     return null;
                 }
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    String a2 = p2.render();
+                    String b2 = pa.render();
+                    int i2 = 0;
+                    while (i2 < a2.length() && i2 < b2.length()
+                            && a2.charAt(i2) == b2.charAt(i2)) {
+                        i2++;
+                    }
+                    System.err.println("[plan-2golden] lens " + a2.length()
+                            + "/" + b2.length() + " firstDiff@" + i2 + " E<"
+                            + a2.substring(Math.max(0, i2 - 30),
+                                    Math.min(a2.length(), i2 + 40))
+                            + "> G<" + b2.substring(Math.max(0, i2 - 30),
+                                    Math.min(b2.length(), i2 + 40)) + ">");
+                }
             }
             return "assertEquals: expected " + pe.render() + ", got "
                     + pa.render();

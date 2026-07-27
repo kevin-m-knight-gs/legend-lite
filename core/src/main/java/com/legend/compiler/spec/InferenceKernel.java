@@ -229,7 +229,7 @@ public final class InferenceKernel {
                 List<Type.Column> selected = new ArrayList<>(actualRow.columns().size());
                 for (Type.Column c : actualRow.columns()) {
                     selected.add(schema.columns().stream()
-                            .filter(sc -> sc.name().equals(c.name()))
+                            .filter(sc -> sameColumn(sc.name(), c.name()))
                             .findFirst()
                             .orElseThrow(() -> new TypeInferenceException(
                                     "unknown column '" + c.name() + "' in " + schema.typeName())));
@@ -343,7 +343,7 @@ public final class InferenceKernel {
         }
         List<Type.Column> merged = new ArrayList<>(er.columns());
         for (Type.Column c : row.columns()) {
-            Type.Column prior = merged.stream().filter(m -> m.name().equals(c.name())).findFirst().orElse(null);
+            Type.Column prior = merged.stream().filter(m -> sameColumn(m.name(), c.name())).findFirst().orElse(null);
             if (prior == null) {
                 merged.add(c);
             } else if (!prior.equals(c)) {
@@ -352,6 +352,18 @@ public final class InferenceKernel {
             }
         }
         b.bindType(v.name(), new Type.RelationType(merged));
+    }
+
+    /** Column-name IDENTITY: a QUOTE-BEARING spelling ('"FIRST NAME"' —
+     * quoted store declaration) and its stripped text are the SAME
+     * column; the quotes are rendering metadata. */
+    static boolean sameColumn(String a, String b) {
+        return stripColQ(a).equals(stripColQ(b));
+    }
+
+    private static String stripColQ(String n) {
+        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
     }
 
     /** The distinguished unknown column type of a not-yet-solved colspec value ({@code ~col}). */
@@ -500,7 +512,7 @@ public final class InferenceKernel {
     private void unifyColumns(Type.RelationType formal, Type.RelationType actual, Bindings b) {
         for (Type.Column fc : formal.columns()) {
             Type.Column ac = actual.columns().stream()
-                    .filter(c -> c.name().equals(fc.name()))
+                    .filter(c -> sameColumn(c.name(), fc.name()))
                     .findFirst()
                     .orElseThrow(() -> new TypeInferenceException(
                             "relation is missing expected column '" + fc.name() + "'"));
@@ -680,7 +692,7 @@ public final class InferenceKernel {
                     for (Type.Column c : rr.columns()) {
                         // Real legend-pure errors on a name collision (extend/rename/join/
                         // groupBy adding a column that already exists) — never silent.
-                        if (lr.columns().stream().anyMatch(e -> e.name().equals(c.name()))) {
+                        if (lr.columns().stream().anyMatch(e -> sameColumn(e.name(), c.name()))) {
                             throw new TypeInferenceException("the column '" + c.name()
                                     + "' already exists in the relation " + lr.typeName());
                         }
@@ -1186,7 +1198,7 @@ public final class InferenceKernel {
     private static Type.RelationType unionRows(Type.RelationType a, Type.RelationType b) {
         List<Type.Column> merged = new ArrayList<>(a.columns());
         for (Type.Column c : b.columns()) {
-            Type.Column prior = merged.stream().filter(m -> m.name().equals(c.name())).findFirst().orElse(null);
+            Type.Column prior = merged.stream().filter(m -> sameColumn(m.name(), c.name())).findFirst().orElse(null);
             if (prior == null) {
                 merged.add(c);
             } else if (!prior.equals(c)) {
@@ -1255,7 +1267,7 @@ public final class InferenceKernel {
         if (existing instanceof Type.RelationType er && actual instanceof Type.RelationType ar
                 && isUnknownFragment(ar)) {
             return ar.columns().stream().allMatch(c ->
-                    er.columns().stream().anyMatch(e -> e.name().equals(c.name())));
+                    er.columns().stream().anyMatch(e -> sameColumn(e.name(), c.name())));
         }
         // Relation identity is the COLUMNS — dynamicColumns (pivot templates)
         // are executor metadata; a template-carrying schema re-binding against

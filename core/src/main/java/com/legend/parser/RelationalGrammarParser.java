@@ -527,12 +527,13 @@ final class RelationalGrammarParser {
             p.expect(TokenType.BRACKET_CLOSE);
             String firstId = parseRelationalIdentifier();
             p.expect(TokenType.DOT);
-            String second = parseRelationalIdentifier();
+            String second = parseColumnIdentifier();
             if (p.peek() == TokenType.DOT) {
                 p.advance();
-                String third = parseRelationalIdentifier();
+                String third = parseColumnIdentifier();
                 // [db]SCHEMA.TABLE.COL
-                expr = new RelationalOperation.ColumnRef(db, firstId + "." + second, third);
+                expr = new RelationalOperation.ColumnRef(db,
+                        firstId + "." + stripQuoted(second), third);
             } else {
                 // [db]TABLE.COL
                 expr = new RelationalOperation.ColumnRef(db, firstId, second);
@@ -561,10 +562,11 @@ final class RelationalGrammarParser {
         } else if (p.peek() == TokenType.TARGET) {
             p.advance();
             p.expect(TokenType.DOT);
-            expr = new RelationalOperation.TargetColumnRef(parseRelationalIdentifier());
+            expr = new RelationalOperation.TargetColumnRef(parseColumnIdentifier());
         } else {
-            String firstId = parseRelationalIdentifier();
+            String firstId = parseColumnIdentifier();
             if (p.peek() == TokenType.PAREN_OPEN && !firstId.contains(".")) {
+                firstId = stripQuoted(firstId);   // a FUNCTION name
                 p.advance(); // '('
                 List<RelationalOperation> args = new ArrayList<>();
                 if (p.peek() != TokenType.PAREN_CLOSE) {
@@ -575,7 +577,8 @@ final class RelationalGrammarParser {
                 expr = new RelationalOperation.FunctionCall(firstId, args);
             } else if (p.peek() == TokenType.DOT) {
                 p.advance();
-                String second = parseRelationalIdentifier();
+                firstId = stripQuoted(firstId);   // a TABLE part
+                String second = parseColumnIdentifier();
                 // Qualified T.COL: database is ambiguous at parse time
                 // (T may live in the enclosing scope's database OR in any
                 // of its includes). Leave db null; Phase D resolves it
@@ -584,8 +587,9 @@ final class RelationalGrammarParser {
                 // parsing.
                 if (p.peek() == TokenType.DOT) {
                     p.advance();
-                    String third = parseRelationalIdentifier();
-                    expr = new RelationalOperation.ColumnRef(null, firstId + "." + second, third);
+                    String third = parseColumnIdentifier();
+                    expr = new RelationalOperation.ColumnRef(null,
+                            firstId + "." + stripQuoted(second), third);
                 } else {
                     expr = new RelationalOperation.ColumnRef(null, firstId, second);
                 }
@@ -785,6 +789,23 @@ final class RelationalGrammarParser {
             String quoted = p.text();
             p.advance();
             return quoted.length() >= 2 ? quoted.substring(1, quoted.length() - 1) : quoted;
+        }
+        return p.parseIdentifier();
+    }
+
+    static String stripQuoted(String n) {
+        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
+    }
+
+    /** A COLUMN-position identifier: a double-quoted spelling KEEPS its
+     * quotes (quote-bearing column identity — matches the store
+     * schema's spelling for quoted declarations). */
+    String parseColumnIdentifier() {
+        if (p.peek() == TokenType.QUOTED_STRING) {
+            String quoted = p.text();
+            p.advance();
+            return quoted;
         }
         return p.parseIdentifier();
     }

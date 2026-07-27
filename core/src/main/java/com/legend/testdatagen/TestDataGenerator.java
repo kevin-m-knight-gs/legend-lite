@@ -707,6 +707,11 @@ public final class TestDataGenerator {
 
     private static DatabaseDefinition.ColumnDefinition column(
             DatabaseDefinition.TableDefinition def, String name) {
+        // quote-bearing demand names strip to the stored declaration
+        if (name.length() > 1 && name.startsWith("\"")
+                && name.endsWith("\"")) {
+            name = name.substring(1, name.length() - 1);
+        }
         for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
             if (c.name().equals(name)) {
                 return c;

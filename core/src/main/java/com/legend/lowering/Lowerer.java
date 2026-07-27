@@ -2251,7 +2251,14 @@ public final class Lowerer {
             // there is no row scope to resolve against.
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     && letBindings.containsKey(v.name())
-                    -> new SqlExpr.StructGet(letBindings.get(v.name()), p.property());
+                    -> letBindings.get(v.name())
+                            instanceof SqlExpr.PlanParam pp
+                    // a field read through a plan parameter IS a dotted
+                    // placeholder — its KIND follows the FIELD type
+                    ? new SqlExpr.PlanParam(pp.name() + "." + p.property(),
+                            Fold.planKindOf(p.info().type()))
+                    : new SqlExpr.StructGet(letBindings.get(v.name()),
+                            p.property());
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     -> columns.resolve(v.name(), p.property());
             // Field access on a CLASS-typed VALUE (an instance literal, a

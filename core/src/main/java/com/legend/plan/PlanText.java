@@ -146,7 +146,7 @@ public final class PlanText {
                     () -> new NotImplementedException("plan: table '"
                             + table + "' not in '" + dbFqn + "'"));
             var cd = td.columns().stream()
-                    .filter(x -> x.name().equalsIgnoreCase(c.name()))
+                    .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
                     .findFirst().orElseThrow();
             rc.append("(\"").append(aliasSpell.apply(c.table()))
                     .append("\".").append(c.name()).append(", ")
@@ -220,7 +220,7 @@ public final class PlanText {
                 String table = tableOf(s.from(), c.table());
                 var td = ctx.findTableDefinition(dbFqn, table).orElseThrow();
                 db = spell(td.columns().stream()
-                        .filter(x -> x.name().equalsIgnoreCase(c.name()))
+                        .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
                         .findFirst().orElseThrow().dataType());
             } else {
                 throw new NotImplementedException("plan: computed TDS"
@@ -294,7 +294,7 @@ public final class PlanText {
                     () -> new NotImplementedException("plan: table '"
                             + table + "' not in '" + dbFqn + "'"));
             DatabaseDefinition.ColumnDefinition cd = td.columns().stream()
-                    .filter(x -> x.name().equalsIgnoreCase(c.name()))
+                    .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
                     .findFirst().orElseThrow(
                             () -> new NotImplementedException("plan:"
                                     + " column '" + c.name() + "' not on '"

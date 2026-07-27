@@ -1146,7 +1146,7 @@ final class MappingGrammarParser {
                 && p.peek(1) != TokenType.DOT && p.peek(1) != TokenType.PAREN_OPEN
                 && p.peek(1) != TokenType.ARROW) {
             requirePropertyMappingDb(propName, db, "scoped column reference");
-            String column = p.relationalGrammar.parseRelationalIdentifier();
+            String column = p.relationalGrammar.parseColumnIdentifier();
             if (enumMappingId != null || anonymousEnumMapping) {
                 return new PropertyMapping.EnumeratedColumn(propName, enumMappingId,
                         db, p.currentScopeBlock.path(), column);
@@ -1161,13 +1161,14 @@ final class MappingGrammarParser {
             // Support SCHEMA.TABLE.COL — collapse first two into the table
             // string, matching engine's TablePtr handling.
             p.expect(TokenType.DOT);
-            String second = p.relationalGrammar.parseRelationalIdentifier();
+            String second = p.relationalGrammar.parseColumnIdentifier();
             String table;
             String column;
             if (p.peek() == TokenType.DOT) {
                 p.advance();
-                table = tablePart + "." + second;
-                column = p.relationalGrammar.parseRelationalIdentifier();
+                // 'second' turned out to be the TABLE part — strip
+                table = tablePart + "." + stripColQuotes(second);
+                column = p.relationalGrammar.parseColumnIdentifier();
             } else {
                 // a SINGLE-segment scope is a schema prefix for dotted refs
                 // (scope([db]productSchema)( name: synonymTable.NAME ))
@@ -1518,4 +1519,9 @@ final class MappingGrammarParser {
         }
     }
 
+
+    private static String stripColQuotes(String n) {
+        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
+    }
 }

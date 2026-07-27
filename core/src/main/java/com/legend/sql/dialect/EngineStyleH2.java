@@ -123,6 +123,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return renames.getOrDefault(alias, alias);
     }
 
+    /** The engine's H2-NEW date spelling has no space ({@code
+     * DATE'2005-10-10'} — plan and h2New goldens). */
+    @Override
+    protected String dateLit(String iso) {
+        return "DATE'" + iso + "'";
+    }
+
+    @Override
+    protected String timestampLit(String iso) {
+        return "TIMESTAMP'" + iso + "'";
+    }
+
     /** The engine-style spelling of an alias AFTER a render pass — the
      * plan printer's resultColumns spell the renamed alias ("root", not
      * t0); call only on the instance that rendered the SQL. */
@@ -230,9 +242,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // plan-template parameter (engine freemarker): strings are
         // single-quoted with the engine's escape template
         if (e instanceof SqlExpr.PlanParam p) {
-            return p.stringTyped()
-                    ? "'${" + p.name() + "?replace(\"'\", \"''\")}'"
-                    : "${" + p.name() + "}";
+            return switch (p.kind()) {
+                case STRING -> "'${" + p.name()
+                        + "?replace(\"'\", \"''\")}'";
+                // h2New spells date-typed placeholders with the type
+                // keyword (TIMESTAMP'${reportEndDate.date}')
+                case DATE -> "TIMESTAMP'${" + p.name() + "}'";
+                case OTHER -> "${" + p.name() + "}";
+            };
         }
         // a property read THROUGH a plan parameter spells the engine's
         // dotted placeholder ('${reportEndDate.date}' — Allocation-bound

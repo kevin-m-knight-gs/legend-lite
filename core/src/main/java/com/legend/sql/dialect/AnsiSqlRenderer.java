@@ -769,6 +769,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             return name;
         }
         char q = quoteChar();
+        // a QUOTE-BEARING identity ('"date"' — quoted store declaration)
+        // is already its own spelling
+        if (name.length() > 1 && name.charAt(0) == q
+                && name.charAt(name.length() - 1) == q) {
+            return name;
+        }
         return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;
     }
 

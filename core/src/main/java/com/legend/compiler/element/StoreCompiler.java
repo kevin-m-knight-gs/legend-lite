@@ -86,7 +86,12 @@ final class StoreCompiler {
         for (var col : table.columns()) {
             Multiplicity mult = (col.notNull() || col.primaryKey())
                     ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE;
-            columns.add(new Type.Column(col.name(), columnType(col.dataType()), mult));
+            // a QUOTED declaration carries its quotes IN the column
+            // identity (the Typer's quote-bearing RelationType
+            // convention) — renderers emit the spelling as-is
+            columns.add(new Type.Column(
+                    col.quoted() ? "\"" + col.name() + "\"" : col.name(),
+                    columnType(col.dataType()), mult));
         }
         return new Type.RelationType(columns);
     }

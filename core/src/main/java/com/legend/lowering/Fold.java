@@ -22,6 +22,23 @@ import java.util.List;
  */
 final class Fold {
 
+    /** The plan-template placeholder KIND for a field type (h2New spells
+     * date placeholders with the type keyword). */
+    static com.legend.sql.SqlExpr.PlanParam.Kind planKindOf(
+            com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            return com.legend.sql.SqlExpr.PlanParam.Kind.STRING;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.DATE
+                || t == com.legend.compiler.element.type.Type.Primitive
+                        .STRICT_DATE
+                || t == com.legend.compiler.element.type.Type.Primitive
+                        .DATE_TIME) {
+            return com.legend.sql.SqlExpr.PlanParam.Kind.DATE;
+        }
+        return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
+    }
+
     /** Combine conjuncts into one AND, FLATTENING same-operator nesting
      * and Group-of-AND operands (the engine's andFilters: same-operator
      * chains never keep their group — a guard group survives only
