@@ -177,6 +177,13 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** A join by name, INCLUDE-CLOSURE aware (real Legend: Database
+     * MyDb ( include db ) resolves db's joins; own definitions win). */
+    default Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
+            findJoinDefinition(String dbFqn, String joinName) {
+        return Optional.empty();
+    }
+
     /** The PARSED definition of a user function (module-resolved body) —
      * spec-walking consumers (PK inference #78, derived-property scans). */
     default Optional<com.legend.model.FunctionDefinition>

@@ -1307,6 +1307,9 @@ public final class TestBody {
                         text = TestDataGenForm.planText(
                                 substitute(arg, lets), ctx, imports);
                     } catch (com.legend.error.NotImplementedException e) {
+                        if (System.getenv("LL_TMP_DEBUG") != null) {
+                            System.err.println("[tdg-plan-wall] " + e);
+                        }
                         return UNSUPPORTED_MARKER;
                     }
                     if (text == null) {

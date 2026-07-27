@@ -1482,13 +1482,12 @@ public final class ScanRelations {
 
     private static DatabaseDefinition.JoinDefinition joinDef(ModelContext ctx,
             String dbName, String joinName) {
-        DatabaseDefinition db = ctx.findDatabase(dbName).orElseThrow(() ->
-                new NotImplementedException("scanRelations: unknown database '"
-                        + dbName + "'"));
-        return db.joins().stream()
-                .filter(j -> j.name().equals(joinName)).findFirst()
+        // include-closure aware (Database DB2 ( include DB1 ) resolves
+        // DB1's joins — the quoted-columns-for-views tdg family)
+        return ctx.findJoinDefinition(dbName, joinName)
                 .orElseThrow(() -> new NotImplementedException(
-                        "scanRelations: unknown join '" + joinName + "'"));
+                        "scanRelations: unknown join '" + joinName
+                        + "' in database '" + dbName + "'"));
     }
 
     /** As-written vs resolved class spellings: exact first, then an

@@ -325,6 +325,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
+            findJoinDefinition(String dbFqn, String joinName) {
+        return model.findJoin(dbFqn, joinName);
+    }
+
+    @Override
     public Optional<com.legend.model.DatabaseDefinition.TableDefinition>
             findTableDefinition(String dbFqn, String name) {
         return model.findDatabase(dbFqn)
