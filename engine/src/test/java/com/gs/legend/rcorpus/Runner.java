@@ -194,7 +194,11 @@ public final class Runner {
             // invisible to discovery AND to TestBody (audit 19d B1 — the
             // 498-SHAPE cliff). Statement-position calls β-expand with the
             // callee's parameters bound as lets.
-            fnIndex.putIfAbsent(f.qualifiedName(), new FnDef(
+            // OVERLOAD-aware key (fqn/arity): the corpus's wrapper idiom
+            // declares a 2-arg assert helper delegating to a 3-arg one —
+            // a bare-FQN key shadows the delegate (first-in wins)
+            fnIndex.putIfAbsent(f.qualifiedName() + "/"
+                    + f.parameters().size(), new FnDef(
                     f.parameters().stream()
                             .map(com.legend.model.FunctionDefinition.ParameterDefinition::name)
                             .toList(),
@@ -430,10 +434,9 @@ public final class Runner {
                     && !af.function().equals("letFunction")) {
                 String fqn = af.function().contains("::")
                         ? af.function() : qualify(af.function(), t);
-                FnDef fd = fnIndex.get(fqn);
-                if (fd != null && fd.params().size() == af.parameters().size()
-                        && !fd.body().isEmpty()
-                        && containsExecuteShape(fd.body())) {
+                FnDef fd = fnIndex.get(fqn + "/" + af.parameters().size());
+                if (fd != null && !fd.body().isEmpty()
+                        && containsExecuteShapeDeep(fd.body(), t, 0)) {
                     callee = fd;
                     call = af;
                 }
@@ -454,6 +457,35 @@ public final class Runner {
     }
 
     /** Any execute/toSQLString/from call anywhere in these statements. */
+    /** The transitive gate: a helper qualifies when its body reaches an
+     * execute shape DIRECTLY or through further helper calls (the corpus's
+     * wrapper-overload idiom: a 2-arg assert helper delegating to the
+     * 3-arg one that holds the executionPlan call). */
+    private boolean containsExecuteShapeDeep(
+            List<com.legend.model.spec.ValueSpecification> stmts,
+            ParsedTest t, int depth) {
+        if (containsExecuteShape(stmts)) {
+            return true;
+        }
+        if (depth >= 3) {
+            return false;
+        }
+        for (com.legend.model.spec.ValueSpecification stmt : stmts) {
+            if (stmt instanceof com.legend.model.spec.AppliedFunction af
+                    && !af.function().equals("letFunction")) {
+                String fqn = af.function().contains("::")
+                        ? af.function() : qualify(af.function(), t);
+                FnDef fd = fnIndex.get(fqn + "/" + af.parameters().size());
+                if (fd != null && !fd.body().isEmpty()
+                        && containsExecuteShapeDeep(fd.body(), t,
+                                depth + 1)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean containsExecuteShape(
             List<com.legend.model.spec.ValueSpecification> stmts) {
         java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
@@ -464,7 +496,9 @@ public final class Runner {
                 String simple = af.function()
                         .substring(af.function().lastIndexOf(':') + 1);
                 if (simple.equals("execute") || simple.equals("toSQLString")
-                        || simple.equals("from")) {
+                        || simple.equals("from")
+                        || simple.equals("executionPlan")
+                        || simple.equals("planToString")) {
                     return true;
                 }
                 work.addAll(af.parameters());

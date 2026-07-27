@@ -277,6 +277,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // plan-template parameter (engine freemarker): strings are
         // single-quoted with the engine's escape template
         if (e instanceof SqlExpr.PlanParam p) {
+            // an OPTIONAL parameter spells the varPlaceHolderToString
+            // template in EVERY position (comparisons, null guards) —
+            // the selector arm below owns only the equality form
+            if (p.optional()) {
+                return holder(p);
+            }
             return switch (p.kind()) {
                 case STRING -> "'${" + p.name()
                         + "?replace(\"'\", \"''\")}'";
