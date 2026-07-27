@@ -28,6 +28,10 @@ import java.util.regex.Pattern;
  */
 public final class Runner {
 
+    /** Class-FQN -> defining file (the corpus-wide index, incl. the M2M
+     * platform test root) — set by the runner harness; null = disabled. */
+    public java.util.function.Function<String, java.nio.file.Path> classLookup;
+
     public record Outcome(String test, Status status, String detail) {
     }
 
@@ -1040,6 +1044,51 @@ public final class Runner {
                     sources.add(new com.legend.Compiler.ModelSource(
                             "xfam-" + Integer.toHexString(src.hashCode())
                                     + "-" + (i++) + ".pure", src));
+                }
+            }
+        }
+        // PLATFORM M2M CLASS PULL (single-file vehicle): a pulled mapping
+        // file may declare class heads whose CLASSES live in the platform
+        // M2M test root (shared.pure: `_Person : Relational` under
+        // `import shared::src::*`; the class is engine-core
+        // core/store/m2m/tests). Resolve heads through the mapping file's
+        // own imports and pull ONLY defining files under the M2M root —
+        // the narrow vehicle that cannot poison relational resolution.
+        if (classLookup != null) {
+            List<com.legend.Compiler.ModelSource> snapshot =
+                    new ArrayList<>(sources);
+            for (com.legend.Compiler.ModelSource src : snapshot) {
+                List<String> imps = src.text().lines().map(String::strip)
+                        .filter(l -> l.startsWith("import ")
+                                && l.endsWith("::*;"))
+                        .map(l -> l.substring(7, l.length() - 4)).toList();
+                if (imps.isEmpty()) {
+                    continue;
+                }
+                java.util.regex.Matcher m2 = java.util.regex.Pattern.compile(
+                        "(?m)^ *\\*?([\\w]+) *(\\[[\\w,]+\\])? *: *(Relational|Pure)\\b")
+                        .matcher(src.text());
+                while (m2.find()) {
+                    for (String imp : imps) {
+                        java.nio.file.Path def =
+                                classLookup.apply(imp + "::" + m2.group(1));
+                        if (def != null && def.toString().contains(
+                                "/core/store/m2m/tests/")) {
+                            try {
+                                String txt = java.nio.file.Files
+                                        .readString(def);
+                                if (present.add(txt)) {
+                                    sources.add(new com.legend.Compiler
+                                            .ModelSource("xm2m-"
+                                            + Integer.toHexString(
+                                                    txt.hashCode())
+                                            + ".pure", txt));
+                                }
+                            } catch (java.io.IOException ignored) {
+                                // unreadable platform file: stays a wall
+                            }
+                        }
+                    }
                 }
             }
         }

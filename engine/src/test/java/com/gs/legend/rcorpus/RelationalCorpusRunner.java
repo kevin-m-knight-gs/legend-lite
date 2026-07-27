@@ -73,6 +73,13 @@ public class RelationalCorpusRunner {
                 }
                 """);
         Runner runner = new Runner(shared, shared);
+        runner.classLookup = fqn -> {
+            try {
+                return classIndex().get(fqn);
+            } catch (Exception e) {
+                return null;
+            }
+        };
         // BeforePackage setups live NEXT TO the tests (functions/tests,
         // query, mapping families) — scan every covered file plus the
         // functions/tests dir (meta::relational::tests::query::setUp et al)
@@ -318,6 +325,9 @@ public class RelationalCorpusRunner {
                         }
                         if (dep == null || !pulledFiles.add(dep)) {
                             continue;   // unknown stays a loud wall
+                        }
+                        if (System.getenv("LL_TMP_DEBUG") != null) {
+                            System.err.println("[pull] " + fqn + " <- " + dep);
                         }
                         String depSrc = Files.readString(dep);
                         modelOnly.add(depSrc);

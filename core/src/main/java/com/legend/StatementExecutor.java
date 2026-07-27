@@ -534,9 +534,13 @@ final class StatementExecutor {
     private static String sizeRange(
             com.legend.compiler.element.type.Multiplicity m) {
         if (m instanceof com.legend.compiler.element.type.Multiplicity
-                .Bounded b && b.upper() != null) {
-            return b.lower() == b.upper() ? String.valueOf(b.lower())
-                    : b.lower() + ".." + b.upper();
+                .Bounded b) {
+            if (b.upper() != null) {
+                return b.lower() == b.upper() ? String.valueOf(b.lower())
+                        : b.lower() + ".." + b.upper();
+            }
+            // unbounded: [*] (lower 0) or [n..*]
+            return b.lower() == 0 ? "*" : b.lower() + "..*";
         }
         throw new com.legend.error.NotImplementedException(
                 "plan: multiplicity spelling for " + m + " pending");

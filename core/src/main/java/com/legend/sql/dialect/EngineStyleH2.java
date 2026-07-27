@@ -384,6 +384,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     }
                     return String.join(" or ", ops);
                 }
+                case COALESCE -> {
+                    // the null-guarded in() (pure in never returns null;
+                    // COALESCE(x in (...), false) is our EXECUTION idiom)
+                    // spells the BARE in-template in engine text
+                    if (bc.args().size() == 2
+                            && bc.args().get(0) instanceof SqlExpr.Call ic0
+                            && ic0.fn() == com.legend.sql.SqlFn.IN
+                            && ic0.args().size() == 2
+                            && ic0.args().get(1) instanceof SqlExpr.PlanParam
+                            && bc.args().get(1) instanceof SqlExpr.BoolLit bl0
+                            && !bl0.value()) {
+                        return expr(ic0, parentPrec);
+                    }
+                }
                 case IN -> {
                     // a COLLECTION-typed plan parameter spells the
                     // engine's renderCollection template — separator ","
