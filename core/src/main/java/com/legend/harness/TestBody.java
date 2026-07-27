@@ -717,6 +717,76 @@ public final class TestBody {
         return null;
     }
 
+    /** #67: a pure golden-SQL assert upgrades to ROW-VERIFIED when the
+     * H2 second target can replay the test's raw seeds (recorded at the
+     * RawSqlBoundary — H2-flavored BY DEFINITION) and execute the golden
+     * on the engine's own dialect: golden-H2 rows vs our DuckDB rows,
+     * order-insensitive. null = verified match (a REAL verification, not
+     * a hollow pass); text = divergence FAIL; unverifiable inputs return
+     * the advisory marker — exactly the pre-#67 behavior. */
+    private static String h2Upgrade(List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn) {
+        if (!H2Verify.ready()
+                || com.legend.exec.RawSqlBoundary.recording() == null
+                || args.size() != 2) {
+            return ADVISORY_MARKER;
+        }
+        String golden = null;
+        ValueSpecification actual = null;
+        for (ValueSpecification a : args) {
+            String s = TestDataGenForm.foldString(substitute(a, lets));
+            if (s != null && golden == null) {
+                golden = s;
+            } else {
+                actual = a;
+            }
+        }
+        String var = actual == null ? null
+                : rootExecVar(actual, execVars, lets);
+        if (golden == null || var == null) {
+            return ADVISORY_MARKER;
+        }
+        try {
+            Eval rows = eval(new AppliedProperty(
+                    new Variable(var, null, null), "values"), lets,
+                    execStmts, execVars, execChains, ctx, imports,
+                    runtimeFqn, conn);
+            return H2Verify.verify(
+                    com.legend.exec.RawSqlBoundary.recording(), golden,
+                    rows.result());
+        } catch (java.sql.SQLException | RuntimeException e) {
+            if (System.getenv("LL_H2_DEBUG") != null) {
+                System.err.println("[h2-advisory] unverifiable: " + e);
+            }
+            return ADVISORY_MARKER;
+        }
+    }
+
+    /** The exec-frame variable an expression reads through (receiver /
+     * first-arg chains), or null. */
+    private static String rootExecVar(ValueSpecification v,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> lets) {
+        v = substitute(v, lets);
+        while (true) {
+            if (v instanceof Variable var) {
+                return execVars.contains(var.name()) ? var.name() : null;
+            }
+            if (v instanceof AppliedProperty ap) {
+                v = ap.receiver();
+            } else if (v instanceof AppliedFunction af
+                    && !af.parameters().isEmpty()) {
+                v = af.parameters().get(0);
+            } else {
+                return null;
+            }
+        }
+    }
+
     /** #46 let-arm result: a wall, a consumed binding, or a (possibly
      * rewritten) rhs for the ordinary let path. */
     private record TdgLet(Outcome wall, ValueSpecification rhs,
@@ -960,11 +1030,17 @@ public final class TestBody {
                 // golden-SQL spellings are advisory: our SQL is DuckDB's.
                 // A MIXED side (sql text AND value reads) is loud instead —
                 // skipping its value conjuncts would be silent (audit 9).
+                // #67: a PURE golden-SQL assert upgrades to ROW-VERIFIED
+                // when the H2 second target can replay the seeds and run
+                // the golden (h2Upgrade; unverifiable stays advisory).
                 if (containsSqlText(args.get(args.size() - 1))
                         || containsSqlText(args.get(0))) {
-                    return containsValuesRead(args.get(0))
-                            || containsValuesRead(args.get(args.size() - 1))
-                            ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
+                    if (containsValuesRead(args.get(0))
+                            || containsValuesRead(args.get(args.size() - 1))) {
+                        return UNSUPPORTED_MARKER;
+                    }
+                    return h2Upgrade(args, lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
                 }
                 // legacy 3-arg H2-compat: (legacySql, h2Sql, actualSql) —
                 // all SQL text, advisory
@@ -1062,7 +1138,8 @@ public final class TestBody {
                 return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
             }
             case "assertSameSQL" -> {
-                return ADVISORY_MARKER;
+                return h2Upgrade(af.parameters(), lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn);
             }
             case "assertJsonStringsEqual" -> {
                 // graph-fetch JSON equality (engine semantics): object keys

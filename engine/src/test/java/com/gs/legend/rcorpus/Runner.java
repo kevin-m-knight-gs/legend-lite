@@ -640,6 +640,11 @@ public final class Runner {
 
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
+        // #67: record every raw corpus statement this test executes —
+        // the H2 advisory second target replays them verbatim to verify
+        // golden-SQL asserts by ROWS. Fresh list per test; the next run
+        // replaces it.
+        com.legend.exec.RawSqlBoundary.record(new ArrayList<>());
         // Statement-position HELPER calls β-expand (params bound as lets)
         // for TWO reasons, verified separable by experiment (audit 20
         // follow-up): (a) DISCOVERY — executeMappingRefs must see execute

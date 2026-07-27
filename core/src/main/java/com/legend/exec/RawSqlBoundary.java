@@ -29,6 +29,26 @@ public final class RawSqlBoundary {
     private RawSqlBoundary() {
     }
 
+    /** RAW-statement recorder (#67 H2 advisory backend): every corpus
+     * statement passing this boundary is H2-flavored BY DEFINITION, so
+     * the recorded stream replays verbatim on a real H2 to seed the
+     * advisory second target. Installed per test by the harness; null =
+     * off. */
+    private static final ThreadLocal<List<String>> RECORDER =
+            new ThreadLocal<>();
+
+    public static void record(List<String> sink) {
+        if (sink == null) {
+            RECORDER.remove();
+        } else {
+            RECORDER.set(sink);
+        }
+    }
+
+    public static List<String> recording() {
+        return RECORDER.get();
+    }
+
     private static final Pattern CREATE_HEAD = Pattern.compile(
             "(?i)^\\s*create\\s+table\\s+[\\w.\"]+\\s*\\(");
 
@@ -45,6 +65,10 @@ public final class RawSqlBoundary {
      * statement start.
      */
     public static String h2ToDuckDb(String sql) {
+        List<String> sink = RECORDER.get();
+        if (sink != null) {
+            sink.add(sql);
+        }
         String out = sql.replaceAll("(?i)\\bCURRENT_TIMESTAMP\\(\\)", "CURRENT_TIMESTAMP");
         // H2 accepts name-first `Drop schema <name> if exists cascade`
         // (corpus testTDSJoin.pure:1047); DuckDB only parses IF EXISTS

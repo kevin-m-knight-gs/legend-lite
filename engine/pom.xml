@@ -34,6 +34,17 @@
             <artifactId>duckdb_jdbc</artifactId>
         </dependency>
 
+        <!-- H2 (test only): the ADVISORY SECOND TARGET (#67) — the
+             corpus's golden SQL executes on the engine's own dialect and
+             its rows verify against ours; the platform itself never
+             depends on H2 (core detects the driver reflectively). -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.1.214</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- SQLite JDBC Driver -->
         <dependency>
             <groupId>org.xerial</groupId>
