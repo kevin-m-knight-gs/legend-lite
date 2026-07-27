@@ -1027,6 +1027,14 @@ public final class TestBody {
                 if (args.size() < 2) {
                     return UNSUPPORTED_MARKER;
                 }
+                // legacy 3-arg H2-compat: (legacySql, h2NewSql, actual) —
+                // the NEW golden is H2 2.1.214, exactly the advisory
+                // second target's dialect: verify by ROWS through it
+                if (args.size() == 3 && af.function().equals("assertEqualsH2Compatible")) {
+                    return h2Upgrade(List.of(args.get(1), args.get(2)),
+                            lets, execStmts, execVars, execChains, ctx,
+                            imports, runtimeFqn, conn);
+                }
                 // golden-SQL spellings are advisory: our SQL is DuckDB's.
                 // A MIXED side (sql text AND value reads) is loud instead —
                 // skipping its value conjuncts would be silent (audit 9).
@@ -1041,11 +1049,6 @@ public final class TestBody {
                     }
                     return h2Upgrade(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
-                }
-                // legacy 3-arg H2-compat: (legacySql, h2Sql, actualSql) —
-                // all SQL text, advisory
-                if (args.size() == 3 && af.function().equals("assertEqualsH2Compatible")) {
-                    return ADVISORY_MARKER;
                 }
                 Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && e.size() == 0) {
