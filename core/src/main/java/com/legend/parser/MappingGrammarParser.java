@@ -1135,7 +1135,10 @@ final class MappingGrammarParser {
         // Inside a scope block, a BARE identifier is a column of the
         // scoped table (scope([db]schemaA.firmSet)( legalName: name )).
         if (p.currentScopeBlock != null && p.currentScopeBlock.path() != null
-                && p.isIdentifierToken(p.peek())
+                && (p.isIdentifierToken(p.peek())
+                        // a DOUBLE-quoted relational identifier is a
+                        // scoped column too (calendar: date: "date")
+                        || p.peek() == TokenType.QUOTED_STRING)
                 // a single-quoted STRING here is a CONSTANT literal binding
                 // (issuer( name: 'test' )), not a quoted column name —
                 // relational identifiers quote with double quotes

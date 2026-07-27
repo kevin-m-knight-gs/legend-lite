@@ -234,6 +234,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     ? "'${" + p.name() + "?replace(\"'\", \"''\")}'"
                     : "${" + p.name() + "}";
         }
+        // a property read THROUGH a plan parameter spells the engine's
+        // dotted placeholder ('${reportEndDate.date}' — Allocation-bound
+        // instance fields in the terminal's SQL)
+        if (e instanceof SqlExpr.StructGet sg) {
+            if (sg.source() instanceof SqlExpr.PlanParam pp) {
+                return "'${" + pp.name() + "." + sg.field() + "}'";
+            }
+            // engine-H2 text has no struct vocabulary — a named wall
+            // (SHAPE in the plan branch), not a dialect bug
+            throw new UnsupportedOperationException(
+                    "plan: struct extraction has no engine-H2 spelling");
+        }
         // alias part quoted, physical column bare — "root".FIRSTNAME
         if (e instanceof SqlExpr.Column c) {
             return c.table() == null ? phys(c.name())

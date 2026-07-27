@@ -1031,9 +1031,12 @@ public final class TestBody {
             return "assertEquals: expected " + pe.render() + ", got "
                     + pa.render();
         } catch (com.legend.error.NotImplementedException
-                | com.legend.error.LegendCompileException pw) {
+                | com.legend.error.LegendCompileException
+                | UnsupportedOperationException pw) {
             // the PLAN surface is a pending vocabulary — its typing/
             // resolution walls are SHAPE, scoped to plan asserts only
+            // (UnsupportedOperation = the sql layer's standalone wall
+            // type; com.legend.sql cannot reference com.legend.error)
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[plan-wall] " + pw);
             }

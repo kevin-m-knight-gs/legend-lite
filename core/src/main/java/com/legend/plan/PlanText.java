@@ -58,10 +58,18 @@ public final class PlanText {
             return "  type = TDS[" + tdsTuples(ctx, impl[2], plan, rt,
                     docsOf(last)) + "]\n";
         }
+        String size = "*";
+        if (last.info().multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity
+                        .Bounded bm && bm.upper() != null) {
+            size = bm.lower() == bm.upper()
+                    ? String.valueOf(bm.lower())
+                    : bm.lower() + ".." + bm.upper();
+        }
         return "  type = Class[impls=(" + rootClassFqn + " | "
                 + impl[0] + "." + impl[1] + ")]\n"
                 + "         as " + rootClassFqn + "\n"
-                + "  resultSizeRange = *\n";
+                + "  resultSizeRange = " + size + "\n";
     }
 
     /** Every line of {@code block} (newline-terminated) shifted right by
