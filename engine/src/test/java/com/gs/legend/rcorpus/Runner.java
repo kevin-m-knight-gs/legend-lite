@@ -883,6 +883,11 @@ public final class Runner {
                 if (!r.failures().isEmpty()) {
                     yield new Outcome(fqn, Status.FAIL, r.failures().get(0));
                 }
+                if (r.verified() == 0 && !r.sqlDiffs().isEmpty()) {
+                    // sql-only test: the literal engine-text compare IS
+                    // the contract — a divergence fails honestly
+                    yield new Outcome(fqn, Status.FAIL, r.sqlDiffs().get(0));
+                }
                 if (r.verified() == 0 && r.advisory() > 0) {
                     yield new Outcome(fqn, Status.SHAPE,
                             "sql-only: " + r.advisory()

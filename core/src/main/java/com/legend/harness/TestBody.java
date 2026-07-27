@@ -82,7 +82,11 @@ public final class TestBody {
          * @param failures  first assert failure (empty = all held)
          */
         record Ran(int verified, int advisory, int executed,
-                List<String> failures) implements Outcome {
+                List<String> failures, List<String> sqlDiffs) implements Outcome {
+            public Ran(int verified, int advisory, int executed,
+                    List<String> failures) {
+                this(verified, advisory, executed, failures, List.of());
+            }
         }
 
         /** A statement/assert shape the driver does not support yet — NAMED. */
@@ -265,6 +269,7 @@ public final class TestBody {
         java.util.Set<String> planText = new java.util.HashSet<>();
         int verified = 0;
         int advisory = 0;
+        List<String> sqlDiffs = new ArrayList<>();
         int executed = 0;
         while (!work.isEmpty()) {
             ValueSpecification stmt = work.poll();
@@ -428,17 +433,13 @@ public final class TestBody {
                         runtimeFqn, conn, emptinessUnverifiable
                                 || seedFailures != null && !seedFailures.isEmpty(),
                         tdg, planText);
-                if (failure == UNSUPPORTED_MARKER) {
-                    return new Outcome.Unsupported("assert form '" + af.function()
-                            + "/" + af.parameters().size() + "' is not supported yet");
-                }
-                if (failure == ADVISORY_MARKER) {
-                    advisory++;
-                    continue;
-                }
-                verified++;
-                if (failure != null) {
-                    return new Outcome.Ran(verified, advisory, executed, List.of(failure));
+                int[] cs = {verified, advisory};
+                Outcome oc = scoreAssert(af, failure, cs, sqlDiffs,
+                        executed);
+                verified = cs[0];
+                advisory = cs[1];
+                if (oc != null) {
+                    return oc;
                 }
                 continue;
             }
@@ -485,7 +486,8 @@ public final class TestBody {
             return new Outcome.Unsupported("unsupported statement: "
                     + stmt.getClass().getSimpleName());
         }
-        return new Outcome.Ran(verified, advisory, executed, List.of());
+        return new Outcome.Ran(verified, advisory, executed, List.of(),
+                List.copyOf(sqlDiffs));
     }
 
     private record Preamble(java.util.List<ValueSpecification> statements,
@@ -720,6 +722,144 @@ public final class TestBody {
             return out;
         }
         return null;
+    }
+
+    /** One assert's terminal outcome from its checkAssert result, or
+     * null to continue; {@code counters} = {verified, advisory}. A
+     * divergent golden text records into {@code sqlDiffs} — rows stay
+     * the contract for tests that verify anything else; a test with NO
+     * other verification fails on the diff (runner scoring). */
+    private static Outcome scoreAssert(AppliedFunction af, String failure,
+            int[] counters, List<String> sqlDiffs, int executed) {
+        if (failure == UNSUPPORTED_MARKER) {
+            return new Outcome.Unsupported("assert form '" + af.function()
+                    + "/" + af.parameters().size() + "' is not supported yet");
+        }
+        if (failure == ADVISORY_MARKER) {
+            counters[1]++;
+            return null;
+        }
+        if (failure != null && failure.startsWith("sql-text: ")) {
+            counters[1]++;
+            sqlDiffs.add(failure);
+            return null;
+        }
+        counters[0]++;
+        if (failure != null) {
+            return new Outcome.Ran(counters[0], counters[1], executed,
+                    List.of(failure));
+        }
+        return null;
+    }
+
+    /** The ENGINE's own contract for golden-SQL asserts: render the
+     * SAME query through the toSQLString surface (the EngineStyleH2
+     * dialect over the one SQL IR — a sibling of the DuckDB renderer,
+     * no side-band conversion) and compare LITERALLY. Byte-exact match
+     * verifies; a text diff falls back to the #67 H2 row-replay (rows
+     * equal = execution-equivalent, SQL divergence stays visible in the
+     * census); when neither verifies, the TEXT DIFF is the failure —
+     * never a silent advisory skip. */
+    private static String sqlTextVerify(List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        String golden = null;
+        ValueSpecification actual = null;
+        for (ValueSpecification a : args) {
+            String s = TestDataGenForm.foldString(substitute(a, lets));
+            if (s != null && golden == null) {
+                golden = s;
+            } else {
+                actual = a;
+            }
+        }
+        AppliedFunction exec = golden == null ? null
+                : sqlTextExecCall(actual, lets, execStmts);
+        if (exec != null && exec.parameters().size() >= 2) {
+            try {
+                List<ValueSpecification> ps = new ArrayList<>();
+                ps.add(substitute(exec.parameters().get(0), lets));
+                ps.add(exec.parameters().get(1));
+                ps.add(new com.legend.model.spec.EnumValue(
+                        "meta::relational::runtime::DatabaseType", "H2"));
+                for (int i = 3; i < exec.parameters().size(); i++) {
+                    ps.add(exec.parameters().get(i));
+                }
+                Object sql = evalScalar(new AppliedFunction(
+                        "meta::relational::functions::sqlstring::toSQLString",
+                        ps), lets, execStmts, execVars, execChains, ctx,
+                        imports, runtimeFqn, conn);
+                if (golden.equals(sql)) {
+                    return null;
+                }
+                // divergent text: execution-equivalence may still verify
+                String rows = h2Upgrade(args, lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn);
+                if (rows != ADVISORY_MARKER) {
+                    return rows;
+                }
+                return "sql-text: expected " + golden + ", got " + sql;
+            } catch (RuntimeException | java.sql.SQLException e) {
+                if (System.getenv("LL_SQLTEXT_DEBUG") != null) {
+                    System.err.println("[sql-text] unverifiable: " + e);
+                }
+                // fall through — the row-replay may still verify
+            }
+        }
+        return h2Upgrade(args, lets, execStmts, execVars, execChains, ctx,
+                imports, runtimeFqn, conn);
+    }
+
+    /** The execute(...) call behind a golden-SQL read chain
+     * ({@code $r->sqlRemoveFormatting()} / direct), or null. */
+    private static AppliedFunction sqlTextExecCall(ValueSpecification v,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts) {
+        if (v == null) {
+            return null;
+        }
+        ValueSpecification cur = substitute(v, lets);
+        while (true) {
+            if (cur instanceof Variable var) {
+                // execute() bindings live in the exec-statement frame,
+                // not in lets — find the binding and descend into it
+                ValueSpecification bound = null;
+                for (ValueSpecification st : execStmts) {
+                    if (st instanceof AppliedFunction lf
+                            && lf.function().equals("letFunction")
+                            && lf.parameters().size() == 2
+                            && lf.parameters().get(0)
+                                    instanceof com.legend.model.spec
+                                            .CString n
+                            && n.value().equals(var.name())) {
+                        bound = lf.parameters().get(1);
+                    }
+                }
+                if (bound == null) {
+                    break;
+                }
+                cur = bound;
+                continue;
+            }
+            if (cur instanceof AppliedFunction af
+                    && !simpleName(af.function()).equals("execute")
+                    && !af.parameters().isEmpty()) {
+                cur = substitute(af.parameters().get(0), lets);
+                continue;
+            }
+            if (cur instanceof com.legend.model.spec.AppliedProperty ap) {
+                cur = ap.receiver();
+                continue;
+            }
+            break;
+        }
+        return cur instanceof AppliedFunction ex
+                && simpleName(ex.function()).equals("execute")
+                ? ex : null;
     }
 
     /** #67: a pure golden-SQL assert upgrades to ROW-VERIFIED when the
@@ -1568,7 +1708,7 @@ public final class TestBody {
                 // the NEW golden is H2 2.1.214, exactly the advisory
                 // second target's dialect: verify by ROWS through it
                 if (args.size() == 3 && af.function().equals("assertEqualsH2Compatible")) {
-                    return h2Upgrade(List.of(args.get(1), args.get(2)),
+                    return sqlTextVerify(List.of(args.get(1), args.get(2)),
                             lets, execStmts, execVars, execChains, ctx,
                             imports, runtimeFqn, conn);
                 }
@@ -1584,7 +1724,7 @@ public final class TestBody {
                             || containsValuesRead(args.get(args.size() - 1))) {
                         return UNSUPPORTED_MARKER;
                     }
-                    return h2Upgrade(args, lets, execStmts, execVars,
+                    return sqlTextVerify(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
                 }
                 }

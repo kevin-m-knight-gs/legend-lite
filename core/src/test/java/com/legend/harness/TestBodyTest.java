@@ -173,17 +173,33 @@ class TestBodyTest {
     }
 
     @Test
-    void goldenSqlAssertsAreAdvisory() throws Exception {
-        TestBody.Outcome o = run("""
+    void goldenSqlAssertsVerifyLiterally() throws Exception {
+        // the ENGINE's contract: golden-SQL asserts compare the
+        // toSQLString rendering (EngineStyleH2) byte-exact — a matching
+        // golden VERIFIES, a divergent one is an honest text-diff FAIL
+        // (never a silent advisory skip)
+        TestBody.Outcome ok = run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['name']),
+                        test::M, r(), e());
+                assertEquals('select "root".NAME as "name" from PERSON as "root"',
+                        $result->sqlRemoveFormatting());
+                assertSize($result.values->at(0), 3);
+                """);
+        TestBody.Outcome.Ran ran = (TestBody.Outcome.Ran) ok;
+        assertEquals(List.of(), ran.failures());
+        assertEquals(2, ran.verified());
+        assertEquals(0, ran.advisory());
+        TestBody.Outcome bad = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
                 assertEquals('select whatever', $result->sqlRemoveFormatting());
-                assertSize($result.values->at(0), 3);
                 """);
-        TestBody.Outcome.Ran ran = (TestBody.Outcome.Ran) o;
-        assertEquals(List.of(), ran.failures());
-        assertEquals(1, ran.verified());
-        assertEquals(1, ran.advisory());
+        TestBody.Outcome.Ran ranBad = (TestBody.Outcome.Ran) bad;
+        assertEquals(List.of(), ranBad.failures());
+        assertEquals(0, ranBad.verified());
+        assertEquals(1, ranBad.sqlDiffs().size());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                ranBad.sqlDiffs().get(0).startsWith("sql-text: expected"));
     }
 
     @Test
