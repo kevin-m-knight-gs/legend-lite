@@ -423,7 +423,9 @@ class NativeFunctionTest {
         //     FunctionParameter/SQLExecutionNode/
         //     RelationalInstantiationExecutionNode (the plan NODE surface
         //     — real executionPlan.pure:73-205 + relational :63-90).
-        assertEquals(80, Pure.allNativeClasses().size(),
+        // 81: +SelectSQLQuery (relationalRuntime.pure post-processor hook
+        //     parameter type — opaque; recognized pps apply over OUR IR).
+        assertEquals(81, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -440,8 +442,12 @@ class NativeFunctionTest {
                     "meta::external::store::relational::runtime::DatabaseConnection",
                     // real relationalRuntime.pure:26-48 (queryGenerationConfigs
                     // :48 — the removeUnionOrJoins feature-toggle surface)
+                    // + the post-processor hooks (relationalRuntime.pure
+                    // :40-42): recognized shapes apply over OUR SQL IR
                     List.of("type", "debug", "timeZone", "quoteIdentifiers",
-                            "queryTimeOutInSeconds", "queryGenerationConfigs"),
+                            "queryTimeOutInSeconds", "queryGenerationConfigs",
+                            "sqlQueryPostProcessors",
+                            "sqlQueryPostProcessorsConnectionAware"),
                     "meta::external::store::relational::runtime::TestDatabaseConnection",
                     List.of("testDataSetupCsv"),
                     "meta::relational::metamodel::execute::ResultSet",

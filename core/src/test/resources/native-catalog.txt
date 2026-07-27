@@ -1,3 +1,4 @@
+# canonical native catalog — regenerate via a temporary CatalogDumpTest (see NativeFunctionTest)
 meta::pure::functions::math::abs<T>(number:T[1]):T[1]
 meta::pure::functions::math::acos(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]
 meta::pure::functions::collection::add<T>(set:T[*], index:meta::pure::metamodel::type::Integer[1], val:T[1]):T[*]
@@ -278,6 +279,8 @@ meta::legend::lite::legacyNavigate<S,C,T,Z>(rel:meta::pure::metamodel::relation:
 meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1]
 meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1]
 meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::Schema[0..1]
+meta::relational::postProcessor::replaceTables(selectSQLQuery:meta::relational::metamodel::relation::SelectSQLQuery[1], oldToNewPairs:meta::pure::functions::collection::Pair<meta::relational::metamodel::relation::Table,meta::relational::metamodel::relation::Table>[*]):meta::pure::mapping::Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]
+meta::relational::postProcessor::nonExecutable(selectSQLQuery:meta::relational::metamodel::relation::SelectSQLQuery[1], extensions:meta::pure::extension::Extension[*]):meta::pure::mapping::Result<meta::relational::metamodel::relation::SelectSQLQuery>[1]
 meta::relational::metamodel::table(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::Table[0..1]
 meta::pure::functions::meta::evaluateAndDeactivate<T|m>(var:T[m]):T[m]
 meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1]
