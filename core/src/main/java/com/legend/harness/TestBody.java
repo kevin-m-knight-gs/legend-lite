@@ -854,6 +854,67 @@ public final class TestBody {
             boolean consumed) {
     }
 
+    /** Test-level lets the plan lambda reads, injected as LEADING
+     * lambda-local lets in first-use order (engine inScopeVars — each
+     * prints as an Allocation node). */
+    private static AppliedFunction injectOpenLets(AppliedFunction ep,
+            Map<String, ValueSpecification> lets) {
+        if (!(ep.parameters().get(0) instanceof LambdaFunction plam)) {
+            return ep;
+        }
+        java.util.LinkedHashSet<String> open = new java.util.LinkedHashSet<>();
+        java.util.Set<String> bound = new java.util.HashSet<>();
+        plam.parameters().forEach(p -> bound.add(p.name()));
+        for (ValueSpecification st : plam.body()) {
+            collectOpenVars(st, lets.keySet(), bound, open);
+            if (st instanceof AppliedFunction lfn
+                    && lfn.function().equals("letFunction")
+                    && lfn.parameters().size() == 2
+                    && lfn.parameters().get(0) instanceof CString ln) {
+                bound.add(ln.value());
+            }
+        }
+        if (open.isEmpty()) {
+            return ep;
+        }
+        List<ValueSpecification> body = new ArrayList<>();
+        for (String n : open) {
+            body.add(new AppliedFunction("letFunction", List.of(
+                    new CString(n), substitute(lets.get(n), lets))));
+        }
+        body.addAll(plam.body());
+        List<ValueSpecification> ps = new ArrayList<>(ep.parameters());
+        ps.set(0, new LambdaFunction(plam.parameters(), body));
+        return new AppliedFunction(ep.function(), ps);
+    }
+
+    private static void collectOpenVars(ValueSpecification v,
+            java.util.Set<String> lets, java.util.Set<String> bound,
+            java.util.LinkedHashSet<String> out) {
+        switch (v) {
+            case Variable var -> {
+                if (lets.contains(var.name()) && !bound.contains(var.name())) {
+                    out.add(var.name());
+                }
+            }
+            case AppliedFunction af -> af.parameters()
+                    .forEach(x -> collectOpenVars(x, lets, bound, out));
+            case AppliedProperty ap -> collectOpenVars(ap.receiver(),
+                    lets, bound, out);
+            case PureCollection pc -> pc.values()
+                    .forEach(x -> collectOpenVars(x, lets, bound, out));
+            case LambdaFunction lf -> {
+                java.util.Set<String> inner = new java.util.HashSet<>(bound);
+                lf.parameters().forEach(p -> inner.add(p.name()));
+                lf.body().forEach(x -> collectOpenVars(x, lets, inner, out));
+            }
+            case NewInstance ni -> ni.properties().values().forEach(
+                    ke -> collectOpenVars(ke.value(), lets, bound, out));
+            default -> {
+            }
+        }
+    }
+
     /** The #46 let-arm rewrites: a generateTestData binding runs NOW
      * (setup statements above already executed — engine parity, all data
      * work in the database); testDataGen reads inline as literals so the
@@ -893,11 +954,17 @@ public final class TestBody {
                 && (ep.function().equals("executionPlan")
                         || ep.function().startsWith("meta::"))
                 && ep.parameters().size() >= 3) {
+            // OPEN VARIABLES become Allocations (engine inScopeVars): a
+            // test-level let the plan lambda reads is injected as a
+            // LAMBDA-LOCAL leading let — the local shadows the outer
+            // binding under substitute(), so the plan printer sees the
+            // let (name + value) instead of an inlined literal
+            ep = injectOpenLets(ep, lets);
             // recorded for the plan->execute desugar; the binding ALSO
             // rides the ordinary lazy let so planToString reads type
             // through the platform (the #47 plan-text K-native)
             planLets.put(name.value(), ep);
-            return new TdgLet(null, rhs, false);
+            return new TdgLet(null, ep, false);
         }
         // the plan binding ALSO rides the lazy lets (planToString typing),
         // so rhs arrives with $plan already substituted to the
@@ -934,6 +1001,44 @@ public final class TestBody {
             // rides the caller's exec-forward arm
         }
         return new TdgLet(null, rhs, false);
+    }
+
+    /** Plan-text literal compare (toSQLString doctrine) with NAMED walls
+     * staying SHAPE. 3-arg H2Compatible = (legacy, h2New, actual): the
+     * ACTUAL is always LAST, and EITHER golden may match (h2New is our
+     * own dialect generation). */
+    private static String planTextAssert(List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        try {
+            Eval pa = eval(args.get(args.size() - 1), lets, execStmts,
+                    execVars, execChains, ctx, imports, runtimeFqn, conn);
+            Eval pe = eval(args.get(0), lets, execStmts, execVars,
+                    execChains, ctx, imports, runtimeFqn, conn);
+            if (compare(pe, pa, true)) {
+                return null;
+            }
+            if (args.size() == 3) {
+                Eval p2 = eval(args.get(1), lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn);
+                if (compare(p2, pa, true)) {
+                    return null;
+                }
+            }
+            return "assertEquals: expected " + pe.render() + ", got "
+                    + pa.render();
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.error.LegendCompileException pw) {
+            // the PLAN surface is a pending vocabulary — its typing/
+            // resolution walls are SHAPE, scoped to plan asserts only
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[plan-wall] " + pw);
+            }
+            return UNSUPPORTED_MARKER;
+        }
     }
 
     /** testDataGen assert arms (#46): assertTestData is the ROW contract
@@ -1113,27 +1218,8 @@ public final class TestBody {
                 if (containsPlanToString(substitute(args.get(0), lets))
                         || containsPlanToString(
                                 substitute(args.get(args.size() - 1), lets))) {
-                    // plan-text compare with NAMED walls staying SHAPE
-                    try {
-                        Eval pe = eval(args.get(0), lets, execStmts,
-                                execVars, execChains, ctx, imports,
-                                runtimeFqn, conn);
-                        Eval pa = eval(args.get(1), lets, execStmts,
-                                execVars, execChains, ctx, imports,
-                                runtimeFqn, conn);
-                        return compare(pe, pa, true) ? null
-                                : "assertEquals: expected " + pe.render()
-                                        + ", got " + pa.render();
-                    } catch (com.legend.error.NotImplementedException
-                            | com.legend.error.LegendCompileException pw) {
-                        // the PLAN surface is a pending vocabulary —
-                        // its typing/resolution walls are SHAPE, scoped
-                        // to plan asserts only
-                        if (System.getenv("LL_TMP_DEBUG") != null) {
-                            System.err.println("[plan-wall] " + pw);
-                        }
-                        return UNSUPPORTED_MARKER;
-                    }
+                    return planTextAssert(args, lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
                 } else {
                 // legacy 3-arg H2-compat: (legacySql, h2NewSql, actual) —
                 // the NEW golden is H2 2.1.214, exactly the advisory
@@ -2652,11 +2738,23 @@ public final class TestBody {
             case PureCollection pc -> new PureCollection(
                     substituteAll(pc.values(), lets));
             case LambdaFunction lf -> {
-                // shadowing params stop LET substitution
+                // shadowing params stop LET substitution; a LAMBDA-LOCAL
+                // let shadows the outer binding for the statements below
+                // it (real pure scoping — the plan-printer's injected
+                // Allocation lets rely on it)
                 Map<String, ValueSpecification> visible = new LinkedHashMap<>(lets);
                 lf.parameters().forEach(p2 -> visible.remove(p2.name()));
-                yield new LambdaFunction(lf.parameters(),
-                        substituteAll(lf.body(), visible));
+                List<ValueSpecification> body = new ArrayList<>(lf.body().size());
+                for (ValueSpecification st : lf.body()) {
+                    body.add(substitute(st, visible));
+                    if (st instanceof AppliedFunction lfn
+                            && lfn.function().equals("letFunction")
+                            && lfn.parameters().size() == 2
+                            && lfn.parameters().get(0) instanceof CString ln) {
+                        visible.remove(ln.value());
+                    }
+                }
+                yield new LambdaFunction(lf.parameters(), body);
             }
             // ^X(prop=$let, ...) / ^$let(prop=...) — the binding
             // EXPRESSIONS read lets too (the XStore runtime copy-ctors:

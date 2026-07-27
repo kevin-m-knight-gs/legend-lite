@@ -391,55 +391,78 @@ final class StatementExecutor {
     }
 
     /** An Allocation child for one plan let: LITERAL values print as
-     * Constant nodes, query values as SCALAR-projection Relational
-     * nodes (bare-typed, alias-less select — the engine's Allocation
-     * value form). */
+     * Constant nodes, scalar query values as SCALAR-projection
+     * Relational nodes (bare-typed, alias-less select), and CLASS query
+     * values as full Class-envelope Relational nodes — the engine's
+     * three Allocation value forms. */
     private static String allocationNode(
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             java.util.Map<String, Boolean> params) {
+        String literal = switch (let.value()) {
+            case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
+            case com.legend.compiler.spec.typed.TypedCInteger ci ->
+                    String.valueOf(ci.value());
+            case com.legend.compiler.spec.typed.TypedCFloat cf ->
+                    String.valueOf(cf.value());
+            case com.legend.compiler.spec.typed.TypedCBoolean cb ->
+                    String.valueOf(cb.value());
+            case com.legend.compiler.spec.typed.TypedCDate cd ->
+                    cd.value().toEngineString();
+            default -> null;
+        };
+        if (literal != null) {
+            String typeName = com.legend.plan.PlanText
+                    .pureTypeName(let.info().type());
+            String size = sizeRange(let.info().multiplicity());
+            return com.legend.plan.PlanText.allocation(let.name(),
+                    com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
+                    com.legend.plan.PlanText.constant(typeName, literal));
+        }
+        String rootClass = rootGetAllClass(java.util.List.of(let.value()));
+        if (rootClass == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "plan: Allocation value without a getAll root");
+        }
+        EngineSql es = engineSql(java.util.List.of(let.value()),
+                mappingFqn, specs, env,
+                new com.legend.sql.dialect.EngineStyleH2(), params);
+        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+                env.ctx(), mappingFqn, rootClass);
+        if (let.info().type()
+                instanceof com.legend.compiler.element.type.Type.ClassType) {
+            // class-valued allocation: the full Class-envelope node, and
+            // the Allocation's own type block is the impls form
+            String inner = com.legend.plan.PlanText.single(env.ctx(),
+                    rootClass, mappingFqn, es.plan(), es.sql(),
+                    java.util.List.of(let.value()));
+            return com.legend.plan.PlanText.allocation(let.name(),
+                    com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
+                            impl, es.plan(), java.util.List.of(let.value())),
+                    inner);
+        }
         String typeName = com.legend.plan.PlanText
                 .pureTypeName(let.info().type());
         String size = sizeRange(let.info().multiplicity());
-        String inner;
-        if (let.value()
-                instanceof com.legend.compiler.spec.typed.TypedCString cs) {
-            inner = com.legend.plan.PlanText.constant(typeName, cs.value());
-        } else if (let.value()
-                instanceof com.legend.compiler.spec.typed.TypedCInteger ci) {
-            inner = com.legend.plan.PlanText.constant(typeName,
-                    String.valueOf(ci.value()));
-        } else {
-            String rootClass = rootGetAllClass(
-                    java.util.List.of(let.value()));
-            if (rootClass == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "plan: Allocation value without a getAll root");
-            }
-            EngineSql es = engineSql(java.util.List.of(let.value()),
-                    mappingFqn, specs, env,
-                    new com.legend.sql.dialect.EngineStyleH2(), params);
-            if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
-                throw new com.legend.error.NotImplementedException(
-                        "plan: Allocation value lowers to a non-select");
-            }
-            String[] impl = com.legend.lineage.ScanRelations.rootImpl(
-                    env.ctx(), mappingFqn, rootClass);
-            com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
-                    sel.projections().stream().map(p ->
-                            new com.legend.sql.SqlSelect.Projection(
-                                    p.expr(), null)).toList(),
-                    sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
-                    sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
-                    sel.offset(), sel.outputs());
-            var renderer = new com.legend.sql.dialect.EngineStyleH2();
-            String bareSql = renderer.render(bareSel);
-            inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
-                    impl[2], sel, typeName, size, bareSql,
-                    renderer::renderedAlias);
+        if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
+            throw new com.legend.error.NotImplementedException(
+                    "plan: Allocation value lowers to a non-select");
         }
-        return com.legend.plan.PlanText.allocation(let.name(), typeName,
-                size, inner);
+        com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
+                sel.projections().stream().map(p ->
+                        new com.legend.sql.SqlSelect.Projection(
+                                p.expr(), null)).toList(),
+                sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
+                sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
+                sel.offset(), sel.outputs());
+        var renderer = new com.legend.sql.dialect.EngineStyleH2();
+        String bareSql = renderer.render(bareSel);
+        String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
+                impl[2], sel, typeName, size, bareSql,
+                renderer::renderedAlias);
+        return com.legend.plan.PlanText.allocation(let.name(),
+                com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
+                inner);
     }
 
     private static String multBracket(

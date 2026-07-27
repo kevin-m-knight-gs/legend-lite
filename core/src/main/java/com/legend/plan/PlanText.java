@@ -95,17 +95,24 @@ public final class PlanText {
     }
 
     /** {@code Allocation} — a let binding materialized as a named node;
-     * {@code inner} is the value's own plan node text. */
-    public static String allocation(String name, String typeName,
-            String sizeRange, String inner) {
+     * {@code typeAndSize} is the pre-built 2-indent type block (scalar
+     * {@code type/resultSizeRange} pair or the Class impls form),
+     * {@code inner} the value's own plan node text. */
+    public static String allocation(String name, String typeAndSize,
+            String inner) {
         return "Allocation\n(\n"
-                + "  type = " + typeName + "\n"
-                + "  resultSizeRange = " + sizeRange + "\n"
+                + typeAndSize
                 + "  name = " + name + "\n"
                 + "  value = \n"
                 + "    (\n"
                 + indent(inner, "      ")
                 + "    )\n)\n";
+    }
+
+    /** The scalar {@code type/resultSizeRange} pair at 2-space indent. */
+    public static String scalarTypeBlock(String typeName, String sizeRange) {
+        return "  type = " + typeName + "\n"
+                + "  resultSizeRange = " + sizeRange + "\n";
     }
 
     /** A SCALAR-projection Relational node (an Allocation's query value
