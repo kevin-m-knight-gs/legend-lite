@@ -888,6 +888,15 @@ public final class ScanRelations {
                 }
                 return;
             }
+            // GENERATED milestoning members (businessDate/processingDate
+            // — real pure generates them, no mapping exists): their value
+            // is the query's temporal context, and the table's milestone
+            // COLUMNS already ride the tdg demand — nothing to scan
+            if (prop.name().equals("businessDate")
+                    || prop.name().equals("processingDate")
+                    || prop.name().equals("snapshotDate")) {
+                return;
+            }
             // a SCALAR leaf that is genuinely unmapped is loud; a mid-hop
             // must resolve
             throw new NotImplementedException("scanRelations: property '"
@@ -1661,7 +1670,8 @@ public final class ScanRelations {
                 && af.parameters().stream().skip(1)
                         .noneMatch(a -> a instanceof LambdaFunction)
                 && af.parameters().stream().skip(1)
-                        .noneMatch(ScanRelations::carriesChain)) {
+                        .allMatch(a -> !carriesChain(a)
+                                || isTemporalContextArg(a))) {
             // a call whose extras are chain-free non-lambdas over a chain
             // is a QUALIFIED PROPERTY hop (milestoned dates:
             // product($businessDate)) — an OPERATOR over chains
@@ -1676,6 +1686,20 @@ public final class ScanRelations {
             return base;
         }
         return null;
+    }
+
+    /** A qualified-hop argument that only reads GENERATED temporal
+     * context ({@code $this.businessDate}) — the date is the query's
+     * milestoning context, not data demand; the hop still parses. */
+    private static boolean isTemporalContextArg(ValueSpecification n) {
+        List<List<Seg>> probe = new ArrayList<>();
+        collectChains(n, probe);
+        return !probe.isEmpty() && probe.stream().allMatch(c ->
+                !c.isEmpty()
+                        && c.get(c.size() - 1) instanceof Seg.Prop pr
+                        && (pr.name().equals("businessDate")
+                                || pr.name().equals("processingDate")
+                                || pr.name().equals("snapshotDate")));
     }
 
     /** Whether the expression contains a NON-EMPTY var-rooted chain. */

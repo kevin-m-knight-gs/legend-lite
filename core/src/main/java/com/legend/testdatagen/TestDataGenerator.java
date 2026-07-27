@@ -58,12 +58,25 @@ public final class TestDataGenerator {
             List<RowId> ids) {
     }
 
+    /** The engine's TemporalMilestoningDates: forced dates that FILTER
+     * every milestoned table's fetch. */
+    public record MilestoningDates(String business, String processing,
+            String snapshot) {
+    }
+
     public record Result(List<String> sqls, String dataCsvString) {
     }
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
             List<TableRowIds> rowIds, Connection conn) throws SQLException {
+        return generate(ctx, resolvedQuery, mappingFqn, rowIds, null, conn);
+    }
+
+    public static Result generate(ModelContext ctx,
+            LambdaFunction resolvedQuery, String mappingFqn,
+            List<TableRowIds> rowIds, MilestoningDates dates,
+            Connection conn) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         // a VIEW-backed root generates for its UNDERLYING tree (engine
@@ -86,7 +99,8 @@ public final class TestDataGenerator {
         List<String> temps = new ArrayList<>();
         try (Statement st = conn.createStatement()) {
             for (ScanRelations.Rel r : roots) {
-                fetchRoot(ctx, r, rowIds, st, sqls, fetched, temps, colMap);
+                fetchRoot(ctx, r, rowIds, st, sqls, fetched, temps, colMap,
+                        dates);
             }
             String csv = renderCsv(st, fetched);
             return new Result(List.copyOf(sqls), csv);
@@ -126,7 +140,8 @@ public final class TestDataGenerator {
     private static void fetchRoot(ModelContext ctx, ScanRelations.Rel rel,
             List<TableRowIds> rowIds, Statement st, List<String> sqls,
             Map<String, Fetched> fetched, List<String> temps,
-            Map<String, List<String>> colMap) throws SQLException {
+            Map<String, List<String>> colMap, MilestoningDates dates)
+            throws SQLException {
         Located loc = locate(ctx, rel.db(), rel.table());
         List<String> cols = colMap.get(loc.schema() + "\n" + rel.table());
         TableRowIds ids = null;
@@ -158,23 +173,26 @@ public final class TestDataGenerator {
             one.insert(0, "(").append(")");
             where.append(one);
         }
+        String mf = milestoningFilter(loc.def(), "\"root\"", dates);
         String sql = "select " + String.join(", ",
                 cols.stream().map(c -> "\"root\"." + q(c)).toList())
                 + " from " + qualify(loc.schema(), rel.table())
-                + " as \"root\" where " + where + " limit 20";
+                + " as \"root\" where " + (mf == null ? where.toString()
+                        : "(" + where + ") and " + mf) + " limit 20";
         String temp = materialize(st, sql, rel.table(), temps);
         sqls.add(sql);
         record(fetched, loc.schema(), rel.table(), cols, temp);
         for (ScanRelations.Rel child : rel.children()) {
             fetchChild(ctx, rel, temp, child, st, sqls, fetched, temps,
-                    colMap);
+                    colMap, dates);
         }
     }
 
     private static void fetchChild(ModelContext ctx, ScanRelations.Rel parent,
             String parentTemp, ScanRelations.Rel child, Statement st,
             List<String> sqls, Map<String, Fetched> fetched,
-            List<String> temps, Map<String, List<String>> colMap)
+            List<String> temps, Map<String, List<String>> colMap,
+            MilestoningDates dates)
             throws SQLException {
         child = expandIfView(ctx, child, parent.db());
         Located loc = locate(ctx, child.db(), child.table());
@@ -186,18 +204,76 @@ public final class TestDataGenerator {
                 ? "t_" + child.table() : child.table();
         String cond = renderCondition(op, parent.table(),
                 child.table(), alias, String.valueOf(child.joinName()));
+        String mf = milestoningFilter(loc.def(), q(alias), dates);
         String sql = "select " + String.join(", ",
                 cols.stream().map(c -> q(alias) + "." + q(c)).toList())
                 + " from " + parentTemp + " as main inner join "
                 + qualify(loc.schema(), child.table()) + " as " + q(alias)
-                + " on " + cond + " limit 20";
+                + " on " + cond
+                + (mf == null ? "" : " where " + mf) + " limit 20";
         String temp = materialize(st, sql, child.table(), temps);
         sqls.add(sql);
         record(fetched, loc.schema(), child.table(), cols, temp);
         for (ScanRelations.Rel sub : child.children()) {
             fetchChild(ctx, child, temp, sub, st, sqls, fetched, temps,
-                    colMap);
+                    colMap, dates);
         }
+    }
+
+    /** The engine's getMilestoningFilter: forced temporal dates filter a
+     * MILESTONED table's fetch (business/processing from-thru ranges,
+     * snapshot equality). A milestoned table without its date is the
+     * engine's own assert — a loud wall. */
+    private static String milestoningFilter(
+            DatabaseDefinition.TableDefinition def, String alias,
+            MilestoningDates d) {
+        var ms = def.milestoning();
+        if (ms == null || d == null) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        if (ms.business() != null) {
+            var b = ms.business();
+            if (b.snapshotDate() != null) {
+                parts.add(alias + "." + q(b.snapshotDate()) + " = DATE '"
+                        + requireDate(d.snapshot(), def, "snapshotDate")
+                        + "'");
+            } else {
+                String bd = requireDate(d.business(), def, "businessDate");
+                parts.add(alias + "." + q(b.from()) + " <= DATE '" + bd
+                        + "'");
+                parts.add(alias + "." + q(b.thru())
+                        + (b.thruIsInclusive() ? " >= DATE '" : " > DATE '")
+                        + bd + "'");
+            }
+        }
+        if (ms.processing() != null) {
+            var pr = ms.processing();
+            if (pr.snapshotDate() != null) {
+                parts.add(alias + "." + q(pr.snapshotDate()) + " = DATE '"
+                        + requireDate(d.processing(), def, "processingDate")
+                        + "'");
+            } else {
+                String pd = requireDate(d.processing(), def,
+                        "processingDate");
+                parts.add(alias + "." + q(pr.in()) + " <= DATE '" + pd
+                        + "'");
+                parts.add(alias + "." + q(pr.out())
+                        + (pr.outIsInclusive() ? " >= DATE '" : " > DATE '")
+                        + pd + "'");
+            }
+        }
+        return parts.isEmpty() ? null : String.join(" and ", parts);
+    }
+
+    private static String requireDate(String v,
+            DatabaseDefinition.TableDefinition def, String name) {
+        if (v == null) {
+            throw new NotImplementedException("testDataGen: table '"
+                    + def.name() + "' is milestoned but '" + name
+                    + "' was not passed in TemporalMilestoningDates");
+        }
+        return v;
     }
 
     private static String materialize(Statement st, String sql,

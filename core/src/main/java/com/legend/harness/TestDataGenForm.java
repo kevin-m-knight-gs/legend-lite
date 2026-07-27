@@ -72,14 +72,16 @@ final class TestDataGenForm {
                     "testDataGen: non-pointer mapping argument");
         }
         List<TestDataGenerator.TableRowIds> rowIds = new ArrayList<>();
+        TestDataGenerator.MilestoningDates[] dates =
+                new TestDataGenerator.MilestoningDates[1];
         for (int i = 3; i < ps.size(); i++) {
-            classifyArg(ps.get(i), rowIds);
+            classifyArg(ps.get(i), rowIds, dates);
         }
         String mappingFqn = qualify(mp.fullPath(), ctx, imports);
         LambdaFunction resolved = (LambdaFunction) NameResolver
                 .resolveQuery(query, imports, ctx.elementFqns());
         return TestDataGenerator.generate(ctx, resolved, mappingFqn,
-                rowIds, conn);
+                rowIds, dates[0], conn);
     }
 
     /** Recognized trailing args: TableRowIdentifiers (single or
@@ -87,7 +89,8 @@ final class TestDataGenForm {
      * collections. Anything else is a LOUD wall — never silently
      * ignored. */
     private static void classifyArg(ValueSpecification arg,
-            List<TestDataGenerator.TableRowIds> rowIds) {
+            List<TestDataGenerator.TableRowIds> rowIds,
+            TestDataGenerator.MilestoningDates[] dates) {
         if (arg instanceof CBoolean b) {
             if (b.value()) {
                 throw new NotImplementedException(
@@ -97,7 +100,7 @@ final class TestDataGenForm {
         }
         if (arg instanceof PureCollection pc) {
             for (ValueSpecification e : pc.values()) {
-                classifyArg(e, rowIds);
+                classifyArg(e, rowIds, dates);
             }
             return;
         }
@@ -121,9 +124,25 @@ final class TestDataGenForm {
                     }
                     return;
                 }
-                case "createTemporalMilestoningDates" ->
-                        throw new NotImplementedException("testDataGen:"
-                                + " temporalMilestoningDates pending");
+                case "createTemporalMilestoningDates" -> {
+                    // (businessDate, processingDate, snapshotDate) — each
+                    // a date literal or the empty collection
+                    String[] d = new String[3];
+                    for (int i = 0; i < af.parameters().size() && i < 3;
+                            i++) {
+                        ValueSpecification pv = af.parameters().get(i);
+                        if (pv instanceof com.legend.model.spec.CDate cd) {
+                            d[i] = cd.value().toEngineString();
+                        } else if (!(pv instanceof PureCollection pc2)
+                                || !pc2.values().isEmpty()) {
+                            throw new NotImplementedException("testDataGen:"
+                                    + " non-literal milestoning date");
+                        }
+                    }
+                    dates[0] = new TestDataGenerator.MilestoningDates(
+                            d[0], d[1], d[2]);
+                    return;
+                }
                 case "relationalExtensions", "testRuntime",
                         "executionContext", "extension" -> {
                     return;
