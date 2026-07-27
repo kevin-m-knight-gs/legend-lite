@@ -1082,8 +1082,10 @@ final class StatementExecutor {
         // The corpus's own setupTestData body maps the result through
         // executeInDb, which the TypedMap arm below sequences.
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall gen
-                && com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2
-                        .equals(gen.callee().qualifiedName())) {
+                && (com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2
+                        .equals(gen.callee().qualifiedName())
+                    || com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS
+                        .equals(gen.callee().qualifiedName()))) {
             String csv = evalStringArg(body, gen.args().get(0), env);
             String dbFqn = gen.args().get(1)
                     instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr

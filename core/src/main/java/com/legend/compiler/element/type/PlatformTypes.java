@@ -98,6 +98,12 @@ public final class PlatformTypes {
     public static final String SET_UP_DATA_SQLS_V2 =
             "meta::alloy::service::execution::setUpDataSQLsV2";
 
+    /** The deprecated plain spelling — PLATFORM-OWNED (the corpus's own
+     * ladder is M3-reflective and its DatabaseType wrapper cannot type
+     * against createDbConfig's Any); same CsvSeed K-arm. */
+    public static final String SET_UP_DATA_SQLS =
+            "meta::alloy::service::execution::setUpDataSQLs";
+
     /** The engine's execution entry — K-dispatched as a RESULT FRAME
      * (audit 19d B2: {@code Result} is a typing surface plus an
      * orchestration handle, never a host object graph; reads over it
@@ -123,6 +129,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)
                 || TO_SQL_STRING.equals(fqn)
+                || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 
@@ -150,6 +157,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || SET_UP_DATA_SQLS_V2.equals(fqn)
+                || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTE.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }

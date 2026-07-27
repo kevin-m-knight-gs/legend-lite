@@ -1094,6 +1094,15 @@ public final class Pure {
     // as Any and is never evaluated (the ambient-connection doctrine).
     public static final NativeFunctionDefinition SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLsV2(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[1], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
 
+    // plain setUpDataSQLs (deprecated engine spelling, the
+    // testDataGeneration family's assert/reload route) — PLATFORM-OWNED:
+    // the corpus's own overload ladder bottoms out in M3-reflective
+    // loadCsvDataToDbTable bodies this platform doesn't model, and its
+    // DatabaseType wrapper cannot type against createDbConfig's Any.
+    // Same CsvSeed K-arm as V2.
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY = signature("native function meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*];");
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
+
     // createDbConfig: the corpus's own definitions return the DbConfig
     // metamodel class (unknown here, signature-broken) — typing-only.
     public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");

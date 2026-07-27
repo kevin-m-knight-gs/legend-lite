@@ -511,7 +511,11 @@ public final class Runner {
                                 // scanRelations(q, MAPPING, ...) — #44:
                                 // the lineage forms route at TestBody
                                 || simple.equals("scanColumns")
-                                || simple.equals("scanRelations"))
+                                || simple.equals("scanRelations")
+                                // generateTestData(q, MAPPING, runtime,
+                                // ids, ...) — #46: TestDataGenForm routes
+                                // at TestBody
+                                || simple.equals("generateTestData"))
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;
@@ -529,15 +533,29 @@ public final class Runner {
                         }
                     }
                 }
-                work.addAll(af.parameters());
+                // DOCUMENT-ORDER descent (addFirst, reversed): a nested
+                // call must deref lets AS OF ITS STATEMENT — the BFS
+                // variant let a later β-expanded helper's `let mapping =
+                // $mapping` rebinding shadow the real pointer before the
+                // call's params were ever visited (#46 discovery bug)
+                for (int i = af.parameters().size() - 1; i >= 0; i--) {
+                    work.addFirst(af.parameters().get(i));
+                }
             } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
-                work.add(ap.receiver());
+                work.addFirst(ap.receiver());
             } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
-                work.addAll(lf.body());
+                for (int i = lf.body().size() - 1; i >= 0; i--) {
+                    work.addFirst(lf.body().get(i));
+                }
             } else if (v instanceof com.legend.model.spec.PureCollection pc) {
-                work.addAll(pc.values());
+                for (int i = pc.values().size() - 1; i >= 0; i--) {
+                    work.addFirst(pc.values().get(i));
+                }
             } else if (v instanceof com.legend.model.spec.NewInstance ni) {
-                ni.properties().values().forEach(ke -> work.add(ke.value()));
+                var kes = new java.util.ArrayList<>(ni.properties().values());
+                for (int i = kes.size() - 1; i >= 0; i--) {
+                    work.addFirst(kes.get(i).value());
+                }
             }
         }
         return out;

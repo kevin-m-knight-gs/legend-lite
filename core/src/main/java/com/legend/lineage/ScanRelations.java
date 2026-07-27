@@ -75,6 +75,192 @@ public final class ScanRelations {
 
     public static String treeString(ModelContext ctx, LambdaFunction query,
             String mappingFqn) {
+        StringBuilder sb = new StringBuilder("root\n");
+        for (Node r : buildRoots(ctx, query, mappingFqn)) {
+            print(sb, r, 1, ctx);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The scanned relation tree as DATA (the #46 test-data-generation
+     * consumer): the same walk {@link #treeString} renders, one node per
+     * reached table with the join edge that reached it and the scanned
+     * columns. Views are NOT expanded here (treeString expands them at
+     * print time); the consumer sees the view node itself.
+     */
+    public record Rel(String db, String table, String joinName,
+            List<String> cols, List<Rel> children) {
+    }
+
+    public static List<Rel> relTree(ModelContext ctx, LambdaFunction query,
+            String mappingFqn) {
+        // tableToTDS(tableReference(db,s,t)) roots: the relation IS the
+        // table, every column in play (engine scans TDS queries through
+        // the plan; the direct-table shape needs no mapping walk). Gated
+        // to the DATA consumer — treeString's lineage goldens keep their
+        // current vocabulary.
+        List<Node> tdsRoots = tableToTdsRoots(ctx, query);
+        List<Rel> out = new ArrayList<>();
+        if (!tdsRoots.isEmpty()) {
+            for (Node r : tdsRoots) {
+                out.add(toRel(r));
+            }
+            return out;
+        }
+        List<Node> roots = buildRoots(ctx, query, mappingFqn);
+        if (roots.isEmpty()) {
+            // constant-only projection: no scanned path, but the root
+            // class's table is still the tree (engine testConstant)
+            LegacyMappingDefinition md = mapping(ctx, mappingFqn);
+            for (ClassMapping.Relational cm : rootClassMappings(ctx, md,
+                    rootClassFqn(query))) {
+                Node r = new Node(mainDbOf(cm), mainTableOf(cm), null);
+                foldClassFilter(ctx, r, cm);
+                roots.add(r);
+            }
+        }
+        for (Node r : roots) {
+            out.add(toRel(r));
+        }
+        return out;
+    }
+
+    /** Every {@code tableToTDS(tableReference(db, 'schema', 'table'))}
+     * root in the query, document order; join steps are a named wall.
+     * Column demand: TDS ops name columns as STRINGS (getString('COL'),
+     * groupBy(['COL'])) — literals matching a table column restrict its
+     * fetch set (PK rides via the consumer); no matching literal = the
+     * bare-tableToTDS whole-table shape. */
+    private static List<Node> tableToTdsRoots(ModelContext ctx,
+            ValueSpecification n) {
+        List<Node> out = new ArrayList<>();
+        collectTableToTds(ctx, n, out);
+        if (out.isEmpty()) {
+            return out;
+        }
+        if (containsCall(n, "join")) {
+            throw new NotImplementedException(
+                    "scanRelations: tableToTDS join steps pending");
+        }
+        Set<String> strings = new LinkedHashSet<>();
+        collectStrings(n, strings);
+        for (Node node : out) {
+            Set<String> demanded = new TreeSet<>();
+            for (String s : strings) {
+                for (String c : node.cols) {
+                    if (c.equalsIgnoreCase(s)) {
+                        demanded.add(c);
+                    }
+                }
+            }
+            if (!demanded.isEmpty()) {
+                node.cols.retainAll(demanded);
+            }
+        }
+        return out;
+    }
+
+    private static void collectStrings(ValueSpecification n,
+            Set<String> out) {
+        if (n instanceof com.legend.model.spec.CString cs) {
+            out.add(cs.value());
+        } else if (n instanceof AppliedFunction af) {
+            for (ValueSpecification p : af.parameters()) {
+                collectStrings(p, out);
+            }
+        } else if (n instanceof AppliedProperty ap) {
+            collectStrings(ap.receiver(), out);
+        } else if (n instanceof LambdaFunction lf) {
+            for (ValueSpecification b : lf.body()) {
+                collectStrings(b, out);
+            }
+        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+            for (ValueSpecification e : pc.values()) {
+                collectStrings(e, out);
+            }
+        }
+    }
+
+    private static void collectTableToTds(ModelContext ctx,
+            ValueSpecification n, List<Node> out) {
+        if (n instanceof AppliedFunction af) {
+            String simple = af.function()
+                    .substring(af.function().lastIndexOf(':') + 1);
+            if ("tableToTDS".equals(simple) && !af.parameters().isEmpty()
+                    && af.parameters().get(0) instanceof AppliedFunction tr
+                    && tr.function().endsWith("tableReference")
+                    && tr.parameters().size() >= 3
+                    && tr.parameters().get(0)
+                            instanceof PackageableElementPtr db
+                    && tr.parameters().get(2)
+                            instanceof com.legend.model.spec.CString t) {
+                Node node = new Node(db.fullPath(), t.value(), null);
+                var td = ctx.findTableDefinition(db.fullPath(), t.value());
+                if (td.isPresent()) {
+                    for (var c : td.get().columns()) {
+                        node.cols.add(c.name());
+                    }
+                }
+                out.add(node);
+                return;
+            }
+            for (ValueSpecification p : af.parameters()) {
+                collectTableToTds(ctx, p, out);
+            }
+        } else if (n instanceof AppliedProperty ap) {
+            collectTableToTds(ctx, ap.receiver(), out);
+        } else if (n instanceof LambdaFunction lf) {
+            for (ValueSpecification b : lf.body()) {
+                collectTableToTds(ctx, b, out);
+            }
+        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+            for (ValueSpecification e : pc.values()) {
+                collectTableToTds(ctx, e, out);
+            }
+        }
+    }
+
+    private static boolean containsCall(ValueSpecification n, String name) {
+        if (n instanceof AppliedFunction af) {
+            if (name.equals(af.function()
+                    .substring(af.function().lastIndexOf(':') + 1))) {
+                return true;
+            }
+            for (ValueSpecification p : af.parameters()) {
+                if (containsCall(p, name)) {
+                    return true;
+                }
+            }
+        } else if (n instanceof AppliedProperty ap) {
+            return containsCall(ap.receiver(), name);
+        } else if (n instanceof LambdaFunction lf) {
+            for (ValueSpecification b : lf.body()) {
+                if (containsCall(b, name)) {
+                    return true;
+                }
+            }
+        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+            for (ValueSpecification e : pc.values()) {
+                if (containsCall(e, name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static Rel toRel(Node n) {
+        List<Rel> kids = new ArrayList<>();
+        for (Node c : n.children.values()) {
+            kids.add(toRel(c));
+        }
+        return new Rel(n.db, n.table, n.joinName,
+                List.copyOf(n.cols), kids);
+    }
+
+    private static List<Node> buildRoots(ModelContext ctx,
+            LambdaFunction query, String mappingFqn) {
         LegacyMappingDefinition md = mapping(ctx, mappingFqn);
         String rootClass = rootClassFqn(query);
         // a UNION-mapped root walks ONCE PER SET, one root table node
@@ -99,11 +285,7 @@ public final class ScanRelations {
                 walk(ctx, md, rootCms.get(i), roots.get(i), p, 0);
             }
         }
-        StringBuilder sb = new StringBuilder("root\n");
-        for (Node r : roots) {
-            print(sb, r, 1, ctx);
-        }
-        return sb.toString();
+        return roots;
     }
 
     private static List<ClassMapping.Relational> rootClassMappings(
@@ -612,16 +794,23 @@ public final class ScanRelations {
                     el.joinName());
             Set<String> tables = new LinkedHashSet<>();
             List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
-            columnRefs(jd.operation(), refs);
+            List<String> targetCols = new ArrayList<>();
+            columnRefs(jd.operation(), refs, targetCols);
             for (RelationalOperation.ColumnRef r : refs) {
                 tables.add(bare(r.table()));
             }
+            // SELF-JOIN: every plain ref spells the parent side, {target}
+            // refs the child — same table, distinct node
             String other = tables.stream()
                     .filter(t -> !t.equals(at.table))
-                    .findFirst().orElseThrow(() ->
-                            new NotImplementedException("scanRelations:"
-                                    + " self-join '" + el.joinName()
-                                    + "' is not supported yet"));
+                    .findFirst().orElseGet(() -> {
+                        if (!targetCols.isEmpty()) {
+                            return at.table;
+                        }
+                        throw new NotImplementedException("scanRelations:"
+                                + " self-join '" + el.joinName()
+                                + "' carries no {target} side");
+                    });
             String otherDb = refs.stream()
                     .filter(r -> bare(r.table()).equals(other))
                     .map(RelationalOperation.ColumnRef::databaseName)
@@ -640,6 +829,7 @@ public final class ScanRelations {
                             + r.table() + "'");
                 }
             }
+            child.cols.addAll(targetCols);
             cur = child;
         }
         return cur;
@@ -647,23 +837,42 @@ public final class ScanRelations {
 
     private static void columnRefs(RelationalOperation op,
             List<RelationalOperation.ColumnRef> out) {
+        columnRefs(op, out, null);
+    }
+
+    /** {@code targetCols} non-null accepts {@code {target}.COL} refs
+     * (self-join vocabulary); null keeps them a loud wall (view
+     * expressions never carry a target side). */
+    private static void columnRefs(RelationalOperation op,
+            List<RelationalOperation.ColumnRef> out,
+            List<String> targetCols) {
         switch (op) {
             case RelationalOperation.ColumnRef cr -> out.add(cr);
+            case RelationalOperation.TargetColumnRef tr -> {
+                if (targetCols == null) {
+                    throw new NotImplementedException("scanRelations:"
+                            + " {target} reference outside a join"
+                            + " condition");
+                }
+                targetCols.add(tr.column());
+            }
             case RelationalOperation.Comparison c -> {
-                columnRefs(c.left(), out);
-                columnRefs(c.right(), out);
+                columnRefs(c.left(), out, targetCols);
+                columnRefs(c.right(), out, targetCols);
             }
             case RelationalOperation.BooleanOp b -> {
-                columnRefs(b.left(), out);
-                columnRefs(b.right(), out);
+                columnRefs(b.left(), out, targetCols);
+                columnRefs(b.right(), out, targetCols);
             }
-            case RelationalOperation.Group g -> columnRefs(g.inner(), out);
-            case RelationalOperation.IsNull n -> columnRefs(n.operand(), out);
+            case RelationalOperation.Group g ->
+                    columnRefs(g.inner(), out, targetCols);
+            case RelationalOperation.IsNull n ->
+                    columnRefs(n.operand(), out, targetCols);
             case RelationalOperation.IsNotNull n ->
-                    columnRefs(n.operand(), out);
+                    columnRefs(n.operand(), out, targetCols);
             case RelationalOperation.FunctionCall f -> {
                 for (RelationalOperation a : f.args()) {
-                    columnRefs(a, out);
+                    columnRefs(a, out, targetCols);
                 }
             }
             case RelationalOperation.Literal ignored -> { }
@@ -790,7 +999,9 @@ public final class ScanRelations {
                 last.databaseName() != null ? last.databaseName()
                         : j.database(), last.joinName());
         List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
-        columnRefs(jd.operation(), refs);
+        // {target} refs tolerated: table inference rides the plain side
+        // (a self-join's target table IS the plain side's table)
+        columnRefs(jd.operation(), refs, new ArrayList<>());
         List<ClassMapping.Relational> hits = new ArrayList<>();
         List<ClassMapping.Relational> all = new ArrayList<>();
         for (LegacyMappingDefinition m : withIncludes(ctx, md)) {

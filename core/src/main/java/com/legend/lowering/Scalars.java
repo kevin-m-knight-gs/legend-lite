@@ -2265,6 +2265,37 @@ final class Scalars {
                 : new SqlExpr.Call(SqlFn.PLUS, List.of(e, new SqlExpr.IntLit(1)));
     }
 
+    /** {@code instanceOf} with a STATICALLY-DECIDED answer folds to a
+     * literal (the corpus's loadAndTestExecution tail guards a TDS read
+     * with {@code instanceOf(TabularDataSet)} — the frame's static type
+     * already decides it). A dynamically-undecidable check stays a loud
+     * wall — never a guessed boolean. */
+    static SqlExpr instanceOfFold(TypedNativeCall n) {
+        // the type argument: @Type annotation (TypedTypeRef) or a bare
+        // class reference in value position (TypedPackageableRef)
+        String target = switch (n.args().get(1)) {
+            case com.legend.compiler.spec.typed.TypedTypeRef tr ->
+                    tr.target() instanceof Type.ClassType c ? c.fqn() : null;
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr ->
+                    pr.fullPath();
+            default -> throw new NotImplementedException(
+                    "instanceOf with a non-literal type argument ("
+                    + n.args().get(1).getClass().getSimpleName() + ")");
+        };
+        Type actual = n.args().get(0).info().type();
+        boolean sure = target != null
+                && (actual instanceof Type.ClassType a && a.fqn().equals(target)
+                    || com.legend.compiler.element.type.PlatformTypes
+                            .TABULAR_DATA_SET.equals(target)
+                       && actual instanceof Type.RelationType);
+        if (!sure) {
+            throw new NotImplementedException(
+                    "instanceOf undecidable statically: " + actual
+                    + " vs '" + target + "'");
+        }
+        return new SqlExpr.BoolLit(true);
+    }
+
     /** The lowering for {@code call}'s resolved overload; loud error when unregistered. */
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs) {
         Rule rule = RULES.get(call.callee().signatureKey());

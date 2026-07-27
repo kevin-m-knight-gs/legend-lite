@@ -2587,6 +2587,10 @@ public final class Lowerer {
                 }
                 yield Scalars.lower(n, args);
             }
+            // statically-decided instanceOf folds (Scalars owns the rule)
+            case TypedNativeCall n
+                    when isFamily(n, "instanceOf") && n.args().size() == 2 ->
+                    Scalars.instanceOfFold(n);
             // removeDuplicates/sort over a single-column RELATION read
             // rewrite to RELATION space (ValueCollectionOps — list-space
             // rules would re-embed the list subquery in a SQL lambda)

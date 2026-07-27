@@ -26,15 +26,30 @@ public final class CsvSeed {
     public static List<String> sqls(String csvBlocks, String dbFqn,
             ModelContext ctx) {
         List<String> out = new ArrayList<>();
-        for (String block : csvBlocks.split("\n-\n")) {
-            blockSqls(block, dbFqn, ctx, out);
+        // block separators: a line of dashes — '-' (the Alloy '\n-\n'
+        // form) or '-----' (the testDataGeneration CSV form)
+        StringBuilder block = new StringBuilder();
+        for (String line : csvBlocks.split("\n", -1)) {
+            if (line.strip().matches("-+")) {
+                blockSqls(block.toString(), dbFqn, ctx, out);
+                block.setLength(0);
+            } else {
+                if (block.length() > 0) {
+                    block.append('\n');
+                }
+                block.append(line);
+            }
         }
+        blockSqls(block.toString(), dbFqn, ctx, out);
         return out;
     }
 
     private static void blockSqls(String csv, String dbFqn, ModelContext ctx,
             List<String> out) {
         String[] lines = csv.split("\n");
+        while (lines.length > 0 && lines[0].isBlank()) {
+            lines = java.util.Arrays.copyOfRange(lines, 1, lines.length);
+        }
         if (lines.length < 3) {
             return;
         }
@@ -74,7 +89,8 @@ public final class CsvSeed {
                 if (c > 0) {
                     sql.append(", ");
                 }
-                if (tok.isEmpty()) {
+                if (tok.isEmpty() || tok.equals("---null---")) {
+                    // ---null--- is the testDataGeneration CSV null token
                     sql.append("NULL");
                 } else if (tok.matches("[+-]?\\d+(\\.\\d+)?")) {
                     sql.append(tok);

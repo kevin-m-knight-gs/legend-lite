@@ -256,6 +256,15 @@ public final class TestBody {
         List<ValueSpecification> execStmts = new ArrayList<>();
         java.util.Set<String> execVars = new java.util.HashSet<>();
         Map<String, ValueSpecification> execChains = new LinkedHashMap<>();
+        // generateTestData bindings (#46) — data lives in DuckDB temp
+        // tables; this holds only the SQL trail + CSV text per let
+        Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg =
+                new LinkedHashMap<>();
+        // executionPlan(q,m,rt,ext) bindings: the handle only ever flows
+        // into $plan->execute(...), which re-forms as the execute native
+        // (plan-transparent execution — identical row semantics; nothing
+        // here inspects plan text)
+        Map<String, AppliedFunction> planLets = new LinkedHashMap<>();
         int verified = 0;
         int advisory = 0;
         int executed = 0;
@@ -347,27 +356,22 @@ public final class TestBody {
                 // literal-if over zero-param thunks folds at bind time —
                 // the helper pattern let q = if(\$checked, |{|...}, |{|...})
                 rhs = foldLiteralIf(rhs);
-                // meta::legend::executeLegendQuery(q, vars, ctx, ext) over a
-                // zero-arg lambda: the lambda body IS the query; the result
-                // is the engine's SERIALIZED scalar — booleans/numbers match
-                // toString; quoted-string/JSON results MIS-compare and FAIL
-                // loudly, never silently pass. Body statements splice; the
-                // binding becomes toString(final).
-                if (rhs instanceof AppliedFunction elq
-                        && harnessVocabName(elq.function())
-                        && simpleName(elq.function())
-                                .equals("executeLegendQuery")
-                        && !elq.parameters().isEmpty()
-                        && substitute(elq.parameters().get(0), lets)
-                                instanceof LambdaFunction qlf
-                        && qlf.parameters().isEmpty()
-                        && !qlf.body().isEmpty()) {
-                    List<ValueSpecification> qb = qlf.body();
-                    work.addFirst(new AppliedFunction("letFunction",
-                            List.of(name, new AppliedFunction("toString",
-                                    List.of(qb.get(qb.size() - 1))))));
-                    for (int i = qb.size() - 2; i >= 0; i--) {
-                        work.addFirst(qb.get(i));
+                // #46 arms: generateTestData binding / literal read
+                // inlining / plan-transparent executionPlan chain
+                TdgLet tl = tdgLetArm(name, rhs, lets, tdg, planLets,
+                        ctx, imports, conn);
+                if (tl.wall() != null) {
+                    return tl.wall();
+                }
+                if (tl.consumed()) {
+                    executed++;
+                    continue;
+                }
+                rhs = tl.rhs();
+                List<ValueSpecification> elq = elqSplice(name, rhs, lets);
+                if (elq != null) {
+                    for (int i = elq.size() - 1; i >= 0; i--) {
+                        work.addFirst(elq.get(i));
                     }
                     continue;
                 }
@@ -422,7 +426,8 @@ public final class TestBody {
                 String failure = checkAssert(af, lets, execStmts, execVars,
                         execChains, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
-                                || seedFailures != null && !seedFailures.isEmpty());
+                                || seedFailures != null && !seedFailures.isEmpty(),
+                        tdg);
                 if (failure == UNSUPPORTED_MARKER) {
                     return new Outcome.Unsupported("assert form '" + af.function()
                             + "/" + af.parameters().size() + "' is not supported yet");
@@ -451,7 +456,8 @@ public final class TestBody {
             // trusted after a failed setup statement.
             if (stmt instanceof AppliedFunction af3) {
                 try {
-                    ValueSpecification sub = substitute(stmt, lets);
+                    ValueSpecification sub = TestDataGenForm.inlineReads(
+                            substitute(stmt, lets), tdg);
                     ValueSpecification wrapped =
                             referencesAny(sub, execVars)
                                     ? new LambdaFunction(List.of(),
@@ -655,6 +661,178 @@ public final class TestBody {
 
     private static final String UNSUPPORTED_MARKER = new String("unsupported");
     private static final String ADVISORY_MARKER = new String("advisory");
+    private static final String NOT_TDG_MARKER = new String("not-tdg");
+
+    /** meta::legend::executeLegendQuery(q, vars, ctx, ext) over a
+     * zero-arg lambda: the lambda body IS the query; the result is the
+     * engine's SERIALIZED scalar — booleans/numbers match toString;
+     * quoted-string/JSON results MIS-compare and FAIL loudly, never
+     * silently pass. Returns the spliced statements (body statements +
+     * the binding as toString(final)) in EXECUTION order, or null when
+     * the rhs is not this shape. */
+    private static List<ValueSpecification> elqSplice(CString name,
+            ValueSpecification rhs, Map<String, ValueSpecification> lets) {
+        if (rhs instanceof AppliedFunction elq
+                && harnessVocabName(elq.function())
+                && simpleName(elq.function()).equals("executeLegendQuery")
+                && !elq.parameters().isEmpty()
+                && substitute(elq.parameters().get(0), lets)
+                        instanceof LambdaFunction qlf
+                && qlf.parameters().isEmpty()
+                && !qlf.body().isEmpty()) {
+            List<ValueSpecification> qb = qlf.body();
+            List<ValueSpecification> out =
+                    new ArrayList<>(qb.subList(0, qb.size() - 1));
+            out.add(new AppliedFunction("letFunction",
+                    List.of(name, new AppliedFunction("toString",
+                            List.of(qb.get(qb.size() - 1))))));
+            return out;
+        }
+        return null;
+    }
+
+    /** #46 let-arm result: a wall, a consumed binding, or a (possibly
+     * rewritten) rhs for the ordinary let path. */
+    private record TdgLet(Outcome wall, ValueSpecification rhs,
+            boolean consumed) {
+    }
+
+    /** The #46 let-arm rewrites: a generateTestData binding runs NOW
+     * (setup statements above already executed — engine parity, all data
+     * work in the database); testDataGen reads inline as literals so the
+     * corpus's loadAndTestExecution tail runs through the platform
+     * unchanged; executionPlan bindings are PLAN-TRANSPARENT — the handle
+     * only ever flows into {@code $plan->execute(...)}, which re-forms as
+     * the execute native (identical row semantics; plan text is never
+     * inspected here). */
+    private static TdgLet tdgLetArm(CString name, ValueSpecification rhs,
+            Map<String, ValueSpecification> lets,
+            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
+            Map<String, AppliedFunction> planLets, ModelContext ctx,
+            ImportScope imports, Connection conn)
+            throws java.sql.SQLException {
+        if (TestDataGenForm.hasGenerate(rhs)) {
+            try {
+                tdg.put(name.value(), TestDataGenForm.run(rhs, ctx,
+                        imports, conn));
+            } catch (com.legend.error.NotImplementedException e) {
+                return new TdgLet(new Outcome.Unsupported(String.valueOf(
+                        e.getMessage()).split("\\n")[0]), null, false);
+            }
+            return new TdgLet(null, null, true);
+        }
+        rhs = TestDataGenForm.inlineReads(rhs, tdg);
+        if (rhs instanceof AppliedFunction ep
+                && simpleName(ep.function()).equals("executionPlan")
+                && (ep.function().equals("executionPlan")
+                        || ep.function().startsWith("meta::"))
+                && ep.parameters().size() >= 3) {
+            planLets.put(name.value(), ep);
+            return new TdgLet(null, null, true);
+        }
+        if (rhs instanceof AppliedFunction pe
+                && simpleName(pe.function()).equals("execute")
+                && !pe.parameters().isEmpty()
+                && substitute(pe.parameters().get(0), lets)
+                        instanceof Variable pv
+                && planLets.containsKey(pv.name())) {
+            if (pe.parameters().size() >= 2
+                    && !(substitute(pe.parameters().get(1), lets)
+                            instanceof PureCollection epc
+                            && epc.values().isEmpty())) {
+                return new TdgLet(new Outcome.Unsupported(
+                        "plan->execute with bound parameters"), null, false);
+            }
+            AppliedFunction plan = planLets.get(pv.name());
+            rhs = new AppliedFunction("execute",
+                    List.of(plan.parameters().get(0),
+                            plan.parameters().get(1),
+                            plan.parameters().get(2),
+                            plan.parameters().size() > 3
+                                    ? plan.parameters().get(3)
+                                    : new PureCollection(List.of())));
+            // rides the caller's exec-forward arm
+        }
+        return new TdgLet(null, rhs, false);
+    }
+
+    /** testDataGen assert arms (#46): assertTestData is the ROW contract
+     * (typed set compare in the database), .sqls text is engine H2 SQL —
+     * advisory (the golden-SQL doctrine), .sqls COUNTS verify. Returns
+     * {@link #NOT_TDG_MARKER} when the assert doesn't touch a
+     * generateTestData binding. */
+    private static String checkTdgAssert(AppliedFunction af,
+            List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        switch (simpleName(af.function())) {
+            case "assertTestData" -> {
+                if (args.size() != 3) {
+                    return UNSUPPORTED_MARKER;
+                }
+                TestDataGenForm.Read r = TestDataGenForm.read(
+                        substitute(args.get(1), lets));
+                var bound = r == null ? null : tdg.get(r.var());
+                String expected = TestDataGenForm.foldString(
+                        substitute(args.get(0), lets));
+                if (bound == null || expected == null
+                        || !"dataCsvString".equals(r.kind())
+                        || !(substitute(args.get(2), lets)
+                                instanceof com.legend.model.spec
+                                        .PackageableElementPtr dbp)) {
+                    return UNSUPPORTED_MARKER;
+                }
+                try {
+                    return com.legend.testdatagen.TestDataGenerator
+                            .compareCsv(ctx, TestDataGenForm.qualify(
+                                    dbp.fullPath(), ctx, imports),
+                                    expected, bound.dataCsvString(), conn);
+                } catch (com.legend.error.NotImplementedException e) {
+                    return UNSUPPORTED_MARKER;
+                }
+            }
+            case "assertSqlEquals" -> {
+                TestDataGenForm.Read r = TestDataGenForm.read(
+                        substitute(args.size() == 2 ? args.get(1)
+                                : args.get(0), lets));
+                return r != null && tdg.containsKey(r.var())
+                        ? ADVISORY_MARKER : UNSUPPORTED_MARKER;
+            }
+            default -> {
+            }
+        }
+        if (!tdg.isEmpty() && !args.isEmpty()) {
+            TestDataGenForm.Read r0 = TestDataGenForm.read(
+                    substitute(args.get(0), lets));
+            if (r0 != null && tdg.containsKey(r0.var())
+                    && "sqls".equals(r0.kind())) {
+                if (simpleName(af.function()).equals("assertSize")
+                        && args.size() == 2) {
+                    Object n = evalScalar(args.get(1), lets, execStmts,
+                            execVars, execChains, ctx, imports,
+                            runtimeFqn, conn);
+                    long actual = tdg.get(r0.var()).sqls().size();
+                    return n instanceof Number num
+                            && num.longValue() == actual ? null
+                            : "assertSize(sqls): expected " + n + ", got "
+                                    + actual;
+                }
+                return ADVISORY_MARKER;   // SQL-text reads: engine H2 text
+            }
+            for (ValueSpecification a : args) {
+                TestDataGenForm.Read r = TestDataGenForm.read(
+                        substitute(a, lets));
+                if (r != null && tdg.containsKey(r.var())) {
+                    return ADVISORY_MARKER;
+                }
+            }
+        }
+        return NOT_TDG_MARKER;
+    }
 
     /** null = held; ADVISORY_MARKER = golden-SQL; UNSUPPORTED_MARKER; else the failure text. */
     private static String checkAssert(AppliedFunction af,
@@ -662,8 +840,17 @@ public final class TestBody {
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn,
-            boolean emptinessUnverifiable) throws java.sql.SQLException {
+            boolean emptinessUnverifiable,
+            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg)
+            throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
+        // testDataGen reads (#46) route to the bound generator result —
+        // extracted arm (checkAssert length guardrail)
+        String tdgOut = checkTdgAssert(af, args, lets, tdg, execStmts,
+                execVars, execChains, ctx, imports, runtimeFqn, conn);
+        if (tdgOut != NOT_TDG_MARKER) {
+            return tdgOut;
+        }
         switch (simpleName(af.function())) {
             case "assert", "assertFalse" -> {
                 if (args.isEmpty()) {
@@ -952,7 +1139,7 @@ public final class TestBody {
                         String failure = checkAssert(af2, loopLets,
                                 execStmts, execVars, execChains, ctx,
                                 imports, runtimeFqn, conn,
-                                unverifiable);
+                                unverifiable, Map.of());
                         if (failure == UNSUPPORTED_MARKER) {
                             return new Outcome.Unsupported(
                                     "assert form '" + af2.function()

@@ -872,6 +872,11 @@ public final class InferenceKernel {
                 unify(p.type(), args.get(i).type(), b);
                 unifyMult(p.multiplicity(), args.get(i).multiplicity(), args.get(i).type(), b);
             } catch (TypeInferenceException e) {
+                if (System.getenv("LL_TDG_DEBUG") != null) {
+                    System.err.println("[tdg-debug] call '" + name + "' arg"
+                            + (i + 1) + " exprType=" + args.get(i)
+                            + " chosen=" + c.parameters());
+                }
                 // Re-raise with CALL CONTEXT — a bare "expected X, got Y"
                 // reached corpus users with zero callee info (audit finding).
                 throw new TypeInferenceException("in call to '" + name + "', argument "

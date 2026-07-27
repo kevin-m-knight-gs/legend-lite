@@ -137,6 +137,12 @@ public final class PureModelContext implements ModelContext {
         model.databases().forEach(e -> out.add(e.qualifiedName()));
         model.runtimes().forEach(e -> out.add(e.qualifiedName()));
         model.functions().forEach(e -> out.add(e.qualifiedName()));
+        // platform-native enums resolve like parsed ones — an unqualified
+        // DatabaseType.H2 under `import meta::relational::runtime::*`
+        // must qualify (findEnum already falls back to the native
+        // catalog; name resolution has to see the same surface)
+        com.legend.builtin.Pure.allNativeEnums()
+                .forEach(e -> out.add(e.qualifiedName()));
         return out;
     }
 

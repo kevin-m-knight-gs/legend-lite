@@ -2202,6 +2202,11 @@ final class Typer {
 
     /** An enum value reference {@code Kind.VALUE}: both the enumeration and the value must exist. */
     private TypedSpec enumValue(EnumValue ev) {
+        if (System.getenv("LL_TDG_DEBUG") != null
+                && ev.fullPath().contains("DatabaseType")) {
+            System.err.println("[tdg-debug] enumValue fqn=" + ev.fullPath()
+                    + " found=" + ctx.findEnum(ev.fullPath()).isPresent());
+        }
         var en = ctx.findEnum(ev.fullPath()).orElseThrow(() -> new TypeInferenceException(
                 "unknown enumeration '" + ev.fullPath() + "'"));
         if (!en.values().contains(ev.value())) {
