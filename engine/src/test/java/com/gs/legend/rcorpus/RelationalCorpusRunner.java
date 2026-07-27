@@ -263,27 +263,47 @@ public class RelationalCorpusRunner {
             all.addAll(testSources.values());
             for (String s2 : all) {
                 collectDbNames(s2, defined);
+                collectClassNames(s2, defined);
             }
             Deque<String> pending = new ArrayDeque<>(all);
             Set<Path> pulledFiles = new HashSet<>(files);
             while (!pending.isEmpty()) {
                 String s2 = pending.poll();
                 for (String line : s2.lines().map(String::strip).toList()) {
-                    if (!line.startsWith("include ")) {
-                        continue;
+                    List<String> wanted = new ArrayList<>();
+                    if (line.startsWith("include ")) {
+                        wanted.add(line.substring("include ".length())
+                                .strip());
+                    } else if (line.startsWith("Class ")
+                            && line.contains(" extends ")) {
+                        // cross-family EXTENDS closure — the validation
+                        // corpus subclasses tests/milestoning classes;
+                        // the superclass's file must compile alongside
+                        for (String tok : line.substring(
+                                line.indexOf(" extends ") + 9)
+                                .split("[,\\[{]")) {
+                            if (tok.strip().contains("::")) {
+                                wanted.add(tok.strip());
+                            }
+                        }
                     }
-                    String fqn = line.substring("include ".length()).strip();
-                    if (defined.contains(fqn)) {
-                        continue;
+                    for (String fqn : wanted) {
+                        if (defined.contains(fqn)) {
+                            continue;
+                        }
+                        Path dep = dbIndex().get(fqn);
+                        if (dep == null) {
+                            dep = classIndex().get(fqn);
+                        }
+                        if (dep == null || !pulledFiles.add(dep)) {
+                            continue;   // unknown stays a loud wall
+                        }
+                        String depSrc = Files.readString(dep);
+                        modelOnly.add(depSrc);
+                        collectDbNames(depSrc, defined);
+                        collectClassNames(depSrc, defined);
+                        pending.add(depSrc);
                     }
-                    Path dep = dbIndex().get(fqn);
-                    if (dep == null || !pulledFiles.add(dep)) {
-                        continue;   // unknown stays a loud downstream wall
-                    }
-                    String depSrc = Files.readString(dep);
-                    modelOnly.add(depSrc);
-                    collectDbNames(depSrc, defined);
-                    pending.add(depSrc);
                 }
             }
         }
@@ -317,6 +337,65 @@ public class RelationalCorpusRunner {
     private static String dbNameOf(String databaseLine) {
         return databaseLine.substring("Database ".length())
                 .replace("(", " ").strip().split("\\s+")[0];
+    }
+
+    /** Class FQNs defined in {@code src} (line-level; stereotype block
+     * tolerated between the keyword and the FQN). */
+    private static void collectClassNames(String src, Set<String> out) {
+        src.lines().map(String::strip)
+                .filter(l -> l.startsWith("Class "))
+                .forEach(l -> {
+                    String n = classNameOf(l);
+                    if (n != null) {
+                        out.add(n);
+                    }
+                });
+    }
+
+    private static String classNameOf(String classLine) {
+        String t = classLine.substring("Class ".length()).strip();
+        if (t.startsWith("<<")) {
+            int e = t.indexOf(">>");
+            if (e < 0) {
+                return null;
+            }
+            t = t.substring(e + 2).strip();
+        }
+        if (t.startsWith("{")) {
+            // tagged-value block {doc.doc='...'}
+            int e = t.indexOf('}');
+            if (e < 0) {
+                return null;
+            }
+            t = t.substring(e + 1).strip();
+        }
+        String n = t.split("[\\s\\[{(]")[0].strip();
+        return n.contains("::") ? n : null;
+    }
+
+    /** Corpus-wide CLASS index: FQN -> defining file. */
+    private static Map<String, Path> classIndexCache;
+
+    private static Map<String, Path> classIndex() throws Exception {
+        if (classIndexCache == null) {
+            Map<String, Path> ix = new LinkedHashMap<>();
+            try (Stream<Path> s = Files.walk(Corpus.RELATIONAL)) {
+                for (Path f : s.filter(x -> x.toString().endsWith(".pure"))
+                        .sorted().toList()) {
+                    for (String l : Files.readAllLines(f)) {
+                        String t = l.strip();
+                        if (t.startsWith("Class ")) {
+                            String n = classNameOf(t);
+                            if (n != null) {
+                                ix.putIfAbsent(n, f);
+                            }
+                        }
+                    }
+                }
+            }
+            classIndexCache = ix;
+        }
+        return classIndexCache;
     }
 
     /** Corpus-wide Database index: FQN -> defining file (first in sorted

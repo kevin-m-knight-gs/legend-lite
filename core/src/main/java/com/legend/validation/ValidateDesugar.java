@@ -442,11 +442,26 @@ public final class ValidateDesugar {
                 if (ctx.findClassDefinition(name).isPresent()) {
                     return name;
                 }
+                String first = null;
                 for (String imp : imports) {
                     String q = imp + "::" + name;
-                    if (ctx.findClassDefinition(q).isPresent()) {
+                    var cd = ctx.findClassDefinition(q);
+                    if (cd.isEmpty()) {
+                        continue;
+                    }
+                    // MULTI-IMPORT collision (several Product classes in
+                    // scope): the validate contract requires constraints
+                    // — a CONSTRAINED candidate beats an unconstrained
+                    // first match
+                    if (!constraintsInHierarchy(cd.get(), ctx).isEmpty()) {
                         return q;
                     }
+                    if (first == null) {
+                        first = q;
+                    }
+                }
+                if (first != null) {
+                    return first;
                 }
                 throw new NotImplementedException("validate: cannot qualify"
                         + " root class '" + name + "'");

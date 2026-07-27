@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 7 | 15 | 6 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 97 | 10 | 33 | 3 |
+| graphFetch/tests | 143 | 98 | 9 | 33 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -74,8 +74,8 @@ in-process Alloy-shaped path).
 | tests/query | 83 | 73 | 1 | 8 | 1 |
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 4 | 1 | 3 | 0 |
-| validation/tests | 23 | 2 | 0 | 21 | 0 |
-| **total** | 2538 | **1862** | 86 | 240 | 350 |
+| validation/tests | 23 | 11 | 0 | 12 | 0 |
+| **total** | 2538 | **1872** | 85 | 231 | 350 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3007,6 +3007,7 @@ in-process Alloy-shaped path).
 - postprocessor duplicate Function::meta::relational::tests::postProcessor::cteExtraction::testCorrelatedSubQueryIsolationStrategy() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/cteExtractionPostProcessor.pure, kept postprocessor/sibling-2.pure)
 - postprocessor meta::relational::mapping::PostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::cteExtraction::CTEExtractionResultHolder => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::RelationalMapperPostProcessor => Unknown type: 'RelationalMapper' is not a known primitive, class, or enum
 - postprocessor meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - postprocessor meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
@@ -3033,6 +3034,13 @@ in-process Alloy-shaped path).
 - postprocessor meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::cteExtraction::countSubqueriesAtDifferentLevels => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::postProcessor::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::postProcessor::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - postprocessor meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
 - postprocessor meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -6631,6 +6639,76 @@ in-process Alloy-shaped path).
 - tests/mapping/tree meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/tree meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - tests/mapping/tree meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
+- tests/mapping/union duplicate PrimitiveExtensionDefinition::meta::relational::tests::model::simple::ExtendedString (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate PrimitiveExtensionDefinition::meta::relational::tests::model::simple::ExtendedInteger (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate PrimitiveExtensionDefinition::meta::relational::tests::model::simple::ExtendedFloat (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::EntityWithAddress (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::EntityWithLocations (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Firm (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Firm_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::PersonNameParameter (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::PersonNameParameterNested (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::ValidPerson (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Person (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Person_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::TemporalEntityWithAddress (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::PersonSortable (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::PersonExtension (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::FirmExtension (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Interaction (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Interaction_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::GeographicEntity (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Location (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Address (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate EnumDefinition::meta::relational::tests::model::simple::GeographicEntityType (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::PlaceOfInterest (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Organization (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Division (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Department (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Team (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Application (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Employment (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Employment_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Firm_TemporalEntityWithAddress (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::FirmCEO (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::FirmOrganizations (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::SubOrganization (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Membership (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::PlacesOfInterest (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::AddressLocation (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Product (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::ProductClassification (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::TemporalProduct (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::TemporalTrade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::ProductToTrade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate EnumDefinition::meta::relational::tests::model::simple::ProductSynonymType (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Synonym (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::ProdSynonym (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Account (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::AccountWithConstraints (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::OrderPnl (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::AccountPnl (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Order (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Trade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::TradeEvent (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Account_AccountPnl (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Trade_Accounts (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::Trade_Orders (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Contract (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Currency (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Money (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::FxReferenceRate (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate EnumDefinition::meta::relational::tests::model::simple::NonStandardTenorQualifier (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::BridgeAsso1 (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate AssociationDefinition::meta::relational::tests::model::simple::BridgeAsso2 (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Bridge (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Event (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::ReservedWords (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::PersonWithConstraints (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::testReservedWords (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::class (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::Employee (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union duplicate ClassDefinition::meta::relational::tests::model::simple::WeightedTrade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::specialUnion::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testSpecialUnionMapping.pure, kept tests/mapping/union/sibling-0.pure)
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::specialUnion::testSimpleGetAll() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testSpecialUnionMapping.pure, kept tests/mapping/union/sibling-0.pure)
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::specialUnion::testFilteredGetAll() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testSpecialUnionMapping.pure, kept tests/mapping/union/sibling-0.pure)
@@ -6984,6 +7062,76 @@ in-process Alloy-shaped path).
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsAssociationMappingV5 (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnionWithMultipleChainedJoins.pure, kept tests/mapping/union/sibling-6.pure)
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsClassMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnionWithMultipleChainedJoins.pure, kept tests/mapping/union/sibling-6.pure)
 - tests/mapping/union duplicate Function::meta::relational::tests::mapping::union::multipleChainedJoins::setup() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testUnionWithMultipleChainedJoins.pure, kept tests/mapping/union/sibling-6.pure)
+- tests/mapping/union/relation duplicate PrimitiveExtensionDefinition::meta::relational::tests::model::simple::ExtendedString (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate PrimitiveExtensionDefinition::meta::relational::tests::model::simple::ExtendedInteger (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate PrimitiveExtensionDefinition::meta::relational::tests::model::simple::ExtendedFloat (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::EntityWithAddress (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::EntityWithLocations (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Firm (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Firm_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::PersonNameParameter (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::PersonNameParameterNested (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::ValidPerson (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Person (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Person_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::TemporalEntityWithAddress (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::PersonSortable (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::PersonExtension (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::FirmExtension (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Interaction (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Interaction_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::GeographicEntity (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Location (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Address (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate EnumDefinition::meta::relational::tests::model::simple::GeographicEntityType (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::PlaceOfInterest (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Organization (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Division (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Department (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Team (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Application (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Employment (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Employment_ExtendedPrimitives (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Firm_TemporalEntityWithAddress (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::FirmCEO (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::FirmOrganizations (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::SubOrganization (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Membership (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::PlacesOfInterest (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::AddressLocation (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Product (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::ProductClassification (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::TemporalProduct (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::TemporalTrade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::ProductToTrade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate EnumDefinition::meta::relational::tests::model::simple::ProductSynonymType (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Synonym (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::ProdSynonym (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Account (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::AccountWithConstraints (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::OrderPnl (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::AccountPnl (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Order (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Trade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::TradeEvent (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Account_AccountPnl (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Trade_Accounts (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::Trade_Orders (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Contract (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Currency (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Money (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::FxReferenceRate (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate EnumDefinition::meta::relational::tests::model::simple::NonStandardTenorQualifier (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::BridgeAsso1 (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate AssociationDefinition::meta::relational::tests::model::simple::BridgeAsso2 (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Bridge (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Event (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::ReservedWords (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::PersonWithConstraints (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::testReservedWords (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::class (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::Employee (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
+- tests/mapping/union/relation duplicate ClassDefinition::meta::relational::tests::model::simple::WeightedTrade (tests/mapping/union/sibling-8.pure, kept shared-0.pure)
 - tests/mapping/union/relation duplicate Function::meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_SimpleProject() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/relation/testRelationUnion.pure, kept tests/mapping/union/relation/sibling-2.pure)
 - tests/mapping/union/relation duplicate Function::meta::relational::tests::mapping::union::relation::testUnionOfTwoRelationMappings_FilterAcrossSets() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/relation/testRelationUnion.pure, kept tests/mapping/union/relation/sibling-2.pure)
 - tests/mapping/union/relation duplicate Function::meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_FilterWithStartsWith() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/relation/testRelationUnion.pure, kept tests/mapping/union/relation/sibling-2.pure)
@@ -7507,173 +7655,8 @@ in-process Alloy-shaped path).
 - validation/tests meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
 - validation/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - validation/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$TradePnl => Unknown type: 'TradePnl' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::ViewChainMapping$class$OrderPnlWithConstraint => Unknown type: 'OrderPnlWithConstraint' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::ViewChainMapping$class$Product => Unknown type: 'Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithNestedView$class$TradePnl => Unknown type: 'TradePnl' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap3$class$TradePnl => Unknown type: 'TradePnl' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::OrderWithConstraint => Unknown type: 'meta::relational::tests::milestoning::OrderWithConstraint' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::OrderWithProductWithConstraints => Unknown type: 'meta::relational::tests::milestoning::OrderWithProductWithConstraints' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::OrderDescription => Unknown type: 'meta::relational::tests::milestoning::OrderDescription' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::OrderDetails => Unknown type: 'meta::relational::tests::milestoning::OrderDetails' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::SystemAOrderDescription => Unknown type: 'meta::relational::tests::milestoning::SystemAOrderDescription' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductWithConstraint1 => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint1' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductWithConstraint1b => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint1b' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductWithConstraint2 => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint2' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductWithConstraint3 => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint3' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::BiTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::StockProduct => Unknown type: 'meta::relational::tests::milestoning::StockProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductSynonym => Unknown type: 'meta::relational::tests::milestoning::ProductSynonym' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProductClassificationWithProcessedMilestonedExchangeNameConstraint => Unknown type: 'meta::relational::tests::milestoning::ProductClassificationWithProcessedMilestonedExchangeNameConstraint' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::BiTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::ProcessedMilestonedExchange => Unknown type: 'meta::relational::tests::milestoning::ProcessedMilestonedExchange' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::System => Unknown type: 'meta::relational::tests::milestoning::System' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::SystemDescription => Unknown type: 'meta::relational::tests::milestoning::SystemDescription' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$TradePnl => Unknown type: 'TradePnl' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::Trader => Unknown type: 'meta::relational::tests::milestoning::Trader' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$Location => Unknown type: 'Location' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmap$class$meta::relational::tests::milestoning::Certification => Unknown type: 'meta::relational::tests::milestoning::Certification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapwithconstraints$class$meta::relational::tests::milestoning::ProductWithConstraint1c => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint1c' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapMultipleJoinOperations$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapMultipleJoinOperations$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapMultipleJoinOperations$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::ProductWithConstraint2 => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint2' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::BiTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::singleTemporalMappingForBiTemporalTypes$class$meta::relational::tests::milestoning::BiTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::singleTemporalMappingForBiTemporalTypes$class$meta::relational::tests::milestoning::BiTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::NewActivityInfo => Unknown type: 'meta::relational::tests::milestoning::NewActivityInfo' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::NewProductActivityInfo => Unknown type: 'meta::relational::tests::milestoning::NewProductActivityInfo' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::System => Unknown type: 'meta::relational::tests::milestoning::System' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::propagationMapping$class$meta::relational::tests::milestoning::SystemDescription => Unknown type: 'meta::relational::tests::milestoning::SystemDescription' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningMapWithEmbedded$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningMapWithEmbedded$class$meta::relational::tests::milestoning::System => Unknown type: 'meta::relational::tests::milestoning::System' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningMapWithEmbeddedSimple$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningMapWithEmbeddedSimple$class$meta::relational::tests::milestoning::System => Unknown type: 'meta::relational::tests::milestoning::System' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::isolationFocusedMapping$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::isolationFocusedMapping$class$meta::relational::tests::milestoning::System => Unknown type: 'meta::relational::tests::milestoning::System' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::otherwiseMapping$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::otherwiseMapping$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::latestbitemporalmap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::latestbitemporalmap$class$meta::relational::tests::milestoning::BiTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::latestbitemporalmap$class$meta::relational::tests::milestoning::BiTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::InFromInclusiveMapping$class$BiTemporalProduct => Unknown type: 'BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::InThruInclusiveMapping$class$BiTemporalProduct => Unknown type: 'BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::OutFromInclusiveMapping$class$BiTemporalProduct => Unknown type: 'BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::OutThruInclusiveMapping$class$BiTemporalProduct => Unknown type: 'BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping$class$BiTemporalProduct => Unknown type: 'BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping$class$BiTemporalProduct => Unknown type: 'BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMap$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMap$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMapWithDynaFunction$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMapWithDynaFunction$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMapWithDynaFunction$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMap$class$meta::relational::tests::milestoning::ProcessingTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMap$class$meta::relational::tests::milestoning::ProcessingTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMapWithDynaFunction$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMapWithDynaFunction$class$meta::relational::tests::milestoning::ProcessingTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMapWithDynaFunction$class$meta::relational::tests::milestoning::ProcessingTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap$class$meta::relational::tests::milestoning::Order => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap$class$meta::relational::tests::milestoning::ProcessingTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::ProcessingTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap$class$meta::relational::tests::milestoning::ProcessingTemporalProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProcessingTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o1 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap$class$meta::relational::tests::milestoning::Product$set$p1 => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap$class$meta::relational::tests::milestoning::ProductClassification$set$c1 => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o2 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap$class$meta::relational::tests::milestoning::Product$set$p2 => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap$class$meta::relational::tests::milestoning::ProductClassification$set$c2 => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o1 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o2 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o3 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o4 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o5 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::Order$set$o6 => Unknown type: 'meta::relational::tests::milestoning::Order' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProduct$set$p1 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProduct$set$p2 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProduct$set$p3 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProduct$set$p4 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProduct$set$p5 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProduct$set$p6 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification$set$c1 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification$set$c2 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification$set$c3 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification$set$c4 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification$set$c5 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap$class$meta::relational::tests::milestoning::BiTemporalProductClassification$set$c6 => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::TestMapping$class$Product => Unknown type: 'Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion$class$meta::relational::tests::milestoning::Product$set$p1 => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion$class$meta::relational::tests::milestoning::ProductClassification$set$c1 => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion$class$meta::relational::tests::milestoning::Product$set$p2 => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion$class$meta::relational::tests::milestoning::ProductClassification$set$c2 => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::viewFilter::MilestoningWithFiltersOnView$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithMappingExtensionsInc$class$meta::relational::tests::milestoning::ProductWithConstraint1 => Unknown type: 'meta::relational::tests::milestoning::ProductWithConstraint1' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithMappingExtensionsInc$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithMappingExtensions$class$meta::relational::tests::milestoning::OrderPnl => Unknown type: 'meta::relational::tests::milestoning::OrderPnl' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::UnionOnViewWithMilestoningMapping$class$meta::relational::tests::milestoning::BiTemporalProduct => Unknown type: 'meta::relational::tests::milestoning::BiTemporalProduct' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::nestedExistsEmbeddedMapping$class$ParentEntity => Unknown type: 'ParentEntity' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap$class$RootEntity => Unknown type: 'RootEntity' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap$class$ChildEntity => Unknown type: 'ChildEntity' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap$class$LeafEntity => Unknown type: 'LeafEntity' is not a known primitive, class, or enum
-- validation/tests meta::relational::tests::milestoning::bookCatalogMap$class$meta::relational::tests::milestoning::inheritance::Author => Unknown type: 'meta::relational::tests::milestoning::inheritance::Author' is not a known primitive, class, or enum
 - validation/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - validation/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns => mapping 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns' binds unknown class 'TradePnl'
-- validation/tests meta::relational::tests::milestoning::ViewChainMapping => mapping 'meta::relational::tests::milestoning::ViewChainMapping' binds unknown class 'OrderPnlWithConstraint'
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithNestedView => mapping 'meta::relational::tests::milestoning::milestoningmapWithNestedView' binds unknown class 'TradePnl'
-- validation/tests meta::relational::tests::milestoning::milestoningmap2 => mapping 'meta::relational::tests::milestoning::milestoningmap2' binds unknown class 'meta::relational::tests::milestoning::Product'
-- validation/tests meta::relational::tests::milestoning::milestoningmap3 => mapping 'meta::relational::tests::milestoning::milestoningmap3' binds unknown class 'TradePnl'
-- validation/tests meta::relational::tests::milestoning::milestoningmap => mapping 'meta::relational::tests::milestoning::milestoningmap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::milestoningmapwithconstraints => mapping 'meta::relational::tests::milestoning::milestoningmapwithconstraints' binds unknown class 'meta::relational::tests::milestoning::ProductWithConstraint1c'
-- validation/tests meta::relational::tests::milestoning::milestoningmapMultipleJoinOperations => mapping 'meta::relational::tests::milestoning::milestoningmapMultipleJoinOperations' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::noMilestoningMap => mapping 'meta::relational::tests::milestoning::noMilestoningMap' binds unknown class 'meta::relational::tests::milestoning::ProductWithConstraint2'
-- validation/tests meta::relational::tests::milestoning::singleTemporalMappingForBiTemporalTypes => mapping 'meta::relational::tests::milestoning::singleTemporalMappingForBiTemporalTypes' binds unknown class 'meta::relational::tests::milestoning::BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::propagationMapping => mapping 'meta::relational::tests::milestoning::propagationMapping' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::milestoningMapWithEmbedded => mapping 'meta::relational::tests::milestoning::milestoningMapWithEmbedded' binds unknown class 'meta::relational::tests::milestoning::ProductClassification'
-- validation/tests meta::relational::tests::milestoning::milestoningMapWithEmbeddedSimple => mapping 'meta::relational::tests::milestoning::milestoningMapWithEmbeddedSimple' binds unknown class 'meta::relational::tests::milestoning::Exchange'
-- validation/tests meta::relational::tests::milestoning::isolationFocusedMapping => mapping 'meta::relational::tests::milestoning::isolationFocusedMapping' binds unknown class 'meta::relational::tests::milestoning::ProductClassification'
-- validation/tests meta::relational::tests::milestoning::otherwiseMapping => mapping 'meta::relational::tests::milestoning::otherwiseMapping' binds unknown class 'meta::relational::tests::milestoning::ProductClassification'
-- validation/tests meta::relational::tests::milestoning::latestbitemporalmap => mapping 'meta::relational::tests::milestoning::latestbitemporalmap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::InFromInclusiveMapping => mapping 'meta::relational::tests::milestoning::InFromInclusiveMapping' binds unknown class 'BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::InThruInclusiveMapping => mapping 'meta::relational::tests::milestoning::InThruInclusiveMapping' binds unknown class 'BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::OutFromInclusiveMapping => mapping 'meta::relational::tests::milestoning::OutFromInclusiveMapping' binds unknown class 'BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::OutThruInclusiveMapping => mapping 'meta::relational::tests::milestoning::OutThruInclusiveMapping' binds unknown class 'BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping => mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping' binds unknown class 'BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping => mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping' binds unknown class 'BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMap => mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningMapWithDynaFunction => mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningMapWithDynaFunction' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap => mapping 'meta::relational::tests::milestoning::businessSnapshotMilestoningUnionMap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMap => mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningMapWithDynaFunction => mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningMapWithDynaFunction' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap => mapping 'meta::relational::tests::milestoning::processingSnapshotMilestoningUnionMap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::partiallyMilestoningUnionMap => mapping 'meta::relational::tests::milestoning::partiallyMilestoningUnionMap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::hybridMilestoningUnionMap => mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap' binds unknown class 'meta::relational::tests::milestoning::Order'
-- validation/tests meta::relational::tests::milestoning::TestMapping => mapping 'meta::relational::tests::milestoning::TestMapping' binds unknown class 'Product'
-- validation/tests meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion => mapping 'meta::relational::tests::milestoning::milestoningUnionMapWithOrderNonUnion' binds unknown class 'meta::relational::tests::milestoning::Product'
-- validation/tests meta::relational::tests::milestoning::viewFilter::MilestoningWithFiltersOnView => mapping 'meta::relational::tests::milestoning::viewFilter::MilestoningWithFiltersOnView' binds unknown class 'meta::relational::tests::milestoning::Product'
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithMappingExtensionsInc => mapping 'meta::relational::tests::milestoning::milestoningmapWithMappingExtensionsInc' binds unknown class 'meta::relational::tests::milestoning::ProductWithConstraint1'
-- validation/tests meta::relational::tests::milestoning::milestoningmapWithMappingExtensions => mapping 'meta::relational::tests::milestoning::milestoningmapWithMappingExtensions' binds unknown class 'meta::relational::tests::milestoning::OrderPnl'
-- validation/tests meta::relational::tests::milestoning::UnionOnViewWithMilestoningMapping => mapping 'meta::relational::tests::milestoning::UnionOnViewWithMilestoningMapping' binds unknown class 'meta::relational::tests::milestoning::BiTemporalProduct'
-- validation/tests meta::relational::tests::milestoning::nestedExistsEmbeddedMapping => mapping 'meta::relational::tests::milestoning::nestedExistsEmbeddedMapping' binds unknown class 'ParentEntity'
-- validation/tests meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap => mapping 'meta::relational::tests::milestoning::derivedPropertyAssociationMilestoningMap' binds unknown class 'RootEntity'
-- validation/tests meta::relational::tests::milestoning::bookCatalogMap => mapping 'meta::relational::tests::milestoning::bookCatalogMap' binds unknown class 'meta::relational::tests::milestoning::inheritance::Author'
 - validation/tests meta::relational::validation::validate => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::generateValidationQuery => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/tests duplicate ClassDefinition::meta::relational::validation::tests::milestoning::Product (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/validation/tests/testValidationWithMilestoning.pure, kept validation/tests/sibling-3.pure)
@@ -7718,12 +7701,12 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 13x lambda has 1 parameter(s) but the function type expects 0
-- 9x class meta::relational::validation::tests::milestoning::Product has no property 'id'
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - 7x lambda has 2 parameter(s) but the function type expects 0
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x unknown function 'generateObjectReferences'
+- 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
 - 4x null
 - 4x class query under TypedLambda is not resolvable yet (H2 vocabulary)
@@ -7734,7 +7717,6 @@ in-process Alloy-shaped path).
 - 3x unknown enumeration 'ProductSynonymType'
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
-- 3x unknown function 'product'
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy::da…
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x Binder Error: subqueries in lambda expressions are not supported
@@ -7747,6 +7729,7 @@ in-process Alloy-shaped path).
 - 2x unknown function 'parseJSON'
 - 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
 - 2x unknown function 'tdsRows'
+- 2x in function 'meta::relational::tests::m2m2r::runtime': unknown class 'meta::external::store::relational::runtime::RelationalDatabaseConnection' in ^meta::external::store::relational::runtime::RelationalDatabaseConnection(…)
 
 ### per-test outcomes (non-passing)
 
@@ -7966,8 +7949,7 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
 - FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -8043,7 +8025,7 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::milestoning::Product | milestoningmap.meta_relational_tests_milestoning_Product)]\n         as meta::relational::tests::milestoning::Product\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type = StrictDate\
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: unbound variable '$businessDate'
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8367,7 +8349,7 @@ in-process Alloy-shaped path).
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
@@ -8413,16 +8395,7 @@ in-process Alloy-shaped path).
 - ERROR validateComplexValidation7 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR validateComplexValidation9 [validation/tests]: negated 'meta::pure::functions::collection::isDistinct' over a to-many crossing — the engine null-compensates only equal/in; this operator's emission is not transcribed yet
 - ERROR validateComplexValidation10 [validation/tests]: navigation through class-typed slot property 'employees' is not supported yet [assocs=[]; inner=TypedPropertyAccess; leaf=name]
-- ERROR testAggregationOnRootClass [validation/tests]: class meta::relational::validation::tests::milestoning::ProductClassification has no property 'type'
-- ERROR testValidateQueryWithMilestoningAndAggregationAll [validation/tests]: unknown function 'product'
-- ERROR testValidateQueryWithMilestoningAndAggregationSingle [validation/tests]: unknown function 'product'
-- ERROR testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction [validation/tests]: unknown function 'product'
-- ERROR testValidateQueryWithMilestoning [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryWithMilestoningWithVariable [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryWithMilestoningWithMultipleVariables [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryOpenVariableInCol [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryOpenVariableInKeyExpression [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryOpenVariableInAgg [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryOpenVariableInColAndAgg [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryOpenVariableInColAndExtraProjection [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
-- ERROR testValidateQueryWithUnion [validation/tests]: class meta::relational::validation::tests::milestoning::Product has no property 'id'
+- ERROR testValidateQueryWithMilestoningAndAggregationAll [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
+- ERROR testValidateQueryWithMilestoningAndAggregationSingle [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
+- ERROR testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
+- ERROR testValidateQueryOpenVariableInKeyExpression [validation/tests]: unknown class 'BasicColumnSpecification' in ^BasicColumnSpecification(…)
