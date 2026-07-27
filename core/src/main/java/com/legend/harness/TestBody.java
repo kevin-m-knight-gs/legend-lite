@@ -329,6 +329,9 @@ public final class TestBody {
                         + "' carries no zero-arg lambda body");
             }
             List<ValueSpecification> unrolledLoop = enumDriverLoop(stmt);
+            if (unrolledLoop == null) {
+                unrolledLoop = resultVarLoop(stmt);
+            }
             if (unrolledLoop != null) {
                 for (int i = unrolledLoop.size() - 1; i >= 0; i--) {
                     work.addFirst(unrolledLoop.get(i));
@@ -987,6 +990,32 @@ public final class TestBody {
      * HOST-side unroll (sibling of the pair-loop idiom): the loop var
      * binds each enum literal and the body statements splice back into
      * the work queue. Null when the statement is not the idiom. */
+    /** STATEMENT-position map over a literal collection of VARIABLES with
+     * a (possibly multi-statement) lambda — the per-result assert-block
+     * idiom ({@code [$r1,$r2]->map(r|let o=$r.values; assertEquals(..);)}):
+     * HOST-side unroll, the sibling of the per-driver enum loop. Variables
+     * only — a map over computed elements is a QUERY and must not unroll. */
+    private static List<ValueSpecification> resultVarLoop(ValueSpecification stmt) {
+        if (!(stmt instanceof AppliedFunction m
+                && harnessVocabName(m.function())
+                && simpleName(m.function()).equals("map")
+                && m.parameters().size() == 2
+                && m.parameters().get(0) instanceof PureCollection pc
+                && !pc.values().isEmpty()
+                && pc.values().stream().allMatch(v -> v instanceof Variable)
+                && m.parameters().get(1) instanceof LambdaFunction lf
+                && lf.parameters().size() == 1)) {
+            return null;
+        }
+        List<ValueSpecification> out = new ArrayList<>();
+        for (ValueSpecification el : pc.values()) {
+            for (ValueSpecification b : lf.body()) {
+                out.add(substitute(b, Map.of(lf.parameters().get(0).name(), el)));
+            }
+        }
+        return out;
+    }
+
     private static List<ValueSpecification> enumDriverLoop(
             ValueSpecification stmt) {
         ValueSpecification enumLoop = stmt;
