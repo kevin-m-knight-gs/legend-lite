@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 7 | 15 | 6 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 98 | 9 | 33 | 3 |
+| graphFetch/tests | 143 | 97 | 10 | 33 | 3 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -73,9 +73,9 @@ in-process Alloy-shaped path).
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 73 | 1 | 8 | 1 |
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
-| validation/showcase | 8 | 4 | 1 | 3 | 0 |
-| validation/tests | 23 | 11 | 0 | 12 | 0 |
-| **total** | 2538 | **1872** | 85 | 231 | 350 |
+| validation/showcase | 8 | 5 | 0 | 3 | 0 |
+| validation/tests | 23 | 12 | 0 | 11 | 0 |
+| **total** | 2538 | **1873** | 85 | 230 | 350 |
 
 ### mapping walls (dropped at assembly)
 
@@ -7949,7 +7949,8 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
 - FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -8025,7 +8026,7 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::milestoning::Product | milestoningmap.meta_relational_tests_milestoning_Product)]\n         as meta::relational::tests::milestoning::Product\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type = StrictDate\
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: unbound variable '$businessDate'
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8304,7 +8305,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -8384,7 +8385,6 @@ in-process Alloy-shaped path).
 - ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
 - ERROR testHashFunctions [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
 - ERROR validateAllConstraints [validation/showcase]: unbound variable '$t'
-- FAIL validateMultiplesConstraintWithAdditionalProjections [validation/showcase]: assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,Trade ID,Ext Trade ID,Location\netiNotEmpty,Error,External Trade ID is not valid,2,,Americas\nvalidLocation,Warn,Location is not known,3,102,Dummy\nvalidLocation,Warn,Location is not known,4,103,Dummy\n, got [etiNotEmpty, Error, External
 - ERROR validateAllConstraintsWithPostTDSOperation2 [validation/showcase]: unbound variable '$t'
 - ERROR validateAllConstraintsWithInnerJoinInFilter [validation/showcase]: unbound variable '$t'
 - ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
@@ -8398,4 +8398,3 @@ in-process Alloy-shaped path).
 - ERROR testValidateQueryWithMilestoningAndAggregationAll [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR testValidateQueryWithMilestoningAndAggregationSingle [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- ERROR testValidateQueryOpenVariableInKeyExpression [validation/tests]: unknown class 'BasicColumnSpecification' in ^BasicColumnSpecification(…)

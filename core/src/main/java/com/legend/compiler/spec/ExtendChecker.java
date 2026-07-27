@@ -111,12 +111,37 @@ final class ExtendChecker {
     }
 
     /** {@code col(fn,'name')} as a ColSpec (legacy TDSRow param annotation
-     * stripped); null when the shape is anything else. */
+     * stripped); {@code ^BasicColumnSpecification(func=fn, name='name')}
+     * converts identically — the engine's col() helper constructs exactly
+     * that instance (tds/tdsColumn.pure); null when the shape is anything
+     * else. */
     private static ColSpec legacyColToSpec(ValueSpecification v) {
-        if (!(v instanceof AppliedFunction cf && cf.function().equals("col")
+        com.legend.model.spec.LambdaFunction fn;
+        com.legend.model.spec.CString nm;
+        if (v instanceof AppliedFunction nw && nw.function().equals("new")
+                && nw.parameters().size() >= 2
+                && nw.parameters().get(0)
+                        instanceof com.legend.model.spec.PackageableElementPtr pep
+                && (pep.fullPath().equals("BasicColumnSpecification")
+                        || pep.fullPath().equals(
+                                "meta::pure::tds::BasicColumnSpecification"))
+                && nw.parameters().get(1)
+                        instanceof com.legend.model.spec.NewInstance ni
+                && ni.properties().get("func") != null
+                && ni.properties().get("name") != null
+                && ni.properties().get("func").value()
+                        instanceof com.legend.model.spec.LambdaFunction bf
+                && ni.properties().get("name").value()
+                        instanceof com.legend.model.spec.CString bn) {
+            fn = bf;
+            nm = bn;
+        } else if (v instanceof AppliedFunction cf && cf.function().equals("col")
                 && cf.parameters().size() == 2
-                && cf.parameters().get(0) instanceof com.legend.model.spec.LambdaFunction fn
-                && cf.parameters().get(1) instanceof com.legend.model.spec.CString nm)) {
+                && cf.parameters().get(0) instanceof com.legend.model.spec.LambdaFunction cfn
+                && cf.parameters().get(1) instanceof com.legend.model.spec.CString cnm) {
+            fn = cfn;
+            nm = cnm;
+        } else {
             return null;
         }
         java.util.List<com.legend.model.spec.Variable> params = fn.parameters().stream()

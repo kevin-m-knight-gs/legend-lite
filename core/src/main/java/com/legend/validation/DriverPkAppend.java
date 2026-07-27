@@ -90,6 +90,19 @@ public final class DriverPkAppend {
             if (!cd.primaryKey()) {
                 continue;
             }
+            // engine getRootPrimaryKeyCols: a PK whose PHYSICAL column is
+            // already read by an existing projection is NOT re-appended
+            // (additional-projection showcase: 'Trade ID' = root.id)
+            if (p.columns().stream().anyMatch(fc -> {
+                List<TypedSpec> b = fc.fn().body();
+                return !b.isEmpty()
+                        && unwrapErasure(b.get(b.size() - 1))
+                                instanceof TypedPropertyAccess pa
+                        && pa.source() instanceof TypedVariable
+                        && pa.property().equalsIgnoreCase(cd.name());
+            })) {
+                continue;
+            }
             Type.Column src = srcRow.columns().stream()
                     .filter(c -> c.name().equalsIgnoreCase(cd.name()))
                     .findFirst().orElseThrow(
@@ -109,6 +122,19 @@ public final class DriverPkAppend {
         return new TypedProject(p.source(), cols,
                 new ExprType(new Type.RelationType(outCols),
                         p.info().multiplicity()));
+    }
+
+    /** Multiplicity-erasure wrappers (toOne) vanish at lowering — the
+     * engine's dedup matches the underlying TableAliasColumn, so a
+     * toOne'd column read is still a plain column read. */
+    private static TypedSpec unwrapErasure(TypedSpec n) {
+        while (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && nc.args().size() == 1
+                && nc.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            n = nc.args().get(0);
+        }
+        return n;
     }
 
     private static TypedTableReference deepestLeftScan(TypedSpec n) {
