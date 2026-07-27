@@ -628,7 +628,7 @@ public final class Lowerer {
             if (child.node().inlineChild()) {
                 // EMBEDDED child: same-row json object, leaves resolve
                 // against the PARENT select — no subquery (task #78 H4b)
-                kv.add(inlineChildObject(base, child.node()));
+                kv.add(inlineWrapped(base, child.node()));
                 continue;
             }
             enclosing.push(own);
@@ -725,6 +725,17 @@ public final class Lowerer {
     /** An INLINE (embedded) child's json object over the parent select:
      * leaves resolve strictly against the SAME base; inline children
      * recurse; correlated-inside-embedded keeps the subquery. */
+    /** An inline child, ARRAY-wrapped when the property is to-many
+     * (engine: "authors":[{...}] — the embedded instance rides in a
+     * one-element JSON array). */
+    private SqlExpr inlineWrapped(SqlSelect base, TypedSerializeGraph g) {
+        SqlExpr obj = inlineChildObject(base, g);
+        return g.arrayWrap()
+                ? SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                        new SqlExpr.ArrayLit(List.of(obj)))
+                : obj;
+    }
+
     private SqlExpr inlineChildObject(SqlSelect base, TypedSerializeGraph g) {
         List<SqlExpr> kv = new ArrayList<>(
                 2 * (g.leaves().size() + g.nested().size()));
@@ -743,7 +754,7 @@ public final class Lowerer {
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
             if (child.node().inlineChild()) {
-                kv.add(inlineChildObject(base, child.node()));
+                kv.add(inlineWrapped(base, child.node()));
             } else {
                 enclosing.push(scopedResolver(base, g.rowVar()));
                 try {

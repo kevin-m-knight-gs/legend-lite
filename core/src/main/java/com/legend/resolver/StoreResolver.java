@@ -2762,11 +2762,7 @@ public final class StoreResolver {
             // binding may read a demanded join slot); class-typed children
             // correlate — never join — and are materialized by
             // buildGraphNode, not the demand scan.
-            for (TypedGraphTree node : tree) {
-                if (node.children().isEmpty()) {
-                    projectionPaths.add(List.of(node.property()));
-                }
-            }
+            InnerDemand.treeDemandPaths(tree, cs, projectionPaths);
         } else {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {

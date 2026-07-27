@@ -43,6 +43,29 @@ import java.util.Set;
  */
 final class InnerDemand {
 
+    /** GRAPH-terminal demand: tree LEAF paths feed slot demand (a leaf's
+     * binding may read a demanded join slot); an EMBEDDED/INLINE ctor
+     * child reads the PARENT row, so its demanded sub-properties ride as
+     * 2-hop paths (Inline splices with @Join columns). Class-typed
+     * children correlate — materialized by buildGraphNode, not here. */
+    static void treeDemandPaths(
+            java.util.List<com.legend.compiler.spec.typed.TypedGraphTree> tree,
+            ClassSource cs,
+            java.util.Set<java.util.List<String>> projectionPaths) {
+        for (com.legend.compiler.spec.typed.TypedGraphTree node : tree) {
+            if (node.children().isEmpty()) {
+                projectionPaths.add(java.util.List.of(node.property()));
+            } else if (Substitution.embeddedPartialOf(cs.bindings()
+                    .get(node.property())) != null) {
+                for (com.legend.compiler.spec.typed.TypedGraphTree sub
+                        : node.children()) {
+                    projectionPaths.add(java.util.List.of(
+                            node.property(), sub.property()));
+                }
+            }
+        }
+    }
+
     private InnerDemand() {
     }
 

@@ -1885,7 +1885,7 @@ final class Substitution {
 
     /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with
      * toOne look-through) or an otherwise composition's partial. */
-    private static TypedNewInstance embeddedPartialOf(
+    static TypedNewInstance embeddedPartialOf(
             TypedSpec binding) {
         if (binding == null) {
             return null;

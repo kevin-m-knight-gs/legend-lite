@@ -1317,6 +1317,36 @@ final class GraphEmission {
                         + "' is class-typed through a non-ctor binding —"
                         + " not supported yet");
             }
+            // a TO-MANY PRIMITIVE leaf reading a join slot (the Inline
+            // splice's authorId: @Book_Authorship | ... over String[*]):
+            // the inline read would take ONE joined row — the engine
+            // serializes the AGGREGATED array; same correlated emission
+            // as the top-level to-many slot-read arm
+            if (ei instanceof TypedPropertyAccess colPa2
+                    && colPa2.source() instanceof TypedPropertyAccess slotPa2
+                    && slotPa2.source() instanceof TypedVariable sv2
+                    && sv2.name().equals(cs.rowVar())
+                    && !(colPa2.info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded bm2
+                            && Integer.valueOf(1).equals(bm2.upper()))) {
+                var navE = Pipelines.outerNavSteps(cs.pipeline())
+                        .get(slotPa2.property());
+                if (navE != null) {
+                    nested.add(primitiveArrayChild(keyOf(c),
+                            navE.target(), navE.predicate(), colPa2,
+                            cs.rowVar(), rowT));
+                    continue;
+                }
+                var slotE = Pipelines.joinSlots(cs.pipeline())
+                        .get(slotPa2.property());
+                if (slotE != null) {
+                    nested.add(primitiveArrayChild(keyOf(c),
+                            slotE.target(), slotE.condition(), colPa2,
+                            cs.rowVar(), rowT));
+                    continue;
+                }
+            }
             var lFn = new Type.FunctionType(
                     List.of(new Type.Param(rowT,
                             com.legend.compiler.element.type.Multiplicity
@@ -1333,8 +1363,14 @@ final class GraphEmission {
         // MATERIALIZED pipeline, never the raw cs.pipeline() whose
         // undemanded navigate thunks still hold getAll (the embedded
         // family's join-inside-embedded shape tripped the escapee wall)
+        // a TO-MANY embedded property serializes as an ARRAY around the
+        // inline object (engine: "authors":[{...}])
+        boolean many = !(prop.multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity
+                        .Bounded pb
+                && Integer.valueOf(1).equals(pb.upper()));
         TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
-                cs.rowVar(), leaves, nested, false, false, childClass,
+                cs.rowVar(), leaves, nested, many, false, childClass,
                 rowInfo, true);
         return new TypedSerializeGraph.Child(keyOf(node), nodeG);
     }
