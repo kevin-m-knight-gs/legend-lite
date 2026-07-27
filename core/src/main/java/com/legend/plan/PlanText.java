@@ -229,10 +229,11 @@ public final class PlanText {
             SqlSelect.Projection p = s.projections().get(i);
             String db;
             if (p.expr() instanceof SqlExpr.Column c) {
-                String table = tableOf(s.from(), c.table());
-                var td = ctx.findTableDefinition(dbFqn, table).orElseThrow();
+                String[] phys = resolvePhysical(s.from(), c.table(),
+                        strip(c.name()));
+                var td = ctx.findTableDefinition(dbFqn, phys[0]).orElseThrow();
                 db = spell(td.columns().stream()
-                        .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
+                        .filter(x -> x.name().equalsIgnoreCase(phys[1]))
                         .findFirst().orElseThrow().dataType());
             } else {
                 // COMPUTED TDS column: the db slot spells the PURE type's
@@ -310,12 +311,14 @@ public final class PlanText {
                         .append("\", \"\")");
                 continue;
             }
-            String table = tableOf(s.from(), c.table());
+            String[] phys = resolvePhysical(s.from(), c.table(),
+                    strip(c.name()));
+            String table = phys[0];
             var td = ctx.findTableDefinition(dbFqn, table).orElseThrow(
                     () -> new NotImplementedException("plan: table '"
                             + table + "' not in '" + dbFqn + "'"));
             DatabaseDefinition.ColumnDefinition cd = td.columns().stream()
-                    .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
+                    .filter(x -> x.name().equalsIgnoreCase(phys[1]))
                     .findFirst().orElseThrow(
                             () -> new NotImplementedException("plan:"
                                     + " column '" + c.name() + "' not on '"
@@ -343,19 +346,53 @@ public final class PlanText {
 
     /** The physical table behind a FROM-tree alias. */
     private static String tableOf(SqlSource src, String alias) {
-        return switch (src) {
-            case SqlSource.Table t when t.alias().equals(alias) -> t.name();
-            case SqlSource.Join j -> {
-                try {
-                    yield tableOf(j.left(), alias);
-                } catch (NotImplementedException e) {
-                    yield tableOf(j.right(), alias);
+        return resolvePhysical(src, alias, null)[0];
+    }
+
+    /** {@code [physTable, physColumn]} behind an alias.column pair —
+     * looks THROUGH subselects (a VIEW's pnl resolves to the underlying
+     * table's column; the engine types resultColumns by the physical
+     * store column). {@code col} null = table identity only. */
+    private static String[] resolvePhysical(SqlSource src, String alias,
+            String col) {
+        switch (src) {
+            case SqlSource.Table t -> {
+                if (t.alias().equals(alias)) {
+                    return new String[]{t.name(), col};
                 }
             }
-            default -> throw new NotImplementedException(
-                    "plan: alias '" + alias + "' not resolvable to a table"
-                    + " (" + src.getClass().getSimpleName() + ")");
-        };
+            case SqlSource.Join j -> {
+                try {
+                    return resolvePhysical(j.left(), alias, col);
+                } catch (NotImplementedException e) {
+                    return resolvePhysical(j.right(), alias, col);
+                }
+            }
+            case SqlSource.Subselect sub -> {
+                if (sub.alias().equals(alias)
+                        && sub.inner() instanceof SqlSelect is) {
+                    if (col == null) {
+                        throw new NotImplementedException("plan: alias '"
+                                + alias + "' is a subselect — column"
+                                + " required to resolve through it");
+                    }
+                    for (SqlSelect.Projection p2 : is.projections()) {
+                        if (col.equals(strip(p2.outputName()))
+                                && p2.expr() instanceof SqlExpr.Column c2) {
+                            return resolvePhysical(is.from(), c2.table(),
+                                    strip(c2.name()));
+                        }
+                    }
+                    throw new NotImplementedException("plan: column '" + col
+                            + "' not a plain projection of subselect '"
+                            + alias + "'");
+                }
+            }
+            default -> { }
+        }
+        throw new NotImplementedException(
+                "plan: alias '" + alias + "' not resolvable to a table"
+                + " (" + src.getClass().getSimpleName() + ")");
     }
 
     /** The engine's resultColumns type spelling (dataTypeToSqlText):

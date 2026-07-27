@@ -188,6 +188,29 @@ final class StatementExecutor {
                 result = planToString(pln, specs, env);
                 continue;
             }
+            // replace(...) over the plan TEXT (the datetime helpers'
+            // ->replace('\n',' ') presentation) — the text is an
+            // orchestration artifact; the string op applies host-side
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall rp
+                    && rp.callee().qualifiedName().equals(
+                            "meta::pure::functions::string::replace")
+                    && rp.args().size() == 3
+                    && rp.args().get(0)
+                            instanceof com.legend.compiler.spec.typed.TypedNativeCall rpi
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .PLAN_TO_STRING.equals(rpi.callee().qualifiedName())
+                    && rp.args().get(1)
+                            instanceof com.legend.compiler.spec.typed.TypedCString rf
+                    && rp.args().get(2)
+                            instanceof com.legend.compiler.spec.typed.TypedCString rt2) {
+                ExecutionResult r1 = planToString(rpi, specs, env);
+                result = new ExecutionResult.Scalar(
+                        String.valueOf(((ExecutionResult.Scalar) r1).value())
+                                .replace(rf.value(), rt2.value()),
+                        com.legend.compiler.element.type.Type
+                                .Primitive.STRING);
+                continue;
+            }
             // planToStringWithoutFormatting = planToString minus newlines
             // and spaces (executionPlan_print.pure:27)
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall pwf

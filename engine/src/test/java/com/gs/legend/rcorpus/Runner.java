@@ -434,6 +434,7 @@ public final class Runner {
         for (com.legend.model.spec.ValueSpecification stmt : stmts) {
             FnDef callee = null;
             com.legend.model.spec.AppliedFunction call = null;
+            String letName = null;
             if (stmt instanceof com.legend.model.spec.AppliedFunction af
                     && !af.function().equals("letFunction")) {
                 String fqn = af.function().contains("::")
@@ -443,6 +444,36 @@ public final class Runner {
                         && containsExecuteShapeDeep(fd.body(), t, 0)) {
                     callee = fd;
                     call = af;
+                }
+            }
+            // LET-BOUND helper calls expand ONLY for the Pair-returning
+            // plan idiom (`let p = helper(...)` whose body ends in
+            // pair(plan, planToString...)): the let rebinds to the pair.
+            // Broader let-expansion dismembered the validate/toSQLString
+            // vocabulary shapes (the -53 sweep regression) — those
+            // helpers must stay CALLS for their recognizers.
+            if (callee == null
+                    && stmt instanceof com.legend.model.spec.AppliedFunction lf0
+                    && lf0.function().equals("letFunction")
+                    && lf0.parameters().size() == 2
+                    && lf0.parameters().get(0)
+                            instanceof com.legend.model.spec.CString ln0
+                    && lf0.parameters().get(1)
+                            instanceof com.legend.model.spec.AppliedFunction af2
+                    && !af2.function().equals("letFunction")) {
+                String fqn2 = af2.function().contains("::")
+                        ? af2.function() : qualify(af2.function(), t);
+                FnDef fd2 = fnIndex.get(fqn2 + "/" + af2.parameters().size());
+                com.legend.model.spec.ValueSpecification last2 =
+                        fd2 == null || fd2.body().isEmpty() ? null
+                                : fd2.body().get(fd2.body().size() - 1);
+                if (fd2 != null
+                        && last2 instanceof com.legend.model.spec.AppliedFunction pl2
+                        && pl2.function().endsWith("pair")
+                        && containsExecuteShapeDeep(fd2.body(), t, 0)) {
+                    callee = fd2;
+                    call = af2;
+                    letName = ln0.value();
                 }
             }
             if (callee == null) {
@@ -455,7 +486,24 @@ public final class Runner {
                                         callee.params().get(i)),
                                 call.parameters().get(i))));
             }
-            out.addAll(expandHelperCalls(callee.body(), t, depth + 1));
+            List<com.legend.model.spec.ValueSpecification> expanded =
+                    expandHelperCalls(callee.body(), t, depth + 1);
+            if (letName != null && !expanded.isEmpty()) {
+                com.legend.model.spec.ValueSpecification last =
+                        expanded.remove(expanded.size() - 1);
+                if (last instanceof com.legend.model.spec.AppliedFunction ll
+                        && ll.function().equals("letFunction")
+                        && ll.parameters().size() == 2) {
+                    last = ll.parameters().get(1);
+                }
+                out.addAll(expanded);
+                out.add(new com.legend.model.spec.AppliedFunction(
+                        "letFunction", List.of(
+                                new com.legend.model.spec.CString(letName),
+                                last)));
+                continue;
+            }
+            out.addAll(expanded);
         }
         return out;
     }

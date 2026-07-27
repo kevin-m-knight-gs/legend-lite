@@ -3046,8 +3046,23 @@ public final class TestBody {
                     substitute(lets.get(var.name()), lets);
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     substituteAll(af.parameters(), lets));
-            case AppliedProperty ap3 -> new AppliedProperty(
-                    substitute(ap3.receiver(), lets), ap3.property());
+            case AppliedProperty ap3 -> {
+                ValueSpecification recv = substitute(ap3.receiver(), lets);
+                // pair(a, b).first/.second is a CONSTANT fold (real pure
+                // anonymousCollections semantics) — the datetime plan
+                // helpers return Pair<ExecutionPlan, String>
+                if (recv instanceof AppliedFunction pf
+                        && simpleName(pf.function()).equals("pair")
+                        && pf.parameters().size() == 2) {
+                    if (ap3.property().equals("first")) {
+                        yield pf.parameters().get(0);
+                    }
+                    if (ap3.property().equals("second")) {
+                        yield pf.parameters().get(1);
+                    }
+                }
+                yield new AppliedProperty(recv, ap3.property());
+            }
             case PureCollection pc -> new PureCollection(
                     substituteAll(pc.values(), lets));
             case LambdaFunction lf -> {
