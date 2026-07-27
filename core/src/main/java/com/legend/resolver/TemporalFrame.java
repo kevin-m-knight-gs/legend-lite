@@ -55,6 +55,15 @@ final class TemporalFrame {
     private final ModelContext ctx;
     private final ClassSources sources;
     private final TemporalContext root;
+
+    /** The ROOT query context date for a strategy axis — the serialize
+     * envelope spells it in milestoned qualified-property KEYS
+     * ({@code synonyms(2023-10-15T00:00:00+0000)}). Null when the axis
+     * carries no context date. */
+    com.legend.compiler.spec.typed.TypedSpec rootContextDate(
+            boolean business) {
+        return business ? root.business() : root.processing();
+    }
     private final Map<String, TemporalSpec> specs;
     /** Query-body {@code let} bindings (name &rarr; bound value), shared
      * BY REFERENCE with the resolver — a variable-spelled milestoning date

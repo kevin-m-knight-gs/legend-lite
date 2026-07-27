@@ -3318,7 +3318,8 @@ public final class TestBody {
                                             (LambdaFunction) substitute(
                                                     cs2.function2(), lets),
                                             cs2.alias(),
-                                            substituteAll(cs2.args(), lets)))
+                                            substituteAll(cs2.args(), lets),
+                                            cs2.qualified()))
                                     .toList());
             // ^X(prop=$let, ...) / ^$let(prop=...) — the binding
             // EXPRESSIONS read lets too (the XStore runtime copy-ctors:

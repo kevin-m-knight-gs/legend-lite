@@ -12,11 +12,20 @@ import java.util.Objects;
  * @param children the nested sub-tree, empty for a leaf
  */
 public record TypedGraphTree(String property, List<TypedGraphTree> children,
-        String alias, List<TypedSpec> args, boolean sweep, String subTypeFqn) {
+        String alias, List<TypedSpec> args, boolean sweep, String subTypeFqn,
+        boolean qualified) {
     public TypedGraphTree {
         Objects.requireNonNull(property, "property");
         children = List.copyOf(children);
         args = args == null ? List.of() : List.copyOf(args);
+    }
+
+    /** Historical arity: parenthesized-ness follows the args. */
+    public TypedGraphTree(String property, List<TypedGraphTree> children,
+            String alias, List<TypedSpec> args, boolean sweep,
+            String subTypeFqn) {
+        this(property, children, alias, args, sweep, subTypeFqn,
+                args != null && !args.isEmpty());
     }
 
     /** Non-subType node (every pre-subType shape). */

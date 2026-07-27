@@ -1352,7 +1352,9 @@ public final class NameResolver {
         LambdaFunction fn2 = cs.function2();
         LambdaFunction r1 = fn1 == null ? null : resolveLambda(fn1, scope);
         LambdaFunction r2 = fn2 == null ? null : resolveLambda(fn2, scope);
-        return (r1 == fn1 && r2 == fn2) ? cs : new ColSpec(cs.name(), r1, r2);
+        return (r1 == fn1 && r2 == fn2) ? cs
+                : new ColSpec(cs.name(), r1, r2, cs.alias(), cs.args(),
+                        cs.qualified());
     }
 
     private static TypeAnnotation resolveTypeAnnotation(

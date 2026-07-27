@@ -2543,7 +2543,9 @@ public final class SpecParser implements TokenStreamCursor {
         // qualifier call args ('Mr') inline the derived body (task #78);
         // milestoning args stay checker-dropped for non-derived props.
         List<ValueSpecification> args = List.of();
+        boolean qualified = false;
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
+            qualified = true;
             args = parseArgList();
         }
 
@@ -2554,10 +2556,10 @@ public final class SpecParser implements TokenStreamCursor {
             // so the two ColSpec slots are uniformly typed (LambdaFunction).
             LambdaFunction fn2 = new LambdaFunction(
                     List.of(), List.of(nested));
-            return new ColSpec(propName, fn1, fn2, alias, args);
+            return new ColSpec(propName, fn1, fn2, alias, args, qualified);
         }
 
-        return new ColSpec(propName, fn1, null, alias, args);
+        return new ColSpec(propName, fn1, null, alias, args, qualified);
     }
 
     // -----------------------------------------------------------------

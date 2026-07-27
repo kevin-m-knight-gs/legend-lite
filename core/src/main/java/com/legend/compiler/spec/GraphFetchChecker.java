@@ -197,7 +197,7 @@ final class GraphFetchChecker {
             ColSpecArray nested = nestedTree(cs);
             if (nested == null) {
                 out.add(new TypedGraphTree(propName, List.of(), alias,
-                        targs, sweep));
+                        targs, sweep, null, cs.qualified()));
                 continue;
             }
             if (!(prop.type() instanceof Type.ClassType nestedClass)) {
@@ -206,7 +206,7 @@ final class GraphFetchChecker {
             }
             out.add(new TypedGraphTree(propName,
                     validate(t, nestedClass.fqn(), nested, fn, env),
-                    alias, targs, sweep));
+                    alias, targs, sweep, null, cs.qualified()));
         }
         return out;
     }

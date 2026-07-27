@@ -58,11 +58,22 @@ public record ColSpec(
         LambdaFunction function1,
         LambdaFunction function2,
         String alias,
-        List<ValueSpecification> args) implements ColumnInstance {
+        List<ValueSpecification> args,
+        boolean qualified) implements ColumnInstance {
 
     public ColSpec {
         Objects.requireNonNull(name, "name");
         args = args == null ? List.of() : List.copyOf(args);
+    }
+
+    /** Historical arity: parenthesized-ness follows the args (the graph
+     * parser passes the flag explicitly — {@code synonyms()} is
+     * qualified with zero args). */
+    public ColSpec(String name, LambdaFunction function1,
+            LambdaFunction function2, String alias,
+            List<ValueSpecification> args) {
+        this(name, function1, function2, alias, args,
+                args != null && !args.isEmpty());
     }
 
     /** Graph-path arity without call args. */

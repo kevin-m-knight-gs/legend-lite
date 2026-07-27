@@ -1029,7 +1029,29 @@ final class GraphEmission {
         TypedSerializeGraph child = em.buildGraphNode(target, childRel,
                 slotPrefixes, childStripped, childVar,
                 node.children(), context, toMany, childInfo);
-        return new TypedSerializeGraph.Child(keyOf(node), child);
+        return new TypedSerializeGraph.Child(
+                childKey(node, target.classFqn()), child);
+    }
+
+    /** The serialized key for a CLASS child: a QUALIFIED spelling with
+     * empty parens over a milestoned target spells the RESOLVED context
+     * date — the engine serializes the source call spelling with the
+     * propagated date filled in
+     * ({@code synonyms(2023-10-15T00:00:00+0000)}). */
+    private String childKey(TypedGraphTree node, String childFqn) {
+        if (node.alias() == null && node.qualified()
+                && node.args().isEmpty()) {
+            String strat = temporal.temporalStrategy(childFqn);
+            TypedSpec d = strat == null ? null
+                    : temporal.rootContextDate(
+                            !strat.startsWith("processing"));
+            if (d instanceof com.legend.compiler.spec.typed.TypedCDate cd) {
+                String iso = cd.value().toEngineString();
+                return node.property() + "(" + iso
+                        + (iso.indexOf('T') >= 0 ? "+0000" : "") + ")";
+            }
+        }
+        return keyOf(node);
     }
 
     /** An EMBEDDED graph child: leaves come straight from the ^Inner
@@ -1222,7 +1244,8 @@ final class GraphEmission {
         TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
                 cs.rowVar(), leaves, nested, false, false, cast.classFqn(),
                 rowInfo, true);
-        return new TypedSerializeGraph.Child(keyOf(node), nodeG);
+        return new TypedSerializeGraph.Child(
+                childKey(node, cast.classFqn()), nodeG);
     }
 
     /** {@code from}-var reads re-pointed at {@code to} with the parent's
@@ -1421,7 +1444,8 @@ final class GraphEmission {
         TypedSerializeGraph nodeG = new TypedSerializeGraph(parentPipeline,
                 cs.rowVar(), leaves, nested, many, false, childClass,
                 rowInfo, true);
-        return new TypedSerializeGraph.Child(keyOf(node), nodeG);
+        return new TypedSerializeGraph.Child(
+                childKey(node, childClass), nodeG);
     }
 
     /** The INLINED typed body of a parameterless derived property, its
