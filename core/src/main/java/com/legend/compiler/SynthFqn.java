@@ -33,6 +33,11 @@ public final class SynthFqn {
         return hatFqn(ownerFqn, SynthHat.CONSTRAINT, constraintName);
     }
 
+    /** {@code <owner>$constraintMsg$<name>} &mdash; an externalized constraint message. */
+    public static String constraintMsg(String ownerFqn, String constraintName) {
+        return hatFqn(ownerFqn, SynthHat.CONSTRAINT_MSG, constraintName);
+    }
+
     /** {@code <svc>$query} &mdash; an externalized service query (§1). */
     public static String query(String serviceFqn) {
         check(serviceFqn, "serviceFqn");

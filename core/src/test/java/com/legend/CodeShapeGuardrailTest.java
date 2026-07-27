@@ -70,6 +70,10 @@ class CodeShapeGuardrailTest {
             // arm, consumed at the envelope build — same per-resolution
             // frame lifecycle as `temporal`
             "StoreResolver.serializeTypeCfg",
+            // graphFetchChecked flag: set beside serializeTypeCfg at the
+            // serialize arm, consumed at the envelope build — same
+            // per-resolution frame lifecycle
+            "StoreResolver.checkedEnvelope",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
             // NormalizeRequired inline α-rename counter — same lifecycle as

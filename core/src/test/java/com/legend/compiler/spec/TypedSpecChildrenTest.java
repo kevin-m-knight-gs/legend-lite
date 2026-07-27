@@ -162,6 +162,15 @@ class TypedSpecChildrenTest {
                                     com.legend.compiler.spec.typed.TypedSpec.class, null),
                             "r", java.util.List.of(), java.util.List.of(), false, one()));
         }
+        if (type == com.legend.compiler.spec.typed
+                .TypedSerializeGraph.CheckedConstraint.class) {
+            // predicate + message lambdas surface through children()
+            return new com.legend.compiler.spec.typed.TypedSerializeGraph
+                    .CheckedConstraint("c",
+                            (TypedFuncCol) dummy(TypedFuncCol.class, null),
+                            (TypedFuncCol) dummy(TypedFuncCol.class, null),
+                            "Error", "t::C");
+        }
         if (type == TypedAggCol.class) {
             return new TypedAggCol("c", (TypedLambda) dummy(TypedLambda.class, null),
                     (TypedLambda) dummy(TypedLambda.class, null));

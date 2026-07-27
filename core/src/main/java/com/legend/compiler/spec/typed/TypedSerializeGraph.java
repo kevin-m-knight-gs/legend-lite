@@ -50,7 +50,28 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<SubTypePatch> subTypePatches,
                                   List<TypedFuncCol> orderKeys,
                                   String typeKeyName,
-                                  boolean fqTypePath) implements TypedSpec {
+                                  boolean fqTypePath,
+                                  List<CheckedConstraint> checkedConstraints)
+        implements TypedSpec {
+
+    /** One class constraint riding a CHECKED envelope: the per-row defect
+     * gate. Predicate/message are row lambdas (bindings already inlined);
+     * the remaining fields are the defect object's constants. */
+    public record CheckedConstraint(String id, TypedFuncCol predicate,
+            TypedFuncCol message, String level, String definerFqn) {
+    }
+
+    /** Unchecked compat (the common envelope). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches,
+            List<TypedFuncCol> orderKeys, String typeKeyName,
+            boolean fqTypePath) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, orderKeys, typeKeyName,
+                fqTypePath, null);
+    }
 
     public TypedSerializeGraph {
         leaves = List.copyOf(leaves);
@@ -138,6 +159,12 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
             p.children().forEach(c -> out.add(c.node()));
         });
         orderKeys.forEach(k -> out.add(k.fn()));
+        if (checkedConstraints != null) {
+            checkedConstraints.forEach(c -> {
+                out.add(c.predicate().fn());
+                out.add(c.message().fn());
+            });
+        }
         return out;
     }
 }

@@ -1034,6 +1034,8 @@ final class Typer {
             // name, with the target's table rows spelled into the call.
             case LEGACY_NAVIGATE -> NavigateChecker.legacy(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
+            case GRAPH_FETCH_CHECKED ->
+                    GraphFetchChecker.graphFetchChecked(this, af, env);
             case SERIALIZE -> GraphFetchChecker.serialize(this, af, env);
             case OVER -> OverChecker.check(this, af, env);
             case SOURCE_URL -> SourceUrlChecker.check(this, af, env);

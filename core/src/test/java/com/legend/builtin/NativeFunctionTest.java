@@ -417,7 +417,9 @@ class NativeFunctionTest {
         //     defaults carriers named by corpus signatures).
         // 73: +ExecutionPlan (real executionPlan.pure:60-73 — the plan
         //     surface's processingTemplateFunctions property).
-        assertEquals(73, Pure.allNativeClasses().size(),
+        // 75: +Checked/Defect (real dataQuality.pure:39/:20 — the
+        //     graphFetchChecked envelope carriers, opaque).
+        assertEquals(75, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -653,7 +655,9 @@ class NativeFunctionTest {
                 "meta::pure::tds",
                 "meta::relational::metamodel::relation",
                 // the plan surface (#47: ExecutionPlan)
-                "meta::pure::executionPlan");
+                "meta::pure::executionPlan",
+                // the checked-result surface (graphFetchChecked)
+                "meta::pure::dataQuality");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));

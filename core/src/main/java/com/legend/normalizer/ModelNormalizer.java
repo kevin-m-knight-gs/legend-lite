@@ -314,6 +314,9 @@ public final class ModelNormalizer {
                     // is already realized by the user's predicate function.
                     if (!(c.realization() instanceof Realization.Inline)) continue;
                     lifted.add(synthConstraintFunction(cd, c, thisType));
+                    if (c.message() != null) {
+                        lifted.add(synthConstraintMsgFunction(cd, c, thisType));
+                    }
                 }
             }
         }
@@ -344,6 +347,26 @@ public final class ModelNormalizer {
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
                         SynthHat.CONSTRAINT, cd.qualifiedName(), c.name()));
+    }
+
+    /** The {@code ~message} sibling: {@code <owner>$constraintMsg$<name>
+     * (this:Owner[1]):String[1]} carrying the message expression. */
+    private static FunctionDefinition synthConstraintMsgFunction(
+            ClassDefinition cd, ConstraintDefinition c, TypeExpression thisType) {
+        FunctionDefinition.ParameterDefinition self =
+                new FunctionDefinition.ParameterDefinition(
+                        "this", thisType, Multiplicity.Concrete.PURE_ONE);
+        return new FunctionDefinition(
+                SynthFqn.constraintMsg(cd.qualifiedName(), c.name()),
+                cd.typeParams(),
+                List.of(),
+                List.of(self),
+                new TypeExpression.NameRef(Pure.STRING.qualifiedName()),
+                Multiplicity.Concrete.PURE_ONE,
+                List.of(c.message()),
+                List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.CONSTRAINT_MSG, cd.qualifiedName(), c.name()));
     }
 
     /**

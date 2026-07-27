@@ -559,7 +559,7 @@ public final class ElementParser implements TokenStreamCursor {
     /**
      * {@code [ constraint (, constraint)* ]} after the class header. Each
      * constraint may be {@code name: expression} or just {@code expression}
-     * (named {@code "unnamed"} for parity with engine). The expression is
+     * (named by POSITION INDEX for parity with real m3). The expression is
      * parsed eagerly via {@link SpecParser#parse(com.legend.lexer.TokenStream)}
      * into a single {@link ValueSpecification}.
      */
@@ -567,17 +567,20 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACKET_OPEN);
         List<ConstraintDefinition> result = new ArrayList<>();
         if (peek() != TokenType.BRACKET_CLOSE) {
-            result.add(parseConstraint());
+            result.add(parseConstraint(0));
             while (match(TokenType.COMMA)) {
-                result.add(parseConstraint());
+                result.add(parseConstraint(result.size()));
             }
         }
         expect(TokenType.BRACKET_CLOSE);
         return result;
     }
 
-    private ConstraintDefinition parseConstraint() {
-        String name = "unnamed";
+    private ConstraintDefinition parseConstraint(int index) {
+        // real m3: an unnamed constraint is named by its POSITION ("0",
+        // "1", ...) — the id the checked goldens serialize, and distinct
+        // lifted-FQN identity for multiple unnamed constraints
+        String name = String.valueOf(index);
         // EXTENDED form (real m3): name( ~function: expr ~enforcementLevel: X
         // ~message: expr ) — the predicate is the ~function expression;
         // enforcement level and message are instantiation-time concerns,

@@ -184,6 +184,8 @@ meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], col:meta::pure::me
 meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], cols:meta::pure::metamodel::relation::ColSpecArray<T>[1]):T[*]
 meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):T[*]
 meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):T[*]
+meta::pure::graphFetch::execution::graphFetchChecked<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):meta::pure::dataQuality::Checked[*]
+meta::pure::graphFetch::execution::graphFetchChecked<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):meta::pure::dataQuality::Checked[*]
 meta::pure::functions::boolean::greaterThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1]
 meta::pure::functions::boolean::greaterThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1]
 meta::pure::functions::boolean::greaterThanEqual(left:meta::pure::metamodel::type::Date[1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1]

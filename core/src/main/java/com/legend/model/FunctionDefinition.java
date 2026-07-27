@@ -144,6 +144,7 @@ public record FunctionDefinition(
             return switch (hat) {
                 case PROP       -> "derived property '" + memberName + "' of " + ownerFqn;
                 case CONSTRAINT -> "constraint '" + memberName + "' of " + ownerFqn;
+                case CONSTRAINT_MSG -> "constraint message '" + memberName + "' of " + ownerFqn;
                 case CLASS      -> "class mapping '" + memberName + "' of " + ownerFqn;
                 case ASSOC      -> "association mapping '" + memberName + "' of " + ownerFqn;
                 case QUERY      -> "service query of " + ownerFqn;

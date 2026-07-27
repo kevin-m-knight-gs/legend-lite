@@ -36,6 +36,24 @@ final class GraphFetchChecker {
         return new TypedGraphFetch(c.source(), c.tree(), c.source().info());
     }
 
+    /** {@code graphFetchChecked} &mdash; same tree validation; the result is
+     * the registered signature's {@code Checked[*]} and the node carries
+     * the CHECKED flag (the resolver's envelope adds per-row constraint
+     * defects). */
+    static TypedSpec graphFetchChecked(Typer t, AppliedFunction af, Env env) {
+        Checked c = checkTree(t, af, env, "graphFetchChecked");
+        var sigs = t.model().findFunction(
+                CoreFn.GRAPH_FETCH_CHECKED.parseName());
+        int arity = af.parameters().size();
+        var sig = sigs.stream().filter(f -> f.parameters().size() == arity)
+                .findFirst().orElseThrow(() -> new TypeInferenceException(
+                        "no registered 'graphFetchChecked' overload accepts "
+                        + arity + " argument(s)"));
+        return new TypedGraphFetch(c.source(), c.tree(),
+                new ExprType(sig.returnType(), sig.returnMultiplicity()),
+                true);
+    }
+
     static TypedSpec serialize(Typer t, AppliedFunction af, Env env) {
         Checked c = checkTree(t, af, env, "serialize");
         Optional<TypedSpec> config = af.parameters().size() > 2
@@ -68,9 +86,13 @@ final class GraphFetchChecker {
             throw new TypeInferenceException(fn + " expects (classCollection, #{Class{…}}#)");
         }
         TypedSpec source = t.synth(af.parameters().get(0), env);
-        if (!(source.info().type() instanceof Type.ClassType ct)) {
+        // serialize over a CHECKED projection: the tree validates against
+        // the FETCHED class (the Checked carrier is envelope-only)
+        Type srcType = source instanceof TypedGraphFetch gf && gf.checked()
+                ? gf.source().info().type() : source.info().type();
+        if (!(srcType instanceof Type.ClassType ct)) {
             throw new TypeInferenceException(fn + " requires a class-typed source, got "
-                    + source.info().type().typeName());
+                    + srcType.typeName());
         }
         return new Checked(source, validate(t, ct.fqn(), tree, fn, env));
     }

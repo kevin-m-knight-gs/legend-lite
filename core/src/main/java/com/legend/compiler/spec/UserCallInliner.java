@@ -557,7 +557,7 @@ public final class UserCallInliner {
             // date resolution reads the let env at the resolver instead
             // (queryLets — engine resolveMilestoningDateParams/inScopeVars)
             case TypedGraphFetch gf -> new TypedGraphFetch(rewrite(gf.source(), env),
-                    gf.tree(), gf.info());
+                    gf.tree(), gf.info(), gf.checked());
             case TypedSerialize sz -> new TypedSerialize(rewrite(sz.source(), env),
                     sz.tree(), sz.config().map(c -> rewrite(c, env)), sz.info());
             // Resolver OUTPUT vocabulary — never present pre-H, but the

@@ -681,7 +681,7 @@ final class ElementParserTest {
         ClassDefinition c = parseOneClass("Class P [$this.age >= 0] {}");
         assertEquals(1, c.constraints().size());
         ConstraintDefinition cn = c.constraints().get(0);
-        assertEquals("unnamed", cn.name());
+        assertEquals("0", cn.name());   // real m3: unnamed = position index
         // Same body shape as namedConstraintCapturesExpressionText — verifies that
         // omitting the name doesn't disturb body parsing.
         AppliedFunction gte = assertInstanceOf(AppliedFunction.class, cn.expression());

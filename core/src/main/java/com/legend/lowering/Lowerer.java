@@ -591,6 +591,24 @@ public final class Lowerer {
      * row keyed by the tree's leaves; nested children = CORRELATED scalar
      * subqueries (enclosing-resolver channel); arrayWrap aggregates into
      * one JSON-array result value. */
+    /** One envelope lambda lowered STRICTLY against the base select —
+     * leaves, subType patches, witnesses, order keys and checked
+     * constraints share the rule: read your own row only; an outer-scope
+     * fallback could silently supply a same-named parent column (audit
+     * L2); a miss is loud naming the site. */
+    private SqlExpr envelopeScalar(TypedFuncCol cc, SqlSelect base,
+            String what) {
+        switch (attempt(() -> scalar(last(cc.fn()),
+                (v, name) -> resolveOrThrow(base, name)))) {
+            case Resolution.Resolved r -> {
+                return r.expr();
+            }
+            case Resolution.Unfoldable u -> throw new IllegalStateException(
+                    what + " '" + cc.name() + "' references column '"
+                    + u.column() + "', unresolvable in the envelope source");
+        }
+    }
+
     private SqlSelect serializeGraph(TypedSerializeGraph g) {
         SqlSelect src = relation(g.source());
         // json_group_array is an AGGREGATE and the envelope REPLACES the
@@ -601,18 +619,9 @@ public final class Lowerer {
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
         for (TypedFuncCol leaf : g.leaves()) {
             kv.add(new SqlExpr.StringLit(leaf.name()));
-            // STRICT own-select resolution: leaves read their own row only —
-            // an outer-scope fallback could silently supply a SAME-NAMED
-            // parent column to a nested child's leaf (audit L2); a miss is
-            // loud naming the leaf.
-            switch (attempt(() -> scalar(last(leaf.fn()),
-                    (v, name) -> resolveOrThrow(base, name)))) {
-                case Resolution.Resolved r -> kv.add(Fold.jsonDateWrap(
-                        r.expr(), Fold.leafResultType(leaf)));
-                case Resolution.Unfoldable u -> throw new IllegalStateException(
-                        "serialize leaf '" + leaf.name() + "' references column '"
-                                + u.column() + "', unresolvable in the envelope source");
-            }
+            kv.add(Fold.jsonDateWrap(
+                    envelopeScalar(leaf, base, "serialize leaf"),
+                    Fold.leafResultType(leaf)));
         }
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
@@ -654,16 +663,9 @@ public final class Lowerer {
                 pkv.addAll(kv);
                 for (TypedFuncCol leaf : p.leaves()) {
                     pkv.add(new SqlExpr.StringLit(leaf.name()));
-                    switch (attempt(() -> scalar(last(leaf.fn()),
-                            (v, name) -> resolveOrThrow(base, name)))) {
-                        case Resolution.Resolved r -> pkv.add(
-                                Fold.jsonDateWrap(r.expr(),
-                                        Fold.leafResultType(leaf)));
-                        case Resolution.Unfoldable u -> throw new IllegalStateException(
-                                "subType patch leaf '" + leaf.name()
-                                        + "' references column '" + u.column()
-                                        + "', unresolvable in the envelope source");
-                    }
+                    pkv.add(Fold.jsonDateWrap(
+                            envelopeScalar(leaf, base, "subType patch leaf"),
+                            Fold.leafResultType(leaf)));
                 }
                 for (var child : p.children()) {
                     pkv.add(new SqlExpr.StringLit(child.property()));
@@ -675,31 +677,23 @@ public final class Lowerer {
                         enclosing.pop();
                     }
                 }
-                SqlExpr member;
-                switch (attempt(() -> scalar(last(p.member().fn()),
-                        (v, name) -> resolveOrThrow(base, name)))) {
-                    case Resolution.Resolved r -> member = r.expr();
-                    case Resolution.Unfoldable u -> throw new IllegalStateException(
-                            "subType membership witness references column '"
-                                    + u.column() + "', unresolvable in the"
-                                    + " envelope source");
-                }
+                SqlExpr member = envelopeScalar(p.member(), base,
+                        "subType membership witness");
                 whens.add(new SqlExpr.Case.When(member,
                         new SqlExpr.JsonObject(pkv)));
             }
             obj = new SqlExpr.Case(whens, obj);
         }
+        // CHECKED envelope: {defects: [...], value: obj} — extracted rule
+        if (g.checkedConstraints() != null) {
+            obj = CheckedEnvelope.wrap(g, obj,
+                    cc -> envelopeScalar(cc, base, "checked constraint"));
+        }
         SqlExpr result;
         if (g.arrayWrap()) {
             List<SqlExpr> okeys = new ArrayList<>(g.orderKeys().size());
             for (TypedFuncCol k : g.orderKeys()) {
-                switch (attempt(() -> scalar(last(k.fn()),
-                        (v, name) -> resolveOrThrow(base, name)))) {
-                    case Resolution.Resolved r -> okeys.add(r.expr());
-                    case Resolution.Unfoldable u -> throw new IllegalStateException(
-                            "envelope order key references column '" + u.column()
-                                    + "', unresolvable in the source");
-                }
+                okeys.add(envelopeScalar(k, base, "envelope order key"));
             }
             // UNION-MEMBER serial order (engine contract: union members
             // serialize in BRANCH DECLARATION order — the engine's stitch

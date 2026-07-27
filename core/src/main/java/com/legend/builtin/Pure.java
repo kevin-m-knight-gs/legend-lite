@@ -316,6 +316,13 @@ public final class Pure {
     // ---- Graph-fetch tree carrier ----
     public static final ClassDefinition ROOT_GRAPH_FETCH_TREE =
             nativeClass("native Class meta::pure::graphFetch::RootGraphFetchTree<T> extends meta::pure::metamodel::type::Any {}");
+    // real dataQuality.pure:39-44 / :20 — the checked-result surface.
+    // Opaque carriers: defects/source/value are the SERIALIZER's envelope
+    // (the corpus never property-reads a Checked value).
+    public static final ClassDefinition CHECKED =
+            nativeClass("native Class meta::pure::dataQuality::Checked<T> extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition DEFECT =
+            nativeClass("native Class meta::pure::dataQuality::Defect extends meta::pure::metamodel::type::Any {}");
 
     // ---- Relation-functions helpers ----
     public static final ClassDefinition WINDOW    = nativeClass("native Class meta::pure::functions::relation::_Window<T>   extends meta::pure::metamodel::type::Any {}");
@@ -883,6 +890,10 @@ public final class Pure {
     public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__COL_SPEC_ARRAY_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], cols:meta::pure::metamodel::relation::ColSpecArray<T>[1]):T[*];");
     public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):T[*];");
     public static final NativeFunctionDefinition GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1__INTEGER_1 = signature("native function meta::pure::graphFetch::execution::graphFetch<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):T[*];");
+    // real graphFetch.pure:32/:38 — the CHECKED projection (per-object
+    // constraint defects ride the envelope)
+    public static final NativeFunctionDefinition GRAPH_FETCH_CHECKED__T_MANY__ROOT_GRAPH_FETCH_TREE_1 = signature("native function meta::pure::graphFetch::execution::graphFetchChecked<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):meta::pure::dataQuality::Checked[*];");
+    public static final NativeFunctionDefinition GRAPH_FETCH_CHECKED__T_MANY__ROOT_GRAPH_FETCH_TREE_1__INTEGER_1 = signature("native function meta::pure::graphFetch::execution::graphFetchChecked<T>(source:T[*], tree:meta::pure::graphFetch::RootGraphFetchTree<T>[1], batchSize:meta::pure::metamodel::type::Integer[1]):meta::pure::dataQuality::Checked[*];");
     public static final NativeFunctionDefinition GREATER_THAN_EQUAL__DATE_0_1__DATE_0_1 = signature("native function meta::pure::functions::boolean::greaterThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition GREATER_THAN_EQUAL__DATE_0_1__DATE_1 = signature("native function meta::pure::functions::boolean::greaterThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition GREATER_THAN_EQUAL__DATE_1__DATE_0_1 = signature("native function meta::pure::functions::boolean::greaterThanEqual(left:meta::pure::metamodel::type::Date[1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");

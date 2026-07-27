@@ -91,7 +91,9 @@ public final class StoreResolver {
         letBindings.putAll(lets);
         return this;
     }
+
     private GraphEmission.SerializeTypeConfig serializeTypeCfg;
+    private boolean checkedEnvelope;   // graphFetchChecked defect gate
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
     /** Association-route join material (stateless service). */
@@ -340,9 +342,8 @@ public final class StoreResolver {
             // is Relation-only in real pure — no class-source arm exists.
             case TypedGroupBy g when isObjectSpace(g.source()) ->
                     resolveChain(g, context);
-            // serialize / graphFetch->serialize: the GRAPH terminal. The
-            // graphFetch wrapper is SOURCE-PRESERVING (engine parity) —
-            // serialize's tree governs the envelope.
+            // serialize / graphFetch->serialize: the GRAPH terminal —
+            // the graphFetch wrapper is source-preserving; the tree governs.
             case TypedSerialize sz when containsGetAll(sz.source()) ->
                     resolveChain(sz, context);
             // Relation-space wrappers rebuild with the resolved source
@@ -2468,8 +2469,7 @@ public final class StoreResolver {
         top = synthetics.liftFilteredHeads(top);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —
-        // explicit serialize (graphFetch is source-preserving; serialize's
-        // tree governs) and every other class-shaped root, which is the
+        // explicit serialize, and every other class-shaped root = the
         // IMPLICIT serialize over the class's scalar bindings (plan §E10).
         List<TypedGraphTree> tree = null;   // non-null => graph terminal
         boolean implicitSerialize = false;
@@ -2478,6 +2478,7 @@ public final class StoreResolver {
         if (top instanceof TypedSerialize sz) {
             serializeTypeCfg = sz.config()
                     .map(GraphEmission::serializeTypeConfig).orElse(null);
+            checkedEnvelope = sz.source() instanceof TypedGraphFetch g2 && g2.checked();
             tree = sz.tree();
             cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
         } else if (top instanceof TypedProject t) {
@@ -2935,9 +2936,8 @@ public final class StoreResolver {
         // 4a. GRAPH terminal (plan H4a SNAPSHOT envelope).
         if (tree != null) {
             TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(),
-                    fresh, tree, context, /*arrayWrap*/ true, g.info());
-            return serializeTypeCfg == null ? env
-                    : GraphEmission.withTypeKey(env, serializeTypeCfg);
+                    fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
+            return serializeTypeCfg == null ? env : GraphEmission.withTypeKey(env, serializeTypeCfg);
         }
 
         // 4. The relation-shaping boundary: info UNCHANGED.

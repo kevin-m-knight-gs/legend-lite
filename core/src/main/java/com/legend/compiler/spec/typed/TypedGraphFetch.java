@@ -14,7 +14,14 @@ import java.util.List;
  * @param tree   the validated property tree
  * @param info   the source type unchanged
  */
-public record TypedGraphFetch(TypedSpec source, List<TypedGraphTree> tree, ExprType info) implements TypedSpec {
+public record TypedGraphFetch(TypedSpec source, List<TypedGraphTree> tree, ExprType info,
+                              boolean checked) implements TypedSpec {
+
+    /** The plain (unchecked) projection. */
+    public TypedGraphFetch(TypedSpec source, List<TypedGraphTree> tree, ExprType info) {
+        this(source, tree, info, false);
+    }
+
     public TypedGraphFetch {
         tree = List.copyOf(tree);
     }

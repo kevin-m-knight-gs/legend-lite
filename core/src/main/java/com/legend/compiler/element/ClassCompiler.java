@@ -67,7 +67,15 @@ final class ClassCompiler {
         for (ClassDefinition.ConstraintDefinition con : cd.constraints()) {
             // Lifted <owner>$constraint$<name> for sugar; the bound FQN for Door 4.
             String fqn = realizedFqn(con.realization(), SynthFqn.constraint(cd.qualifiedName(), con.name()));
-            constraints.add(TypedConstraint.of(con.name(), fqn));
+            constraints.add(new TypedConstraint(con.name(),
+                    java.util.Optional.empty(),
+                    "Warn".equalsIgnoreCase(con.enforcementLevel())
+                            ? TypedConstraint.EnforcementLevel.WARN
+                            : TypedConstraint.EnforcementLevel.ERROR,
+                    fqn,
+                    con.message() == null ? java.util.Optional.empty()
+                            : java.util.Optional.of(SynthFqn.constraintMsg(
+                                    cd.qualifiedName(), con.name()))));
         }
 
         return new TypedClass(

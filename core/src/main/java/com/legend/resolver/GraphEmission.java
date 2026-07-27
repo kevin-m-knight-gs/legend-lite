@@ -164,6 +164,14 @@ final class GraphEmission {
             Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
             ExprType info) {
+        return buildGraphNode(cs, pipeline, slotPrefixes, stripped, rowVar,
+                tree, context, arrayWrap, info, false);
+    }
+
+    TypedSerializeGraph buildGraphNode(ClassSource cs, TypedSpec pipeline,
+            Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
+            List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
+            ExprType info, boolean checked) {
         var rowType = (Type.RelationType)
                 pipeline.info().type();
         UnaryOperator<TypedSpec> toRow = v -> new TypedVariable(
@@ -398,9 +406,112 @@ final class GraphEmission {
                                                 .Multiplicity.Bounded.ONE))));
             }
         }
-        return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
-                arrayWrap, false, cs.classFqn(), info, false, subTypePatches,
-                orderKeys);
+        TypedSerializeGraph node = new TypedSerializeGraph(pipeline, rowVar,
+                leaves, children, arrayWrap, false, cs.classFqn(), info,
+                false, subTypePatches, orderKeys);
+        return checked ? withChecked(node, cs, slotPrefixes, stripped,
+                rowVar, rowType, context, toRow) : node;
+    }
+
+    private TypedSerializeGraph withChecked(TypedSerializeGraph node,
+            ClassSource cs, Map<String, String> slotPrefixes,
+            Set<String> stripped, String rowVar, Type.RelationType rowType,
+            StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+        return new TypedSerializeGraph(node.source(), node.rowVar(),
+                node.leaves(), node.nested(), node.arrayWrap(),
+                node.bareValue(), node.classFqn(), node.info(),
+                node.inlineChild(), node.subTypePatches(), node.orderKeys(),
+                node.typeKeyName(), node.fqTypePath(),
+                checkedConstraints(cs, slotPrefixes, stripped, rowVar,
+                        rowType, context, toRow));
+    }
+
+    /** The CHECKED envelope's constraint set — the class hierarchy's
+     * constraints (own first, then supertypes'; the engine's
+     * allConstraintsInHierarchy walk), each predicate/message inlined
+     * through the row bindings like any leaf. The DEFINER class rides as
+     * {@code ruleDefinerPath}; a constraint without {@code ~message}
+     * takes the engine's default spelling (flatdata checked goldens). */
+    private java.util.List<TypedSerializeGraph.CheckedConstraint>
+            checkedConstraints(ClassSource cs,
+            Map<String, String> slotPrefixes, Set<String> stripped,
+            String rowVar, Type.RelationType rowType,
+            StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+        java.util.List<TypedSerializeGraph.CheckedConstraint> out =
+                new ArrayList<>();
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        work.add(cs.classFqn());
+        while (!work.isEmpty()) {
+            String fqn = work.poll();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            var tc = ctx.findClass(fqn).orElse(null);
+            if (tc == null) {
+                continue;
+            }
+            for (var con : tc.constraints()) {
+                out.add(new TypedSerializeGraph.CheckedConstraint(con.name(),
+                        constraintFnCol("constraint$" + con.name(),
+                                con.predicateFqn(), cs, slotPrefixes,
+                                stripped, rowVar, rowType, context, toRow),
+                        con.messageFqn().isPresent()
+                                ? constraintFnCol("constraintMsg$"
+                                        + con.name(), con.messageFqn().get(),
+                                        cs, slotPrefixes, stripped, rowVar,
+                                        rowType, context, toRow)
+                                : constMsgCol(con.name(), fqn, rowVar,
+                                        rowType),
+                        con.level() == com.legend.compiler.element
+                                .TypedConstraint.EnforcementLevel.WARN
+                                ? "Warn" : "Error",
+                        fqn));
+            }
+            work.addAll(tc.superClassFqns());
+        }
+        return out;
+    }
+
+    /** One constraint body (predicate or message fn) inlined through the
+     * bindings and re-pointed at the envelope row. */
+    private TypedFuncCol constraintFnCol(String name, String bodyFqn,
+            ClassSource cs, Map<String, String> slotPrefixes,
+            Set<String> stripped, String rowVar, Type.RelationType rowType,
+            StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+        var cf = sources.compileSynthFn(bodyFqn);
+        String thisVar = cf.signature().parameters().get(0).name();
+        TypedSpec body = inlineThis(cf.body().get(cf.body().size() - 1),
+                thisVar, java.util.Map.of(), cs.bindings(), cs.classFqn(),
+                name, new SubqueryEnv(cs, context, rowVar, rowType));
+        body = Pipelines.rewriteRowReads(body, cs.rowVar(), slotPrefixes,
+                stripped, toRow);
+        return rowFnCol(name, body, rowVar, rowType);
+    }
+
+    /** The engine's DEFAULT constraint message (no {@code ~message}). */
+    private static TypedFuncCol constMsgCol(String id, String definerFqn,
+            String rowVar, Type.RelationType rowType) {
+        String simple = definerFqn.substring(
+                definerFqn.lastIndexOf(':') + 1);
+        TypedSpec msg = new com.legend.compiler.spec.typed.TypedCString(
+                "Constraint :[" + id + "] violated in the Class " + simple,
+                ExprType.one(Type.Primitive.STRING));
+        return rowFnCol("constraintMsg$" + id, msg, rowVar, rowType);
+    }
+
+    private static TypedFuncCol rowFnCol(String name, TypedSpec body,
+            String rowVar, Type.RelationType rowType) {
+        var fn = new Type.FunctionType(
+                java.util.List.of(new Type.Param(rowType,
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE)),
+                new Type.Param(body.info().type(),
+                        body.info().multiplicity()));
+        return new TypedFuncCol(name, new TypedLambda(
+                java.util.List.of(rowVar), java.util.List.of(body),
+                new ExprType(fn, com.legend.compiler.element.type
+                        .Multiplicity.Bounded.ONE)));
     }
 
     /** A leaf whose body is ALREADY in final row terms (the correlated

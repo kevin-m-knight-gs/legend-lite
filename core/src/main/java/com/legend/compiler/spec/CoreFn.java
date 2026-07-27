@@ -117,6 +117,8 @@ public enum CoreFn {
     LEGACY_NAVIGATE("legacyNavigate"),
     /** {@code graphFetch(#{Class{…}}#)} &mdash; object-graph projection; result = source type. */
     GRAPH_FETCH("graphFetch"),
+    /** {@code graphFetchChecked(#{Class{…}}#)} &mdash; checked projection; {@code Checked<T>[*]}. */
+    GRAPH_FETCH_CHECKED("graphFetchChecked"),
     /** {@code serialize(#{Class{…}}#)} &mdash; graph serialization; {@code String[1]}. */
     SERIALIZE("serialize"),
     /** {@code over(~partition [, asc(~key)…])} &mdash; a window definition ({@code _Window<T>[1]}). */

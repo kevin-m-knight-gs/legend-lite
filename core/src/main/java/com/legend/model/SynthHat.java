@@ -28,10 +28,13 @@ public enum SynthHat {
     /** A class-mapping realizing function: {@code <mapping>$class$<classFqn>}. */
     CLASS,
     /** An association-mapping predicate: {@code <mapping>$assoc$<assocFqn>}. */
-    ASSOC;
+    ASSOC,
+    /** A class constraint {@code ~message}: {@code <class>$constraintMsg$<name>}. */
+    CONSTRAINT_MSG;
 
     /** The lowercase {@code $}-sigil segment for this hat (e.g. {@code CLASS -> "class"}). */
     public String segment() {
-        return name().toLowerCase(Locale.ROOT);
+        return this == CONSTRAINT_MSG ? "constraintMsg"
+                : name().toLowerCase(Locale.ROOT);
     }
 }
