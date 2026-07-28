@@ -99,6 +99,10 @@ final class Scalars {
                             return new SqlExpr.BoolLit(false);
                         }
                     }
+                    SqlExpr inv = EnumSourceValues.decodeInvert(args.get(0), args.get(1));
+                    if (inv != null) {
+                        return inv;
+                    }
                     return new SqlExpr.Call(SqlFn.EQUAL, args);
                 });
             }
