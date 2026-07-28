@@ -233,60 +233,74 @@ public final class StoreResolver {
         return resolveNode(unthunk(branch), context);
     }
 
+    /**
+     * TWO-LEVEL dispatch (remediation T3.1): a handful of space-independent
+     * normalizations, then an EXHAUSTIVE switch on the node's decided
+     * {@link Space} — OBJECT resolves as (part of) a chain, ANCHORED
+     * dispatches by variant, INERT is the identity. Guard ORDER is now
+     * structure: an arm's precedence is the space level it lives in.
+     */
     private TypedSpec resolveNode(TypedSpec n, Context context) {
+        // ---- space-independent normalizations (fire in ANY space) ----
+        // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27)
+        if (n instanceof TypedNativeCall wf
+                && "meta::pure::executionPlan::featureFlag::withFeatureFlags"
+                        .equals(wf.callee().qualifiedName())
+                && !wf.args().isEmpty()) {
+            return resolveNode(wf.args().get(0), context);
+        }
+        if (n instanceof TypedFrom from) {
+            Context inner = fromContext(from, context);
+            // in-query CLASS SUBQUERIES under lambdas lift FIRST
+            // (SubQueryLift): the sub-chain resolves under THIS
+            // from()'s context into a [0..1] scalar-subquery relation
+            TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
+                    inner, ctx, specs, letBindings);
+            return new TypedFrom(resolveNode(liftedSrc, inner),
+                    from.mapping(), from.runtime(),
+                    from.chainMappings(), from.jsonSources(), from.info());
+        }
+        // zip over two projections of ONE source -> two-column project
+        if (n instanceof TypedMap zm
+                && zm.source() instanceof TypedNativeCall zc
+                && "meta::pure::functions::collection::zip".equals(
+                        zc.callee().qualifiedName())
+                && zc.args().size() == 2) {
+            return CorrelatedSubselects.zipPairMap(zm, zc,
+                    n2 -> resolveNode(n2, context));
+        }
+        // `.rows` MARKER erases here (audit 20c H1) — any space.
+        if (n instanceof TypedPropertyAccess mk
+                && mk.property().equals(com.legend.compiler
+                        .element.type.PlatformTypes.ROWS_MARKER)
+                && mk.source().info().type() instanceof Type.RelationType) {
+            return resolveNode(mk.source(), context);
+        }
+        return switch (anchors.spaceOf(n)) {
+            case OBJECT -> objectNode(n, context);
+            case ANCHORED -> anchoredNode(n, context);
+            case INERT -> n;   // no class fetch anywhere beneath
+        };
+    }
+
+    /** An OBJECT-space node: by the spine rules the only non-chain shape
+     * is the CLASS-RESULT mapper — the auto-map flatten IS the mapper body
+     * with the source spliced for the param; the resulting hop chain
+     * re-enters resolution. Everything else is a chain segment. */
+    private TypedSpec objectNode(TypedSpec n, Context context) {
+        return n instanceof TypedMap m
+                ? resolveNode(substituteParam(m.mapper(), m.source()), context)
+                : resolveChain(n, context);
+    }
+
+    /** ANCHORED: not itself object-space, but an unresolved anchor sits
+     * beneath — chain TERMINALS first, then relation-space wrappers; an
+     * unhandled variant is the NAMED H2-vocabulary wall, never a silent
+     * pass-through. */
+    private TypedSpec anchoredNode(TypedSpec n, Context context) {
         return switch (n) {
-            // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27)
-            case TypedNativeCall wf
-                    when "meta::pure::executionPlan::featureFlag::withFeatureFlags"
-                            .equals(wf.callee().qualifiedName())
-                    && !wf.args().isEmpty() ->
-                    resolveNode(wf.args().get(0), context);
-            case TypedFrom from -> {
-                Context inner = fromContext(from, context);
-                // in-query CLASS SUBQUERIES under lambdas lift FIRST
-                // (SubQueryLift): the sub-chain resolves under THIS
-                // from()'s context into a [0..1] scalar-subquery relation
-                TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
-                        inner, ctx, specs, letBindings);
-                yield new TypedFrom(resolveNode(liftedSrc, inner),
-                        from.mapping(), from.runtime(),
-                        from.chainMappings(), from.jsonSources(), from.info());
-            }
-            // Bare class fetch: GRAPH output — implicit serialize with a
-            // leaf-only tree over the class's SCALAR bindings (plan §E10).
-            case TypedGetAll g -> resolveChain(g, context);
-            case TypedFilter f when objectSpace(f.source()) ->
-                    resolveChain(f, context);
             case TypedProject p when objectSpace(p.source()) ->
                     resolveChain(p, context);
-            // a CLASS-TERMINAL hop chain at the ROOT (bare
-            // Firm.all().employees): object space — the flatten composes in
-            // collectOpChain and the envelope roots at the target.
-            case TypedPropertyAccess pa
-                    when pa.info().type() instanceof Type.ClassType
-                    && objectSpace(pa) ->
-                    resolveChain(pa, context);
-            // ->map(f|$f.assocEnd->filter(...)) — a CLASS-RESULT mapper:
-            // the auto-map flatten IS the mapper body with the source
-            // spliced for the param (flatten composition is associative);
-            // the resulting hop chain re-enters resolution.
-            case TypedMap m
-                    when objectSpace(m.source())
-                    && ((Type.FunctionType) m.mapper().info().type()).result()
-                            .type() instanceof Type.ClassType ->
-                    resolveNode(substituteParam(m.mapper(), m.source()), context);
-            // zip over two projections of ONE source -> two-column project
-            case TypedMap zm
-                    when zm.source() instanceof TypedNativeCall zc
-                    && "meta::pure::functions::collection::zip".equals(
-                            zc.callee().qualifiedName())
-                    && zc.args().size() == 2 ->
-                    CorrelatedSubselects.zipPairMap(zm, zc,
-                            n2 -> resolveNode(n2, context));
-            // BARE object-space chain headed by toOne/first/at/distinct:
-            // the chain resolver owns these in-pipeline
-            case TypedNativeCall nc when objectSpace(nc) ->
-                    resolveChain(nc, context);
             // project DISTRIBUTES over a class-collection concatenate
             // (UNION ALL): each side is its own object-space chain
             case TypedProject p when classConcatOf(p.source()) != null -> {
@@ -298,8 +312,7 @@ public final class StoreResolver {
                                 p.info()), context),
                         p.info());
             }
-            case TypedIf i when anchored(i) ->
-                    resolveStaticIf(i, context);
+            case TypedIf i -> resolveStaticIf(i, context);
             // size()/count() over a class extent = row count (engine
             // emits select count(*)); classExtentCount projects ONE const
             case TypedNativeCall nc
@@ -311,10 +324,7 @@ public final class StoreResolver {
                     classExtentCount(nc, context);
             // ->map(p|$p.scalarExpr) over instances = single-column
             // projection (map-terminal invariant)
-            case TypedMap m
-                    when objectSpace(m.source())
-                    && !(((Type.FunctionType) m.mapper().info().type()).result().type()
-                            instanceof Type.ClassType) -> {
+            case TypedMap m when objectSpace(m.source()) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
                 yield resolveChain(scalarMapAsProject(m2.source(), m2.mapper(),
                         m2.info().multiplicity()), context);
@@ -328,14 +338,6 @@ public final class StoreResolver {
             case TypedPropertyAccess pa when objectSpace(pa.source())
                     && !(pa.info().type() instanceof Type.ClassType) ->
                     scalarReadAsProject(pa, context);
-            case TypedLimit l when objectSpace(l.source()) ->
-                    resolveChain(l, context);
-            case TypedDrop d when objectSpace(d.source()) ->
-                    resolveChain(d, context);
-            case TypedSlice s when objectSpace(s.source()) ->
-                    resolveChain(s, context);
-            case TypedSortBy sb when objectSpace(sb.source()) ->
-                    resolveChain(sb, context);
             // Class-source groupBy (tds::groupBy cl:C[*] overload; the legacy
             // 4-arg form desugars into it): a relation-shaping TERMINAL like
             // project — key/map lambdas read the object and substitute
@@ -347,20 +349,11 @@ public final class StoreResolver {
             // the graphFetch wrapper is source-preserving; the tree governs.
             case TypedSerialize sz when anchored(sz.source()) ->
                     resolveChain(sz, context);
-            // Relation-space wrappers rebuild with the resolved source
-            // (infos stable); `.rows` MARKER erases here (audit 20c H1).
-            case TypedPropertyAccess pa
-                    when pa.property().equals(com.legend.compiler
-                            .element.type.PlatformTypes.ROWS_MARKER)
-                    && pa.source().info().type() instanceof Type.RelationType ->
-                    resolveNode(pa.source(), context);
             // RELATION-SPACE WRAPPERS above a class chain: every child
             // resolves structurally (a bare lambda is DATA — its arm below
             // is identity, so predicates/mappers/keys pass through
-            // verbatim exactly as the hand-written arms did) and the
-            // variant rebuilds through its own withChildren inverse — the
-            // hand rebuilds this replaces dropped TypedJoin.frameName via
-            // the 6-arg compat ctor (remediation T2.1).
+            // verbatim) and the variant rebuilds through its own
+            // withChildren inverse (remediation T2.1).
             case TypedPropertyAccess pa
                     when anchored(pa.source())
                     && pa.source().info().type()
@@ -400,8 +393,7 @@ public final class StoreResolver {
                     structural(r, context);
             case TypedSelect s when anchored(s.source()) ->
                     structural(s, context);
-            case TypedConcatenate c when anchored(c) ->
-                    structural(c, context);
+            case TypedConcatenate c -> structural(c, context);
             // navigate keeps its TARGET verbatim (the navigation pipeline
             // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav
@@ -411,10 +403,9 @@ public final class StoreResolver {
                     new TypedNavigate(
                             resolveNode(nav.source(), context), nav.alias(),
                             nav.target(), nav.predicate(), nav.form(), nav.info());
-            case TypedJoin j when anchored(j) ->
-                    structural(j, context);
+            case TypedJoin j -> structural(j, context);
             // map over RELATION rows above a class chain (the object-space
-            // map arm matched earlier; this is the relation-space wrapper)
+            // map arms matched earlier; this is the relation-space wrapper)
             case TypedMap m
                     when anchored(m.source())
                     && m.source().info().type()
@@ -423,20 +414,17 @@ public final class StoreResolver {
             // scalar/relation NATIVES over chains bottoming at a getAll:
             // args resolve structurally; CLASS-typed emptiness rewrites
             // FIRST (constant-project relation -> lowerer EXISTS; map §2).
-            case TypedNativeCall nc
-                    when anchored(nc) ->
+            case TypedNativeCall nc ->
                     structural(Pipelines.classEmptinessRewrite(nc,
                             this::objectSpace), context);
             // collection literal whose ELEMENTS carry class chains:
             // each element resolves independently, structurally
-            case com.legend.compiler.spec.typed.TypedCollection col
-                    when anchored(col) ->
+            case com.legend.compiler.spec.typed.TypedCollection col ->
                     structural(col, context);
             // a CAST over a chain bottoming at a getAll (typed reads like
             // getFloat = cast(columnRead(chain))): the source resolves
             // structurally, the cast rides along
-            case com.legend.compiler.spec.typed.TypedCast tc
-                    when anchored(tc) ->
+            case com.legend.compiler.spec.typed.TypedCast tc ->
                     structural(tc, context);
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
@@ -450,14 +438,12 @@ public final class StoreResolver {
             }
             // a BARE lambda VALUE is DATA — its consumer owns resolution
             case com.legend.compiler.spec.typed.TypedLambda l -> l;
-            default -> {
-                if (anchored(n)) {
-                    throw new NotImplementedException("class query under "
-                            + n.getClass().getSimpleName()
-                            + " is not resolvable yet (H2 vocabulary)");
-                }
-                yield n;   // no class fetch anywhere beneath: pure relation query
-            }
+            // The NAMED wall: an ANCHORED variant with no arm — loud,
+            // never a silent pass-through (the old default's silent
+            // 'yield n' path is now the INERT level).
+            default -> throw new NotImplementedException("class query under "
+                    + n.getClass().getSimpleName()
+                    + " is not resolvable yet (H2 vocabulary)");
         };
     }
 
