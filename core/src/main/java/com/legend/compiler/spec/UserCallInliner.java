@@ -394,7 +394,7 @@ public final class UserCallInliner {
             case TypedTableReference c -> c;
             case TypedPackageableRef c -> c;
             case TypedGetAll g -> g.milestoning().isEmpty() ? g
-                    : new TypedGetAll(g.classFqn(), list(g.milestoning(), env), g.info());
+                    : new TypedGetAll(g.classFqn(), list(g.milestoning(), env), g.versionSweep(), g.info());
 
             // Expressions.
             case TypedPropertyAccess p -> new TypedPropertyAccess(

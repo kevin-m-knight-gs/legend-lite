@@ -25,7 +25,8 @@ final class GetAllChecker {
         if (a.args().isEmpty() || !(a.args().get(0) instanceof TypedPackageableRef ref)) {
             throw new TypeInferenceException("getAll expects a class reference");
         }
-        return new TypedGetAll(ref.fullPath(), a.args().subList(1, a.args().size()), a.out());
+        return new TypedGetAll(ref.fullPath(),
+                a.args().subList(1, a.args().size()), false, a.out());
     }
 
     /** {@code Class.allVersions()} / {@code allVersionsInRange(s, e)}: the

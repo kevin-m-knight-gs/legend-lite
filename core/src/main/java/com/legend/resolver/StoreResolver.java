@@ -1262,7 +1262,14 @@ public final class StoreResolver {
                     "class query requires an execution context: add"
                             + " ->from(mapping, runtime) or supply a runtime");
         }
-        return resolveObject(top, context);
+        // EVERY chain resolution (nested ones via ANY recursion path)
+        // restores the caller's temporal frame on exit (T1.3 class kill)
+        TemporalFrame caller = temporal;
+        try {
+            return resolveObject(top, context);
+        } finally {
+            temporal = caller;
+        }
     }
 
     /**
@@ -2607,10 +2614,8 @@ public final class StoreResolver {
                     + " (use allVersions() for the unfiltered extent)",
                     g.classFqn());
         }
-        // M3 temporal context: fresh ROOT frame per getAll (audit 10 —
-        // never the previous fetch's context); derivation lives in the
-        // calculus (TemporalFrame.rootFrame = engine
-        // getMilestoningContextForAll, M:830-844)
+        // M3 temporal context: fresh ROOT frame per getAll (audit 10);
+        // calculus = engine getMilestoningContextForAll (M:830-844)
         temporal = TemporalFrame.rootFrame(ctx, sources, letBindings,
                 g.milestoning(), g.versionSweep(), g.classFqn());
         final Context fctx = chainContext;
@@ -2618,10 +2623,8 @@ public final class StoreResolver {
                 target -> dispatch(fctx, target),
                 (fctx.explicitMapping() == null ? "" : fctx.explicitMapping())
                         + '\u0000'
-                        // audit 23: the KEY must be fctx's runtime — the
-                        // old mixed read (null-check fctx, value from
-                        // context) could poison the cache across an
-                        // in-chain from() rescope
+                        // audit 23: KEY from fctx's runtime — a mixed read
+                        // poisoned the cache across an in-chain from()
                         + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn())
                         // chain mappings join the key (same rule:
                         // dispatch is context-dependent)
@@ -2761,10 +2764,8 @@ public final class StoreResolver {
             tree = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).synthesizeScalarTree(cs);
         }
         if (tree != null) {
-            // GRAPH terminal: tree LEAF paths feed slot demand (a leaf's
-            // binding may read a demanded join slot); class-typed children
-            // correlate — never join — and are materialized by
-            // buildGraphNode, not the demand scan.
+            // GRAPH terminal: LEAF paths feed slot demand; class-typed
+            // children correlate — buildGraphNode materializes them
             InnerDemand.treeDemandPaths(tree, cs, projectionPaths);
         } else {
             for (TypedLambda fn : terminalLambdas(top)) {

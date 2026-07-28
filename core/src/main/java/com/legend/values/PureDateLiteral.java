@@ -89,6 +89,25 @@ public sealed interface PureDateLiteral
      */
     String toEngineString();
 
+    /**
+     * The DAY this literal names, as a {@link StrictDate} — structural
+     * truncation of any day-carrying variant. Null for {@link Year} and
+     * {@link YearMonth}, which name no day. (Replaces
+     * {@code substring(0, 10)} surgery, which mis-truncated any year not
+     * exactly four digits: remediation T1.2.)
+     */
+    default StrictDate strictDatePart() {
+        return switch (this) {
+            case StrictDate d -> d;
+            case DateWithHour d -> new StrictDate(d.year(), d.month(), d.day());
+            case DateWithMinute d -> new StrictDate(d.year(), d.month(), d.day());
+            case DateWithSecond d -> new StrictDate(d.year(), d.month(), d.day());
+            case DateWithSubsecond d -> new StrictDate(d.year(), d.month(), d.day());
+            case Year ignored -> null;
+            case YearMonth ignored -> null;
+        };
+    }
+
     // ---------------------------------------------------------------
     // Variants
     // ---------------------------------------------------------------

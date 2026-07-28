@@ -129,4 +129,30 @@ class UserCallInlinerTest {
                         && ex.getMessage().toLowerCase().contains("recursion"),
                 "cycle named with fn/arity: " + ex.getMessage());
     }
+
+    @Test
+    @DisplayName("versionSweep survives a dated rebuild (remediation T1.1)")
+    void versionSweepSurvivesInlining() {
+        // the rebuild only fires when milestoning is NON-empty: an
+        // allVersionsInRange whose dates reference callee parameters is
+        // exactly the shape that silently became a POINT fetch
+        String model = """
+                Class <<temporal.businesstemporal>> t::T { id: Integer[1]; }
+                function t::sweep(s: Date[1], e: Date[1]): t::T[*]
+                { t::T.allVersionsInRange($s, $e) }
+                """;
+        var ctx = Compiler.compileModel(model);
+        var specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(
+                com.legend.compiler.NameResolver.resolveQuery(
+                        com.legend.parser.SpecParser.parse(
+                                "|t::sweep(%2020-01-01, %2021-01-01)")));
+        body = new UserCallInliner(specs).inlineBody(body);
+        var last = body.get(body.size() - 1);
+        var g = org.junit.jupiter.api.Assertions.assertInstanceOf(
+                com.legend.compiler.spec.typed.TypedGetAll.class, last);
+        assertTrue(g.versionSweep(),
+                "inlining a dated version sweep must stay a SWEEP, not a point fetch");
+        assertEquals(2, g.milestoning().size(), "range dates ride along");
+    }
 }

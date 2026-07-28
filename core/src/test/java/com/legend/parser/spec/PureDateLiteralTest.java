@@ -391,6 +391,20 @@ class PureDateLiteralTest {
      * regression that changes "invalid month" to "invalid year" fails
      * the test instead of silently passing.
      */
+    @Test
+    void strictDatePartTruncatesStructurally() {
+        // remediation T1.2: substring(0,10) surgery mis-truncated any
+        // non-4-digit year (%12024-03-15T10 became day 1)
+        assertEquals(new PureDateLiteral.StrictDate(12024, 3, 15),
+                new PureDateLiteral.DateWithHour(12024, 3, 15, 10).strictDatePart());
+        assertEquals(new PureDateLiteral.StrictDate(812, 3, 15),
+                new PureDateLiteral.DateWithMinute(812, 3, 15, 10, 30).strictDatePart());
+        assertEquals(new PureDateLiteral.StrictDate(2024, 1, 2),
+                new PureDateLiteral.StrictDate(2024, 1, 2).strictDatePart());
+        assertEquals(null, new PureDateLiteral.Year(2024).strictDatePart());
+        assertEquals(null, new PureDateLiteral.YearMonth(2024, 3).strictDatePart());
+    }
+
     private static void assertParseError(String source, String expectedSubstring) {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> PureDateLiteral.parse(source));

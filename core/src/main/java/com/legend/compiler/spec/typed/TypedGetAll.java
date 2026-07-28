@@ -27,10 +27,9 @@ public record TypedGetAll(String classFqn, List<TypedSpec> milestoning,
     public TypedGetAll {
         milestoning = List.copyOf(milestoning);
     }
-
-    public TypedGetAll(String classFqn, List<TypedSpec> milestoning, ExprType info) {
-        this(classFqn, milestoning, false, info);
-    }
+    // NO convenience constructor: a defaulted versionSweep silently turned
+    // an allVersionsInRange rebuild into a POINT fetch (remediation T1.1);
+    // every construction names every field.
 
     @Override
     public List<TypedSpec> children() {

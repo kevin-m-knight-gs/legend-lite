@@ -75,6 +75,13 @@ final class Scalars {
         // phenomenon; columns are always full-precision). Same-precision
         // partials compare as their ISO-prefix strings. eq = strict equality;
         // over our SQL value set it IS the = operator.
+        // equal takes NO optionalOperandGuards DELIBERATELY (remediation
+        // T1.4 verdict): the guard inlines the [0..1] ORDERING overload
+        // bodies (isNotEmpty && ...) real pure defines — equal is a total
+        // NATIVE with no such overload ([] == [] is TRUE; the guard would
+        // spell it false). The residual both-NULL divergence (SQL NULL vs
+        // pure true) is the reference engine's own relational behavior
+        // (bare =; IS NOT DISTINCT FROM appears in no golden).
         for (String name : List.of("equal", "eq")) {
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {

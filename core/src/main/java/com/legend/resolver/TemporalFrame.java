@@ -1383,11 +1383,11 @@ final class TemporalFrame {
                     && date instanceof TypedCDate cd
                     && !(cd.value()
                             instanceof PureDateLiteral.StrictDate)) {
-                String iso = cd.value().toEngineString();
-                if (iso.length() >= 10) {
-                    snapDate = new TypedCDate(
-                            PureDateLiteral.parse(
-                                    iso.substring(0, 10)),
+                // STRUCTURAL day truncation — substring surgery on the
+                // spelling mis-truncated non-4-digit years (T1.2)
+                PureDateLiteral.StrictDate day = cd.value().strictDatePart();
+                if (day != null) {
+                    snapDate = new TypedCDate(day,
                             new ExprType(
                                     Type
                                             .Primitive.STRICT_DATE,
@@ -1398,7 +1398,8 @@ final class TemporalFrame {
                     // no snapshot-day truncation — comparing it raw
                     // against the DATE column silently matches nothing
                     throw new MappingResolutionException("snapshot fetch"
-                            + " date '" + iso + "' has no day component —"
+                            + " date '" + cd.value().toEngineString()
+                            + "' has no day component —"
                             + " a full date is required", classFqn);
                 }
             } else if (snapColIsDate
