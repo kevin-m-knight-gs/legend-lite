@@ -19,6 +19,30 @@ import java.util.stream.Collectors;
  */
 public class EngineStyleDB2 extends EngineStyleH2 {
 
+    public EngineStyleDB2() {
+    }
+
+    public EngineStyleDB2(boolean quoteIdentifiers, String timeZone) {
+        super(quoteIdentifiers, timeZone);
+    }
+
+    /** DB2 plan goldens wrap a top-level WHERE conjunction in one extra
+     * paren pair ({@code where ((A) and (B))}). */
+    @Override
+    protected String whereSql(SqlExpr w) {
+        return w instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.AND
+                ? "(" + expr(w, 0) + ")" : expr(w, 0);
+    }
+
+    /** DB2 QUOTES boolean placeholders — the mapped case-expr yields
+     * {@code 'true'}/{@code 'false'} strings. */
+    @Override
+    protected String holderArgs(SqlExpr.PlanParam.Kind k) {
+        return k == SqlExpr.PlanParam.Kind.BOOLEAN
+                ? "\"\\'\" \"\\'\" {}" : super.holderArgs(k);
+    }
+
     @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();

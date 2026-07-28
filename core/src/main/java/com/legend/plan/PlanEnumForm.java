@@ -43,6 +43,14 @@ public final class PlanEnumForm {
                     && (raw = singleColumnIn(p.expr())) != null) {
                 ps.add(new SqlSelect.Projection(raw, p.outputName()));
                 changed = true;
+            } else if (isEnum && com.legend.sql.DecodeShapes
+                    .stripDecodes(p.expr()) instanceof SqlExpr st
+                    && st != p.expr()) {
+                // computed enum projection (e.g. an if over the enum
+                // value): interior decode chains reduce to their raw
+                // store column — the plan keeps enum columns raw
+                ps.add(new SqlSelect.Projection(st, p.outputName()));
+                changed = true;
             } else {
                 ps.add(p);
             }

@@ -235,18 +235,34 @@ public final class PlanText {
             String doc = docs.getOrDefault(name, "");
             SqlSelect.Projection p = s.projections().get(i);
             String db;
+            String[] phys = null;
             if (p.expr() instanceof SqlExpr.Column c) {
-                String[] phys = resolvePhysical(s.from(), c.table(),
+                String[] pc = resolvePhysical(s.from(), c.table(),
                         strip(c.name()));
-                var td = ctx.findTableDefinition(dbFqn, phys[0]).orElseThrow();
+                phys = pc;
+                var td = ctx.findTableDefinition(dbFqn, pc[0]).orElseThrow();
                 db = spell(td.columns().stream()
-                        .filter(x -> x.name().equalsIgnoreCase(phys[1]))
+                        .filter(x -> x.name().equalsIgnoreCase(pc[1]))
                         .findFirst().orElseThrow().dataType());
             } else {
-                // COMPUTED TDS column: the db slot spells the PURE type's
-                // engine equivalent (aggregate Number -> FLOAT — the
-                // engine's inferRelationalType over dynafunctions)
-                db = pureDbSpelling(cols.get(i).type());
+                // COMPUTED TDS column: when every CASE branch reads the
+                // SAME column, the engine resolves that column's physical
+                // type (tdsWithEnumReturn: if over \$p.synonyms.type ->
+                // VARCHAR(10)); otherwise the PURE type's engine
+                // equivalent (aggregate Number -> FLOAT, String -> 8192)
+                SqlExpr.Column uni = uniformCaseColumn(p.expr());
+                if (uni != null) {
+                    String[] pc = resolvePhysical(s.from(), uni.table(),
+                            strip(uni.name()));
+                    phys = pc;
+                    var td = ctx.findTableDefinition(dbFqn, pc[0])
+                            .orElseThrow();
+                    db = spell(td.columns().stream()
+                            .filter(x -> x.name().equalsIgnoreCase(pc[1]))
+                            .findFirst().orElseThrow().dataType());
+                } else {
+                    db = pureDbSpelling(cols.get(i).type());
+                }
                 if (db == null) {
                     throw new NotImplementedException("plan: computed TDS"
                             + " column '" + name + "' type spelling pending");
@@ -263,7 +279,8 @@ public final class PlanText {
             if (cols.get(i).type()
                     instanceof com.legend.compiler.element.type.Type
                             .EnumType et2 && mappingFqn != null) {
-                String emid = enumMappingIdOf(ctx, mappingFqn, et2.fqn());
+                String emid = enumMappingIdFor(ctx, mappingFqn,
+                        et2.fqn(), phys);
                 if (emid != null) {
                     sb.append(", ").append(emid);
                 }
@@ -301,6 +318,54 @@ public final class PlanText {
             String mappingFqn, String enumFqn) {
         var em = enumMappingOf(ctx, mappingFqn, enumFqn);
         return em == null ? null : em.mappingId();
+    }
+
+    /** enumMappingIdOf, disambiguated: a mapping may declare SEVERAL
+     * enumeration mappings over one enum — the PROPERTY MAPPING that
+     * reads the column declares which one ({@code prop:
+     * EnumerationMapping synonym: T.COL}). Falls back to
+     * first-declared. */
+    private static String enumMappingIdFor(ModelContext ctx,
+            String mappingFqn, String enumFqn, String[] phys) {
+        var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        if (md == null) {
+            return null;
+        }
+        String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
+        var candidates = md.enumerationMappings().stream()
+                .filter(em -> em.enumName().equals(enumFqn)
+                        || em.enumName().equals(simple)
+                        || em.enumName().endsWith("::" + simple))
+                .toList();
+        if (candidates.size() > 1 && phys != null) {
+            var ids = candidates.stream()
+                    .map(com.legend.model.EnumerationMapping::mappingId)
+                    .collect(java.util.stream.Collectors.toSet());
+            for (var cm : md.classMappings()) {
+                if (!(cm instanceof
+                        com.legend.model.ClassMapping.Relational r)) {
+                    continue;
+                }
+                for (var pm : r.propertyMappings()) {
+                    if (pm instanceof com.legend.model.PropertyMapping
+                                    .EnumeratedColumn ec
+                            && ec.enumMappingId() != null
+                            && ids.contains(ec.enumMappingId())
+                            && bareTable(ec.table())
+                                    .equalsIgnoreCase(bareTable(phys[0]))
+                            && ec.column().equalsIgnoreCase(phys[1])) {
+                        return ec.enumMappingId();
+                    }
+                }
+            }
+        }
+        return candidates.isEmpty() ? null
+                : candidates.get(0).mappingId();
+    }
+
+    /** A table name without its schema prefix ({@code default.T -> T}). */
+    private static String bareTable(String t) {
+        return t.substring(t.lastIndexOf('.') + 1);
     }
 
     /** The engine's dynamic freemarker enum-map FUNCTION NAME —
@@ -411,6 +476,45 @@ public final class PlanText {
             return "VARCHAR(8192)";
         }
         return null;
+    }
+
+    /** The ONE column every CASE branch (thens + else, nested) reads,
+     * or null when branches differ or carry non-column leaves. */
+    private static SqlExpr.Column uniformCaseColumn(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Case)) {
+            return null;
+        }
+        java.util.List<SqlExpr> leaves = new java.util.ArrayList<>();
+        collectCaseLeaves(e, leaves);
+        SqlExpr.Column col = null;
+        for (SqlExpr l : leaves) {
+            // an enum-decode leaf resolves to its SOURCE column (the
+            // engine plans keep enum columns RAW)
+            SqlExpr.Column c = l instanceof SqlExpr.Column lc ? lc
+                    : com.legend.sql.DecodeShapes.sourceColumn(l);
+            if (c == null) {
+                return null;
+            }
+            if (col == null) {
+                col = c;
+            } else if (!col.equals(c)) {
+                return null;
+            }
+        }
+        return col;
+    }
+
+    private static void collectCaseLeaves(SqlExpr e,
+            java.util.List<SqlExpr> out) {
+        if (e instanceof SqlExpr.Case c
+                && com.legend.sql.DecodeShapes.flattenDecode(e) == null) {
+            c.whens().forEach(w -> collectCaseLeaves(w.then(), out));
+            if (c.otherwise() != null) {
+                collectCaseLeaves(c.otherwise(), out);
+            }
+            return;
+        }
+        out.add(e);
     }
 
     /** The physical table behind a FROM-tree alias. */

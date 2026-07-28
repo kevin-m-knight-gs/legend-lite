@@ -444,9 +444,11 @@ final class StatementExecutor {
         String connName = ep.args().size() > 2
                 ? connectionNameOf(ep.args().get(2))
                 : "TestDatabaseConnection(type = \"H2\")";
+        String dbType = ep.args().size() > 2
+                ? databaseTypeOf(ep.args().get(2)) : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
             return sequencePlan(lam, pr.fullPath(), specs, env, quote, tz,
-                    connName);
+                    connName, dbType);
         }
         String rootClass = rootGetAllClass(lam.body());
         if (rootClass == null) {
@@ -455,8 +457,7 @@ final class StatementExecutor {
                     + " pending)");
         }
         EngineSql es = engineSql(lam.body(), pr.fullPath(), specs, env,
-                new com.legend.sql.dialect.EngineStyleH2(quote, tz),
-                java.util.Map.of());
+                planDialect(dbType, quote, tz), java.util.Map.of());
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
                         pr.fullPath(), es.plan(), es.sql(),
@@ -476,7 +477,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, String timeZone,
-            String connName) {
+            String connName, String dbType) {
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
@@ -519,7 +520,7 @@ final class StatementExecutor {
                         "plan: non-let intermediate statement");
             }
             children.add(allocationNode(let, mappingFqn, specs, env,
-                    params, quote, timeZone));
+                    params, quote, timeZone, dbType));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
@@ -531,8 +532,7 @@ final class StatementExecutor {
                     "plan: sequence terminal without a getAll root");
         }
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
-                env, new com.legend.sql.dialect.EngineStyleH2(quote,
-                        timeZone), params);
+                env, planDialect(dbType, quote, timeZone), params);
         children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
                 mappingFqn, es.plan(), es.sql(), java.util.List.of(term),
                 connName));
@@ -556,7 +556,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
-            boolean quote, String timeZone) {
+            boolean quote, String timeZone, String dbType) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -584,8 +584,7 @@ final class StatementExecutor {
         }
         EngineSql es = engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env,
-                new com.legend.sql.dialect.EngineStyleH2(quote, timeZone),
-                params);
+                planDialect(dbType, quote, timeZone), params);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
@@ -614,8 +613,7 @@ final class StatementExecutor {
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());
-        var renderer = new com.legend.sql.dialect.EngineStyleH2(quote,
-                timeZone);
+        var renderer = planDialect(dbType, quote, timeZone);
         String bareSql = renderer.render(bareSel);
         String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
                 impl[2], sel, typeName, size, bareSql,
@@ -687,30 +685,63 @@ final class StatementExecutor {
      * simple name (exact-FQN dispatch) with its declared DatabaseType
      * ({@code DatabaseConnection(type = "DB2")}). */
     private static String connectionNameOf(TypedSpec runtimeArg) {
+        var ni = connectionInstanceOf(runtimeArg);
+        if (ni == null) {
+            return "TestDatabaseConnection(type = \"H2\")";
+        }
+        String simple = switch (ni.classFqn()) {
+            case "meta::external::store::relational::runtime"
+                    + "::DatabaseConnection" -> "DatabaseConnection";
+            default -> "TestDatabaseConnection";
+        };
+        return simple + "(type = \"" + dbTypeOf(ni) + "\")";
+    }
+
+    /** The FIRST connection instance under {@code runtimeArg} (exact-FQN
+     * dispatch), or null. */
+    private static com.legend.compiler.spec.typed.TypedNewInstance
+            connectionInstanceOf(TypedSpec runtimeArg) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(runtimeArg);
         while (!work.isEmpty()) {
             TypedSpec t = work.poll();
             if (t instanceof com.legend.compiler.spec.typed
-                    .TypedNewInstance ni) {
-                String simple = switch (ni.classFqn()) {
-                    case "meta::external::store::relational::runtime"
-                            + "::DatabaseConnection" -> "DatabaseConnection";
-                    case "meta::external::store::relational::runtime"
-                            + "::TestDatabaseConnection" ->
-                            "TestDatabaseConnection";
-                    default -> null;
-                };
-                if (simple != null) {
-                    String dbType = ni.properties().get("type") instanceof
-                            com.legend.compiler.spec.typed.TypedEnumValue ev
-                            ? String.valueOf(ev.value()) : "H2";
-                    return simple + "(type = \"" + dbType + "\")";
-                }
+                            .TypedNewInstance ni
+                    && ("meta::external::store::relational::runtime::DatabaseConnection"
+                                    .equals(ni.classFqn())
+                        || "meta::external::store::relational::runtime::TestDatabaseConnection"
+                                    .equals(ni.classFqn()))) {
+                return ni;
             }
             work.addAll(t.children());
         }
-        return "TestDatabaseConnection(type = \"H2\")";
+        return null;
+    }
+
+    private static String dbTypeOf(
+            com.legend.compiler.spec.typed.TypedNewInstance ni) {
+        return ni.properties().get("type") instanceof
+                com.legend.compiler.spec.typed.TypedEnumValue ev
+                ? String.valueOf(ev.value()) : "H2";
+    }
+
+    /** The runtime connection's DatabaseType name ("H2" when absent). */
+    private static String databaseTypeOf(TypedSpec runtimeArg) {
+        var ni = connectionInstanceOf(runtimeArg);
+        return ni == null ? "H2" : dbTypeOf(ni);
+    }
+
+    /** The engine-style PLAN renderer for a connection DatabaseType —
+     * the plan goldens pin Composite to the DB2-family spelling
+     * (paren-wrapped conjunctions, quoted boolean placeholders). */
+    private static com.legend.sql.dialect.EngineStyleH2 planDialect(
+            String dbType, boolean quote, String tz) {
+        return switch (dbType) {
+            case "DB2", "Composite" ->
+                    new com.legend.sql.dialect.EngineStyleDB2(quote, tz);
+            default ->
+                    new com.legend.sql.dialect.EngineStyleH2(quote, tz);
+        };
     }
 
     // ===== the plan-handle WALK vocabulary (plan node model) =========

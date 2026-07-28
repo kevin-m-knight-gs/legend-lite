@@ -41,6 +41,11 @@ final class Fold {
         if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
             return com.legend.sql.SqlExpr.PlanParam.Kind.FLOAT;
         }
+        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
+            // spells like OTHER on H2; DB2-family dialects QUOTE boolean
+            // placeholders (the case-expr compares 'true'/'false' strings)
+            return com.legend.sql.SqlExpr.PlanParam.Kind.BOOLEAN;
+        }
         if (t instanceof com.legend.compiler.element.type.Type.EnumType) {
             // enum values travel as NAME strings — the engine spells the
             // placeholder quoted ('\${yesOrNo}' = 'NO')

@@ -32,7 +32,8 @@ final class EnumSourceValues {
             return null;
         }
         SqlExpr chain = lit == b ? a : b;
-        List<SqlExpr.Case.When> flat = flattenDecode(chain);
+        List<SqlExpr.Case.When> flat =
+                com.legend.sql.DecodeShapes.flattenDecode(chain);
         if (flat == null) {
             return null;
         }
@@ -47,23 +48,6 @@ final class EnumSourceValues {
             }
         }
         return match;
-    }
-
-    /** The decode chain's (condition, literal) branches, or null when
-     * {@code e} is not a literal-decode case (nested via otherwise). */
-    private static List<SqlExpr.Case.When> flattenDecode(SqlExpr e) {
-        List<SqlExpr.Case.When> out = new ArrayList<>();
-        while (e instanceof SqlExpr.Case c) {
-            for (var w : c.whens()) {
-                if (!(w.then() instanceof SqlExpr.StringLit)) {
-                    return null;
-                }
-                out.add(w);
-            }
-            e = c.otherwise();
-        }
-        return e == null || e instanceof SqlExpr.NullLit
-                ? (out.isEmpty() ? null : out) : null;
     }
 
 }

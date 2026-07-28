@@ -160,6 +160,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return null;
         }
         SqlExpr other = c.args().get(p == c.args().get(1) ? 0 : 1);
+        // a REQUIRED param against an enum LITERAL is a host-vs-host
+        // comparison — plain placeholder equality ('\${yesOrNo}' = 'NO'),
+        // no store column to select over
+        if (other instanceof SqlExpr.StringLit && !p.optional()) {
+            return null;
+        }
         // the class-prop side may arrive as the mapping's enum DECODE
         // case-chain — the template compares the RAW source column
         // (toSourceValues; the engine never compares decoded names)
@@ -173,29 +179,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 + "}'), '0 = 1')})";
     }
 
-    /** The ONE source column a literal-decode case chain reads (every
-     * condition {@code col = literal} over the same column, null
-     * terminal), or null when {@code e} is not that shape. */
+    /** The ONE source expression a literal-decode case chain reads
+     * ({@link com.legend.sql.DecodeShapes#sourceExpr}), or null. */
     private static SqlExpr decodeSourceColumn(SqlExpr e) {
-        SqlExpr col = null;
-        while (e instanceof SqlExpr.Case cs) {
-            for (var w : cs.whens()) {
-                if (!(w.then() instanceof SqlExpr.StringLit)
-                        || !(w.condition() instanceof SqlExpr.Call cc)
-                        || cc.fn() != com.legend.sql.SqlFn.EQUAL
-                        || cc.args().size() != 2) {
-                    return null;
-                }
-                SqlExpr left = cc.args().get(0);
-                if (col == null) {
-                    col = left;
-                } else if (!col.equals(left)) {
-                    return null;
-                }
-            }
-            e = cs.otherwise();
-        }
-        return (e == null || e instanceof SqlExpr.NullLit) ? col : null;
+        return com.legend.sql.DecodeShapes.sourceExpr(e);
     }
 
     private String holder(SqlExpr.PlanParam p) {
@@ -208,13 +195,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 + holderArgs(p.kind()) + " \"null\")}";
     }
 
-    private static String holderArgs(SqlExpr.PlanParam.Kind k) {
+    protected String holderArgs(SqlExpr.PlanParam.Kind k) {
         return switch (k) {
             case STRING -> "\"\\'\" \"\\'\" {\"\\'\" : \"\\'\\'\"}";
             case DATE -> "\"\\'\" \"\\'\" {}";
             case DATETIME -> "\"TIMESTAMP\\'\" \"\\'\" {}";
             case FLOAT -> "\"CAST(\" \" AS FLOAT)\" {}";
-            case ENUM, OTHER -> "\"\" \"\" {}";
+            case BOOLEAN, ENUM, OTHER -> "\"\" \"\" {}";
         };
     }
 
@@ -293,7 +280,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             source(sb, s.from(), depth);
         }
         if (s.where() != null) {
-            sb.append(" where ").append(expr(s.where(), 0));
+            sb.append(" where ").append(whereSql(s.where()));
         }
         if (!s.groupBy().isEmpty()) {
             sb.append(" group by ").append(s.groupBy().stream()
@@ -312,6 +299,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 sb.append(" fetch next ").append(s.limit()).append(" rows only");
             }
         }
+    }
+
+    /** The WHERE clause text — DB2-family dialects wrap a top-level
+     * conjunction in one extra paren pair. */
+    protected String whereSql(SqlExpr w) {
+        return expr(w, 0);
     }
 
     @Override
@@ -416,7 +409,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 // enum params spell QUOTED, no escape template
                 // ('\${yesOrNo}' = 'NO' — testIfEnumParameterInProject)
                 case ENUM -> "'${" + p.name() + "}'";
-                case FLOAT, OTHER -> "${" + p.name() + "}";
+                case FLOAT, BOOLEAN, OTHER -> "${" + p.name() + "}";
             };
         }
         // ENUM parameter comparison: one selector template covers = and
@@ -527,13 +520,24 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     // the null-guarded in() (pure in never returns null;
                     // COALESCE(x in (...), false) is our EXECUTION idiom)
                     // spells the BARE in in engine text — plan-param
-                    // templates and literal lists alike
+                    // templates and literal lists alike; guards may STACK
+                    // (in-rule + filter-site), unwrap them all
                     if (bc.args().size() == 2
-                            && bc.args().get(0) instanceof SqlExpr.Call ic0
-                            && ic0.fn() == com.legend.sql.SqlFn.IN
                             && bc.args().get(1) instanceof SqlExpr.BoolLit bl0
                             && !bl0.value()) {
-                        return expr(ic0, parentPrec);
+                        SqlExpr in0 = bc.args().get(0);
+                        while (in0 instanceof SqlExpr.Call cc
+                                && cc.fn() == com.legend.sql.SqlFn.COALESCE
+                                && cc.args().size() == 2
+                                && cc.args().get(1)
+                                        instanceof SqlExpr.BoolLit bl1
+                                && !bl1.value()) {
+                            in0 = cc.args().get(0);
+                        }
+                        if (in0 instanceof SqlExpr.Call ic0
+                                && ic0.fn() == com.legend.sql.SqlFn.IN) {
+                            return expr(ic0, parentPrec);
+                        }
                     }
                 }
                 case IN -> {
@@ -543,6 +547,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     // varPlaceHolderToString (in-collection plan goldens)
                     if (bc.args().size() == 2
                             && bc.args().get(1) instanceof SqlExpr.PlanParam cp) {
+                        // a non-default connection timeZone spells the
+                        // TZ-SHIFTING template (renderCollectionWithTz —
+                        // tz second, no escape map) over datetime params
+                        if (cp.kind() == SqlExpr.PlanParam.Kind.DATETIME
+                                && timeZone != null) {
+                            // top-of-sql template — quotes UNESCAPED
+                            // (only freemarker-nested args escape)
+                            return expr(bc.args().get(0), 4)
+                                    + " in (${renderCollectionWithTz("
+                                    + cp.name() + "![] \"[" + timeZone
+                                    + "]\" \",\" \"TIMESTAMP'\" \"'\""
+                                    + " \"null\")})";
+                        }
                         return expr(bc.args().get(0), 4)
                                 + " in (${renderCollection(" + cp.name()
                                 + "![] \",\" " + holderArgs(cp.kind())
