@@ -461,7 +461,7 @@ public final class UserCallInliner {
             case TypedIf i -> new TypedIf(rewrite(i.condition(), env),
                     rewrite(i.thenBranch(), env),
                     i.elseBranch().map(e -> rewrite(e, env)), i.info());
-            case TypedCast c -> new TypedCast(rewrite(c.source(), env), c.target(), c.info());
+            case TypedCast c -> new TypedCast(rewrite(c.source(), env), c.target(), c.info(), c.wire());
             case TypedNewInstance ni -> {
                 Map<String, TypedSpec> props = new LinkedHashMap<>();
                 ni.properties().forEach((k, v) -> props.put(k, rewrite(v, env)));

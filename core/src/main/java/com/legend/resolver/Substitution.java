@@ -1379,7 +1379,7 @@ final class Substitution {
             // source substitutes (the in([...]) family spells casts over
             // property reads).
             case TypedCast tc -> new TypedCast(rewrite(tc.source()),
-                    tc.target(), tc.info());
+                    tc.target(), tc.info(), tc.wire());
             case TypedIf i -> new TypedIf(rewrite(i.condition()),
                     rewrite(i.thenBranch()), i.elseBranch().map(this::rewrite), i.info());
             case TypedLambda l -> {

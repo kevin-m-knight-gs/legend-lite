@@ -15,8 +15,17 @@ import java.util.List;
  * @param source the value being converted
  * @param target the resolved conversion target
  * @param info   the result &mdash; target type at the signature's multiplicity
+ * @param wire   a mapping WIRE coercion (castAsDeclared): SQL cast at
+ *               execution, bare in engine-text lowering
  */
-public record TypedCast(TypedSpec source, Type target, ExprType info) implements TypedSpec {
+public record TypedCast(TypedSpec source, Type target, ExprType info,
+        boolean wire) implements TypedSpec {
+
+    /** An ordinary (user-written / synth-structural) cast. */
+    public TypedCast(TypedSpec source, Type target, ExprType info) {
+        this(source, target, info, false);
+    }
+
     @Override
     public List<TypedSpec> children() {
         return List.of(source);

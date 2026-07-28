@@ -367,7 +367,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                             ? rp : null;
             if (opt != null) {
                 SqlExpr other = opt == l ? r : l;
-                String otherTx = expr(other, 4);
+                // raw SQL embeds in the single-quoted freemarker clause —
+                // its own quotes ESCAPE (the engine's template spelling);
+                // holder() text stays as-is (pre-escaped placeholder args)
+                String otherTx = expr(other, 4).replace("'", "\\'");
                 String present = opt == l
                         ? holder(opt) + " = " + otherTx
                         : otherTx + " = " + holder(opt);

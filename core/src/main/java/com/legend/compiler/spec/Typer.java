@@ -1002,21 +1002,27 @@ final class Typer {
             // property and never casts the SQL). Shape (value, @Type);
             // types as the annotation, KEEPS the value's multiplicity,
             // lowers to the value unchanged (Scalars passthrough).
-            case TYPE_AS_DECLARED -> {
+            case TYPE_AS_DECLARED, CAST_AS_DECLARED -> {
                 Application ta = checkGeneric(af, env);
                 if (ta.args().size() != 2
                         || !(ta.args().get(1) instanceof
                                 com.legend.compiler.spec.typed.TypedTypeRef tr)) {
                     throw new TypeInferenceException(
-                            "typeAsDeclared expects (value, @Type)");
+                            af.function() + " expects (value, @Type)");
+                }
+                ExprType out = new ExprType(tr.target(),
+                        ta.args().get(0).info().multiplicity());
+                if ("castAsDeclared".equals(af.function())) {
+                    // a WIRE-flagged cast: every TypedCast consumer rides
+                    // it unchanged; only the lowering treats it specially
+                    yield new com.legend.compiler.spec.typed.TypedCast(
+                            ta.args().get(0), tr.target(), out, true);
                 }
                 var callees = model().findFunction(
                         "meta::legend::lite::typeAsDeclared");
                 yield new com.legend.compiler.spec.typed.TypedNativeCall(
                         callees.get(0),
-                        List.of(ta.args().get(0)),
-                        new ExprType(tr.target(),
-                                ta.args().get(0).info().multiplicity()));
+                        List.of(ta.args().get(0)), out);
             }
             case MATCH -> MatchChecker.check(this, af, env);
             case EVAL -> EvalChecker.check(this, af, env);

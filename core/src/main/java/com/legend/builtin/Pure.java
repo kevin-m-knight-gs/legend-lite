@@ -1222,6 +1222,13 @@ public final class Pure {
     // types as the DECLARED property; NO SQL is emitted — engine parity
     // for e.g. an Integer property over a DOUBLE column, calendar family)
     public static final NativeFunctionDefinition TYPE_AS_DECLARED__ANY_01__T_1 = signature("native function meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1];");
+    // castAsDeclared: the mapping-side WIRE coercion (a String-declared
+    // property over a numeric column) — execution lowers to the SQL
+    // cast (DuckDB does not wire-convert; audit 19 F7), while the
+    // engine-TEXT funnel passes the value through bare: the engine's
+    // plan/toSQLString goldens never spell wire coercions
+    // (conformance-cast provenance seam).
+    public static final NativeFunctionDefinition CAST_AS_DECLARED__ANY_01__T_1 = signature("native function meta::legend::lite::castAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1];");
     public static final NativeFunctionDefinition ID__ANY_1 = signature("native function meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
     // Real platform_store_relational/functions.pure:227/:249 — metamodel
     // navigation (ordinary pure over the store metamodel there; typed

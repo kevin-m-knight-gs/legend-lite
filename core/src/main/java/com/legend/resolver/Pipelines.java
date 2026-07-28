@@ -1054,7 +1054,7 @@ final class Pipelines {
             case TypedCast c ->
                     new TypedCast(
                             rewriteRowReads(c.source(), rowVar, prefixes, stripped, varRewrite),
-                            c.target(), c.info());
+                            c.target(), c.info(), c.wire());
             case TypedTypeRef ignored -> n;
             // CORRELATED SCALAR SUBQUERY in condition position (the
             // parentNavCondReads emission: LIMIT-1 over project over
@@ -1135,7 +1135,7 @@ final class Pipelines {
             case TypedCast c ->
                     new TypedCast(
                             prefixColumns(c.source(), rowVar, colPrefix, varRewrite),
-                            c.target(), c.info());
+                            c.target(), c.info(), c.wire());
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;

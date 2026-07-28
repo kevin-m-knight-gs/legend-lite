@@ -374,7 +374,8 @@ public final class StoreResolver {
                     && c.info().type() instanceof Type
                             .RelationType ->
                     new TypedCast(
-                            resolveNode(c.source(), context), c.target(), c.info());
+                            resolveNode(c.source(), context), c.target(),
+                            c.info(), c.wire());
             case TypedSortBy sb when containsGetAll(sb.source()) -> new TypedSortBy(
                     resolveNode(sb.source(), context), sb.key(), sb.ascending(),
                     sb.keyAlias(), sb.info());
@@ -450,7 +451,7 @@ public final class StoreResolver {
                     when containsGetAll(tc) ->
                     new com.legend.compiler.spec.typed.TypedCast(
                             resolveNode(tc.source(), context),
-                            tc.target(), tc.info());
+                            tc.target(), tc.info(), tc.wire());
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when containsGetAll(vpa.source()) -> {
                 TypedSpec am = Pipelines.autoMapRead(vpa);

@@ -2420,7 +2420,10 @@ public final class MappingNormalizer {
                         .contains(simple)) {
             return value;
         }
-        return new AppliedFunction("cast", List.of(value,
+        // a WIRE coercion (the engine runtime converts on the wire and
+        // its SQL/plan text never spells it) — castAsDeclared casts at
+        // execution, reads bare in the engine-text funnel
+        return new AppliedFunction("castAsDeclared", List.of(value,
                 new TypeAnnotation.Named(
                         new TypeExpression.NameRef(simple))));
     }
@@ -2527,9 +2530,16 @@ public final class MappingNormalizer {
         // assertion (typeAsDeclared, no SQL cast): the declared kind drives
         // result typing, the database delivers the raw value. Anything else
         // falls through uncast and the type checker stays the loud arbiter.
+        // String/Boolean-declared over a mismatched column is a WIRE
+        // coercion — castAsDeclared casts at execution but the
+        // engine-text funnel reads the expression bare (engine goldens
+        // never spell wire coercions; the runtime converts on the wire)
+        if ("String".equals(declared) || "Boolean".equals(declared)) {
+            return new AppliedFunction("castAsDeclared", List.of(read,
+                    new TypeAnnotation.Named(
+                            new TypeExpression.NameRef(declared))));
+        }
         boolean cast = switch (declared) {
-            case "String" -> true;
-            case "Boolean" -> true;
             case "DateTime" -> "StrictDate".equals(colKind);
             default -> false;
         };

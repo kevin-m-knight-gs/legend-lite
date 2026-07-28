@@ -509,7 +509,7 @@ final class SyntheticHeads {
             case TypedCast c ->
                     new TypedCast(
                             liftFilteredHeads(c.source(), enabled),
-                            c.target(), c.info());
+                            c.target(), c.info(), c.wire());
             case TypedGroupBy gb ->
                     new TypedGroupBy(
                             liftFilteredHeads(gb.source(), enabled),
@@ -997,7 +997,8 @@ final class SyntheticHeads {
                             c.elements().stream().map(f).toList(), c.info());
             case TypedCast c ->
                     new TypedCast(
-                            f.apply(c.source()), c.target(), c.info());
+                            f.apply(c.source()), c.target(), c.info(),
+                            c.wire());
             default -> n;
         };
     }

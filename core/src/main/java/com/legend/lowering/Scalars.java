@@ -447,6 +447,8 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("meta::legend::lite::typeAsDeclared")) {
             RULES.put(f, (n, args) -> args.get(0));
         }
+        // castAsDeclared never reaches here — the Typer types it as a
+        // WIRE-flagged TypedCast (the Lowerer's cast() reads the flag)
 
         // id() over an ENUM VALUE is its name — exactly the stored string
         // in relation-land. Any other instance's identifier is an engine

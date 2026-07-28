@@ -80,6 +80,8 @@ public enum CoreFn {
     /** {@code cast(@T)} &mdash; type conversion at the source's multiplicity ({@code T[m]}). */
     CAST("cast"),
     TYPE_AS_DECLARED("typeAsDeclared"),
+    /** Mapping-side WIRE coercion — SQL cast at execution, bare in engine text. */
+    CAST_AS_DECLARED("castAsDeclared"),
     /** {@code to(@T)} &mdash; nullable conversion ({@code T[0..1]}). */
     TO("to"),
     /** {@code toMany(@T)} &mdash; widening conversion ({@code T[*]}). */

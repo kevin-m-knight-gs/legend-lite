@@ -901,7 +901,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.orderKey(), a.orderAsc()));
-            return castByPolicy(inner, rc.source().info().type(), rc.target());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target());
         }
         if (!(reduceBody instanceof TypedNativeCall call)) {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
@@ -1051,7 +1051,7 @@ public final class Lowerer {
         }
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
-            value = castByPolicy(value, valueCast.source().info().type(), valueCast.target());
+            value = CastPolicy.castByPolicy(value, valueCast.source().info().type(), valueCast.target());
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) — no single
         // SQL reducer (engine testGroupByIsDistinct golden).
@@ -3129,6 +3129,13 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
+        if (c.wire() && EngineTextBoundary.active()) {
+            // the mapping's WIRE coercion — the engine runtime converts on
+            // the wire and its SQL/plan text never spells it; execution
+            // (boundary inactive) keeps the SQL cast (DuckDB does not
+            // wire-convert — audit 19 F7)
+            return value;
+        }
         boolean variantSource = c.source().info().type()
                 instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
         if (!variantSource) {
@@ -3142,8 +3149,8 @@ public final class Lowerer {
             // there); the corpus contract (engine-lite lineage) is SQL-style
             // conversion, so a narrowing cast converts here.
             Type src = c.source().info().type();
-            if (isSqlPrimitive(c.target()) && isSqlPrimitive(src)
-                    && !isWidening(src, c.target())
+            if (CastPolicy.isSqlPrimitive(c.target()) && CastPolicy.isSqlPrimitive(src)
+                    && !CastPolicy.isWidening(src, c.target())
                     && !PureSql.type(src).equals(PureSql.type(c.target()))) {
                 // A converting cast over a COLLECTION is ELEMENT-WISE — the
                 // scalar channel carries collections as LISTs and DuckDB has
@@ -3195,40 +3202,7 @@ public final class Lowerer {
         return new SqlExpr.Cast(value, PureSql.type(c.target()));
     }
 
-    /**
-     * The one cast policy, applied to an already-lowered expression: a
-     * CONVERTING primitive cast emits SQL; widening/same-type/non-primitive
-     * is the assertion no-op.
-     */
-    private static SqlExpr castByPolicy(SqlExpr e, Type src, Type target) {
-        if (isSqlPrimitive(target) && isSqlPrimitive(src)
-                && !isWidening(src, target)
-                && !PureSql.type(src).equals(PureSql.type(target))) {
-            return new SqlExpr.Cast(e, PureSql.type(target));
-        }
-        return e;
-    }
-
-    /** Whether {@code tgt} is {@code src}'s primitive-lattice supertype (cast-as-assertion). */
-    private static boolean isWidening(Type src, Type tgt) {
-        if (tgt == Type.Primitive.NUMBER) {
-            return src == Type.Primitive.INTEGER || src == Type.Primitive.FLOAT
-                    || src == Type.Primitive.DECIMAL || src instanceof Type.PrecisionDecimal;
-        }
-        if (tgt == Type.Primitive.DATE) {
-            return src == Type.Primitive.STRICT_DATE || src == Type.Primitive.DATE_TIME;
-        }
-        return false;
-    }
-
     /** A Pure type with a direct scalar SQL carrier (primitives and sized decimals). */
-    private static boolean isSqlPrimitive(Type t) {
-        return (t instanceof Type.Primitive p
-                        && p != Type.Primitive.BYTE && p != Type.Primitive.LATEST_DATE
-                        && p != Type.Primitive.STRICT_TIME)
-                || t instanceof Type.PrecisionDecimal;
-    }
-
     /**
      * A relation cast whose target columns ALL exist in the source projects
      * them (SQL-CAST where the type changed); any absent name means the
@@ -3295,7 +3269,7 @@ public final class Lowerer {
                 case Resolution.Resolved r -> {
                     Type from = src.get(tc.name()).type();
                     SqlExpr v = from.equals(tc.type())
-                            || !isSqlPrimitive(tc.type()) || !isSqlPrimitive(from)
+                            || !CastPolicy.isSqlPrimitive(tc.type()) || !CastPolicy.isSqlPrimitive(from)
                             ? r.expr()
                             : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()));
                     ps.add(new SqlSelect.Projection(v, tc.name()));

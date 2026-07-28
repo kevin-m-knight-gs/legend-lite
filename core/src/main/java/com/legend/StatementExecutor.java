@@ -396,7 +396,11 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent());
         planParams.values().forEach(lw::bindPlanParam);
-        com.legend.sql.SqlQuery plan = lw.lower(body);
+        // ENGINE-TEXT lowering: wire coercions (castAsDeclared) read bare
+        com.legend.sql.SqlQuery plan;
+        try (var ignored = com.legend.lowering.EngineTextBoundary.enter()) {
+            plan = lw.lower(body);
+        }
         // engine plans keep enum columns RAW (host-side decode) — the
         // plan-text form of enum-mapped columns/parameters
         if (plan instanceof com.legend.sql.SqlSelect sel
@@ -437,7 +441,7 @@ final class StatementExecutor {
                 ? timeZoneOf(ep.args().get(2)) : null;
         String connName = ep.args().size() > 2
                 ? connectionNameOf(ep.args().get(2))
-                : "TestDatabaseConnection";
+                : "TestDatabaseConnection(type = \"H2\")";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
             return sequencePlan(lam, pr.fullPath(), specs, env, quote, tz,
                     connName);
@@ -675,8 +679,9 @@ final class StatementExecutor {
         return null;
     }
 
-    /** The runtime connection's CLASS simple name (exact-FQN dispatch)
-     * — the plan text spells the instance's own type. */
+    /** The runtime connection's plan spelling — the instance's own CLASS
+     * simple name (exact-FQN dispatch) with its declared DatabaseType
+     * ({@code DatabaseConnection(type = "DB2")}). */
     private static String connectionNameOf(TypedSpec runtimeArg) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(runtimeArg);
@@ -684,18 +689,24 @@ final class StatementExecutor {
             TypedSpec t = work.poll();
             if (t instanceof com.legend.compiler.spec.typed
                     .TypedNewInstance ni) {
-                if (ni.classFqn().equals("meta::external::store::relational"
-                        + "::runtime::DatabaseConnection")) {
-                    return "DatabaseConnection";
-                }
-                if (ni.classFqn().equals("meta::external::store::relational"
-                        + "::runtime::TestDatabaseConnection")) {
-                    return "TestDatabaseConnection";
+                String simple = switch (ni.classFqn()) {
+                    case "meta::external::store::relational::runtime"
+                            + "::DatabaseConnection" -> "DatabaseConnection";
+                    case "meta::external::store::relational::runtime"
+                            + "::TestDatabaseConnection" ->
+                            "TestDatabaseConnection";
+                    default -> null;
+                };
+                if (simple != null) {
+                    String dbType = ni.properties().get("type") instanceof
+                            com.legend.compiler.spec.typed.TypedEnumValue ev
+                            ? String.valueOf(ev.value()) : "H2";
+                    return simple + "(type = \"" + dbType + "\")";
                 }
             }
             work.addAll(t.children());
         }
-        return "TestDatabaseConnection";
+        return "TestDatabaseConnection(type = \"H2\")";
     }
 
     // ===== the plan-handle WALK vocabulary (plan node model) =========
