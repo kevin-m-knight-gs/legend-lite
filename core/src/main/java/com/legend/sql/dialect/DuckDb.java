@@ -24,6 +24,11 @@ public final class DuckDb extends AnsiSqlRenderer {
         super(Lexicon.DUCKDB, TypeNames.DUCKDB);
     }
 
+    @Override
+    protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+        return java.util.List.of(new UnqualifyPivotArgs(), new FoldToListReduce());
+    }
+
     // ---- structural capabilities ----
 
     @Override
@@ -48,10 +53,11 @@ public final class DuckDb extends AnsiSqlRenderer {
         source(sb, p.source(), depth);
         // ON columns quote UNCONDITIONALLY (the corpus pins "year" — the
         // usual pivot keys are date-part words DuckDB half-reserves).
+        // args arrive pre-unqualified (the UnqualifyPivotArgs pass)
         sb.append(" ON ").append(p.on().stream()
-                .map(e -> unqualify(e) instanceof SqlExpr.Column c
+                .map(e -> e instanceof SqlExpr.Column c
                         ? quoteChar() + c.name() + quoteChar()
-                        : expr(unqualify(e), 0))
+                        : expr(e, 0))
                 .collect(Collectors.joining(", ")));
         if (!p.in().isEmpty()) {
             sb.append(" IN (").append(p.in().stream()
@@ -59,70 +65,13 @@ public final class DuckDb extends AnsiSqlRenderer {
                     .collect(Collectors.joining(", "))).append(")");
         }
         sb.append(" USING ").append(p.usings().stream()
-                .map(u -> reducer((SqlAgg.Reducer) unqualify(u.agg()))
+                .map(u -> reducer(u.agg())
                         // real pure names pivot columns value__|__agg; DuckDB
                         // joins value + '_' + alias, so the alias carries the
                         // '_|__agg' tail.
                         + " AS " + ident("_|__" + u.alias()))
                 .collect(Collectors.joining(", ")));
         sb.append(") AS ").append(ident(p.alias()));
-    }
-
-    private static SqlExpr unqualify(SqlExpr e) {
-        return switch (e) {
-            case SqlExpr.Column c -> new SqlExpr.Column(null, c.name());
-            case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
-                    c.args().stream().map(DuckDb::unqualify).toList());
-            case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()), c.target());
-            case SqlExpr.Case c -> new SqlExpr.Case(
-                    c.whens().stream().map(w -> new SqlExpr.Case.When(
-                            unqualify(w.condition()), unqualify(w.then()))).toList(),
-                    c.otherwise() == null ? null : unqualify(c.otherwise()));
-            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
-                    a.elements().stream().map(DuckDb::unqualify).toList());
-            case SqlExpr.StructGet g ->
-                    new SqlExpr.StructGet(unqualify(g.source()), g.field());
-            case SqlExpr.StructLit sl -> new SqlExpr.StructLit(
-                    sl.fields().stream().map(f -> new SqlExpr.StructLit.Field(
-                            f.name(), unqualify(f.value()))).toList());
-            case SqlExpr.OrderedListAgg o -> new SqlExpr.OrderedListAgg(
-                    unqualify(o.value()), unqualify(o.orderBy()));
-            case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(
-                    j.kv().stream().map(DuckDb::unqualify).toList());
-            case SqlExpr.JsonArrayAgg ja ->
-                    new SqlExpr.JsonArrayAgg(unqualify(ja.value()),
-                            ja.orderKeys().stream()
-                                    .map(DuckDb::unqualify).toList());
-            case SqlAgg.Reducer r -> new SqlAgg.Reducer(r.fn(),
-                    r.args().stream().map(DuckDb::unqualify).toList(),
-                    r.distinct(),
-                    r.orderBy().stream().map(k -> new SqlSelect.SortKey(
-                            unqualify(k.expr()), k.ascending(), k.nullOrder(),
-                            k.outputName())).toList());
-            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
-                    unqualify(f.source()), f.lambda(), unqualify(f.init()),
-                    f.accIsList(), f.homogeneous());
-            case SqlExpr.WindowCall w -> new SqlExpr.WindowCall(w.fn(),
-                    w.partitionBy().stream().map(DuckDb::unqualify).toList(),
-                    w.orderBy(), w.frame());
-            // subqueries own their aliases; lambdas bind their own params;
-            // leaves carry no qualifier (audit 15: exhaustive, no default)
-            case SqlExpr.Exists x -> x;
-            case SqlExpr.ScalarSubquery ss -> ss;
-            case SqlExpr.Lambda l -> l;
-            case SqlExpr.Star st -> st;
-            case SqlExpr.StarExcept se -> se;
-            case SqlExpr.Group g -> new SqlExpr.Group(unqualify(g.inner()));
-            case SqlExpr.PlanParam ignored -> e;
-            case SqlExpr.StringLit ignored -> e;
-            case SqlExpr.IntLit ignored -> e;
-            case SqlExpr.FloatLit ignored -> e;
-            case SqlExpr.DecimalLit ignored -> e;
-            case SqlExpr.BoolLit ignored -> e;
-            case SqlExpr.NullLit ignored -> e;
-            case SqlExpr.DateLit ignored -> e;
-            case SqlExpr.TimestampLit ignored -> e;
-        };
     }
 
     // ---- list idioms: DuckDB is the lambda backend ----
@@ -134,106 +83,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                 : "(" + String.join(", ", l.params()) + ")") + " -> " + expr(l.body(), 0);
     }
 
-    /**
-     * {@code list_reduce} encoding. Pure's lambda is {@code (element, acc)};
-     * DuckDB's is {@code (acc, element)} — the parameters SWAP here, at the
-     * one place that knows DuckDB's convention. {@code list_reduce} demands
-     * init type == list child type: a LIST accumulator wraps each element as
-     * a single-item list and unwraps refs in the body (master's Path 4); a
-     * scalar accumulator over a non-decomposed body cannot be encoded.
-     */
-    @Override
-    protected String foldCall(SqlExpr.FoldCall f) {
-        String elem = f.lambda().params().get(0);
-        String acc = f.lambda().params().get(1);
-        if (!f.accIsList()) {
-            // DuckDB's list_reduce demands init type == list child type; a
-            // scalar accumulator over HETEROGENEOUS elements cannot be
-            // encoded here — DuckDB's limitation, stated by DuckDB's dialect.
-            if (!f.homogeneous()) {
-                throw new IllegalStateException("fold body is not decomposable and the"
-                        + " accumulator is scalar — rewrite accumulator-first"
-                        + " ({e, a | $a <op> ...}) so the reduction can decompose");
-            }
-            SqlExpr.Lambda swapped = new SqlExpr.Lambda(List.of(acc, elem), f.lambda().body());
-            // fold over the EMPTY (SQL NULL) collection is the INIT value —
-            // list_reduce(NULL, ...) is NULL
-            return fn("list_reduce", List.of(
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, f.source(),
-                            new SqlExpr.ArrayLit(List.of())),
-                    swapped, f.init()));
-        }
-        // List accumulator: wrap elements as single-item lists ([e] — the
-        // semantic ArrayLit), unwrap refs via LIST_GET(e, 1).
-        SqlExpr wrapped = new SqlExpr.Call(SqlFn.LIST_TRANSFORM, List.of(f.source(),
-                new SqlExpr.Lambda(List.of(elem),
-                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, elem))))));
-        SqlExpr body = unwrapElemRefs(f.lambda().body(), elem);
-        SqlExpr.Lambda swapped = new SqlExpr.Lambda(List.of(acc, elem), body);
-        return fn("list_reduce", List.of(wrapped, swapped, f.init()));
-    }
 
-    /**
-     * Replace bare refs to {@code elem} with {@code LIST_GET(elem, 1)} —
-     * EXHAUSTIVE over the expression tree (a ref nested under a cast, case,
-     * array, or inner lambda must unwrap too; javac keeps this honest).
-     */
-    private SqlExpr unwrapElemRefs(SqlExpr e, String elem) {
-        return switch (e) {
-            case SqlExpr.Column c when c.table() == null && elem.equals(c.name()) ->
-                    SqlExpr.Call.of(SqlFn.LIST_GET,
-                            new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));
-            case SqlExpr.Column c -> c;
-            case SqlExpr.StarExcept se -> se;
-            case SqlExpr.OrderedListAgg ola -> ola;   // no elem refs inside
-            case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),
-                    call.args().stream().map(x -> unwrapElemRefs(x, elem)).toList());
-            case SqlExpr.Cast c -> new SqlExpr.Cast(unwrapElemRefs(c.value(), elem),
-                    c.target());
-            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
-                    a.elements().stream().map(x -> unwrapElemRefs(x, elem)).toList());
-            case SqlExpr.Case cs -> new SqlExpr.Case(
-                    cs.whens().stream().map(w -> new SqlExpr.Case.When(
-                            unwrapElemRefs(w.condition(), elem),
-                            unwrapElemRefs(w.then(), elem))).toList(),
-                    cs.otherwise() == null ? null : unwrapElemRefs(cs.otherwise(), elem));
-            case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
-                    .map(fld -> new SqlExpr.StructLit.Field(fld.name(),
-                            unwrapElemRefs(fld.value(), elem))).toList());
-            case SqlExpr.StructGet g -> new SqlExpr.StructGet(
-                    unwrapElemRefs(g.source(), elem), g.field());
-            case SqlExpr.Lambda l -> l.params().contains(elem)
-                    ? l   // inner lambda shadows the element name
-                    : new SqlExpr.Lambda(l.params(), unwrapElemRefs(l.body(), elem));
-            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
-                    unwrapElemRefs(f.source(), elem),
-                    f.lambda().params().contains(elem) ? f.lambda()
-                            : new SqlExpr.Lambda(f.lambda().params(),
-                                    unwrapElemRefs(f.lambda().body(), elem)),
-                    unwrapElemRefs(f.init(), elem), f.accIsList(), f.homogeneous());
-            // Leaves and structures that cannot contain the element ref:
-            case SqlExpr.Star st -> st;
-            case SqlExpr.Group g ->
-                    new SqlExpr.Group(unwrapElemRefs(g.inner(), elem));
-            case SqlExpr.PlanParam v -> v;
-            case SqlExpr.StringLit v -> v;
-            case SqlExpr.IntLit v -> v;
-            case SqlExpr.FloatLit v -> v;
-            case SqlExpr.DecimalLit v -> v;
-            case SqlExpr.BoolLit v -> v;
-            case SqlExpr.NullLit v -> v;
-            case SqlExpr.DateLit v -> v;
-            case SqlExpr.TimestampLit v -> v;
-            case SqlExpr.Exists x -> x;
-            case SqlExpr.ScalarSubquery x -> x;
-            case SqlExpr.WindowCall w -> w;
-            // JSON envelope nodes never appear inside fold bodies (the
-            // serialize envelope is a projection-level construct).
-            case SqlExpr.JsonObject j -> j;
-            case SqlExpr.JsonArrayAgg j -> j;
-            case com.legend.sql.SqlAgg.Reducer r -> r;
-        };
-    }
 
     /**
      * {@code data:application/json,[...]} inlines the payload as a JSON
