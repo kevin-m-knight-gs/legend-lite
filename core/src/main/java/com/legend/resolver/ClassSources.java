@@ -795,7 +795,7 @@ public final class ClassSources {
         // against this same mapping. Self-referential ~funcs would recurse
         // across instances — no corpus shape does; a cycle dies by stack,
         // loudly, not silently.
-        if (containsGetAll(pipeline)) {
+        if (anchoredInFlow(pipeline)) {
             var nested = new StoreResolver(ctx, specs)
                     .resolve(java.util.List.of(pipeline), null, mappingFqn);
             pipeline = nested.get(0);
@@ -805,22 +805,8 @@ public final class ClassSources {
                 pipeline, mapper.parameters().get(0), bindings, rowType);
     }
 
-    private static boolean containsGetAll(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll) {
-            return true;
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedNavigate nav) {
-            // a navigate SLOT's target is getAll-shaped BY CONVENTION (the
-            // legacyNavigate emission) — only pipeline-FLOW getAlls demand
-            // the recursive resolution
-            return containsGetAll(nav.source());
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsGetAll(c)) {
-                return true;
-            }
-        }
-        return false;
+    private static boolean anchoredInFlow(TypedSpec n) {
+        return Anchors.anchoredInFlow(n);
     }
 
     /**

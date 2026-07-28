@@ -298,7 +298,7 @@ public final class StoreResolver {
                                 p.info()), context),
                         p.info());
             }
-            case TypedIf i when containsGetAll(i) ->
+            case TypedIf i when anchored(i) ->
                     resolveStaticIf(i, context);
             // size()/count() over a class extent = row count (engine
             // emits select count(*)); classExtentCount projects ONE const
@@ -320,7 +320,7 @@ public final class StoreResolver {
                         m2.info().multiplicity()), context);
             }
             case TypedFilter f
-                    when containsGetAll(f.source())
+                    when anchored(f.source())
                     && !(f.source().info().type() instanceof Type.ClassType)
                     && !(f.source().info().type() instanceof Type.RelationType)
                     && f.source() instanceof TypedPropertyAccess ->
@@ -345,7 +345,7 @@ public final class StoreResolver {
                     resolveChain(g, context);
             // serialize / graphFetch->serialize: the GRAPH terminal —
             // the graphFetch wrapper is source-preserving; the tree governs.
-            case TypedSerialize sz when containsGetAll(sz.source()) ->
+            case TypedSerialize sz when anchored(sz.source()) ->
                     resolveChain(sz, context);
             // Relation-space wrappers rebuild with the resolved source
             // (infos stable); `.rows` MARKER erases here (audit 20c H1).
@@ -362,61 +362,61 @@ public final class StoreResolver {
             // hand rebuilds this replaces dropped TypedJoin.frameName via
             // the 6-arg compat ctor (remediation T2.1).
             case TypedPropertyAccess pa
-                    when containsGetAll(pa.source())
+                    when anchored(pa.source())
                     && pa.source().info().type()
                             instanceof Type.RelationType ->
                     structural(pa, context);
-            case TypedFilter f when containsGetAll(f.source()) ->
+            case TypedFilter f when anchored(f.source()) ->
                     structural(f, context);
-            case TypedProject p when containsGetAll(p.source()) ->
+            case TypedProject p when anchored(p.source()) ->
                     structural(p, context);
-            case TypedSort s when containsGetAll(s.source()) ->
+            case TypedSort s when anchored(s.source()) ->
                     structural(s, context);
             case TypedCast c
-                    when containsGetAll(c.source())
+                    when anchored(c.source())
                     && c.info().type() instanceof Type.RelationType ->
                     structural(c, context);
-            case TypedSortBy sb when containsGetAll(sb.source()) ->
+            case TypedSortBy sb when anchored(sb.source()) ->
                     structural(sb, context);
-            case TypedLimit l when containsGetAll(l.source()) ->
+            case TypedLimit l when anchored(l.source()) ->
                     structural(l, context);
-            case TypedDrop d when containsGetAll(d.source()) ->
+            case TypedDrop d when anchored(d.source()) ->
                     structural(d, context);
-            case TypedSlice s when containsGetAll(s.source()) ->
+            case TypedSlice s when anchored(s.source()) ->
                     structural(s, context);
-            case TypedDistinct d when containsGetAll(d.source()) ->
+            case TypedDistinct d when anchored(d.source()) ->
                     structural(d, context);
-            case TypedGroupBy g when containsGetAll(g.source()) ->
+            case TypedGroupBy g when anchored(g.source()) ->
                     structural(g, context);
-            case TypedAggregate a when containsGetAll(a.source()) ->
+            case TypedAggregate a when anchored(a.source()) ->
                     structural(a, context);
-            case TypedExtend e when containsGetAll(e.source()) ->
+            case TypedExtend e when anchored(e.source()) ->
                     structural(e, context);
-            case TypedExtendWindow w when containsGetAll(w.source()) ->
+            case TypedExtendWindow w when anchored(w.source()) ->
                     structural(w, context);
-            case TypedExtendAgg e when containsGetAll(e.source()) ->
+            case TypedExtendAgg e when anchored(e.source()) ->
                     structural(e, context);
-            case TypedRename r when containsGetAll(r.source()) ->
+            case TypedRename r when anchored(r.source()) ->
                     structural(r, context);
-            case TypedSelect s when containsGetAll(s.source()) ->
+            case TypedSelect s when anchored(s.source()) ->
                     structural(s, context);
-            case TypedConcatenate c when containsGetAll(c) ->
+            case TypedConcatenate c when anchored(c) ->
                     structural(c, context);
             // navigate keeps its TARGET verbatim (the navigation pipeline
             // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav
-                    when containsGetAll(nav.source())
+                    when anchored(nav.source())
                     && nav.target().info().type()
                             instanceof Type.RelationType ->
                     new TypedNavigate(
                             resolveNode(nav.source(), context), nav.alias(),
                             nav.target(), nav.predicate(), nav.form(), nav.info());
-            case TypedJoin j when containsGetAll(j) ->
+            case TypedJoin j when anchored(j) ->
                     structural(j, context);
             // map over RELATION rows above a class chain (the object-space
             // map arm matched earlier; this is the relation-space wrapper)
             case TypedMap m
-                    when containsGetAll(m.source())
+                    when anchored(m.source())
                     && m.source().info().type()
                             instanceof Type.RelationType ->
                     structural(m, context);
@@ -424,22 +424,22 @@ public final class StoreResolver {
             // args resolve structurally; CLASS-typed emptiness rewrites
             // FIRST (constant-project relation -> lowerer EXISTS; map §2).
             case TypedNativeCall nc
-                    when containsGetAll(nc) ->
+                    when anchored(nc) ->
                     structural(Pipelines.classEmptinessRewrite(nc,
                             StoreResolver::isObjectSpace), context);
             // collection literal whose ELEMENTS carry class chains:
             // each element resolves independently, structurally
             case com.legend.compiler.spec.typed.TypedCollection col
-                    when containsGetAll(col) ->
+                    when anchored(col) ->
                     structural(col, context);
             // a CAST over a chain bottoming at a getAll (typed reads like
             // getFloat = cast(columnRead(chain))): the source resolves
             // structurally, the cast rides along
             case com.legend.compiler.spec.typed.TypedCast tc
-                    when containsGetAll(tc) ->
+                    when anchored(tc) ->
                     structural(tc, context);
             // BARE value read over a class chain = auto-map sugar (Pipelines)
-            case TypedPropertyAccess vpa when containsGetAll(vpa.source()) -> {
+            case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
                 TypedSpec am = Pipelines.autoMapRead(vpa);
                 if (am == null) {
                     throw new NotImplementedException("class query under"
@@ -451,7 +451,7 @@ public final class StoreResolver {
             // a BARE lambda VALUE is DATA — its consumer owns resolution
             case com.legend.compiler.spec.typed.TypedLambda l -> l;
             default -> {
-                if (containsGetAll(n)) {
+                if (anchored(n)) {
                     throw new NotImplementedException("class query under "
                             + n.getClass().getSimpleName()
                             + " is not resolvable yet (H2 vocabulary)");
@@ -1166,10 +1166,10 @@ public final class StoreResolver {
     }
 
     /** concatenate over two class-collection chains, both fetch-bearing. */
-    private static TypedNativeCall classConcatOf(TypedSpec n) {
+    private TypedNativeCall classConcatOf(TypedSpec n) {
         return n instanceof TypedNativeCall c && c.args().size() == 2
                 && CONCAT_FQN.equals(c.callee().qualifiedName())
-                && containsGetAll(c.args().get(0)) && containsGetAll(c.args().get(1))
+                && anchored(c.args().get(0)) && anchored(c.args().get(1))
                 ? c : null;
     }
 
@@ -1220,16 +1220,15 @@ public final class StoreResolver {
         return branch;
     }
 
+    /** Anchor reachability, memoized per pass — see {@link Anchors}. */
+    private final Anchors anchors = new Anchors();
+
+    private boolean anchored(TypedSpec n) {
+        return anchors.anchored(n);
+    }
+
     static boolean containsGetAll(TypedSpec n) {
-        if (n instanceof TypedGetAll) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsGetAll(c)) {
-                return true;
-            }
-        }
-        return false;
+        return Anchors.containsGetAll(n);
     }
 
     // =====================================================================
