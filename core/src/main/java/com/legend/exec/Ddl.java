@@ -86,7 +86,15 @@ public final class Ddl {
             case RelationalDataType.Numeric n ->
                     "NUMERIC(" + n.precision() + ", " + n.scale() + ")";
             case RelationalDataType.SemiStructured ignored -> "JSON";
-            default -> throw new IllegalStateException(
+            // No DDL spelling by design — EXPLICIT so a new variant is a
+            // compile error here, not a runtime surprise (T3.1).
+            case RelationalDataType.Distinct ignored -> throw new IllegalStateException(
+                    "no DDL spelling for store column type " + t);
+            case RelationalDataType.Other ignored -> throw new IllegalStateException(
+                    "no DDL spelling for store column type " + t);
+            case RelationalDataType.Array ignored -> throw new IllegalStateException(
+                    "no DDL spelling for store column type " + t);
+            case RelationalDataType.Object_ ignored -> throw new IllegalStateException(
                     "no DDL spelling for store column type " + t);
         };
     }

@@ -589,7 +589,21 @@ public final class PlanText {
             case RelationalDataType.Date_ ignored -> "DATE";
             case RelationalDataType.Bit ignored -> "BIT";
             case RelationalDataType.Bool ignored -> "BOOLEAN";
-            default -> throw new NotImplementedException(
+            // Pending spellings — EXPLICIT so a new variant is a compile
+            // error here, not a runtime surprise (T3.1).
+            case RelationalDataType.Binary ignored -> throw new NotImplementedException(
+                    "plan: type spelling for " + t + " pending");
+            case RelationalDataType.Varbinary ignored -> throw new NotImplementedException(
+                    "plan: type spelling for " + t + " pending");
+            case RelationalDataType.Distinct ignored -> throw new NotImplementedException(
+                    "plan: type spelling for " + t + " pending");
+            case RelationalDataType.Other ignored -> throw new NotImplementedException(
+                    "plan: type spelling for " + t + " pending");
+            case RelationalDataType.SemiStructured ignored -> throw new NotImplementedException(
+                    "plan: type spelling for " + t + " pending");
+            case RelationalDataType.Array ignored -> throw new NotImplementedException(
+                    "plan: type spelling for " + t + " pending");
+            case RelationalDataType.Object_ ignored -> throw new NotImplementedException(
                     "plan: type spelling for " + t + " pending");
         };
     }

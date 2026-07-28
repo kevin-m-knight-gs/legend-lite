@@ -996,7 +996,17 @@ public final class TestDataGenerator {
                     "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
             case RelationalDataType.Numeric n ->
                     "DECIMAL(" + n.precision() + ", " + n.scale() + ")";
-            default -> "VARCHAR";
+            // Text-shaped seeds — EXPLICIT per variant so a new variant is
+            // a compile error, never a silent VARCHAR (T3.1).
+            case RelationalDataType.Varchar ignored -> "VARCHAR";
+            case RelationalDataType.Char_ ignored -> "VARCHAR";
+            case RelationalDataType.Binary ignored -> "VARCHAR";
+            case RelationalDataType.Varbinary ignored -> "VARCHAR";
+            case RelationalDataType.Distinct ignored -> "VARCHAR";
+            case RelationalDataType.Other ignored -> "VARCHAR";
+            case RelationalDataType.SemiStructured ignored -> "VARCHAR";
+            case RelationalDataType.Array ignored -> "VARCHAR";
+            case RelationalDataType.Object_ ignored -> "VARCHAR";
         };
     }
 
