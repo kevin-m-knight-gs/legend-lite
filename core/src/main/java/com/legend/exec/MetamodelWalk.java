@@ -63,8 +63,12 @@ public final class MetamodelWalk {
 
     /** A Mapping ELEMENT reference as a metamodel handle, or null. */
     public static Object mapping(ModelContext ctx, String fqn) {
-        return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
+        Object h = ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                 .orElse(null);
+        if (System.getenv("LL_TMP_DEBUG") != null) {
+            System.err.println("[mm] mapping(" + fqn + ") -> " + (h != null));
+        }
+        return h;
     }
 
     /** {@code rootClassMappingByClass} — the class's relational set. */
@@ -76,6 +80,14 @@ public final class MetamodelWalk {
                         && r.className().equals(classFqn)) {
                     return new Cm(m.ctx(), r);
                 }
+            }
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[mm] rcmbc miss " + classFqn + " in "
+                        + m.mapping().classMappings().stream().map(x ->
+                                x instanceof com.legend.model.ClassMapping
+                                        .Relational r2 ? r2.className()
+                                        : x.getClass().getSimpleName())
+                                .toList());
             }
         }
         return null;
@@ -89,6 +101,13 @@ public final class MetamodelWalk {
                 if (pm.propertyName().equals(name)) {
                     out.add(new Pm(c.ctx(), pm));
                 }
+            }
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[mm] pmsByName(" + name + ") -> "
+                        + out.size() + " of " + c.cm().propertyMappings()
+                                .stream().map(x -> x.propertyName()
+                                        + ":" + x.getClass().getSimpleName())
+                                .toList());
             }
             return out;
         }
@@ -195,6 +214,28 @@ public final class MetamodelWalk {
                             ? new RelationalDataType.Double_() : at;
                 }
                 case "count" -> new RelationalDataType.Integer_();
+                // boolean dynafunctions spell BIT (engine H2)
+                case "and", "or", "not", "equal", "notequal", "in",
+                        "isnull", "isnotnull", "greaterthan", "lessthan",
+                        "greaterthanequal", "lessthanequal", "isempty",
+                        "isnotempty", "like", "startswith", "endswith",
+                        "contains" -> new RelationalDataType.Bit();
+                // sqlNull carries the engine's OTHER type
+                case "sqlnull" -> new RelationalDataType.Other();
+                // string concatenation SUMS the operand sizes (engine
+                // getSize over joinStrings/concat)
+                case "concat", "joinstrings", "group_concat" -> {
+                    int size = 0;
+                    for (var arg : f.args()) {
+                        RelationalDataType at2 = inferOp(env, arg);
+                        if (at2 instanceof RelationalDataType.Varchar v2) {
+                            size += v2.size();
+                        } else if (at2 instanceof RelationalDataType.Char_ c2) {
+                            size += c2.size();
+                        }
+                    }
+                    yield new RelationalDataType.Varchar(size);
+                }
                 // case(c1, v1, ..., else): the SAFE type over the value
                 // branches (engine getSafeType lattice)
                 case "case" -> {
@@ -223,6 +264,14 @@ public final class MetamodelWalk {
                     j.terminal() == null ? null
                             : inferOp(env, j.terminal());
             case RelationalOperation.Group g -> inferOp(env, g.inner());
+            case RelationalOperation.Literal l -> switch (l.value()) {
+                case String str ->
+                        new RelationalDataType.Varchar(str.length());
+                case Integer ignored -> new RelationalDataType.Integer_();
+                case Long ignored -> new RelationalDataType.Integer_();
+                case Double ignored -> new RelationalDataType.Double_();
+                default -> null;
+            };
             // boolean expressions spell BIT (engine H2 boolean SQL type)
             case RelationalOperation.Comparison ignored ->
                     new RelationalDataType.Bit();
@@ -317,6 +366,22 @@ public final class MetamodelWalk {
                 }
             }
         }
+        // views resolve THROUGH their column expression (view-on-view)
+        List<DatabaseDefinition.ViewDefinition> vs = new ArrayList<>(
+                db.views());
+        for (var s : db.schemas()) {
+            vs.addAll(s.views());
+        }
+        for (var v : vs) {
+            if (v.name().equalsIgnoreCase(table)) {
+                for (var cm : v.columnMappings()) {
+                    if (cm.name().equalsIgnoreCase(column)) {
+                        return inferOp(new Rop(db, env.ctx(),
+                                cm.expression()), cm.expression());
+                    }
+                }
+            }
+        }
         return null;
     }
 
@@ -346,6 +411,7 @@ public final class MetamodelWalk {
             case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
             case RelationalDataType.Date_ ignored -> "DATE";
             case RelationalDataType.Bit ignored -> "BIT";
+            case RelationalDataType.Other ignored -> "OTHER";
             default -> throw new NotImplementedException(
                     "dataTypeToSqlText spelling for " + d.type()
                     + " pending");

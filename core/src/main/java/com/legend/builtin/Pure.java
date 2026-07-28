@@ -242,6 +242,11 @@ public final class Pure {
     public static final ClassDefinition VIEW_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::View extends meta::pure::metamodel::ModelElement { columnMappings: meta::relational::mapping::ColumnMapping[*]; }");
     public static final ClassDefinition COLUMN_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::ColumnMapping extends meta::pure::metamodel::type::Any { columnName: meta::pure::metamodel::type::String[1]; relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     public static final ClassDefinition RELATIONAL_OPERATION_ELEMENT = nativeClass("native Class meta::relational::metamodel::RelationalOperationElement extends meta::pure::metamodel::type::Any {}");
+    // CONSTRUCTED relational-op instances (^DynaFunction(...) in the
+    // inference tests — real relational.pure metamodel)
+    public static final ClassDefinition DYNA_FUNCTION_METACLASS = nativeClass("native Class meta::relational::metamodel::DynaFunction extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; parameters: meta::relational::metamodel::RelationalOperationElement[*]; }");
+    public static final ClassDefinition LITERAL_METACLASS = nativeClass("native Class meta::relational::metamodel::Literal extends meta::relational::metamodel::RelationalOperationElement { value: meta::pure::metamodel::type::Any[1]; }");
+    public static final ClassDefinition LITERAL_LIST_METACLASS = nativeClass("native Class meta::relational::metamodel::LiteralList extends meta::relational::metamodel::RelationalOperationElement { values: meta::relational::metamodel::Literal[*]; }");
     public static final ClassDefinition DATA_TYPE_METACLASS = nativeClass("native Class meta::relational::metamodel::datatype::DataType extends meta::pure::metamodel::type::Any {}");
     // The MAPPING-side inference navigation (real functions_Mapping.pure
     // :61 + functions_PropertyMappingsImplementation.pure:74 +

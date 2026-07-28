@@ -840,6 +840,7 @@ public final class Runner {
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[try-run] " + t.fqn() + " threw "
                         + e);
+                e.printStackTrace();
             }
             return null;
         }

@@ -435,7 +435,9 @@ class NativeFunctionTest {
         // 95: +SetImplementation/InstanceSetImplementation/
         //     RootRelationalInstanceSetImplementation/PropertyMapping/
         //     RelationalPropertyMapping (mapping-side inference nav).
-        assertEquals(95, Pure.allNativeClasses().size(),
+        // 98: +DynaFunction/Literal/LiteralList (constructed relational
+        //     ops in the inference tests).
+        assertEquals(98, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -475,6 +477,15 @@ class NativeFunctionTest {
                     java.util.Map.entry(
                     "meta::relational::mapping::RelationalPropertyMapping",
                     List.of("relationalOperationElement")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::DynaFunction",
+                    List.of("name", "parameters")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::Literal",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::LiteralList",
+                    List.of("values")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Database",
                     List.of("schemas")),

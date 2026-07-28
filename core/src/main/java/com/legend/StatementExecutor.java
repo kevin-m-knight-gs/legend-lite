@@ -720,6 +720,17 @@ final class StatementExecutor {
                     : com.legend.exec.MetamodelWalk.mapping(env.ctx(),
                             pr9.fullPath());
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedNewInstance ni9
+                && ni9.classFqn().startsWith(
+                        "meta::relational::metamodel::")) {
+            // CONSTRUCTED relational-op instance (^DynaFunction(...)):
+            // convert to the host RelationalOperation for the inference
+            com.legend.model.RelationalOperation ro = constructOp(ni9,
+                    specs, env);
+            return ro == null ? null
+                    : new com.legend.exec.MetamodelWalk.Rop(null,
+                            env.ctx(), ro);
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
             Object recv = planWalk(pa.source(), specs, env);
             if (recv == null) {
@@ -814,6 +825,10 @@ final class StatementExecutor {
                     }
                 }
                 case "rootClassMappingByClass" -> {
+                    if (System.getenv("LL_TMP_DEBUG") != null) {
+                        System.err.println("[mm] rcmbc arg1="
+                                + c.args().get(1).getClass().getSimpleName());
+                    }
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
                                     .TypedPackageableRef cref) {
@@ -842,6 +857,96 @@ final class StatementExecutor {
             }
         }
         return null;
+    }
+
+    /** A constructed relational-op instance's HOST value: DynaFunction/
+     * Literal/LiteralList convert structurally; walked sub-chains
+     * contribute their own Rop ops; anything else nulls. */
+    private static com.legend.model.RelationalOperation constructOp(
+            com.legend.compiler.spec.typed.TypedNewInstance ni,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        String simple = ni.classFqn().substring(
+                ni.classFqn().lastIndexOf(':') + 1);
+        switch (simple) {
+            case "DynaFunction" -> {
+                TypedSpec nameV = ni.properties().get("name");
+                if (!(nameV instanceof
+                        com.legend.compiler.spec.typed.TypedCString cs)) {
+                    return null;
+                }
+                java.util.List<com.legend.model.RelationalOperation> args =
+                        new java.util.ArrayList<>();
+                TypedSpec ps = ni.properties().get("parameters");
+                java.util.List<TypedSpec> els = ps == null
+                        ? java.util.List.of()
+                        : ps instanceof com.legend.compiler.spec.typed
+                                .TypedCollection tc ? tc.elements()
+                                : java.util.List.of(ps);
+                for (TypedSpec e : els) {
+                    com.legend.model.RelationalOperation a = argOp(e,
+                            specs, env);
+                    if (a == null) {
+                        return null;
+                    }
+                    args.add(a);
+                }
+                return new com.legend.model.RelationalOperation
+                        .FunctionCall(cs.value(), args);
+            }
+            case "Literal" -> {
+                TypedSpec v = ni.properties().get("value");
+                Object lit = switch (v) {
+                    case com.legend.compiler.spec.typed.TypedCString c2 ->
+                            c2.value();
+                    case com.legend.compiler.spec.typed.TypedCInteger i2 ->
+                            i2.value();
+                    case com.legend.compiler.spec.typed.TypedCFloat f2 ->
+                            f2.value();
+                    default -> null;
+                };
+                return lit == null ? null
+                        : new com.legend.model.RelationalOperation
+                                .Literal(lit);
+            }
+            case "LiteralList" -> {
+                TypedSpec vs = ni.properties().get("values");
+                java.util.List<com.legend.model.RelationalOperation> els2 =
+                        new java.util.ArrayList<>();
+                java.util.List<TypedSpec> raw = vs instanceof
+                        com.legend.compiler.spec.typed.TypedCollection tc2
+                        ? tc2.elements()
+                        : vs == null ? java.util.List.of()
+                                : java.util.List.of(vs);
+                for (TypedSpec e : raw) {
+                    com.legend.model.RelationalOperation a = argOp(e,
+                            specs, env);
+                    if (a == null) {
+                        return null;
+                    }
+                    els2.add(a);
+                }
+                return new com.legend.model.RelationalOperation
+                        .ArrayLiteral(els2);
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    /** One constructor-argument op: nested instance, or a WALKED chain
+     * whose value is already a relational-op handle. */
+    private static com.legend.model.RelationalOperation argOp(TypedSpec e,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        if (e instanceof com.legend.compiler.spec.typed.TypedNewInstance nni) {
+            return constructOp(nni, specs, env);
+        }
+        Object w = planWalk(e, specs, env);
+        if (w instanceof java.util.List<?> lw && lw.size() == 1) {
+            w = lw.get(0);
+        }
+        return w instanceof com.legend.exec.MetamodelWalk.Rop r
+                ? r.op() : null;
     }
 
     /** NARROW map-lambda body: one native call over the parameter
