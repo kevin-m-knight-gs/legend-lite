@@ -46,7 +46,7 @@ final class UnionSerialOrder {
         }
         SqlQuery rewritten = intoQuery(ss.inner());
         return rewritten == null ? null
-                : new SqlSource.Subselect(rewritten, ss.alias());
+                : new SqlSource.Subselect(rewritten, ss.alias(), ss.frameName());
     }
 
     private static SqlQuery intoQuery(SqlQuery q) {

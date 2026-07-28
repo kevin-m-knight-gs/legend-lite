@@ -210,20 +210,20 @@ final class FlattenOps {
             if (composed != null && composed.equals(prefix)) {
                 return new com.legend.compiler.spec.typed.TypedJoin(
                         j.left(), j.right(), StoreResolver.innerKind(),
-                        j.condition(), j.prefix(), j.info());
+                        j.condition(), j.prefix(), j.frameName(), j.info());
             }
             TypedSpec left = innerizeOrNull(j.left(), prefix, acc);
             if (left != null) {
                 return new com.legend.compiler.spec.typed.TypedJoin(
                         left, j.right(), j.kind(), j.condition(),
-                        j.prefix(), j.info());
+                        j.prefix(), j.frameName(), j.info());
             }
             if (composed != null && prefix.startsWith(composed)) {
                 TypedSpec right = innerizeOrNull(j.right(), prefix, composed);
                 if (right != null) {
                     return new com.legend.compiler.spec.typed.TypedJoin(
                             j.left(), right, j.kind(), j.condition(),
-                            j.prefix(), j.info());
+                            j.prefix(), j.frameName(), j.info());
                 }
             }
             return null;

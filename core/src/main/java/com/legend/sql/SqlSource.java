@@ -45,7 +45,16 @@ public sealed interface SqlSource {
     record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 
-    record Subselect(SqlQuery inner, String alias) implements SqlSource {
+    /** {@code frameName}: the derived table's MODEL identity (a view's
+     * own name) — null for anonymous isolation subselects. Dialects that
+     * re-alias by table group name view frames by it. */
+    record Subselect(SqlQuery inner, String alias, String frameName)
+            implements SqlSource {
+
+        public Subselect(SqlQuery inner, String alias) {
+            this(inner, alias, null);
+        }
+
         @Override
         public List<OutputCol> outputs() {
             return inner.outputs();

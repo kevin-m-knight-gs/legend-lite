@@ -500,7 +500,7 @@ final class TemporalFrame {
         TypedSpec out = new TypedJoin(processedLeft, stripped, j.kind(),
                 outerDatedCond(j.condition(), j.left(), stripped, navClass,
                         outerCol, headDate),
-                j.prefix(),
+                j.prefix(), j.frameName(),
                 new ExprType(new Type.RelationType(headCols),
                         Multiplicity.Bounded.ONE));
         for (int i = 0; i < pfxs.size(); i++) {
@@ -544,7 +544,7 @@ final class TemporalFrame {
                         : new Type.Column(nm, sc.type(), sc.multiplicity()));
             }
             out = new TypedJoin(out, sj.right(), sj.kind(), c,
-                    java.util.Optional.of(headPfx + pfx),
+                    java.util.Optional.of(headPfx + pfx), sj.frameName(),
                     new ExprType(new Type.RelationType(cols),
                             Multiplicity.Bounded.ONE));
         }
@@ -1602,7 +1602,7 @@ final class TemporalFrame {
                                                         : null),
                                         j.left(), right, chainHead, outerCol,
                                         navClass),
-                                j.prefix(), j.info());
+                                j.prefix(), j.frameName(), j.info());
                     }
                     filtered = temporalTargetPipe(cs,
                             sources.get(cs.mappingFqn(), navClass), chainHead, right);
@@ -1615,7 +1615,8 @@ final class TemporalFrame {
                 }
                 yield new TypedJoin(
                         applyJoinTemporalFilters(j.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
-                        filtered, j.kind(), j.condition(), j.prefix(), j.info());
+                        filtered, j.kind(), j.condition(), j.prefix(),
+                        j.frameName(), j.info());
             }
             case TypedFilter f -> new TypedFilter(
                     applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
@@ -2196,7 +2197,8 @@ final class TemporalFrame {
             }
             return new TypedJoin(
                     filterMilestonedJoinTargets(j.left(), c), right,
-                    j.kind(), j.condition(), j.prefix(), j.info());
+                    j.kind(), j.condition(), j.prefix(), j.frameName(),
+                    j.info());
         }
         return n;
     }

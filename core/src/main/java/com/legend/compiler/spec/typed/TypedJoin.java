@@ -20,7 +20,16 @@ import java.util.List;
  */
 public record TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
                         TypedLambda condition, java.util.Optional<String> prefix,
-                        ExprType info) implements TypedSpec {
+                        String frameName, ExprType info) implements TypedSpec {
+
+    /** frameName: the RIGHT side's derived-table identity (a view-backed
+     * target's view name) — null for anonymous targets. */
+    public TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
+            TypedLambda condition, java.util.Optional<String> prefix,
+            ExprType info) {
+        this(left, right, kind, condition, prefix, null, info);
+    }
+
     @Override
     public List<TypedSpec> children() {
         return List.of(left, right, kind, condition);

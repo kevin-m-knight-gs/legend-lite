@@ -537,7 +537,7 @@ public final class UserCallInliner {
                     aggCols(p.aggs(), env), p.info());
             case TypedJoin j -> new TypedJoin(rewrite(j.left(), env),
                     rewrite(j.right(), env), j.kind(),
-                    lambda(j.condition(), env), j.prefix(), j.info());
+                    lambda(j.condition(), env), j.prefix(), j.frameName(), j.info());
             case TypedAsOfJoin j -> new TypedAsOfJoin(rewrite(j.left(), env),
                     rewrite(j.right(), env), lambda(j.match(), env),
                     j.condition().map(c -> lambda(c, env)), j.prefix(), j.info());

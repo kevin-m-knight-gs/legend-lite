@@ -254,12 +254,12 @@ final class SubselectPrune {
                 if (inner instanceof SqlSelect sel) {
                     SqlSelect pruned = pruneProjections(sel, sub.alias(), r);
                     yield pruned == sel && inner == sub.inner() ? sub
-                            : new SqlSource.Subselect(pruned, sub.alias());
+                            : new SqlSource.Subselect(pruned, sub.alias(), sub.frameName());
                 }
                 // set-operation inner: branches are positional — never
                 // pruned themselves (their nested subselects already were)
                 yield inner == sub.inner() ? sub
-                        : new SqlSource.Subselect(inner, sub.alias());
+                        : new SqlSource.Subselect(inner, sub.alias(), sub.frameName());
             }
             case SqlSource.Join j -> {
                 SqlSource left = rewriteSource(j.left(), r);

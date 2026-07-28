@@ -183,7 +183,7 @@ public final class SqlPostProcessors {
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(), expr(j.on(), m));
             case SqlSource.Subselect sub -> new SqlSource.Subselect(
-                    apply(sub.inner(), m), sub.alias());
+                    apply(sub.inner(), m), sub.alias(), sub.frameName());
             default -> src;
         };
     }
