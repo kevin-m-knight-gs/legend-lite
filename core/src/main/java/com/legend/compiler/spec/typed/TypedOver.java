@@ -19,23 +19,23 @@ import java.util.Optional;
  * @param info       {@code _Window<(cols:?)>[1]}
  */
 public record TypedOver(List<String> partitions, List<TypedSort.TypedSortKey> sortKeys,
-                        Optional<TypedSpec> frame, ExprType info) implements TypedSpec {
+                        Optional<WindowFrame> frame, ExprType info) implements TypedSpec {
     public TypedOver {
         partitions = List.copyOf(partitions);
         sortKeys = List.copyOf(sortKeys);
     }
 
+    // frame is a CLASSIFIED value (WindowFrame), not an expression child:
+    // its literal bounds were decided and validated at the checker; there
+    // is nothing beneath it for a rewriter to substitute into.
     @Override
     public List<TypedSpec> children() {
-        return frame.map(List::of).orElseGet(List::of);
+        return List.of();
     }
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        TypedSpec.expectChildren(kids, frame.isPresent() ? 1 : 0, "TypedOver");
-        return frame.isPresent()
-                ? new TypedOver(partitions, sortKeys,
-                        java.util.Optional.of(kids.get(0)), info)
-                : this;
+        TypedSpec.expectChildren(kids, 0, "TypedOver");
+        return this;
     }
 }

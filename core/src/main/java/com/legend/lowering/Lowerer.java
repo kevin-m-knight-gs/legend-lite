@@ -1850,87 +1850,37 @@ public final class Lowerer {
                     k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
                             : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
-        return new Over(parts, keys, over.frame().map(this::frame).orElse(null));
+        return new Over(parts, keys, over.frame().map(Lowerer::sqlFrame).orElse(null));
     }
 
-    /** rows(a,b) / range(a,b): negative→PRECEDING, 0→CURRENT ROW, positive→FOLLOWING. */
-    private SqlExpr.WindowCall.Frame frame(TypedSpec spec) {
-        if (!(spec instanceof TypedNativeCall call)) {
-            throw new IllegalStateException("window frame lowering expects rows()/range(), got "
-                    + spec.getClass().getSimpleName());
-        }
-        // INTERVAL ranges (_range(n, DurationUnit, m, DurationUnit) and the
-        // unbounded mixes): each bounded side pairs an Integer with its
-        // DurationUnit — RANGE BETWEEN INTERVAL n UNIT PRECEDING/FOLLOWING.
-        {
-            List<TypedSpec> as = call.args();
-            boolean interval = as.stream().anyMatch(a ->
-                    a instanceof TypedEnumValue ev
-                            && ev.enumFqn().equals("meta::pure::functions::date::DurationUnit"));
-            if (interval) {
-                SqlExpr.WindowCall.Frame.Bound from;
-                SqlExpr.WindowCall.Frame.Bound to;
-                int i = 0;
-                if (isUnboundedCall(as.get(i))) {
-                    from = new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
-                    i += 1;
-                } else {
-                    from = intervalBound(as.get(i), as.get(i + 1), true);
-                    i += 2;
-                }
-                if (i < as.size() && isUnboundedCall(as.get(i))) {
-                    to = new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
-                } else {
-                    to = intervalBound(as.get(i), as.get(i + 1), false);
-                }
-                return new SqlExpr.WindowCall.Frame(
-                        SqlExpr.WindowCall.Frame.Kind.RANGE, from, to);
-            }
-        }
-        boolean rows = Pure.nativeNamed("rows", call.callee().signatureKey());
-        // LITERAL bounds validate here: a start beyond the end (2 FOLLOWING
-        // .. 1 FOLLOWING; 1 FOLLOWING .. 1 PRECEDING) is a COMPILE error,
-        // never bad SQL (PCT: invalid window frame boundary).
-        Number from = numericBound(call.args().get(0));
-        Number to = numericBound(call.args().get(1));
-        if (from != null && to != null && from.doubleValue() > to.doubleValue()) {
-            // Real rows()/_range() assert text verbatim (PCT message parity).
-            throw new ModelException(
-                    LegendCompileException.Phase.LOWER,
-                    "Invalid window frame boundary - lower bound of window frame"
-                            + " cannot be greater than the upper bound!");
-        }
+    /** The checker-classified frame, mapped 1:1 to the SQL IR shape. */
+    private static SqlExpr.WindowCall.Frame sqlFrame(
+            com.legend.compiler.spec.typed.WindowFrame f) {
         return new SqlExpr.WindowCall.Frame(
-                rows ? SqlExpr.WindowCall.Frame.Kind.ROWS : SqlExpr.WindowCall.Frame.Kind.RANGE,
-                bound(call.args().get(0), true), bound(call.args().get(1), false));
+                f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS
+                        ? SqlExpr.WindowCall.Frame.Kind.ROWS
+                        : SqlExpr.WindowCall.Frame.Kind.RANGE,
+                sqlBound(f.from()), sqlBound(f.to()));
     }
 
-    private SqlExpr.WindowCall.Frame.Bound bound(TypedSpec arg, boolean fromSide) {
-        // A negative literal arrives as unary minus AROUND the number — unwrap.
-        if (arg instanceof TypedNativeCall neg
-                && Pure.nativeNamed("minus", neg.callee().signatureKey())
-                && neg.args().size() == 1 && numericBound(neg.args().get(0)) != null) {
-            return new SqlExpr.WindowCall.Frame.Bound.Preceding(numericBound(neg.args().get(0)));
-        }
-        Number n = numericBound(arg);
-        if (n != null) {
-            double v = n.doubleValue();
-            if (v < 0) {
-                return new SqlExpr.WindowCall.Frame.Bound.Preceding(negate(n));
-            }
-            if (v > 0) {
-                return new SqlExpr.WindowCall.Frame.Bound.Following(n);
-            }
-            return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
-        }
-        if (arg instanceof TypedNativeCall call
-                && Pure.nativeNamed("unbounded", call.callee().signatureKey())) {
-            return fromSide ? new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding()
-                    : new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
-        }
-        // NO fallback: an unrecognized bound is a loud error, never UNBOUNDED.
-        throw new IllegalStateException("window frame bound must be a numeric literal or"
-                + " unbounded(), got " + arg.getClass().getSimpleName());
+    private static SqlExpr.WindowCall.Frame.Bound sqlBound(
+            com.legend.compiler.spec.typed.WindowFrame.Bound b) {
+        return switch (b) {
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
+                    new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
+                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
+                    new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
+                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
+                    new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->
+                    new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(ip.n(), ip.unit());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalFollowing ifo ->
+                    new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(ifo.n(), ifo.unit());
+        };
     }
 
     /**
@@ -1952,54 +1902,6 @@ public final class Lowerer {
         return false;
     }
 
-    private static boolean isUnboundedCall(TypedSpec arg) {
-        return arg instanceof TypedNativeCall c
-                && Pure.nativeNamed("unbounded", c.callee().signatureKey());
-    }
-
-    /** One INTERVAL frame side: signed Integer + DurationUnit literal. */
-    private SqlExpr.WindowCall.Frame.Bound intervalBound(TypedSpec amount, TypedSpec unit,
-            boolean fromSide) {
-        Number n = numericBound(amount);
-        if (n == null || !(unit instanceof TypedEnumValue ev)) {
-            throw new IllegalStateException("interval frame bound needs a literal"
-                    + " Integer and a DurationUnit literal");
-        }
-        long v = n.longValue();
-        if (v < 0) {
-            return new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(-v, ev.value());
-        }
-        if (v > 0) {
-            return new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(v, ev.value());
-        }
-        return new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
-    }
-
-    /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
-    private static Number numericBound(TypedSpec arg) {
-        // A negative literal arrives as unary minus AROUND the number.
-        if (arg instanceof TypedNativeCall neg
-                && Pure.nativeNamed("minus", neg.callee().signatureKey())
-                && neg.args().size() == 1) {
-            Number inner = numericBound(neg.args().get(0));
-            return inner == null ? null : -inner.doubleValue();
-        }
-        return switch (arg) {
-            case TypedCInteger c -> c.value().longValue();
-            case TypedCFloat c -> c.value();
-            case TypedCDecimal c -> c.value();
-            default -> null;
-        };
-    }
-
-    private static Number negate(Number n) {
-        return switch (n) {
-            case Long l -> -l;
-            case Double d -> -d;
-            case java.math.BigDecimal b -> b.negate();
-            default -> -n.doubleValue();
-        };
-    }
 
     /**
      * A window column's body, classified AT LOWERING (the deliberate Phase-G

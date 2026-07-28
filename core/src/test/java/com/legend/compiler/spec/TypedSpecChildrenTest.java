@@ -239,6 +239,14 @@ class TypedSpecChildrenTest {
         if (type == PureDateLiteral.class) {
             return new PureDateLiteral.StrictDate(2020, 1, 1);
         }
+        if (type == com.legend.compiler.spec.typed.WindowFrame.class) {
+            return new com.legend.compiler.spec.typed.WindowFrame(
+                    com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS,
+                    new com.legend.compiler.spec.typed.WindowFrame.Bound
+                            .UnboundedPreceding(),
+                    new com.legend.compiler.spec.typed.WindowFrame.Bound
+                            .CurrentRow());
+        }
         if (type == PureTimeLiteral.class) {
             return new PureTimeLiteral.TimeWithMinute(10, 30);
         }

@@ -33,10 +33,11 @@ final class OverChecker {
         Application a = t.checkGeneric(af, env);
         List<String> partitions = new ArrayList<>();
         List<TypedSort.TypedSortKey> keys = new ArrayList<>();
-        Optional<TypedSpec> frame = Optional.empty();
+        Optional<com.legend.compiler.spec.typed.WindowFrame> frame = Optional.empty();
         for (TypedSpec arg : a.args()) {
             if (isFrame(arg)) {
-                frame = Optional.of(arg);   // rows(a,b) / range — a checked Frame value
+                // rows(a,b) / range — classified HERE, bounds validated once
+                frame = Optional.of(Frames.classify(arg));
             } else {
                 collect(arg, partitions, keys);
             }
