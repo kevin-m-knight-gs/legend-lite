@@ -55,11 +55,16 @@ git commit (document deltas per-commit) && push origin main
 - Guardrails: files ≤3500 lines, methods ≤250 — split at the numbered-comment
   seams (GroupBySynthesis/NullSemantics/JoinChainEmission are the pattern).
 
-## Current state (as of the audit-21 fix slice)
+## Current state (as of the flapper-elimination arc, 2026-07-28)
 
-- Corpus **1085 pass / 53 fail of 2538** (parse completion 28245c49:
-  541/541 corpus files parse — every remaining non-pass is semantic).
-  Core 1497, engine 2729, PCT 1109.
+- Corpus **2004/2538 pass = 79.0%** — remaining: 104 FAIL, 187 ERROR,
+  243 SHAPE (per-family table + per-test outcomes in
+  docs/RELATIONAL_CORPUS.md, which is ALSO the mechanical regression
+  baseline the corpus runner asserts against). The rate is always
+  quoted as pass/total; FAIL+ERROR+SHAPE are all non-passing.
+  Parse completion 28245c49: 541/541 corpus files parse.
+  PCT 1109/1109 with build gating ON (33 message-pinned expected
+  failures, accounted in docs/PCT_EXPECTED_FAILURES.md).
 - ef628eb6 AUDIT 22 (findings in docs/audit-22{a,b}-*.md): five probed
   silent-wrong-value holes closed — Variant-root JSON decode gate,
   exactly-[1]+post-substitution β-reduce guards, [0..1] derived reads
