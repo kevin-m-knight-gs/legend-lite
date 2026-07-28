@@ -2,6 +2,10 @@ package com.legend.lowering;
 
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.TypedFunction;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlAgg;
+import com.legend.sql.SqlSelect;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 /**
@@ -83,4 +87,76 @@ final class Windows {
     static WindowFn lookup(TypedFunction callee) {
         return FNS.get(callee.signatureKey());
     }
+    /**
+     * Window position accepts COMPOSED aggregates (wavg = SUM(v*w)/SUM(w),
+     * hashCode = HASH(LIST(x))): every bare reducer inside the value
+     * expression gets the SAME window spec.
+     */
+    static SqlExpr windowize(SqlExpr e, List<SqlExpr> partitionBy,
+            List<SqlSelect.SortKey> orderBy, SqlExpr.WindowCall.Frame frame) {
+        return switch (e) {
+            case SqlAgg.Reducer r ->
+                    new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
+            case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.Cast c ->
+                    new SqlExpr.Cast(windowize(c.value(), partitionBy, orderBy, frame),
+                            c.target());
+            // A reducer under a CASE arm must window too (audit: the first
+            // agg recipe that guards with CASE would render bare).
+            case SqlExpr.Case cs -> new SqlExpr.Case(
+                    cs.whens().stream().map(w -> new SqlExpr.Case.When(
+                            windowize(w.condition(), partitionBy, orderBy, frame),
+                            windowize(w.then(), partitionBy, orderBy, frame))).toList(),
+                    cs.otherwise() == null ? null
+                            : windowize(cs.otherwise(), partitionBy, orderBy, frame));
+            // Composite carriers: a reducer anywhere inside must window
+            // (audit 15: the open default let these render bare aggregates).
+            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(a.elements().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
+                    .map(f -> new SqlExpr.StructLit.Field(f.name(),
+                            windowize(f.value(), partitionBy, orderBy, frame)))
+                    .toList());
+            case SqlExpr.StructGet g -> new SqlExpr.StructGet(
+                    windowize(g.source(), partitionBy, orderBy, frame), g.field());
+            case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(j.kv().stream()
+                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
+            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
+                    windowize(f.source(), partitionBy, orderBy, frame), f.lambda(),
+                    windowize(f.init(), partitionBy, orderBy, frame),
+                    f.accIsList(), f.homogeneous());
+            // Ordered-set / array aggregates are not expressible as OVER()
+            // window functions in this IR — bare emission would silently
+            // change grouping semantics; the shape stays loud until built.
+            case SqlExpr.OrderedListAgg ignored ->
+                    throw new com.legend.error.NotImplementedException(
+                            "ordered list aggregate in window position");
+            case SqlExpr.JsonArrayAgg ignored ->
+                    throw new com.legend.error.NotImplementedException(
+                            "json array aggregate in window position");
+            // Subqueries own their scope: a reducer inside aggregates THERE,
+            // never over this window. Already-windowed calls keep their spec.
+            case SqlExpr.Exists x -> x;
+            case SqlExpr.ScalarSubquery s -> s;
+            case SqlExpr.WindowCall w -> w;
+            case SqlExpr.Lambda l -> l;
+            case SqlExpr.Group g -> new SqlExpr.Group(
+                    windowize(g.inner(), partitionBy, orderBy, frame));
+            // Leaves: no reducer can hide below.
+            case SqlExpr.PlanParam ignored -> e;
+            case SqlExpr.Column ignored -> e;
+            case SqlExpr.Star ignored -> e;
+            case SqlExpr.StarExcept ignored -> e;
+            case SqlExpr.StringLit ignored -> e;
+            case SqlExpr.IntLit ignored -> e;
+            case SqlExpr.FloatLit ignored -> e;
+            case SqlExpr.DecimalLit ignored -> e;
+            case SqlExpr.BoolLit ignored -> e;
+            case SqlExpr.NullLit ignored -> e;
+            case SqlExpr.DateLit ignored -> e;
+            case SqlExpr.TimestampLit ignored -> e;
+        };
+    }
+
 }

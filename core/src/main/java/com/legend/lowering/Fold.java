@@ -54,6 +54,97 @@ final class Fold {
         return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
     }
 
+    /** An ORDER-SENSITIVE aggregate over a UNION-ALL-backed source with
+     * no explicit key carries pure's CONCATENATE order obligation — the
+     * union's branches are an ORDERED list. Stamp a branch ordinal into
+     * the union and order the aggregate by it
+     * ({@code string_agg(x, sep ORDER BY u_ord)}). H2 satisfies the
+     * obligation by insertion order; a parallel backend must carry it
+     * explicitly. Null when not applicable. */
+    record OrderedAgg(com.legend.sql.SqlSelect base,
+            com.legend.sql.SqlAgg.Reducer reducer) {
+    }
+
+    static OrderedAgg orderUnionAggregate(com.legend.sql.SqlSelect base,
+            com.legend.sql.SqlAgg.Reducer red) {
+        if (!"STRING_AGG".equals(red.fn()) || !red.orderBy().isEmpty()) {
+            return null;
+        }
+        com.legend.sql.SqlSource.Subselect sub = findUnionSub(base.from());
+        if (sub == null) {
+            return null;
+        }
+        var u = (com.legend.sql.SqlUnion) sub.inner();
+        java.util.List<com.legend.sql.SqlQuery> bs = new java.util.ArrayList<>();
+        int i = 0;
+        for (com.legend.sql.SqlQuery b : u.branches()) {
+            if (!(b instanceof com.legend.sql.SqlSelect s)
+                    || s.projections().stream().anyMatch(p ->
+                            "u_ord".equals(p.outputName()))) {
+                return null;
+            }
+            var ps = new java.util.ArrayList<>(s.projections());
+            if (ps.isEmpty()) {
+                // a star branch keeps its star AND gains the ordinal
+                ps.add(new com.legend.sql.SqlSelect.Projection(
+                        new com.legend.sql.SqlExpr.Star(null), null));
+            }
+            ps.add(new com.legend.sql.SqlSelect.Projection(
+                    new com.legend.sql.SqlExpr.IntLit(i++), "u_ord"));
+            bs.add(s.withProjections(ps, widen(s.outputs())));
+        }
+        var nu = new com.legend.sql.SqlUnion(bs, true, widen(u.outputs()));
+        var repl = new com.legend.sql.SqlSource.Subselect(nu, sub.alias(),
+                sub.frameName());
+        var red2 = new com.legend.sql.SqlAgg.Reducer(red.fn(), red.args(),
+                red.distinct(), java.util.List.of(
+                        new com.legend.sql.SqlSelect.SortKey(
+                                new com.legend.sql.SqlExpr.Column(
+                                        sub.alias(), "u_ord"), true, null)));
+        return new OrderedAgg(
+                base.withFrom(replaceSub(base.from(), sub, repl)), red2);
+    }
+
+    private static java.util.List<com.legend.sql.OutputCol> widen(
+            java.util.List<com.legend.sql.OutputCol> outs) {
+        if (outs == null || outs.isEmpty()) {
+            return outs;
+        }
+        var w = new java.util.ArrayList<>(outs);
+        w.add(new com.legend.sql.OutputCol("u_ord",
+                com.legend.sql.SqlType.Scalar.INTEGER, false));
+        return w;
+    }
+
+    private static com.legend.sql.SqlSource.Subselect findUnionSub(
+            com.legend.sql.SqlSource src) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.Subselect s
+                    when s.inner() instanceof com.legend.sql.SqlUnion u
+                            && u.all() -> s;
+            case com.legend.sql.SqlSource.Join j -> {
+                var l = findUnionSub(j.left());
+                yield l != null ? l : findUnionSub(j.right());
+            }
+            case null, default -> null;
+        };
+    }
+
+    private static com.legend.sql.SqlSource replaceSub(
+            com.legend.sql.SqlSource src,
+            com.legend.sql.SqlSource.Subselect target,
+            com.legend.sql.SqlSource.Subselect repl) {
+        if (src == target) {
+            return repl;
+        }
+        return src instanceof com.legend.sql.SqlSource.Join j
+                ? new com.legend.sql.SqlSource.Join(
+                        replaceSub(j.left(), target, repl),
+                        replaceSub(j.right(), target, repl),
+                        j.kind(), j.on())
+                : src;
+    }
+
     /** Whether the source reads (possibly through joins) a UNION
      * subselect — the count-of-rows aggregate spelling seam. */
     static boolean unionBacked(com.legend.sql.SqlSource src) {

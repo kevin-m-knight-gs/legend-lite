@@ -2467,6 +2467,9 @@ final class StatementExecutor {
                         .requireBounded("result shape").isMany()
                 && root.info().type()
                         instanceof com.legend.compiler.element.type.Type.RelationType;
+        if (System.getenv("LL_TMP_SQL") != null) {
+            System.err.println("[exec-sql] " + dialect.render(plan));
+        }
         ExecutionResult res = Executor.execute(
                 dialect.render(plan), plan,
                 collectionDeclared ? declaredInfo : root.info(),

@@ -580,11 +580,10 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(e,
                     e instanceof SqlExpr.Column c && c.name().equals(k.column()) ? null : k.column()));
         }
-        for (TypedAggCol a : g.aggs()) {
-            ps.add(new SqlSelect.Projection(
-                    aggValue(base, a, calCtx.get(a)), a.name()));
-        }
-        return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
+        AggCols ac = aggCols(base, g.aggs(), calCtx);
+        ps.addAll(ac.ps());
+        return ac.base().withGroupBy(keys)
+                .withProjections(ps, outputsOf(g.info()));
     }
 
     /** The GRAPH-serialize envelope (H4a SNAPSHOT): one json_object per
@@ -773,12 +772,30 @@ public final class Lowerer {
         SqlSelect src = relation(a.source());
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
         return foldOrIsolate(base, "aggregate", b -> {
-            List<SqlSelect.Projection> ps = new ArrayList<>(a.aggs().size());
-            for (TypedAggCol col : a.aggs()) {
-                ps.add(new SqlSelect.Projection(aggValue(b, col), col.name()));
-            }
-            return b.withProjections(ps, outputsOf(a.info()));
+            AggCols ac = aggCols(b, a.aggs(), null);
+            return ac.base().withProjections(ac.ps(), outputsOf(a.info()));
         });
+    }
+
+    /** Aggregate projections with the union-order obligation applied
+     * (Fold.orderUnionAggregate may rebuild the base's union source). */
+    private record AggCols(SqlSelect base, List<SqlSelect.Projection> ps) {
+    }
+
+    private AggCols aggCols(SqlSelect base, List<TypedAggCol> aggs,
+            java.util.Map<TypedAggCol, CalendarAgg.Ctx> cal) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
+        for (TypedAggCol a : aggs) {
+            SqlExpr av = aggValue(base, a, cal == null ? null : cal.get(a));
+            if (av instanceof SqlAgg.Reducer red
+                    && Fold.orderUnionAggregate(base, red)
+                            instanceof Fold.OrderedAgg oa) {
+                base = oa.base();
+                av = oa.reducer();
+            }
+            ps.add(new SqlSelect.Projection(av, a.name()));
+        }
+        return new AggCols(base, ps);
     }
 
     /**
@@ -794,78 +811,6 @@ public final class Lowerer {
                     + " takes exactly one");
         }
         return r;
-    }
-
-    /**
-     * Window position accepts COMPOSED aggregates (wavg = SUM(v*w)/SUM(w),
-     * hashCode = HASH(LIST(x))): every bare reducer inside the value
-     * expression gets the SAME window spec.
-     */
-    private static SqlExpr windowize(SqlExpr e, List<SqlExpr> partitionBy,
-            List<SqlSelect.SortKey> orderBy, SqlExpr.WindowCall.Frame frame) {
-        return switch (e) {
-            case SqlAgg.Reducer r ->
-                    new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
-            case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()
-                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
-            case SqlExpr.Cast c ->
-                    new SqlExpr.Cast(windowize(c.value(), partitionBy, orderBy, frame),
-                            c.target());
-            // A reducer under a CASE arm must window too (audit: the first
-            // agg recipe that guards with CASE would render bare).
-            case SqlExpr.Case cs -> new SqlExpr.Case(
-                    cs.whens().stream().map(w -> new SqlExpr.Case.When(
-                            windowize(w.condition(), partitionBy, orderBy, frame),
-                            windowize(w.then(), partitionBy, orderBy, frame))).toList(),
-                    cs.otherwise() == null ? null
-                            : windowize(cs.otherwise(), partitionBy, orderBy, frame));
-            // Composite carriers: a reducer anywhere inside must window
-            // (audit 15: the open default let these render bare aggregates).
-            case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(a.elements().stream()
-                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
-            case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
-                    .map(f -> new SqlExpr.StructLit.Field(f.name(),
-                            windowize(f.value(), partitionBy, orderBy, frame)))
-                    .toList());
-            case SqlExpr.StructGet g -> new SqlExpr.StructGet(
-                    windowize(g.source(), partitionBy, orderBy, frame), g.field());
-            case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(j.kv().stream()
-                    .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
-            case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
-                    windowize(f.source(), partitionBy, orderBy, frame), f.lambda(),
-                    windowize(f.init(), partitionBy, orderBy, frame),
-                    f.accIsList(), f.homogeneous());
-            // Ordered-set / array aggregates are not expressible as OVER()
-            // window functions in this IR — bare emission would silently
-            // change grouping semantics; the shape stays loud until built.
-            case SqlExpr.OrderedListAgg ignored ->
-                    throw new com.legend.error.NotImplementedException(
-                            "ordered list aggregate in window position");
-            case SqlExpr.JsonArrayAgg ignored ->
-                    throw new com.legend.error.NotImplementedException(
-                            "json array aggregate in window position");
-            // Subqueries own their scope: a reducer inside aggregates THERE,
-            // never over this window. Already-windowed calls keep their spec.
-            case SqlExpr.Exists x -> x;
-            case SqlExpr.ScalarSubquery s -> s;
-            case SqlExpr.WindowCall w -> w;
-            case SqlExpr.Lambda l -> l;
-            case SqlExpr.Group g -> new SqlExpr.Group(
-                    windowize(g.inner(), partitionBy, orderBy, frame));
-            // Leaves: no reducer can hide below.
-            case SqlExpr.PlanParam ignored -> e;
-            case SqlExpr.Column ignored -> e;
-            case SqlExpr.Star ignored -> e;
-            case SqlExpr.StarExcept ignored -> e;
-            case SqlExpr.StringLit ignored -> e;
-            case SqlExpr.IntLit ignored -> e;
-            case SqlExpr.FloatLit ignored -> e;
-            case SqlExpr.DecimalLit ignored -> e;
-            case SqlExpr.BoolLit ignored -> e;
-            case SqlExpr.NullLit ignored -> e;
-            case SqlExpr.DateLit ignored -> e;
-            case SqlExpr.TimestampLit ignored -> e;
-        };
     }
 
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a) {
@@ -1038,8 +983,7 @@ public final class Lowerer {
             }
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
-        // the checker's count-of-rows desugar (x|$x -> x|1): the engine
-        // spells count(*) over plain sources, count(1) over UNIONs
+        // count-of-rows desugar (x|$x -> x|1): count(*), count(1) on UNIONs
         if ("COUNT".equals(fn) && mapBody instanceof TypedCInteger one
                 && one.value().longValue() == 1 && extra.isEmpty()
                 && !distinctValues && valueCast == null
@@ -1478,7 +1422,14 @@ public final class Lowerer {
      */
     private SqlSelect rename(TypedRename r) {
         SqlSelect src = relation(r.source());
-        SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
+        // the engine FRAMES a rename of a PROJECTED source (persontable_0
+        // reads the original TDS aliases); an already-framed source
+        // absorbs chained renames; a BARE SCAN renames in place (the
+        // relation-channel flat pin — nothing projected to frame)
+        SqlSelect base = Fold.projectionFolds(src)
+                && (src.from() instanceof SqlSource.Subselect
+                        || src.projections().isEmpty())
+                ? src : isolate(src);
         Type.RelationType outSchema = (Type.RelationType) r.info().type();
         // Each output column reverse-maps to the source column it renames.
         Function<String, String> sourceOf = out -> {
@@ -1526,9 +1477,8 @@ public final class Lowerer {
                 base = isolate(base);
                 return sortOnto(base, s);
             }
-            // COLUMN-NAME-keyed sort addresses the OUTPUT column in
-            // engine TEXT (sort('name') -> order by "name" asc; the
-            // lambda-keyed sortBy stays physical) — execution renders e
+            // engine TEXT spells the OUTPUT column (order by "name" asc);
+            // execution renders e — sortBy stays physical in both
             keys.add(new SqlSelect.SortKey(e, k.ascending(), null,
                     k.column()));
         }
@@ -1852,7 +1802,7 @@ public final class Lowerer {
             }
             for (TypedAggCol a : w.aggs()) {
                 ps.add(new SqlSelect.Projection(
-                        windowize(aggValue(b, a), over.partitionBy(), over.orderBy(),
+                        Windows.windowize(aggValue(b, a), over.partitionBy(), over.orderBy(),
                                 over.frame()),
                         a.name()));
             }
@@ -1868,7 +1818,7 @@ public final class Lowerer {
             List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
             for (TypedAggCol a : ea.aggs()) {
                 ps.add(new SqlSelect.Projection(
-                        windowize(aggValue(b, a), List.of(), List.of(), null),
+                        Windows.windowize(aggValue(b, a), List.of(), List.of(), null),
                         a.name()));
             }
             return b.withProjections(ps, outputsOf(ea.info()));
@@ -2083,7 +2033,7 @@ public final class Lowerer {
                     && call.args().size() == 5
                     && call.args().get(3) instanceof TypedLambda mapFn
                     && call.args().get(4) instanceof TypedLambda aggFn -> {
-                return windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn)),
+                return Windows.windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn)),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
             // zScore(p,w,r,~col): COMPOSED window expression — real zScore.pure

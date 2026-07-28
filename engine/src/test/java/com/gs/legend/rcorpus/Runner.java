@@ -849,6 +849,7 @@ public final class Runner {
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
+                    st.execute("SET threads=1");
                 }
                 com.legend.harness.TestBody.Outcome o =
                         com.legend.harness.TestBody.run(ctx, body,
@@ -974,6 +975,7 @@ public final class Runner {
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
+                    st.execute("SET threads=1");
                 }
                 List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
                         ctx, conn);

@@ -54,10 +54,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     private final Map<String, String> renames = new LinkedHashMap<>();
+    private final Map<String, SqlSource.Subselect> subselects =
+            new LinkedHashMap<>();
 
     @Override
     public String render(SqlQuery query) {
         renames.clear();
+        subselects.clear();
         planQuery(query, new LinkedHashMap<>());
         StringBuilder sb = new StringBuilder();
         query(sb, query, 0);
@@ -95,6 +98,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             case SqlSource.Subselect sub -> {
                 planQuery(sub.inner(), groups);
+                subselects.put(sub.alias(), sub);
                 // a NAMED frame (view-backed target) groups by its own
                 // model identity — orderpnlview_0, never the underlying
                 // physical table's group
@@ -102,7 +106,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         ? sub.frameName().toLowerCase(Locale.ROOT)
                         : firstInnerTable(sub.inner());
                 String named = nextInGroup(group, groups);
-                renames.put(sub.alias(), leftmost ? "root" : named);
+                // only the DISTINCT materialization keeps the root name
+                // (its frame REPLACES the root table); every other frame
+                // is group-named — persontable_0, unionalias_0
+                boolean rootFrame = leftmost
+                        && sub.inner() instanceof SqlSelect ds
+                        && ds.distinct();
+                renames.put(sub.alias(), rootFrame ? "root" : named);
             }
             case SqlSource.Join j -> {
                 planSource(j.left(), leftmost, groups);
@@ -207,6 +217,24 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     private String rename(String alias) {
         return renames.getOrDefault(alias, alias);
+    }
+
+    /** Whether the column reads an ALIASED projection of a plain frame —
+     * quoted spelling. NAMED frames (view/join frames render bare
+     * interiors) and the distinct root materialization stay physical. */
+    private boolean quotedFrameRead(SqlExpr.Column c) {
+        SqlSource.Subselect sub = subselects.get(c.table());
+        if (sub == null || sub.frameName() != null
+                || !(sub.inner() instanceof SqlSelect is)
+                || is.distinct()) {
+            return false;
+        }
+        for (SqlSelect.Projection p : is.projections()) {
+            if (c.name().equals(p.alias())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The engine's H2-NEW date spelling has no space ({@code
@@ -498,8 +526,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             throw new UnsupportedOperationException(
                     "plan: struct extraction has no engine-H2 spelling");
         }
-        // alias part quoted, physical column bare — "root".FIRSTNAME
+        // alias part quoted, physical column bare — "root".FIRSTNAME;
+        // reads of a frame's PROJECTED TDS aliases quote the column too
+        // ("persontable_0"."firstName" — rename/union frame goldens)
         if (e instanceof SqlExpr.Column c) {
+            if (c.table() != null && quotedFrameRead(c)) {
+                return '"' + rename(c.table()) + "\".\"" + c.name() + '"';
+            }
             return c.table() == null ? phys(c.name())
                     : '"' + rename(c.table()) + "\"." + phys(c.name());
         }
