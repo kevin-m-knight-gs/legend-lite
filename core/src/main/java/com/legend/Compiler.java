@@ -333,7 +333,8 @@ public final class Compiler {
         // Lexicon row, not a dialect subclass (remediation T3.2).
         return distinct.contains("SQLite")
                 ? new com.legend.sql.dialect.AnsiSqlRenderer(
-                        com.legend.sql.dialect.Lexicon.SQLITE)
+                        com.legend.sql.dialect.Lexicon.SQLITE,
+                        com.legend.sql.dialect.TypeNames.ANSI)
                 : new com.legend.sql.dialect.DuckDb();
     }
 

@@ -45,7 +45,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     public EngineStyleH2(boolean quoteIdentifiers, String timeZone) {
-        super(Lexicon.ENGINE_STYLE);
+        super(Lexicon.ENGINE_STYLE, TypeNames.ANSI);
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
     }

@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public final class DuckDb extends AnsiSqlRenderer {
 
     public DuckDb() {
-        super(Lexicon.DUCKDB);
+        super(Lexicon.DUCKDB, TypeNames.DUCKDB);
     }
 
     // ---- structural capabilities ----
@@ -400,21 +400,6 @@ public final class DuckDb extends AnsiSqlRenderer {
             return "CAST(" + text + " AS " + castTypeName(c.target()) + ")";
         }
         return super.variantAwareCast(c);
-    }
-
-    @Override
-    protected String castTypeName(com.legend.sql.SqlType t) {
-        return switch (t) {
-            case com.legend.sql.SqlType.Scalar s -> switch (s) {
-                case DOUBLE -> "DOUBLE";
-                case JSON -> "JSON";
-                default -> super.castTypeName(t);
-            };
-            case com.legend.sql.SqlType.Struct s -> "STRUCT(" + s.fields().stream()
-                    .map(f -> ident(f.name()) + " " + castTypeName(f.type()))
-                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
-            default -> super.castTypeName(t);
-        };
     }
 
 }

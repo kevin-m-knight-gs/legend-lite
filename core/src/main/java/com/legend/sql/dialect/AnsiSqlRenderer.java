@@ -39,9 +39,11 @@ import java.util.stream.Collectors;
 public class AnsiSqlRenderer implements SqlDialect {
 
     private final Lexicon lexicon;
+    private final TypeNames typeNames;
 
-    public AnsiSqlRenderer(Lexicon lexicon) {
+    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames) {
         this.lexicon = java.util.Objects.requireNonNull(lexicon, "lexicon");
+        this.typeNames = java.util.Objects.requireNonNull(typeNames, "typeNames");
     }
 
     private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -708,29 +710,32 @@ public class AnsiSqlRenderer implements SqlDialect {
         throw new IllegalStateException("a struct extraction reached a dialect without struct support");
     }
 
-    /** SQL type → this dialect's CAST spelling (ANSI defaults). */
-    protected String castTypeName(com.legend.sql.SqlType t) {
+    /** SQL type → CAST spelling: scalar LEAVES from {@link TypeNames}
+     * (absence loud), composite RULES structural and shared. */
+    protected final String castTypeName(com.legend.sql.SqlType t) {
         return switch (t) {
-            case com.legend.sql.SqlType.Scalar s -> switch (s) {
-                case BOOLEAN -> "BOOLEAN";
-                case INTEGER -> "INTEGER";
-                case BIGINT -> "BIGINT";
-                case HUGEINT -> "HUGEINT";
-                case TIMESTAMPTZ -> "TIMESTAMPTZ";
-                case DOUBLE -> "DOUBLE PRECISION";
-                case VARCHAR -> "VARCHAR";
-                case DATE -> "DATE";
-                case TIMESTAMP -> "TIMESTAMP";
-                case JSON -> throw new IllegalStateException(
-                        "JSON cast reached a dialect without JSON support");
-            };
+            case com.legend.sql.SqlType.Scalar s -> {
+                String n = typeNames.scalarNames().get(s);
+                if (n == null) {
+                    throw new IllegalStateException(s + " cast reached a"
+                            + " dialect without " + s + " support");
+                }
+                yield n;
+            }
             case com.legend.sql.SqlType.Decimal d ->
                     "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
             case com.legend.sql.SqlType.Array a -> castTypeName(a.element()) + "[]";
             case com.legend.sql.SqlType.Map m ->
                     "MAP(" + castTypeName(m.key()) + ", " + castTypeName(m.value()) + ")";
-            case com.legend.sql.SqlType.Struct s -> throw new IllegalStateException(
-                    "a STRUCT type reached a dialect without struct support");
+            case com.legend.sql.SqlType.Struct st -> {
+                if (!typeNames.structSupport()) {
+                    throw new IllegalStateException(
+                            "a STRUCT type reached a dialect without struct support");
+                }
+                yield "STRUCT(" + st.fields().stream()
+                        .map(fl -> ident(fl.name()) + " " + castTypeName(fl.type()))
+                        .collect(Collectors.joining(", ")) + ")";
+            }
         };
     }
 
