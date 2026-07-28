@@ -235,7 +235,14 @@ public final class Pure {
     // the store METACLASS (real: extends meta::pure::store::Store) — a
     // database REFERENCE is a value of this type (classReference), so the
     // corpus's testRuntime(db:Database[1]) overload family type-checks
-    public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database {}");
+    public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database { schemas: meta::relational::metamodel::Schema[*]; }");
+    // The VIEW/inference metamodel surface (real relational.pure:114-137
+    // + relationalExtension.pure:120): host-evaluated over OUR
+    // DatabaseDefinition — the typeInference family's whole vocabulary
+    public static final ClassDefinition VIEW_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::View extends meta::pure::metamodel::ModelElement { columnMappings: meta::relational::mapping::ColumnMapping[*]; }");
+    public static final ClassDefinition COLUMN_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::ColumnMapping extends meta::pure::metamodel::type::Any { columnName: meta::pure::metamodel::type::String[1]; relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
+    public static final ClassDefinition RELATIONAL_OPERATION_ELEMENT = nativeClass("native Class meta::relational::metamodel::RelationalOperationElement extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition DATA_TYPE_METACLASS = nativeClass("native Class meta::relational::metamodel::datatype::DataType extends meta::pure::metamodel::type::Any {}");
     // task #78 step-1 declarations (each cited to the REAL source; class
     // CONSTRAINTS are never ported — constraint evaluation is a separate
     // feature track, declarations only TYPE):
@@ -1064,6 +1071,9 @@ public final class Pure {
     // Real platform_store_relational/functions.pure:227/:249 — metamodel
     // navigation (ordinary pure over the store metamodel there; typed
     // natives here, evaluated K-side when a consumer demands the values).
+    public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");
+    public static final NativeFunctionDefinition INFER_RELATIONAL_TYPE = signature("native function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1]):meta::relational::metamodel::datatype::DataType[0..1];");
+    public static final NativeFunctionDefinition DATA_TYPE_TO_SQL_TEXT = signature("native function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SCHEMA__DB_1__STRING_1 = signature("native function meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::Schema[0..1];");
     public static final NativeFunctionDefinition EXTRACT_CTES = signature("native function meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs(select:meta::relational::metamodel::relation::SelectSQLQuery[1]):meta::relational::metamodel::relation::SelectSQLQuery[1];");
     public static final NativeFunctionDefinition EXTRACT_CTES_PP = signature("native function meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor(s:meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor[1]):meta::relational::runtime::PostProcessorWithParameter[1];");

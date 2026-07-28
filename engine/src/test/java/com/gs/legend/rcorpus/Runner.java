@@ -791,6 +791,52 @@ public final class Runner {
         return name;
     }
 
+    /** A no-execute body attempted through the FULL pipeline: PASS/FAIL
+     * outcomes are real; Unsupported/errors return null so the caller
+     * falls back to the functional-bucket SHAPE. */
+    private Outcome tryRunNoExecute(ParsedTest t,
+            List<com.legend.model.spec.ValueSpecification> body) {
+        java.util.Set<String> called = new java.util.LinkedHashSet<>();
+        java.util.Set<String> elements = new java.util.LinkedHashSet<>();
+        for (com.legend.model.spec.ValueSpecification stmt : body) {
+            collectCalledFqns(stmt, called, elements);
+        }
+        List<String> moduleRefs = new ArrayList<>();
+        for (String ref : called) {
+            if (ref.contains("::") && elementSource.containsKey(ref)) {
+                moduleRefs.add(ref);
+            }
+        }
+        for (String ref : elements) {
+            if (ref.contains("::") && elementSource.containsKey(ref)) {
+                moduleRefs.add(ref);
+            }
+        }
+        try {
+            com.legend.compiler.element.ModelContext ctx =
+                    moduleContextFor(moduleRefs, List.of());
+            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+                try (var st = conn.createStatement()) {
+                    st.execute("SET TimeZone='UTC'");
+                }
+                com.legend.harness.TestBody.Outcome o =
+                        com.legend.harness.TestBody.run(ctx, body,
+                                importScopeOf(t), "rcorpus::Rt", conn,
+                                false, new ArrayList<>());
+                Outcome scored = score(t.fqn(), o);
+                // only REAL verdicts stand — vocabulary gaps and hollow
+                // shapes keep the functional-bucket SHAPE
+                if (scored.status() == Status.PASS
+                        || scored.status() == Status.FAIL) {
+                    return scored;
+                }
+                return null;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** The most-called function NAMESPACE of a no-execute body — the
      * functional identity of the feature the test exercises. */
     private static String dominantNamespace(
@@ -834,9 +880,16 @@ public final class Runner {
                 expandHelperCalls(t.fn().body(), t, 0);
         List<String> mappingRefs = executeMappingRefs(body, t);
         if (mappingRefs.isEmpty()) {
-            // FUNCTIONAL bucket: what the test exercises instead — the
-            // dominant called namespace names the skipped feature (the
-            // denominator stays honest about WHAT is not built yet)
+            // TRY-RUN-THEN-SHAPE: a no-execute body may still be fully
+            // runnable through the pipeline (metamodel navigation +
+            // host-evaluated natives — the typeInference family). Attempt
+            // it; anything the platform cannot run falls back to the
+            // FUNCTIONAL-bucket SHAPE (the denominator stays honest about
+            // WHAT is not built yet).
+            Outcome attempted = tryRunNoExecute(t, body);
+            if (attempted != null) {
+                return attempted;
+            }
             String ns = dominantNamespace(body);
             return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...)"
                     + " call" + (ns == null ? "" : " [calls " + ns + "]"));

@@ -429,7 +429,10 @@ class NativeFunctionTest {
         //     Parameter (relationalRuntime.pure:46-70) + alloy
         //     PostProcessor + ExtractSubQueriesAsCTEsPostProcessor
         //     (cteExtractionPostProcessor.pure:26).
-        assertEquals(86, Pure.allNativeClasses().size(),
+        // 90: +View/ColumnMapping/RelationalOperationElement/DataType
+        //     (relational.pure:114-137 — the typeInference metamodel
+        //     surface, host-evaluated over our DatabaseDefinition).
+        assertEquals(90, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -460,6 +463,15 @@ class NativeFunctionTest {
                     java.util.Map.entry(
                     "meta::external::store::relational::runtime::TestDatabaseConnection",
                     List.of("testDataSetupCsv")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::View",
+                    List.of("columnMappings")),
+                    java.util.Map.entry(
+                    "meta::relational::mapping::ColumnMapping",
+                    List.of("columnName", "relationalOperationElement")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::Database",
+                    List.of("schemas")),
                     java.util.Map.entry(
                     "meta::relational::runtime::PostProcessor",
                     // relationalRuntime.pure:63-70 (stored props only —
@@ -707,7 +719,9 @@ class NativeFunctionTest {
                 // .pure:46-70 + cteExtractionPostProcessor.pure:26)
                 "meta::relational::runtime",
                 "meta::pure::alloy::connections",
-                "meta::relational::postProcessor::cteExtraction");
+                "meta::relational::postProcessor::cteExtraction",
+                // the inference DataType surface (relational.pure datatype)
+                "meta::relational::metamodel::datatype");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
