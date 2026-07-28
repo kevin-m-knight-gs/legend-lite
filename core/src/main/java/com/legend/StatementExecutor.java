@@ -989,6 +989,22 @@ final class StatementExecutor {
                         ? new com.legend.exec.MetamodelWalk.CnH(cs2.value())
                         : null;
             }
+            case "Alias" -> {
+                if (ni.properties().get("name") instanceof
+                        com.legend.compiler.spec.typed.TypedCString an9) {
+                    TypedSpec rel = ni.properties().get("relationalElement");
+                    Object rv = rel == null ? null
+                            : planWalk(rel, specs, env);
+                    if (rv instanceof java.util.List<?> lw9
+                            && lw9.size() == 1) {
+                        rv = lw9.get(0);
+                    }
+                    return rv == null ? null
+                            : new com.legend.exec.MetamodelWalk.AliasH(
+                                    an9.value(), rv);
+                }
+                return null;
+            }
             case "TableAliasColumnName" -> {
                 TypedSpec al2 = ni.properties().get("alias");
                 String an2 = al2 instanceof com.legend.compiler.spec.typed
@@ -1045,12 +1061,14 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNewInstance ni,
             String simple, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env) {
-        java.util.LinkedHashMap<String, Object> props =
-                new java.util.LinkedHashMap<>();
+        java.util.TreeMap<String, Object> props = new java.util.TreeMap<>();
         for (var e : ni.properties().entrySet()) {
             Object v = nodeValue(e.getValue(), specs, env);
             if (v == null) {
                 return null;
+            }
+            if (v instanceof java.util.List<?> lv && lv.isEmpty()) {
+                continue;
             }
             props.put(e.getKey(), v);
         }

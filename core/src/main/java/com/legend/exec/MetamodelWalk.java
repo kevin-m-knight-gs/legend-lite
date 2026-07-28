@@ -49,8 +49,11 @@ public final class MetamodelWalk {
     public record Dt(RelationalDataType type) {
     }
 
-    public record Tbl(DatabaseDefinition db,
+    public record Tbl(DatabaseDefinition db, String schemaName,
             DatabaseDefinition.TableDefinition t) {
+    }
+
+    public record AliasH(String name, Object relationalElement) {
     }
 
     public record ColH(DatabaseDefinition.ColumnDefinition c) {
@@ -71,17 +74,22 @@ public final class MetamodelWalk {
     public record TacH(String aliasName, Object column) {
     }
 
-    /** GENERIC SQL-protocol node value: kind + ctor-provided props
-     * (LinkedHashMap equality is order-insensitive — structural). */
+    /** GENERIC SQL-protocol node value: kind + ctor-provided props.
+     * SORTED map (order-insensitive print+equality) and EMPTY/null
+     * props dropped — the engine ctor-vs-converter default asymmetry
+     * (arguments=[] vs absent) compares equal. */
     public record NodeH(String kind,
-            java.util.LinkedHashMap<String, Object> props) {
+            java.util.TreeMap<String, Object> props) {
     }
 
     static NodeH node(String kind, Object... kv) {
-        java.util.LinkedHashMap<String, Object> m =
-                new java.util.LinkedHashMap<>();
+        java.util.TreeMap<String, Object> m = new java.util.TreeMap<>();
         for (int i = 0; i < kv.length; i += 2) {
-            m.put((String) kv[i], kv[i + 1]);
+            Object v = kv[i + 1];
+            if (v == null || (v instanceof List<?> lv && lv.isEmpty())) {
+                continue;
+            }
+            m.put((String) kv[i], v);
         }
         return new NodeH(kind, m);
     }
@@ -108,7 +116,7 @@ public final class MetamodelWalk {
         if (recv instanceof Sch s) {
             for (var t : s.schema().tables()) {
                 if (t.name().equals(name)) {
-                    return new Tbl(s.db(), t);
+                    return new Tbl(s.db(), s.schema().name(), t);
                 }
             }
         }
@@ -135,6 +143,17 @@ public final class MetamodelWalk {
         }
         if (r instanceof Rop rop) {
             return convertOp(rop.op());
+        }
+        if (r instanceof Tbl tb) {
+            List<String> parts = "default".equals(tb.schemaName())
+                    ? List.of(tb.t().name())
+                    : List.of(tb.schemaName(), tb.t().name());
+            return node("Table", "name", new QnH(parts));
+        }
+        if (r instanceof AliasH ah) {
+            Object rel = convertElement(ah.relationalElement());
+            return rel == null ? null : node("AliasedRelation", "alias",
+                    ah.name(), "relation", rel);
         }
         return null;
     }
@@ -199,6 +218,8 @@ public final class MetamodelWalk {
                     case "lessthan" -> node("ComparisonExpression",
                             "left", args.get(0), "right", args.get(1),
                             "operator", "LESS_THAN");
+                    case "in" -> node("InPredicate", "value", args.get(0),
+                            "valueList", args.get(1));
                     default -> node("FunctionCall", "name",
                             new QnH(List.of(f.name())), "arguments", args);
                 };
@@ -278,7 +299,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         if (recv instanceof Sch s9 && prop.equals("tables")) {
             List<Object> out = new ArrayList<>();
             for (var t : s9.schema().tables()) {
-                out.add(new Tbl(s9.db(), t));
+                out.add(new Tbl(s9.db(), s9.schema().name(), t));
             }
             return out;
         }
