@@ -14,4 +14,10 @@ public record TypedPackageableRef(String fullPath, ExprType info) implements Typ
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedPackageableRef");
+        return this;
+    }
 }

@@ -18,4 +18,10 @@ public record TypedLimit(TypedSpec source, TypedSpec count, ExprType info) imple
     public List<TypedSpec> children() {
         return List.of(source, count);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2, "TypedLimit");
+        return new TypedLimit(kids.get(0), kids.get(1), info);
+    }
 }

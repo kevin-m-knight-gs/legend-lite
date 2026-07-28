@@ -42,4 +42,22 @@ public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<Typed
         });
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids,
+                1 + values.size() + 2 * aggs.size(), "TypedPivot");
+        int i = 1;
+        java.util.List<TypedSpec> vs = new java.util.ArrayList<>(values.size());
+        for (int v = 0; v < values.size(); v++) {
+            vs.add(kids.get(i++));
+        }
+        java.util.List<TypedAggCol> as = new java.util.ArrayList<>(aggs.size());
+        for (TypedAggCol a : aggs) {
+            TypedLambda m = (TypedLambda) kids.get(i++);
+            TypedLambda r = (TypedLambda) kids.get(i++);
+            as.add(new TypedAggCol(a.name(), m, r, a.orderKey(), a.orderAsc()));
+        }
+        return new TypedPivot(kids.get(0), pivotColumns, vs, as, info);
+    }
 }

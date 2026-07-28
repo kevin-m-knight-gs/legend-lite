@@ -136,4 +136,18 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         runtime.ifPresent(out::add);
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        int n = 1 + (mapping.isPresent() ? 1 : 0) + (runtime.isPresent() ? 1 : 0);
+        TypedSpec.expectChildren(kids, n, "TypedFrom");
+        int i = 1;
+        java.util.Optional<TypedPackageableRef> m = mapping.isPresent()
+                ? java.util.Optional.of((TypedPackageableRef) kids.get(i++))
+                : java.util.Optional.empty();
+        java.util.Optional<TypedPackageableRef> r = runtime.isPresent()
+                ? java.util.Optional.of((TypedPackageableRef) kids.get(i))
+                : java.util.Optional.empty();
+        return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources, info);
+    }
 }

@@ -20,4 +20,10 @@ public record TypedSortInfo(String column, boolean ascending, ExprType info) imp
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedSortInfo");
+        return this;
+    }
 }

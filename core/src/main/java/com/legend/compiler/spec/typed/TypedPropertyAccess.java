@@ -19,4 +19,10 @@ public record TypedPropertyAccess(TypedSpec source, String property, ExprType in
     public List<TypedSpec> children() {
         return List.of(source);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedPropertyAccess");
+        return new TypedPropertyAccess(kids.get(0), property, info);
+    }
 }

@@ -17,4 +17,10 @@ public record TypedDrop(TypedSpec source, TypedSpec count, ExprType info) implem
     public List<TypedSpec> children() {
         return List.of(source, count);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2, "TypedDrop");
+        return new TypedDrop(kids.get(0), kids.get(1), info);
+    }
 }

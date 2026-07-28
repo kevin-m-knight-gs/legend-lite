@@ -20,4 +20,10 @@ public record TypedFlatten(TypedSpec source, String column, ExprType info) imple
     public List<TypedSpec> children() {
         return List.of(source);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedFlatten");
+        return new TypedFlatten(kids.get(0), column, info);
+    }
 }

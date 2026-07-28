@@ -18,4 +18,10 @@ public record TypedEnumValue(String enumFqn, String value, ExprType info) implem
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedEnumValue");
+        return this;
+    }
 }

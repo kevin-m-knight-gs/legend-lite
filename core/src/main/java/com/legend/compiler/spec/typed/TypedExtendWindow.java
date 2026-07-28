@@ -39,4 +39,22 @@ public record TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFu
         });
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids,
+                2 + columns.size() + 2 * aggs.size(), "TypedExtendWindow");
+        int i = 2;
+        java.util.List<TypedFuncCol> cs = new java.util.ArrayList<>(columns.size());
+        for (TypedFuncCol c : columns) {
+            cs.add(new TypedFuncCol(c.name(), (TypedLambda) kids.get(i++), c.documentation()));
+        }
+        java.util.List<TypedAggCol> as = new java.util.ArrayList<>(aggs.size());
+        for (TypedAggCol a : aggs) {
+            TypedLambda m = (TypedLambda) kids.get(i++);
+            TypedLambda r = (TypedLambda) kids.get(i++);
+            as.add(new TypedAggCol(a.name(), m, r, a.orderKey(), a.orderAsc()));
+        }
+        return new TypedExtendWindow(kids.get(0), (TypedOver) kids.get(1), cs, as, info);
+    }
 }

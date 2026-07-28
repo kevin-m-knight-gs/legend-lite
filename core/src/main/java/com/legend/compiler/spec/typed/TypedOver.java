@@ -29,4 +29,13 @@ public record TypedOver(List<String> partitions, List<TypedSort.TypedSortKey> so
     public List<TypedSpec> children() {
         return frame.map(List::of).orElseGet(List::of);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, frame.isPresent() ? 1 : 0, "TypedOver");
+        return frame.isPresent()
+                ? new TypedOver(partitions, sortKeys,
+                        java.util.Optional.of(kids.get(0)), info)
+                : this;
+    }
 }

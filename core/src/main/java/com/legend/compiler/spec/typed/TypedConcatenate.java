@@ -18,4 +18,10 @@ public record TypedConcatenate(TypedSpec left, TypedSpec right, ExprType info) i
     public List<TypedSpec> children() {
         return List.of(left, right);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2, "TypedConcatenate");
+        return new TypedConcatenate(kids.get(0), kids.get(1), info);
+    }
 }

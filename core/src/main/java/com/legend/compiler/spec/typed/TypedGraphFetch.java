@@ -30,4 +30,10 @@ public record TypedGraphFetch(TypedSpec source, List<TypedGraphTree> tree, ExprT
     public List<TypedSpec> children() {
         return List.of(source);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedGraphFetch");
+        return new TypedGraphFetch(kids.get(0), tree, info, checked);
+    }
 }

@@ -25,4 +25,16 @@ public record TypedAggColSpecArray(List<TypedAggCol> cols, ExprType info) implem
             sink.accept(c.reduce());
         }).toList();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2 * cols.size(), "TypedAggColSpecArray");
+        java.util.List<TypedAggCol> cs = new java.util.ArrayList<>(cols.size());
+        for (int i = 0; i < cols.size(); i++) {
+            TypedAggCol c = cols.get(i);
+            cs.add(new TypedAggCol(c.name(), (TypedLambda) kids.get(2 * i),
+                    (TypedLambda) kids.get(2 * i + 1), c.orderKey(), c.orderAsc()));
+        }
+        return new TypedAggColSpecArray(cs, info);
+    }
 }

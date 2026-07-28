@@ -30,4 +30,10 @@ public record TypedEval(TypedSpec fn, List<TypedSpec> args, ExprType info) imple
         out.addAll(args);
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1 + args.size(), "TypedEval");
+        return new TypedEval(kids.get(0), kids.subList(1, kids.size()), info);
+    }
 }

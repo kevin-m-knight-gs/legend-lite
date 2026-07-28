@@ -21,4 +21,10 @@ public record TypedFilter(TypedSpec source, TypedLambda predicate, ExprType info
     public List<TypedSpec> children() {
         return List.of(source, predicate);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2, "TypedFilter");
+        return new TypedFilter(kids.get(0), (TypedLambda) kids.get(1), info);
+    }
 }

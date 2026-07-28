@@ -20,4 +20,10 @@ public record TypedCollectionRelation(TypedSpec value, String column, ExprType i
     public List<TypedSpec> children() {
         return List.of(value);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedCollectionRelation");
+        return new TypedCollectionRelation(kids.get(0), column, info);
+    }
 }

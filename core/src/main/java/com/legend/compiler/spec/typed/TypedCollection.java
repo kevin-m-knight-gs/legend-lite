@@ -18,4 +18,9 @@ public record TypedCollection(List<TypedSpec> elements, ExprType info) implement
     public List<TypedSpec> children() {
         return elements;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        return new TypedCollection(kids, info);
+    }
 }

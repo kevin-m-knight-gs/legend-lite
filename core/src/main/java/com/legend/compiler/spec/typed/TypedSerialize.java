@@ -27,4 +27,12 @@ public record TypedSerialize(TypedSpec source, List<TypedGraphTree> tree,
                 .map(c -> List.of(source, c))
                 .orElseGet(() -> List.of(source));
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, config.isPresent() ? 2 : 1, "TypedSerialize");
+        return new TypedSerialize(kids.get(0), tree,
+                config.isPresent() ? java.util.Optional.of(kids.get(1))
+                        : java.util.Optional.empty(), info);
+    }
 }

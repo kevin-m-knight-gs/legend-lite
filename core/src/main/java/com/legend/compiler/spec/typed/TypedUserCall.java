@@ -23,4 +23,9 @@ public record TypedUserCall(TypedFunction callee, List<TypedSpec> args, ExprType
     public List<TypedSpec> children() {
         return args;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        return new TypedUserCall(callee, kids, info);
+    }
 }

@@ -38,4 +38,11 @@ public record TypedJoinSlot(TypedSpec source, String alias, TypedSpec target,
     public List<TypedSpec> children() {
         return List.of(source, target, condition);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 3, "TypedJoinSlot");
+        return new TypedJoinSlot(kids.get(0), alias, kids.get(1),
+                (TypedLambda) kids.get(2), frameName, info);
+    }
 }

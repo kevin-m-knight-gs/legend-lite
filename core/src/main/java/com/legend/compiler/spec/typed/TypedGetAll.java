@@ -35,4 +35,9 @@ public record TypedGetAll(String classFqn, List<TypedSpec> milestoning,
     public List<TypedSpec> children() {
         return new ArrayList<>(milestoning);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        return new TypedGetAll(classFqn, kids, versionSweep, info);
+    }
 }

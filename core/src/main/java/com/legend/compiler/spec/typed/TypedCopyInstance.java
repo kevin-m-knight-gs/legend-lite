@@ -28,4 +28,15 @@ public record TypedCopyInstance(
         out.addAll(overrides.values());
         return java.util.List.copyOf(out);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1 + overrides.size(), "TypedCopyInstance");
+        java.util.Map<String, TypedSpec> os = new java.util.LinkedHashMap<>();
+        int i = 1;
+        for (String k : overrides.keySet()) {
+            os.put(k, kids.get(i++));
+        }
+        return new TypedCopyInstance(kids.get(0), classFqn, os, info);
+    }
 }

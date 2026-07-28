@@ -24,4 +24,10 @@ public record TypedTds(List<List<String>> rows, ExprType info) implements TypedS
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedTds");
+        return this;
+    }
 }

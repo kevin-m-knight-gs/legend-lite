@@ -26,4 +26,15 @@ public record TypedNewInstance(String classFqn, Map<String, TypedSpec> propertie
     public List<TypedSpec> children() {
         return List.copyOf(properties.values());
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, properties.size(), "TypedNewInstance");
+        java.util.Map<String, TypedSpec> ps = new java.util.LinkedHashMap<>();
+        int i = 0;
+        for (String k : properties.keySet()) {
+            ps.put(k, kids.get(i++));
+        }
+        return new TypedNewInstance(classFqn, ps, info);
+    }
 }

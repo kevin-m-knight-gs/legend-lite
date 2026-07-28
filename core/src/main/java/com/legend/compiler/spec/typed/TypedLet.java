@@ -15,4 +15,10 @@ public record TypedLet(String name, TypedSpec value, ExprType info) implements T
     public List<TypedSpec> children() {
         return List.of(value);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedLet");
+        return new TypedLet(name, kids.get(0), info);
+    }
 }

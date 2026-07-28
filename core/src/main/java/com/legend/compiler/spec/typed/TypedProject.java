@@ -52,4 +52,15 @@ public record TypedProject(TypedSpec source, List<TypedFuncCol> columns, ExprTyp
                         new com.legend.compiler.element.type.Multiplicity
                                 .Bounded(docs.size(), docs.size())));
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1 + columns.size(), "TypedProject");
+        java.util.List<TypedFuncCol> cs = new java.util.ArrayList<>(columns.size());
+        for (int i = 0; i < columns.size(); i++) {
+            TypedFuncCol c = columns.get(i);
+            cs.add(new TypedFuncCol(c.name(), (TypedLambda) kids.get(1 + i), c.documentation()));
+        }
+        return new TypedProject(kids.get(0), cs, info);
+    }
 }

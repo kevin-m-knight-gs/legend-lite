@@ -10,4 +10,10 @@ public record TypedCFloat(double value, ExprType info) implements TypedSpec {
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedCFloat");
+        return this;
+    }
 }

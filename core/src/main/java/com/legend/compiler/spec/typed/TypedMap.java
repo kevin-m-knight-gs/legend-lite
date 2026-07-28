@@ -20,4 +20,10 @@ public record TypedMap(TypedSpec source, TypedLambda mapper, ExprType info) impl
     public List<TypedSpec> children() {
         return List.of(source, mapper);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2, "TypedMap");
+        return new TypedMap(kids.get(0), (TypedLambda) kids.get(1), info);
+    }
 }

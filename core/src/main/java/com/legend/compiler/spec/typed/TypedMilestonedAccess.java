@@ -36,4 +36,11 @@ public record TypedMilestonedAccess(TypedSpec source, String property,
         out.addAll(dates);
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1 + dates.size(), "TypedMilestonedAccess");
+        return new TypedMilestonedAccess(kids.get(0), property,
+                kids.subList(1, kids.size()), sweep, info);
+    }
 }

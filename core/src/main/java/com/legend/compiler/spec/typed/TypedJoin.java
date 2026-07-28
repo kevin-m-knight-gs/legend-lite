@@ -34,4 +34,11 @@ public record TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
     public List<TypedSpec> children() {
         return List.of(left, right, kind, condition);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 4, "TypedJoin");
+        return new TypedJoin(kids.get(0), kids.get(1), (TypedEnumValue) kids.get(2),
+                (TypedLambda) kids.get(3), prefix, frameName, info);
+    }
 }

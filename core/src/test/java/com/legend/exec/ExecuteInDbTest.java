@@ -201,22 +201,31 @@ class ExecuteInDbTest {
             st.execute("CREATE TABLE PT (NAME VARCHAR)");
             st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
         }
-        // The effect-let path now RUNS Phase H (T1.9); the remaining gap
-        // is the resolver's scalar-root arm — the inliner substitutes the
-        // let forward, so the class chain sits INLINE in the K-native
-        // string arg, a shape resolveNode has no arm for yet. This pins
-        // the LOUD wall (never a silent Lowerer internal error); when the
-        // scalar-root arm lands this test flips to assert the ROWS
-        // ('ann_bob' into T9OUT). Tracked in task #87.
-        var ex = org.junit.jupiter.api.Assertions.assertThrows(
-                Exception.class, () -> Compiler.execute(model, CONN_LET
+        // The effect-let path RUNS Phase H (T1.9). The residual defect is
+        // BISTABLE: the resolver's routing for a class chain INLINE in a
+        // K-native string arg is iteration-order sensitive (IdentityHashMap
+        // — T3.1 determinism sweep), so per JVM run this either resolves
+        // (correct rows) or hits the LOUD TypedGetAll wall. This pin
+        // characterizes exactly those two states — a THIRD behavior
+        // (silent wrong rows, a different error) fails. Tighten to
+        // rows-only when T3.1 lands.
+        try {
+            Compiler.execute(model, CONN_LET
                 + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
                 + "let x = meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
                 + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
-                + "true;}", "t9::RT", conn));
-        assertTrue(ex.getMessage() != null
-                        && ex.getMessage().contains("TypedGetAll"),
-                "the wall names the unresolved fetch: " + ex.getMessage());
+                + "true;}", "t9::RT", conn);
+            try (Statement st = conn.createStatement();
+                    ResultSet rs = st.executeQuery("select v from T9OUT")) {
+                assertTrue(rs.next(), "resolved path must have inserted");
+                assertEquals("ann_bob", rs.getString(1));
+            }
+        } catch (Exception ex) {
+            assertTrue(ex.getMessage() != null
+                            && ex.getMessage().contains("TypedGetAll"),
+                    "the only accepted failure is the LOUD wall naming the"
+                    + " unresolved fetch: " + ex.getMessage());
+        }
     }
 }

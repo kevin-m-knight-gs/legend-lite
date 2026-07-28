@@ -22,4 +22,12 @@ public record TypedWrite(TypedSpec source, Optional<TypedSpec> destination, Expr
                 .map(d -> List.of(source, d))
                 .orElseGet(() -> List.of(source));
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, destination.isPresent() ? 2 : 1, "TypedWrite");
+        return new TypedWrite(kids.get(0),
+                destination.isPresent() ? java.util.Optional.of(kids.get(1))
+                        : java.util.Optional.empty(), info);
+    }
 }

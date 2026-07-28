@@ -10,4 +10,10 @@ public record TypedCDecimal(java.math.BigDecimal value, ExprType info) implement
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedCDecimal");
+        return this;
+    }
 }

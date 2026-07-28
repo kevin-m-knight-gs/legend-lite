@@ -93,4 +93,23 @@ public sealed interface TypedSpec permits
      * exhaustiveness guarantee a switch would give, kept with the structure).
      */
     List<TypedSpec> children();
+
+    /**
+     * Rebuild this node with {@code children} replacing {@link #children()},
+     * consumed POSITIONALLY in children()'s exact order — the inverse
+     * traversal. Mandatory like {@code children()}: adding a variant forces
+     * both traversal decisions at definition time, and every generic
+     * rewriter collapses to one delegating arm (remediation T2.1). A child
+     * must keep its node kind (a lambda child stays a lambda) — a mismatch
+     * throws {@link ClassCastException} LOUDLY, never rebuilds wrong.
+     */
+    TypedSpec withChildren(List<TypedSpec> children);
+
+    /** {@link #withChildren} arity guard — count drift throws, never skews. */
+    static void expectChildren(List<TypedSpec> children, int n, String who) {
+        if (children.size() != n) {
+            throw new IllegalArgumentException(who + ".withChildren expects "
+                    + n + " children, got " + children.size());
+        }
+    }
 }

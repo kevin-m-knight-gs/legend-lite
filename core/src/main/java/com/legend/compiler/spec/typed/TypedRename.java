@@ -30,4 +30,10 @@ public record TypedRename(TypedSpec source, List<ColRename> renames, ExprType in
     public List<TypedSpec> children() {
         return List.of(source);   // renames are column names, not expressions
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedRename");
+        return new TypedRename(kids.get(0), renames, info);
+    }
 }

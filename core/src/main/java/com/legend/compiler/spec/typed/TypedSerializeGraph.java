@@ -167,4 +167,50 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         }
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        int i = 1;
+        java.util.List<TypedFuncCol> ls = new java.util.ArrayList<>(leaves.size());
+        for (TypedFuncCol l : leaves) {
+            ls.add(new TypedFuncCol(l.name(), (TypedLambda) kids.get(i++), l.documentation()));
+        }
+        java.util.List<Child> ns = new java.util.ArrayList<>(nested.size());
+        for (Child c : nested) {
+            ns.add(new Child(c.property(), (TypedSerializeGraph) kids.get(i++)));
+        }
+        java.util.List<SubTypePatch> sps = new java.util.ArrayList<>(subTypePatches.size());
+        for (SubTypePatch p : subTypePatches) {
+            java.util.List<TypedFuncCol> pl = new java.util.ArrayList<>(p.leaves().size());
+            for (TypedFuncCol l : p.leaves()) {
+                pl.add(new TypedFuncCol(l.name(), (TypedLambda) kids.get(i++), l.documentation()));
+            }
+            TypedFuncCol mem = new TypedFuncCol(p.member().name(),
+                    (TypedLambda) kids.get(i++), p.member().documentation());
+            java.util.List<Child> pc = new java.util.ArrayList<>(p.children().size());
+            for (Child c : p.children()) {
+                pc.add(new Child(c.property(), (TypedSerializeGraph) kids.get(i++)));
+            }
+            sps.add(new SubTypePatch(p.subTypeFqn(), pl, mem, pc));
+        }
+        java.util.List<TypedFuncCol> oks = new java.util.ArrayList<>(orderKeys.size());
+        for (TypedFuncCol k : orderKeys) {
+            oks.add(new TypedFuncCol(k.name(), (TypedLambda) kids.get(i++), k.documentation()));
+        }
+        java.util.List<CheckedConstraint> ccs = checkedConstraints == null ? null
+                : new java.util.ArrayList<>(checkedConstraints.size());
+        if (checkedConstraints != null) {
+            for (CheckedConstraint c : checkedConstraints) {
+                TypedFuncCol pr = new TypedFuncCol(c.predicate().name(),
+                        (TypedLambda) kids.get(i++), c.predicate().documentation());
+                TypedFuncCol msg = new TypedFuncCol(c.message().name(),
+                        (TypedLambda) kids.get(i++), c.message().documentation());
+                ccs.add(new CheckedConstraint(c.id(), pr, msg, c.level(), c.definerFqn()));
+            }
+        }
+        TypedSpec.expectChildren(kids, i, "TypedSerializeGraph");
+        return new TypedSerializeGraph(kids.get(0), rowVar, ls, ns, arrayWrap,
+                bareValue, classFqn, info, inlineChild, sps, oks, typeKeyName,
+                fqTypePath, ccs);
+    }
 }

@@ -50,4 +50,25 @@ public record TypedGroupBy(TypedSpec source, List<GroupKey> keys, List<TypedAggC
         });
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        int i = 1;
+        java.util.List<GroupKey> ks = new java.util.ArrayList<>(keys.size());
+        for (GroupKey k : keys) {
+            ks.add(k.fn().isPresent()
+                    ? new GroupKey(k.column(), java.util.Optional.of(
+                            (TypedLambda) kids.get(i++)))
+                    : k);
+        }
+        java.util.List<TypedAggCol> as = new java.util.ArrayList<>(aggs.size());
+        for (TypedAggCol a : aggs) {
+            TypedLambda m = (TypedLambda) kids.get(i++);
+            TypedLambda r = (TypedLambda) kids.get(i++);
+            TypedLambda ok = a.orderKey() != null ? (TypedLambda) kids.get(i++) : null;
+            as.add(new TypedAggCol(a.name(), m, r, ok, a.orderAsc()));
+        }
+        TypedSpec.expectChildren(kids, i, "TypedGroupBy");
+        return new TypedGroupBy(kids.get(0), ks, as, info);
+    }
 }

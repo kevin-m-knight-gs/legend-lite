@@ -37,4 +37,10 @@ public record TypedNewInstanceCast(String classFqn, TypedSpec source,
     public List<TypedSpec> children() {
         return List.of(source);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedNewInstanceCast");
+        return new TypedNewInstanceCast(classFqn, kids.get(0), info, targetSetId);
+    }
 }

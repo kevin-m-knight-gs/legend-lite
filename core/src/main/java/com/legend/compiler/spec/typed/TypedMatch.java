@@ -28,4 +28,14 @@ public record TypedMatch(TypedSpec input, String param, TypedSpec body,
                 .map(e -> List.of(input, e, body))
                 .orElseGet(() -> List.of(input, body));
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, extra.isPresent() ? 3 : 2, "TypedMatch");
+        return extra.isPresent()
+                ? new TypedMatch(kids.get(0), param, kids.get(2), extraParam,
+                        java.util.Optional.of(kids.get(1)), info)
+                : new TypedMatch(kids.get(0), param, kids.get(1), extraParam,
+                        java.util.Optional.empty(), info);
+    }
 }

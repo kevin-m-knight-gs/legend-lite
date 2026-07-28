@@ -20,4 +20,12 @@ public record TypedIf(TypedSpec condition, TypedSpec thenBranch,
                 .map(e -> List.of(condition, thenBranch, e))
                 .orElseGet(() -> List.of(condition, thenBranch));
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, elseBranch.isPresent() ? 3 : 2, "TypedIf");
+        return new TypedIf(kids.get(0), kids.get(1),
+                elseBranch.isPresent() ? java.util.Optional.of(kids.get(2))
+                        : java.util.Optional.empty(), info);
+    }
 }

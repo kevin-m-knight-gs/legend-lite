@@ -23,4 +23,10 @@ public record TypedSelect(TypedSpec source, List<String> columns, ExprType info)
     public List<TypedSpec> children() {
         return List.of(source);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedSelect");
+        return new TypedSelect(kids.get(0), columns, info);
+    }
 }

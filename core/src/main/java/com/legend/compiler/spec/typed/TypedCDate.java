@@ -20,4 +20,10 @@ public record TypedCDate(PureDateLiteral value, ExprType info) implements TypedS
     public List<TypedSpec> children() {
         return List.of();
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 0, "TypedCDate");
+        return this;
+    }
 }

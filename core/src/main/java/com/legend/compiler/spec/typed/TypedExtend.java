@@ -29,4 +29,15 @@ public record TypedExtend(TypedSpec source, List<TypedFuncCol> columns, ExprType
         columns.forEach(c -> out.add(c.fn()));
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1 + columns.size(), "TypedExtend");
+        java.util.List<TypedFuncCol> cs = new java.util.ArrayList<>(columns.size());
+        for (int i = 0; i < columns.size(); i++) {
+            TypedFuncCol c = columns.get(i);
+            cs.add(new TypedFuncCol(c.name(), (TypedLambda) kids.get(1 + i), c.documentation()));
+        }
+        return new TypedExtend(kids.get(0), cs, info);
+    }
 }

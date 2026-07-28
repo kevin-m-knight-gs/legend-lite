@@ -31,4 +31,10 @@ public record TypedSort(TypedSpec source, List<TypedSortKey> keys, ExprType info
     public List<TypedSpec> children() {
         return List.of(source);   // keys are column names, not expressions
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedSort");
+        return new TypedSort(kids.get(0), keys, info);
+    }
 }

@@ -31,4 +31,10 @@ public record TypedSortBy(TypedSpec source, TypedLambda key, boolean ascending,
     public List<TypedSpec> children() {
         return List.of(source, key);
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 2, "TypedSortBy");
+        return new TypedSortBy(kids.get(0), (TypedLambda) kids.get(1), ascending, keyAlias, info);
+    }
 }

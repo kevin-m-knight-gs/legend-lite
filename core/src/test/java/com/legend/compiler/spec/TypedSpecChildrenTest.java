@@ -70,6 +70,51 @@ class TypedSpecChildrenTest {
         assertTrue(failures.isEmpty(), String.join("\n", failures));
     }
 
+    @Test
+    void withChildrenRoundTripsEveryVariant() throws Exception {
+        // T2.1: withChildren is children()'s exact inverse — rebuilding a
+        // node from its own children yields an EQUAL node, for every
+        // variant the sealed interface permits.
+        List<String> failures = new ArrayList<>();
+        for (Class<?> node : TypedSpec.class.getPermittedSubclasses()) {
+            TypedSpec instance = (TypedSpec) build(node);
+            TypedSpec rebuilt = instance.withChildren(instance.children());
+            if (!instance.equals(rebuilt)) {
+                failures.add(node.getSimpleName()
+                        + " withChildren(children()) != this:\n  was "
+                        + instance + "\n  got " + rebuilt);
+            }
+        }
+        assertTrue(failures.isEmpty(), String.join("\n", failures));
+    }
+
+    @Test
+    void withChildrenRejectsArityDrift() throws Exception {
+        // a dropped or extra child must throw, never rebuild skewed.
+        // VARIABLE-ARITY variants are exempt BY DESIGN: their children ARE
+        // the whole list (call args, collection elements, lambda body,
+        // milestoning dates) and a count change is a legitimate rewrite.
+        var variableArity = java.util.Set.of("TypedNativeCall", "TypedUserCall",
+                "TypedCollection", "TypedLambda", "TypedGetAll");
+        List<String> silent = new ArrayList<>();
+        for (Class<?> node : TypedSpec.class.getPermittedSubclasses()) {
+            if (variableArity.contains(node.getSimpleName())) {
+                continue;
+            }
+            TypedSpec instance = (TypedSpec) build(node);
+            var kids = new ArrayList<TypedSpec>(instance.children());
+            kids.add(instance);   // one extra child
+            try {
+                instance.withChildren(kids);
+                silent.add(node.getSimpleName());
+            } catch (RuntimeException expected) {
+                // loud is the contract — guard or cast, never silence
+            }
+        }
+        assertTrue(silent.isEmpty(),
+                "variants that silently accepted arity drift: " + silent);
+    }
+
     /** Flatten a component value into the TypedSpecs it carries. */
     private static void collectTypedSpecs(Object value, List<TypedSpec> out) {
         switch (value) {

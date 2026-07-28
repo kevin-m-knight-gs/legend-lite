@@ -29,4 +29,16 @@ public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         });
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1 + 2 * aggs.size(), "TypedExtendAgg");
+        java.util.List<TypedAggCol> as = new java.util.ArrayList<>(aggs.size());
+        for (int i = 0; i < aggs.size(); i++) {
+            TypedAggCol a = aggs.get(i);
+            as.add(new TypedAggCol(a.name(), (TypedLambda) kids.get(1 + 2 * i),
+                    (TypedLambda) kids.get(2 + 2 * i), a.orderKey(), a.orderAsc()));
+        }
+        return new TypedExtendAgg(kids.get(0), as, info);
+    }
 }

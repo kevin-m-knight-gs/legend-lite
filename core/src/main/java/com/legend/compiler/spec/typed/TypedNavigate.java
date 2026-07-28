@@ -71,4 +71,17 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
         out.add(pairedPredicate.get());
         return out;
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        int base = form == Form.INLINE ? 2 : 3;
+        TypedSpec.expectChildren(kids,
+                base + (pairedPredicate.isPresent() ? 1 : 0), "TypedNavigate");
+        TypedSpec tgt = form == Form.INLINE ? target : kids.get(1);
+        TypedLambda pred = (TypedLambda) kids.get(form == Form.INLINE ? 1 : 2);
+        java.util.Optional<TypedLambda> paired = pairedPredicate.isPresent()
+                ? java.util.Optional.of((TypedLambda) kids.get(base))
+                : java.util.Optional.empty();
+        return new TypedNavigate(kids.get(0), alias, tgt, pred, paired, form, info);
+    }
 }

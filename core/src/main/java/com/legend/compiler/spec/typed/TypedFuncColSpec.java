@@ -17,4 +17,11 @@ public record TypedFuncColSpec(TypedFuncCol col, ExprType info) implements Typed
     public List<TypedSpec> children() {
         return List.of(col.fn());
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, 1, "TypedFuncColSpec");
+        return new TypedFuncColSpec(new TypedFuncCol(col.name(),
+                (TypedLambda) kids.get(0), col.documentation()), info);
+    }
 }

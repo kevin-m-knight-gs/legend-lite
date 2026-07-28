@@ -31,4 +31,13 @@ public record TypedAsOfJoin(TypedSpec left, TypedSpec right, TypedLambda match,
                 .map(c -> List.of(left, right, match, c))
                 .orElseGet(() -> List.of(left, right, match));
     }
+
+    @Override
+    public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
+        TypedSpec.expectChildren(kids, condition.isPresent() ? 4 : 3, "TypedAsOfJoin");
+        return new TypedAsOfJoin(kids.get(0), kids.get(1), (TypedLambda) kids.get(2),
+                condition.isPresent()
+                        ? java.util.Optional.of((TypedLambda) kids.get(3))
+                        : java.util.Optional.empty(), prefix, info);
+    }
 }
