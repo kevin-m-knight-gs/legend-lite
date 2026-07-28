@@ -201,31 +201,24 @@ class ExecuteInDbTest {
             st.execute("CREATE TABLE PT (NAME VARCHAR)");
             st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
         }
-        // The effect-let path RUNS Phase H (T1.9). The residual defect is
-        // BISTABLE: the resolver's routing for a class chain INLINE in a
-        // K-native string arg is iteration-order sensitive (IdentityHashMap
-        // — T3.1 determinism sweep), so per JVM run this either resolves
-        // (correct rows) or hits the LOUD TypedGetAll wall. This pin
-        // characterizes exactly those two states — a THIRD behavior
-        // (silent wrong rows, a different error) fails. Tighten to
-        // rows-only when T3.1 lands.
-        try {
-            Compiler.execute(model, CONN_LET
-                + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
-                + "let x = meta::relational::metamodel::execute::executeInDb("
-                + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
-                + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
-                + "true;}", "t9::RT", conn);
-            try (Statement st = conn.createStatement();
-                    ResultSet rs = st.executeQuery("select v from T9OUT")) {
-                assertTrue(rs.next(), "resolved path must have inserted");
-                assertEquals("ann_bob", rs.getString(1));
-            }
-        } catch (Exception ex) {
-            assertTrue(ex.getMessage() != null
-                            && ex.getMessage().contains("TypedGetAll"),
-                    "the only accepted failure is the LOUD wall naming the"
-                    + " unresolved fetch: " + ex.getMessage());
+        // The effect-let path RUNS Phase H (T1.9). This pin was BISTABLE
+        // (resolved-rows OR the loud TypedGetAll wall, flipping per JVM
+        // run) until the T2.1/T3.1 arc: identity-preserving rebuilds
+        // (mapChildren) + the memoized space/anchor classifier removed
+        // every run-varying input the routing consumed — no identity-keyed
+        // structure is ITERATED anywhere in core (T3.1 B3 census), and
+        // 12 consecutive fresh-JVM runs resolve. Tightened to ROWS-ONLY:
+        // any recurrence of the wall (or a third behavior) fails loudly.
+        Compiler.execute(model, CONN_LET
+            + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
+            + "let x = meta::relational::metamodel::execute::executeInDb("
+            + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
+            + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
+            + "true;}", "t9::RT", conn);
+        try (Statement st = conn.createStatement();
+                ResultSet rs = st.executeQuery("select v from T9OUT")) {
+            assertTrue(rs.next(), "resolved path must have inserted");
+            assertEquals("ann_bob", rs.getString(1));
         }
     }
 }
