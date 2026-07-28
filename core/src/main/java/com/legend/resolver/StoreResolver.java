@@ -1,5 +1,6 @@
 package com.legend.resolver;
 
+import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
@@ -1748,7 +1749,7 @@ public final class StoreResolver {
         Map<String, String> navPrefixToClass = new LinkedHashMap<>();
         Map<String, String> navPrefixToChain = new LinkedHashMap<>();
         Map<String, String> midPrefixToChain = new LinkedHashMap<>();
-        Map<String, String> midPrefixToDim = new LinkedHashMap<>();
+        Map<String, com.legend.compiler.element.MilestoningStrategy> midPrefixToDim = new LinkedHashMap<>();
         Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
         for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
             if (navE.getValue().target()
@@ -1805,14 +1806,14 @@ public final class StoreResolver {
                     : temporal.rangeMilestonedPipe(basePipe, g.milestoning().get(0),
                             g.milestoning().get(1), g.classFqn());
         } else if (g.milestoning().size() == 2
-                && "bitemporal".equals(temporal.temporalStrategy(g.classFqn()))) {
+                && temporal.temporalStrategy(g.classFqn()) == MilestoningStrategy.BITEMPORAL) {
             // BI-TEMPORAL fetch: .all(processingDate, businessDate) — real
             // pure's getAll(Class, processingDate, businessDate) signature;
             // both dimensions filter.
             materializedPipe = temporal.milestonedPipeByStrategy(
                     temporal.milestonedPipeByStrategy(basePipe, g.milestoning().get(0),
-                            "processingtemporal", g.classFqn()),
-                    g.milestoning().get(1), "businesstemporal", g.classFqn());
+                            MilestoningStrategy.PROCESSING, g.classFqn()),
+                    g.milestoning().get(1), MilestoningStrategy.BUSINESS, g.classFqn());
         } else if (g.milestoning().size() == 2) {
             // SINGLE-dimension class with two dates: the RANGE fetch —
             // engine getAll(Class, start, end), same filter as

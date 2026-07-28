@@ -431,10 +431,12 @@ final class Typer {
                 var prop = ctx.findProperty(classFqn, base).orElse(null);
                 String targetFqn = prop != null
                         && prop.type() instanceof Type.ClassType pct ? pct.fqn() : null;
-                String targetStrat = targetFqn == null ? null
+                com.legend.compiler.element.MilestoningStrategy targetStrat
+                        = targetFqn == null ? null
                         : com.legend.compiler.element.Temporal.strategyOf(ctx, targetFqn);
                 boolean arityOk = af.parameters().size() - 1 == wantDates;
-                if ("bitemporal".equals(targetStrat) && !sweep) {
+                if (targetStrat == com.legend.compiler.element
+                        .MilestoningStrategy.BITEMPORAL && !sweep) {
                     // product(processingDate, businessDate) — or the 1-date
                     // generated form (the owner's dimension fills the other)
                     int n2 = af.parameters().size() - 1;

@@ -3,6 +3,7 @@
 
 package com.legend.resolver;
 
+import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.compiler.spec.typed.TypedSpec;
 import java.util.List;
 /**
@@ -37,17 +38,17 @@ import java.util.List;
  */
 record TemporalContext(TypedSpec processing, TypedSpec business,
                        TypedSpec rangeStart, TypedSpec rangeEnd,
-                       String rangeDim) {
+                       MilestoningStrategy rangeDim) {
 
     static final TemporalContext NONE =
             new TemporalContext(null, null, null, null, null);
 
-    static TemporalContext single(String strategy, TypedSpec date) {
+    static TemporalContext single(MilestoningStrategy strategy, TypedSpec date) {
         // audit 23: EXHAUSTIVE — the old else built a BUSINESS context
         // for ANY other strategy (a bitemporal class with one date, or a
         // null strategy, silently stamped business columns only)
         return switch (strategy) {
-            case "processingtemporal" ->
+            case PROCESSING ->
                     new TemporalContext(date, null, null, null, null);
             // 'bitemporal' with ONE date: the propagation convention fills
             // the BUSINESS slot — pinned row-correct by the three
@@ -55,7 +56,7 @@ record TemporalContext(TypedSpec processing, TypedSpec business,
             // reverted, audit 23 batch 2). A dimension-TAGGED propagation
             // is the honest future shape; this API loses the source
             // dimension.
-            case "businesstemporal", "bitemporal" ->
+            case BUSINESS, BITEMPORAL ->
                     new TemporalContext(null, date, null, null, null);
             case null, default ->
                     throw new com.legend.error.NotImplementedException(
@@ -73,14 +74,14 @@ record TemporalContext(TypedSpec processing, TypedSpec business,
     /** A validity-overlap window IN ONE DIMENSION ({@code rangeDim} = the
      * swept class's strategy) — the old size-2 date list left range vs
      * bi-temporal vs dimension a per-site guess. */
-    static TemporalContext range(String strategy, TypedSpec start,
+    static TemporalContext range(MilestoningStrategy strategy, TypedSpec start,
             TypedSpec end) {
         return new TemporalContext(null, null, start, end, strategy);
     }
 
-    boolean rangeAppliesTo(String strategy) {
+    boolean rangeAppliesTo(MilestoningStrategy strategy) {
         return rangeStart != null && strategy != null
-                && strategy.equals(rangeDim);
+                && strategy == rangeDim;
     }
 
     boolean isEmpty() {
@@ -96,11 +97,11 @@ record TemporalContext(TypedSpec processing, TypedSpec business,
      * filter), when the context is a RANGE, or when {@code strategy} is
      * null/bitemporal (a bi-temporal consumer takes both via the
      * dimension-specific accessors). */
-    TypedSpec dateFor(String strategy) {
-        if ("processingtemporal".equals(strategy)) {
+    TypedSpec dateFor(MilestoningStrategy strategy) {
+        if (strategy == MilestoningStrategy.PROCESSING) {
             return processing;
         }
-        if ("businesstemporal".equals(strategy)) {
+        if (strategy == MilestoningStrategy.BUSINESS) {
             return business;
         }
         return null;

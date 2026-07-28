@@ -3,6 +3,7 @@
 
 package com.legend.resolver;
 
+import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
@@ -94,13 +95,13 @@ final class GraphEmission {
         // GENERATED temporal-context properties ride the implicit envelope
         // (engine: temporal instances serialize their dates; sweeps read
         // each version row's own validity-start)
-        String strat = temporal.temporalStrategy(cs.classFqn());
+        MilestoningStrategy strat = temporal.temporalStrategy(cs.classFqn());
         if (strat != null) {
-            if (!"processingtemporal".equals(strat)
+            if (strat != MilestoningStrategy.PROCESSING
                     && !cs.bindings().containsKey("businessDate")) {
                 tree.add(new TypedGraphTree("businessDate", List.of()));
             }
-            if (!"businesstemporal".equals(strat)
+            if (strat != MilestoningStrategy.BUSINESS
                     && !cs.bindings().containsKey("processingDate")) {
                 tree.add(new TypedGraphTree("processingDate", List.of()));
             }
@@ -1041,10 +1042,10 @@ final class GraphEmission {
     private String childKey(TypedGraphTree node, String childFqn) {
         if (node.alias() == null && node.qualified()
                 && node.args().isEmpty()) {
-            String strat = temporal.temporalStrategy(childFqn);
+            MilestoningStrategy strat = temporal.temporalStrategy(childFqn);
             TypedSpec d = strat == null ? null
                     : temporal.rootContextDate(
-                            !strat.startsWith("processing"));
+                            strat != MilestoningStrategy.PROCESSING);
             if (d instanceof com.legend.compiler.spec.typed.TypedCDate cd) {
                 String iso = cd.value().toEngineString();
                 return node.property() + "(" + iso

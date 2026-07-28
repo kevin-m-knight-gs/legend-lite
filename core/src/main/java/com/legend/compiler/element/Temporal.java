@@ -15,14 +15,12 @@ public final class Temporal {
      * for {@code classFqn}. */
     public static com.legend.compiler.element.type.ExprType generatedMember(
             ModelContext ctx, String classFqn, String prop) {
-        String strat = strategyOf(ctx, classFqn);
+        MilestoningStrategy strat = strategyOf(ctx, classFqn);
         boolean generated = strat != null
                 && (prop.equals("businessDate")
-                        && (strat.equals("businesstemporal")
-                                || strat.equals("bitemporal"))
+                        && strat.has(MilestoningStrategy.Dimension.BUSINESS)
                 || prop.equals("processingDate")
-                        && (strat.equals("processingtemporal")
-                                || strat.equals("bitemporal")));
+                        && strat.has(MilestoningStrategy.Dimension.PROCESSING));
         if (generated) {
             return new com.legend.compiler.element.type.ExprType(
                     com.legend.compiler.element.type.Type.Primitive.DATE,
@@ -31,8 +29,8 @@ public final class Temporal {
         if (prop.equals("milestoning") && strat != null) {
             return new com.legend.compiler.element.type.ExprType(
                     new com.legend.compiler.element.type.Type.ClassType(
-                            "meta::pure::milestoning::" + (strat
-                                    .equals("processingtemporal")
+                            "meta::pure::milestoning::"
+                                    + (strat == MilestoningStrategy.PROCESSING
                                     ? "ProcessingDateMilestoning"
                                     : "BusinessDateMilestoning")),
                     com.legend.compiler.element.type.Multiplicity
@@ -58,11 +56,11 @@ public final class Temporal {
     }
 
     /**
-     * The class's temporal stereotype ({@code <<temporal.businesstemporal>>}
+     * The class's milestoning strategy ({@code <<temporal.businesstemporal>>}
      * etc., inherited through superclasses), or {@code null} for a
      * non-temporal class.
      */
-    public static String strategyOf(ModelContext ctx, String classFqn) {
+    public static MilestoningStrategy strategyOf(ModelContext ctx, String classFqn) {
         java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         work.add(classFqn);
@@ -74,12 +72,11 @@ public final class Temporal {
             var def = ctx.findClassDefinition(fqn).orElse(null);
             if (def != null) {
                 for (var st : def.stereotypes()) {
-                    if (("temporal".equals(st.profileName())
-                            || "meta::pure::profiles::temporal".equals(st.profileName()))
-                            && java.util.Set.of("businesstemporal",
-                                    "processingtemporal", "bitemporal")
-                                    .contains(st.stereotypeName())) {
-                        return st.stereotypeName();
+                    MilestoningStrategy s = MilestoningStrategy
+                            .ofStereotypeOrNull(st.profileName(),
+                                    st.stereotypeName());
+                    if (s != null) {
+                        return s;
                     }
                 }
             }

@@ -1528,9 +1528,9 @@ public final class MappingNormalizer {
             return false;
         }
         for (var st : cd.stereotypes()) {
-            if (("temporal".equals(st.profileName())
-                    || "meta::pure::profiles::temporal".equals(st.profileName()))
-                    && "bitemporal".equals(st.stereotypeName())) {
+            if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
+                    st.profileName(), st.stereotypeName())
+                    == com.legend.compiler.element.MilestoningStrategy.BITEMPORAL) {
                 return true;
             }
         }
@@ -1558,10 +1558,8 @@ public final class MappingNormalizer {
             return false;
         }
         for (var st : cd.stereotypes()) {
-            if (("temporal".equals(st.profileName())
-                    || "meta::pure::profiles::temporal".equals(st.profileName()))
-                    && Set.of("businesstemporal", "processingtemporal",
-                            "bitemporal").contains(st.stereotypeName())) {
+            if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
+                    st.profileName(), st.stereotypeName()) != null) {
                 return true;
             }
         }

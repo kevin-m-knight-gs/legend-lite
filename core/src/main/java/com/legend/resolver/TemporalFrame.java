@@ -4,6 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.compiler.element.Temporal;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
@@ -105,13 +106,13 @@ final class TemporalFrame {
         TemporalFrame seed = new TemporalFrame(ctx, sources,
                 TemporalContext.NONE, Map.of(), letEnv);
         List<TypedSpec> nd = seed.normalizeContextDates(dates);
-        String strat = seed.temporalStrategy(classFqn);
+        MilestoningStrategy strat = seed.temporalStrategy(classFqn);
         TemporalContext rc = TemporalContext.NONE;
         if (versionSweep) {
             rc = nd.size() == 2
                     ? TemporalContext.range(strat, nd.get(0), nd.get(1))
                     : TemporalContext.NONE;
-        } else if (nd.size() == 2 && "bitemporal".equals(strat)) {
+        } else if (nd.size() == 2 && strat == MilestoningStrategy.BITEMPORAL) {
             rc = TemporalContext.bitemporal(nd.get(0), nd.get(1));
         } else if (nd.size() == 2) {
             rc = TemporalContext.range(strat, nd.get(0), nd.get(1));
@@ -131,7 +132,7 @@ final class TemporalFrame {
      * single-date spec — the caller keeps the outer frame. */
     TemporalFrame nestedFrame(String hopClassFqn, String chainPrefix) {
         TemporalSpec hopSpec = specs.get(chainPrefix);
-        String strat = temporalStrategy(hopClassFqn);
+        MilestoningStrategy strat = temporalStrategy(hopClassFqn);
         if (hopSpec == null || hopSpec.sweep()
                 || hopSpec.dates().size() != 1 || strat == null) {
             return null;
@@ -190,8 +191,8 @@ final class TemporalFrame {
             return pipe;
         }
         TypedSpec out = pipe;
-        for (String dim : List.of("processingtemporal",
-                "businesstemporal")) {
+        for (MilestoningStrategy dim : List.of(MilestoningStrategy.PROCESSING,
+                MilestoningStrategy.BUSINESS)) {
             if (!tableHasBlock(out, dim)) {
                 continue;
             }
@@ -223,16 +224,16 @@ final class TemporalFrame {
      */
     TypedSpec stampForClass(TypedSpec pipe, TemporalContext c,
             String classFqn) {
-        String strat = temporalStrategy(classFqn);
+        MilestoningStrategy strat = temporalStrategy(classFqn);
         if (c.isEmpty() || strat == null) {
             return pipe;
         }
-        if ("bitemporal".equals(strat)) {
+        if (strat == MilestoningStrategy.BITEMPORAL) {
             if (c.processing() != null && c.business() != null) {
                 return milestonedPipeByStrategy(
                         milestonedPipeByStrategy(pipe, c.processing(),
-                                "processingtemporal", classFqn),
-                        c.business(), "businesstemporal", classFqn);
+                                MilestoningStrategy.PROCESSING, classFqn),
+                        c.business(), MilestoningStrategy.BUSINESS, classFqn);
             }
             if (c.processing() != null || c.business() != null) {
                 throw new MappingResolutionException("navigation to"
@@ -274,8 +275,8 @@ final class TemporalFrame {
      */
     TypedSpec stampForClassOrDefer(TypedSpec pipe, TemporalContext c,
             String classFqn, String chain) {
-        String strat = temporalStrategy(classFqn);
-        if (strat != null && !"bitemporal".equals(strat) && !c.isEmpty()
+        MilestoningStrategy strat = temporalStrategy(classFqn);
+        if (strat != null && strat != MilestoningStrategy.BITEMPORAL && !c.isEmpty()
                 && !c.rangeAppliesTo(strat) && chain != null
                 && outerRead(c.dateFor(strat)) != null
                 && deferWindow(chain, strat, pipe, c.dateFor(strat))) {
@@ -283,29 +284,29 @@ final class TemporalFrame {
         }
         // BITEMPORAL: per-dimension — the LITERAL dimension stamps
         // in-pipe, the OUTER-read dimension defers ITS window
-        if ("bitemporal".equals(strat) && !c.isEmpty() && chain != null
+        if (strat == MilestoningStrategy.BITEMPORAL && !c.isEmpty() && chain != null
                 && c.processing() != null && c.business() != null) {
             boolean pOuter = outerRead(c.processing()) != null;
             boolean bOuter = outerRead(c.business()) != null;
             if (pOuter || bOuter) {
                 TypedSpec out = pipe;
                 if (pOuter) {
-                    if (!deferWindow(chain, "processingtemporal", pipe,
+                    if (!deferWindow(chain, MilestoningStrategy.PROCESSING, pipe,
                             c.processing())) {
                         return stampForClass(pipe, c, classFqn);
                     }
                 } else {
                     out = milestonedPipeByStrategy(out, c.processing(),
-                            "processingtemporal", classFqn);
+                            MilestoningStrategy.PROCESSING, classFqn);
                 }
                 if (bOuter) {
-                    if (!deferWindow(chain, "businesstemporal", pipe,
+                    if (!deferWindow(chain, MilestoningStrategy.BUSINESS, pipe,
                             c.business())) {
                         return stampForClass(pipe, c, classFqn);
                     }
                 } else {
                     out = milestonedPipeByStrategy(out, c.business(),
-                            "businesstemporal", classFqn);
+                            MilestoningStrategy.BUSINESS, classFqn);
                 }
                 return out;
             }
@@ -390,7 +391,7 @@ final class TemporalFrame {
 
     /** Register the deferred window for one dimension; false when the
      * sub table's block is underivable (caller keeps the loud stamp). */
-    private boolean deferWindow(String chain, String strat, TypedSpec pipe,
+    private boolean deferWindow(String chain, MilestoningStrategy strat, TypedSpec pipe,
             TypedSpec date) {
         var rt0 = rootTable(pipe);
         var ms0 = rt0 == null ? null
@@ -399,13 +400,13 @@ final class TemporalFrame {
         String f0 = null;
         String t0 = null;
         boolean inc0 = false;
-        if ("businesstemporal".equals(strat) && ms0 != null
+        if (strat == MilestoningStrategy.BUSINESS && ms0 != null
                 && ms0.business() != null
                 && ms0.business().snapshotDate() == null) {
             f0 = ms0.business().from();
             t0 = ms0.business().thru();
             inc0 = ms0.business().thruIsInclusive();
-        } else if ("processingtemporal".equals(strat) && ms0 != null
+        } else if (strat == MilestoningStrategy.PROCESSING && ms0 != null
                 && ms0.processing() != null
                 && ms0.processing().snapshotDate() == null) {
             f0 = ms0.processing().in();
@@ -613,7 +614,7 @@ final class TemporalFrame {
     }
 
     TypedSpec milestonedPipe(TypedSpec pipe, TypedSpec date, String classFqn) {
-        String strategy = temporalStrategy(classFqn);
+        MilestoningStrategy strategy = temporalStrategy(classFqn);
         if (strategy == null) {
             throw new MappingResolutionException("milestoned fetch of '" + classFqn
                     + "': the class declares no temporal stereotype", classFqn);
@@ -699,18 +700,18 @@ final class TemporalFrame {
                         spec.dates().get(0));
             }
         }
-        String parentStrat = temporalStrategy(parent.classFqn());
+        MilestoningStrategy parentStrat = temporalStrategy(parent.classFqn());
         if (root.processing() != null && root.business() != null
                 && parentStrat != null) {
             return List.of(root.processing(), root.business());
         }
         if (spec != null && !spec.sweep() && spec.dates().size() == 1) {
             TypedSpec ownerDate = root.dateFor(parentStrat);
-            if (ownerDate != null && "businesstemporal".equals(parentStrat)) {
+            if (ownerDate != null && parentStrat == MilestoningStrategy.BUSINESS) {
                 return List.of(spec.dates().get(0), ownerDate);
             }
             if (ownerDate != null
-                    && "processingtemporal".equals(parentStrat)) {
+                    && parentStrat == MilestoningStrategy.PROCESSING) {
                 return List.of(ownerDate, spec.dates().get(0));
             }
         }
@@ -724,7 +725,7 @@ final class TemporalFrame {
     TypedLambda outerBiDatedJoinCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, ClassSource parent, ClassSource target,
             String head) {
-        if (!"bitemporal".equals(temporalStrategy(target.classFqn()))) {
+        if (temporalStrategy(target.classFqn()) != MilestoningStrategy.BITEMPORAL) {
             return null;
         }
         List<TypedSpec> dates = biTemporalDatesFor(specs.get(head), parent);
@@ -997,17 +998,17 @@ final class TemporalFrame {
             var ms = rt == null ? null
                     : ctx.findTableMilestoning(rt.store(), rt.table())
                             .orElse(null);
-            String strat = temporalStrategy(hopClass);
+            MilestoningStrategy strat = temporalStrategy(hopClass);
             String fromCol;
             String thruCol;
             boolean inclusive;
-            if ("businesstemporal".equals(strat) && ms != null
+            if (strat == MilestoningStrategy.BUSINESS && ms != null
                     && ms.business() != null
                     && ms.business().snapshotDate() == null) {
                 fromCol = ms.business().from();
                 thruCol = ms.business().thru();
                 inclusive = ms.business().thruIsInclusive();
-            } else if ("processingtemporal".equals(strat) && ms != null
+            } else if (strat == MilestoningStrategy.PROCESSING && ms != null
                     && ms.processing() != null
                     && ms.processing().snapshotDate() == null) {
                 fromCol = ms.processing().in();
@@ -1096,20 +1097,20 @@ final class TemporalFrame {
     private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String navClass, String outerCol,
             TypedSpec specDate) {
-        String strat = temporalStrategy(navClass);
+        MilestoningStrategy strat = temporalStrategy(navClass);
         TypedTableReference rt = rootTable(right);
         var ms = rt == null ? null
                 : ctx.findTableMilestoning(rt.store(), rt.table()).orElse(null);
         String fromCol;
         String thruCol;
         boolean inclusive;
-        if ("businesstemporal".equals(strat) && ms != null
+        if (strat == MilestoningStrategy.BUSINESS && ms != null
                 && ms.business() != null
                 && ms.business().snapshotDate() == null) {
             fromCol = ms.business().from();
             thruCol = ms.business().thru();
             inclusive = ms.business().thruIsInclusive();
-        } else if ("processingtemporal".equals(strat) && ms != null
+        } else if (strat == MilestoningStrategy.PROCESSING && ms != null
                 && ms.processing() != null
                 && ms.processing().snapshotDate() == null) {
             fromCol = ms.processing().in();
@@ -1236,7 +1237,7 @@ final class TemporalFrame {
     }
 
     TypedSpec milestonedPipeByStrategy(TypedSpec pipe, TypedSpec date,
-            String strategy, String classFqn) {
+            MilestoningStrategy strategy, String classFqn) {
         if (System.getenv("LEGEND_LITE_STAMP_TRACE") != null) {
             TypedSpec d0 = unwrapToOne(date);
             if (d0 instanceof com.legend.compiler.spec.typed.TypedVariable bv) {
@@ -1281,7 +1282,7 @@ final class TemporalFrame {
         String snapCol;
         boolean inclusive;
         String infinity;
-        if (strategy.equals("businesstemporal")) {
+        if (strategy == MilestoningStrategy.BUSINESS) {
             var b = ms == null ? null : ms.business();
             if (b == null) {
                 // CAPABILITY TOLERANCE (engine relationalElementCanSupport-
@@ -1295,7 +1296,7 @@ final class TemporalFrame {
             snapCol = b.snapshotDate();
             inclusive = b.thruIsInclusive();
             infinity = b.infinityDate();
-        } else if (strategy.equals("processingtemporal")) {
+        } else if (strategy == MilestoningStrategy.PROCESSING) {
             var p = ms == null ? null : ms.processing();
             if (p == null) {
                 return pipe;   // capability tolerance — see above
@@ -1511,7 +1512,7 @@ final class TemporalFrame {
             Map<String, String> navPrefixToClass,
             Map<String, String> navPrefixToChain,
             Map<String, String> midPrefixToChain,
-            Map<String, String> midPrefixToDim) {
+            Map<String, MilestoningStrategy> midPrefixToDim) {
         // ROOT context absent: physical joinslot targets have nothing to
         // filter by, but CLASS-typed navigate targets may carry EXPLICIT
         // property-function dates (specs) — those still apply
@@ -1537,7 +1538,7 @@ final class TemporalFrame {
                     // rule this replaces (audit 14 F1: target-class
                     // governance left spec-less mids unstamped).
                     TemporalSpec midSpec = specs.get(midChain);
-                    String specDim = midPrefixToDim.get(j.prefix().get());
+                    MilestoningStrategy specDim = midPrefixToDim.get(j.prefix().get());
                     // audit 23 #75: a chain spec that EXISTS but is not
                     // the single-date shape (range/pair or sweep) must
                     // not silently fall back to the ROOT context — the
@@ -1652,15 +1653,15 @@ final class TemporalFrame {
     }
 
     /** The pipe's root table declares a milestoning block for {@code strategy}. */
-    boolean tableHasBlock(TypedSpec pipe, String strategy) {
+    boolean tableHasBlock(TypedSpec pipe, MilestoningStrategy strategy) {
         TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         if (ms == null) {
             return false;
         }
-        return strategy.equals("businesstemporal") ? ms.business() != null
-                : strategy.equals("processingtemporal") && ms.processing() != null;
+        return strategy == MilestoningStrategy.BUSINESS ? ms.business() != null
+                : strategy == MilestoningStrategy.PROCESSING && ms.processing() != null;
     }
 
     /** The pipe's TOP row carries the milestone columns the block needs. */
@@ -1726,7 +1727,7 @@ final class TemporalFrame {
      */
     TypedSpec rangeMilestonedPipe(TypedSpec pipe, TypedSpec start,
             TypedSpec end, String classFqn) {
-        String strategy = temporalStrategy(classFqn);
+        MilestoningStrategy strategy = temporalStrategy(classFqn);
         if (strategy == null) {
             throw new MappingResolutionException("allVersionsInRange of '" + classFqn
                     + "': the class declares no temporal stereotype", classFqn);
@@ -1737,12 +1738,12 @@ final class TemporalFrame {
     /** The range filter over a pipe by an EXPLICIT strategy (raw slot-target
      * scans under a range context — audit 13 F3). */
     TypedSpec rangeScanPipe(TypedSpec pipe, TypedSpec start,
-            TypedSpec end, String strategy) {
+            TypedSpec end, MilestoningStrategy strategy) {
         return rangeScanPipe(pipe, start, end, strategy, "join target");
     }
 
     TypedSpec rangeScanPipe(TypedSpec pipe, TypedSpec start,
-            TypedSpec end, String strategy, String classFqn) {
+            TypedSpec end, MilestoningStrategy strategy, String classFqn) {
         TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
@@ -1750,7 +1751,7 @@ final class TemporalFrame {
         String thruCol;
         String snapCol;
         boolean inclusive;
-        if (strategy.equals("businesstemporal")) {
+        if (strategy == MilestoningStrategy.BUSINESS) {
             var b = ms == null ? null : ms.business();
             if (b == null) {
                 return pipe;   // capability tolerance (engine gating)
@@ -1759,7 +1760,7 @@ final class TemporalFrame {
             thruCol = b.thru();
             snapCol = b.snapshotDate();
             inclusive = b.thruIsInclusive();
-        } else if (strategy.equals("processingtemporal")) {
+        } else if (strategy == MilestoningStrategy.PROCESSING) {
             var pr = ms == null ? null : ms.processing();
             if (pr == null) {
                 return pipe;   // capability tolerance (engine gating)
@@ -1858,7 +1859,7 @@ final class TemporalFrame {
      * non-temporal class. Drives which milestoning block filters the fetch
      * — engine {@code milestoningCanSupportTemporalStrategy}.
      */
-    String temporalStrategy(String classFqn) {
+    MilestoningStrategy temporalStrategy(String classFqn) {
         return Temporal.strategyOf(ctx, classFqn);
     }
 
@@ -2020,7 +2021,7 @@ final class TemporalFrame {
      */
     TypedSpec temporalTargetPipe(ClassSource parent, ClassSource target,
             String head, TypedSpec pipe) {
-        String strat = temporalStrategy(target.classFqn());
+        MilestoningStrategy strat = temporalStrategy(target.classFqn());
         if (strat == null) {
             return pipe;
         }
@@ -2028,7 +2029,7 @@ final class TemporalFrame {
         if (spec != null && spec.sweep() && spec.dates().isEmpty()) {
             return pipe;   // propAllVersions(): the RAW extent, any dimension
         }
-        if (strat.equals("bitemporal")) {
+        if (strat == MilestoningStrategy.BITEMPORAL) {
             TemporalSpec parentSpec = head.contains(".")
                     ? specs.get(head.substring(0, head.lastIndexOf('.')))
                     : null;
@@ -2056,8 +2057,8 @@ final class TemporalFrame {
             }
             return milestonedPipeByStrategy(
                     milestonedPipeByStrategy(pipe, dates.get(0),
-                            "processingtemporal", target.classFqn()),
-                    dates.get(1), "businesstemporal", target.classFqn());
+                            MilestoningStrategy.PROCESSING, target.classFqn()),
+                    dates.get(1), MilestoningStrategy.BUSINESS, target.classFqn());
         }
         if (spec != null) {
             if (spec.sweep() && spec.dates().isEmpty()) {
@@ -2131,12 +2132,12 @@ final class TemporalFrame {
             String targetClassFqn, TemporalContext inherited) {
         TemporalSpec spec = chainPrefix == null ? null
                 : specs.get(chainPrefix);
-        String targetStrat = temporalStrategy(targetClassFqn);
+        MilestoningStrategy targetStrat = temporalStrategy(targetClassFqn);
         if (spec != null && !spec.dates().isEmpty()) {
             if (spec.dates().size() == 2) {
                 // 2 dates = bi-temporal PAIR for a bi-temporal target,
                 // else the allVersionsInRange RANGE spelling
-                return !spec.sweep() && "bitemporal".equals(targetStrat)
+                return !spec.sweep() && targetStrat == MilestoningStrategy.BITEMPORAL
                         ? TemporalContext.bitemporal(spec.dates().get(0),
                                 spec.dates().get(1))
                         : TemporalContext.range(targetStrat,
@@ -2149,7 +2150,7 @@ final class TemporalFrame {
         }
         if (spec == null && targetStrat != null) {
             if (inherited != null && !inherited.isEmpty()) {
-                if ("bitemporal".equals(targetStrat)) {
+                if (targetStrat == MilestoningStrategy.BITEMPORAL) {
                     // bitemp targets inherit only a FULL pair
                     if (inherited.processing() != null
                             && inherited.business() != null) {
@@ -2163,7 +2164,7 @@ final class TemporalFrame {
                 }
             }
             if (chainPrefix != null && !chainPrefix.contains(".")) {
-                if ("bitemporal".equals(targetStrat)
+                if (targetStrat == MilestoningStrategy.BITEMPORAL
                         && root.processing() != null
                         && root.business() != null) {
                     return root;
@@ -2263,7 +2264,7 @@ final class TemporalFrame {
     /** The generated milestone-struct leaf -> physical column map for the
      * pipe's root table, by the class's temporal dimension. */
     Map<String, String> milestoneColumnsOf(TypedSpec pipe, String classFqn) {
-        String strat = temporalStrategy(classFqn);
+        MilestoningStrategy strat = temporalStrategy(classFqn);
         TypedTableReference root = rootTable(pipe);
         var ms = root == null || strat == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
@@ -2271,7 +2272,7 @@ final class TemporalFrame {
             return Map.of();
         }
         Map<String, String> out = new LinkedHashMap<>();
-        if (!"processingtemporal".equals(strat) && ms.business() != null) {
+        if (strat != MilestoningStrategy.PROCESSING && ms.business() != null) {
             var b = ms.business();
             if (b.from() != null) {
                 out.put("from", b.from());
@@ -2292,7 +2293,7 @@ final class TemporalFrame {
                 out.put(GEN_BUSINESS_DATE, gen);
             }
         }
-        if (!"businesstemporal".equals(strat) && ms.processing() != null) {
+        if (strat != MilestoningStrategy.BUSINESS && ms.processing() != null) {
             var pr = ms.processing();
             if (pr.in() != null) {
                 out.putIfAbsent("in", pr.in());
@@ -2396,8 +2397,8 @@ final class TemporalFrame {
 
     private boolean containsJoinToMilestoned(TypedSpec n) {
         if (n instanceof TypedJoin j
-                && (tableHasBlock(j.right(), "businesstemporal")
-                        || tableHasBlock(j.right(), "processingtemporal"))) {
+                && (tableHasBlock(j.right(), MilestoningStrategy.BUSINESS)
+                        || tableHasBlock(j.right(), MilestoningStrategy.PROCESSING))) {
             return true;
         }
         for (TypedSpec c : n.children()) {
