@@ -150,9 +150,18 @@ final class StatementExecutor {
                         java.util.List<TypedSpec> single =
                                 new java.util.ArrayList<>(letPrefix);
                         single.add(let.value());
-                        executeTyped(new com.legend.compiler.spec.UserCallInliner(
+                        java.util.List<TypedSpec> inlined =
+                                new com.legend.compiler.spec.UserCallInliner(
                                 specs, spliceHook(execFrames, letPrefix, specs, env))
-                                .inlineBody(single), env);
+                                .inlineBody(single);
+                        // Phase H runs HERE too (remediation T1.9): an
+                        // effect arg derived from a class query must not
+                        // reach the Lowerer with TypedGetAll intact
+                        inlined = new com.legend.resolver.StoreResolver(
+                                env.ctx(), specs)
+                                .withLetBindings(env.queryLets())
+                                .resolve(inlined, env.runtimeFqn());
+                        executeTyped(inlined, env);
                     }
                     continue;
                 }

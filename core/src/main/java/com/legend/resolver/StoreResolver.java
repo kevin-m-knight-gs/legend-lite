@@ -3160,7 +3160,7 @@ public final class StoreResolver {
         // silently eats the aggregate (max() > 30 becoming any-match).
         if (n instanceof TypedNativeCall ac
                 && !ac.args().isEmpty()
-                && CorrelatedSubselects.AGG_FQNS.contains(ac.callee().qualifiedName())
+                && CorrelatedSubselects.isAggregate(ac.callee())
                 && CorrelatedSubselects.containsToManyCrossing(
                         ac.args().get(0), userVar, cs,
                         this::isToManyAssocHead)) {

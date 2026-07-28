@@ -4869,4 +4869,44 @@ class MappingNormalizerTest {
         assertTrue(mb.mappingPoisons.isEmpty(),
                 () -> "Sole-set route must be benign; poisons: " + mb.mappingPoisons);
     }
+
+    @Test
+    void pureKindOfIsExhaustive() {
+        // remediation T1.5: null previously meant BOTH "column not found"
+        // and "variant unmapped" — coercion silently skipped. Every
+        // variant now names a kind; null is column-not-found ONLY.
+        var t = com.legend.model.RelationalDataType.class;
+        for (Class<?> v : t.getPermittedSubclasses()) {
+            Object inst = instantiate(v);
+            org.junit.jupiter.api.Assertions.assertNotNull(
+                    RelationalKinds.pureKindOf(
+                            (com.legend.model.RelationalDataType) inst),
+                    v.getSimpleName() + " must name a pure kind");
+        }
+        org.junit.jupiter.api.Assertions.assertEquals("Byte",
+                RelationalKinds.pureKindOf(
+                        new com.legend.model.RelationalDataType.Binary(10)));
+        org.junit.jupiter.api.Assertions.assertEquals("Variant",
+                RelationalKinds.pureKindOf(
+                        new com.legend.model.RelationalDataType.SemiStructured()));
+    }
+
+    private static Object instantiate(Class<?> v) {
+        try {
+            for (var c : v.getConstructors()) {
+                Object[] args = new Object[c.getParameterCount()];
+                var ps = c.getParameterTypes();
+                for (int i = 0; i < args.length; i++) {
+                    args[i] = ps[i] == int.class ? 1
+                            : ps[i] == com.legend.model.RelationalDataType.class
+                                    ? new com.legend.model.RelationalDataType.Integer_()
+                                    : null;
+                }
+                return c.newInstance(args);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(v + ": " + e, e);
+        }
+        throw new IllegalStateException("no ctor: " + v);
+    }
 }

@@ -337,6 +337,35 @@ class DuckDbRenderTest {
                 () -> new SqlUnion(List.of(SqlSelect.starOf(T_PERSON)), true, List.of()));
     }
 
+    @org.junit.jupiter.api.Test
+    void compositeArmsParenthesize() {
+        // remediation T1.6: composite string-built emissions must not
+        // misbind under an enclosing operator
+        SqlExpr xor = new SqlExpr.Call(com.legend.sql.SqlFn.XOR,
+                List.of(col("B1"), col("B2")));
+        String andXor = renderExpr(new SqlExpr.Call(com.legend.sql.SqlFn.AND,
+                List.of(col("A"), xor)));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                andXor.contains("AND (("),
+                "xor under AND must parenthesize: " + andXor);
+        String ucInConcat = renderExpr(new SqlExpr.Call(
+                com.legend.sql.SqlFn.CONCAT, List.of(col("S"),
+                        new SqlExpr.Call(com.legend.sql.SqlFn.UC_FIRST,
+                                List.of(col("T"))))));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                ucInConcat.contains("(upper(")
+                        && ucInConcat.contains(", 2))"),
+                "ucFirst composite must parenthesize: " + ucInConcat);
+        String addI = renderExpr(new SqlExpr.Call(com.legend.sql.SqlFn.LESS,
+                List.of(new SqlExpr.Call(com.legend.sql.SqlFn.ADD_INTERVAL,
+                        List.of(new SqlExpr.StringLit("to_days"),
+                                new SqlExpr.IntLit(3), col("D"))),
+                        col("D2"))));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                addI.contains("(t0.D + to_days(3))"),
+                "addInterval under a comparison must parenthesize: " + addI);
+    }
+
     private String renderExpr(SqlExpr e) {
         return duck.render(SqlSelect.starOf(T_PERSON)
                         .withProjections(List.of(new SqlSelect.Projection(e, null)), List.of()))

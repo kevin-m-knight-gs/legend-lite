@@ -13,7 +13,7 @@ import java.util.Map;
  * lambda ({@code y|$y->sum()}) &rarr; the SQL reducer name. Identity-keyed like
  * {@link Scalars}; catalog-driven registration; unregistered = loud error.
  */
-final class Aggregates {
+public final class Aggregates {
 
     private static final Map<String, String> REDUCERS = new HashMap<>();
 
@@ -32,6 +32,10 @@ final class Aggregates {
         family("SUM", "plus");
         family("COUNT", "count");
         family("AVG", "average");
+        // the mapping ~groupBy DSL's 'avg' (normalizer emits it verbatim
+        // against the meta::legend::lite::avg native) — the catalog HALF
+        // was missing: typechecked, then died at lowering (T1.8)
+        family("AVG", "avg");
         family("MIN", "min");
         family("MAX", "max");
         family("STDDEV_SAMP", "stdDevSample");
@@ -102,6 +106,17 @@ final class Aggregates {
     /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
     static String reducerOrNull(TypedFunction callee) {
         return REDUCERS.get(callee.signatureKey());
+    }
+
+    /** The ONE aggregate-membership test (remediation T1.7): resolver
+     * walls ask the reducer catalog, never a parallel name list — a
+     * catalog addition is a wall addition by construction. */
+    public static boolean isReducer(TypedFunction callee) {
+        return REDUCERS.containsKey(callee.signatureKey());
+    }
+
+    static boolean isReducerKey(String signatureKey) {
+        return REDUCERS.containsKey(signatureKey);
     }
 
     static String reducerFor(TypedFunction callee) {

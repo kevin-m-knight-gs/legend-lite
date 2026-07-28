@@ -1384,20 +1384,11 @@ private static boolean readsVarOutsideSlot(TypedSpec n, String var,
     }
 
 
-static final Set<String> AGG_FQNS = aggFqns();
-
-
-private static Set<String> aggFqns() {
-        Set<String> out = new LinkedHashSet<>();
-        for (String name : List.of("average", "mean", "sum", "max",
-                "min", "joinStrings", "percentile", "median",
-                "stdDevPopulation", "stdDevSample",
-                "variancePopulation", "varianceSample", "count", "size")) {
-            for (var f : Pure.nativeFunctionsAt(name)) {
-                out.add(f.qualifiedName());
-            }
-        }
-        return out;
+    /** T1.7: the hand-kept AGG_FQNS name list (missing stdDev, variance,
+     * mode, corr, ... — 15 gaps) is DELETED; membership is the reducer
+     * catalog itself ({@link com.legend.lowering.Aggregates#isReducer}). */
+    static boolean isAggregate(TypedFunction callee) {
+        return com.legend.lowering.Aggregates.isReducer(callee);
     }
 
 
@@ -1641,7 +1632,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                          java.util.function.BiPredicate<ClassSource, String> bareHead) {
         if (n instanceof TypedNativeCall nc
                 && !nc.args().isEmpty()
-                && AGG_FQNS.contains(nc.callee().qualifiedName())) {
+                && isAggregate(nc.callee())) {
             List<String> path =
                     Substitution.pathOf(nc.args().get(0), userVar);
             // AGG(PA(leaf, sortBy(<nav>, key))) — ORDERED aggregation:

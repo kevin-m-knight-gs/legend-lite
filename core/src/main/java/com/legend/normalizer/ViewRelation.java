@@ -366,7 +366,7 @@ final class ViewRelation {
         DatabaseDefinition.ColumnDefinition cd =
                 MappingNormalizer.findPhysicalColumn(db, table, col, model);
         if (cd != null) {
-            return MappingNormalizer.pureKindOf(cd.dataType());
+            return RelationalKinds.pureKindOf(cd.dataType());
         }
         DatabaseDefinition.ViewDefinition view =
                 model.findView(db, table).orElse(null);

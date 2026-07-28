@@ -2498,7 +2498,7 @@ public final class MappingNormalizer {
         }
         DatabaseDefinition.ColumnDefinition cd = findPhysicalColumn(
                 db, cr.table(), cr.column(), model);
-        String colKind = cd == null ? null : pureKindOf(cd.dataType());
+        String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
         if (colKind == null || colKind.equals(declared)) {
             return read;
         }
@@ -2518,7 +2518,7 @@ public final class MappingNormalizer {
         String db = col.database();
         DatabaseDefinition.ColumnDefinition cd =
                 findPhysicalColumn(db, col.table(), col.column(), model);
-        String colKind = cd == null ? null : pureKindOf(cd.dataType());
+        String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
         if (colKind == null || colKind.equals(declared)) {
             return read;
         }
@@ -2572,26 +2572,6 @@ public final class MappingNormalizer {
     }
 
     /** The pure primitive kind a physical SQL type reads as, or null. */
-    static String pureKindOf(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Varchar v -> "String";
-            case RelationalDataType.Char_ c -> "String";
-            case RelationalDataType.BigInt b -> "Integer";
-            case RelationalDataType.SmallInt s -> "Integer";
-            case RelationalDataType.TinyInt s -> "Integer";
-            case RelationalDataType.Integer_ i -> "Integer";
-            case RelationalDataType.Float_ f -> "Float";
-            case RelationalDataType.Double_ d -> "Float";
-            case RelationalDataType.Real r -> "Float";
-            case RelationalDataType.Decimal d -> "Decimal";
-            case RelationalDataType.Numeric n -> "Decimal";
-            case RelationalDataType.Bool b -> "Boolean";
-            case RelationalDataType.Bit b -> "Boolean";
-            case RelationalDataType.Timestamp ts -> "DateTime";
-            case RelationalDataType.Date_ d -> "StrictDate";
-            default -> null;
-        };
-    }
 
     /** The column's declared SQL type — schema-aware, include-walking. */
     static DatabaseDefinition.ColumnDefinition findPhysicalColumn(

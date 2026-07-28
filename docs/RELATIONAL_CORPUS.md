@@ -16,7 +16,7 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 46 | 15 | 11 | 38 |
 | functions/tests | 258 | 219 | 10 | 20 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 129 | 7 | 15 | 4 |
+| functions/tests/projection | 155 | 130 | 7 | 14 | 4 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 107 | 9 | 23 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2004** | 104 | 187 | 243 |
+| **total** | 2538 | **2005** | 104 | 186 | 243 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8431,8 +8431,8 @@ in-process Alloy-shaped path).
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
-- 4x null
 - 4x in call to 'meta::relational::tests::postProcessor::runtimeWithTableReplace', argument 1: expected meta::external::query::sql::metamodel::Table, got meta::relational::metamodel::relation::Table
+- 3x null
 - 3x unknown enumeration 'ProductSynonymType'
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
@@ -8572,7 +8572,6 @@ in-process Alloy-shaped path).
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
-- ERROR testIsDistinctSubAggregation [functions/tests/projection]: null
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as da
@@ -8988,8 +8987,8 @@ in-process Alloy-shaped path).
 - ERROR validateComplexValidation5 [validation/tests]: unknown function 'tdsRows'
 - ERROR validateComplexValidation6 [validation/tests]: filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::complex::Address' — slot-demanding leaves under value-position filters are not supported yet
 - ERROR validateComplexValidation7 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- ERROR validateComplexValidation9 [validation/tests]: negated 'meta::pure::functions::collection::isDistinct' over a to-many crossing — the engine null-compensates only equal/in; this operator's emission is not transcribed yet
-- ERROR validateComplexValidation10 [validation/tests]: navigation through class-typed slot property 'employees' is not supported yet [assocs=[]; inner=TypedPropertyAccess; leaf=name]
+- ERROR validateComplexValidation9 [validation/tests]: aggregate 'meta::pure::functions::collection::isDistinct' over a to-many navigation in FILTER position is not supported yet
+- ERROR validateComplexValidation10 [validation/tests]: reducer 'meta::pure::functions::collection::isDistinct' over an unregistered computed ->map is not supported (the aggregate demand scan did not recognize this shape)
 - ERROR testValidateQueryWithMilestoningAndAggregationAll [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR testValidateQueryWithMilestoningAndAggregationSingle [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet

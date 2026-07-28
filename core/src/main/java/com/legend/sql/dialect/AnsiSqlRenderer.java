@@ -401,7 +401,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case XOR -> {
                 String x = expr(a.get(0), 3);
                 String y = expr(a.get(1), 3);
-                yield "(" + x + " AND NOT " + y + ") OR (NOT " + x + " AND " + y + ")";
+                // whole-expression parens: the OR-chain misbinds under
+                // an enclosing AND (remediation T1.6)
+                yield "((" + x + " AND NOT " + y + ") OR (NOT " + x + " AND " + y + "))";
             }
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(c.fn(), a);
             // Strings
@@ -441,10 +443,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case REVERSE_STRING -> fn("reverse", a);
             case ASCII_CODE -> fn("ascii", a);
             case CHR -> fn("chr", a);
-            case UC_FIRST -> "upper(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
-                    + expr(a.get(0), 0) + ", 2)";
-            case LC_FIRST -> "lower(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
-                    + expr(a.get(0), 0) + ", 2)";
+            // parenthesized: the || concat misbinds under +/comparison
+            case UC_FIRST -> "(upper(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
+                    + expr(a.get(0), 0) + ", 2))";
+            case LC_FIRST -> "(lower(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
+                    + expr(a.get(0), 0) + ", 2))";
             case ENCODE_BASE64 -> "to_base64(CAST(" + expr(a.get(0), 0) + " AS BLOB))";
             case LEVENSHTEIN -> fn("levenshtein", a);
             case GUID -> "uuid()";
@@ -468,9 +471,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case DATE_TRUNC -> fn("date_trunc", a);           // (part, value)
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
-            case ADD_INTERVAL -> expr(a.get(2), 5) + " + "
+            case ADD_INTERVAL -> "(" + expr(a.get(2), 5) + " + "
                     + ((SqlExpr.StringLit) a.get(0)).value()
-                    + "(" + expr(a.get(1), 0) + ")";
+                    + "(" + expr(a.get(1), 0) + "))";
             case DATE_DIFF -> fn("date_diff", a);              // (part, d1, d2)
             case TIMEZONE -> fn("timezone", a);               // (zone, ts) — ICU
             case JSON_TYPE -> fn("json_type", a);
