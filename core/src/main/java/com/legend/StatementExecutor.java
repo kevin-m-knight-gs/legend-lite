@@ -714,8 +714,11 @@ final class StatementExecutor {
         if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr9) {
             // a Database ELEMENT in value position: the store-metamodel
             // walk surface (typeInference family)
-            return com.legend.exec.MetamodelWalk.database(env.ctx(),
+            Object dbh = com.legend.exec.MetamodelWalk.database(env.ctx(),
                     pr9.fullPath());
+            return dbh != null ? dbh
+                    : com.legend.exec.MetamodelWalk.mapping(env.ctx(),
+                            pr9.fullPath());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
             Object recv = planWalk(pa.source(), specs, env);
@@ -808,6 +811,23 @@ final class StatementExecutor {
                             }
                         }
                         return out;
+                    }
+                }
+                case "rootClassMappingByClass" -> {
+                    if (c.args().size() == 2 && c.args().get(1) instanceof
+                            com.legend.compiler.spec.typed
+                                    .TypedPackageableRef cref) {
+                        return com.legend.exec.MetamodelWalk
+                                .rootClassMappingByClass(recv,
+                                        cref.fullPath());
+                    }
+                }
+                case "propertyMappingsByPropertyName" -> {
+                    if (c.args().size() == 2 && c.args().get(1) instanceof
+                            com.legend.compiler.spec.typed
+                                    .TypedCString pn) {
+                        return com.legend.exec.MetamodelWalk
+                                .propertyMappingsByName(recv, pn.value());
                     }
                 }
                 case "inferRelationalType" -> {

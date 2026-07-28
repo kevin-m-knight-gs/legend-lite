@@ -432,7 +432,10 @@ class NativeFunctionTest {
         // 90: +View/ColumnMapping/RelationalOperationElement/DataType
         //     (relational.pure:114-137 — the typeInference metamodel
         //     surface, host-evaluated over our DatabaseDefinition).
-        assertEquals(90, Pure.allNativeClasses().size(),
+        // 95: +SetImplementation/InstanceSetImplementation/
+        //     RootRelationalInstanceSetImplementation/PropertyMapping/
+        //     RelationalPropertyMapping (mapping-side inference nav).
+        assertEquals(95, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -469,6 +472,9 @@ class NativeFunctionTest {
                     java.util.Map.entry(
                     "meta::relational::mapping::ColumnMapping",
                     List.of("columnName", "relationalOperationElement")),
+                    java.util.Map.entry(
+                    "meta::relational::mapping::RelationalPropertyMapping",
+                    List.of("relationalOperationElement")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Database",
                     List.of("schemas")),

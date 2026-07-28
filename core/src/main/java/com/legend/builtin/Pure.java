@@ -243,6 +243,15 @@ public final class Pure {
     public static final ClassDefinition COLUMN_MAPPING_METACLASS = nativeClass("native Class meta::relational::mapping::ColumnMapping extends meta::pure::metamodel::type::Any { columnName: meta::pure::metamodel::type::String[1]; relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     public static final ClassDefinition RELATIONAL_OPERATION_ELEMENT = nativeClass("native Class meta::relational::metamodel::RelationalOperationElement extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition DATA_TYPE_METACLASS = nativeClass("native Class meta::relational::metamodel::datatype::DataType extends meta::pure::metamodel::type::Any {}");
+    // The MAPPING-side inference navigation (real functions_Mapping.pure
+    // :61 + functions_PropertyMappingsImplementation.pure:74 +
+    // relationalMapping.pure:46/66; the real intermediate parents
+    // collapse to single inheritance — subsumption for casts only)
+    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::SetImplementation {}");
+    public static final ClassDefinition ROOT_RELATIONAL_SET_IMPL = nativeClass("native Class meta::relational::mapping::RootRelationalInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation {}");
+    public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition RELATIONAL_PROPERTY_MAPPING = nativeClass("native Class meta::relational::mapping::RelationalPropertyMapping extends meta::pure::mapping::PropertyMapping { relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     // task #78 step-1 declarations (each cited to the REAL source; class
     // CONSTRAINTS are never ported — constraint evaluation is a separate
     // feature track, declarations only TYPE):
@@ -1071,6 +1080,8 @@ public final class Pure {
     // Real platform_store_relational/functions.pure:227/:249 — metamodel
     // navigation (ordinary pure over the store metamodel there; typed
     // natives here, evaluated K-side when a consumer demands the values).
+    public static final NativeFunctionDefinition ROOT_CLASS_MAPPING_BY_CLASS = signature("native function meta::pure::mapping::rootClassMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[0..1];");
+    public static final NativeFunctionDefinition PROPERTY_MAPPINGS_BY_NAME = signature("native function meta::pure::mapping::propertyMappingsByPropertyName(i:meta::pure::mapping::InstanceSetImplementation[1], propertyName:meta::pure::metamodel::type::String[1]):meta::pure::mapping::PropertyMapping[*];");
     public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");
     public static final NativeFunctionDefinition INFER_RELATIONAL_TYPE = signature("native function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1]):meta::relational::metamodel::datatype::DataType[0..1];");
     public static final NativeFunctionDefinition DATA_TYPE_TO_SQL_TEXT = signature("native function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):meta::pure::metamodel::type::String[1];");

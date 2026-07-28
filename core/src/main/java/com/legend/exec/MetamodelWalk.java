@@ -42,10 +42,57 @@ public final class MetamodelWalk {
             DatabaseDefinition.ViewDefinition.ViewColumnMapping vcm) {
     }
 
-    public record Rop(DatabaseDefinition db, RelationalOperation op) {
+    public record Rop(DatabaseDefinition db, ModelContext ctx,
+            RelationalOperation op) {
     }
 
     public record Dt(RelationalDataType type) {
+    }
+
+    public record Mm(ModelContext ctx,
+            com.legend.model.LegacyMappingDefinition mapping) {
+    }
+
+    public record Cm(ModelContext ctx,
+            com.legend.model.ClassMapping.Relational cm) {
+    }
+
+    public record Pm(ModelContext ctx,
+            com.legend.model.PropertyMapping pm) {
+    }
+
+    /** A Mapping ELEMENT reference as a metamodel handle, or null. */
+    public static Object mapping(ModelContext ctx, String fqn) {
+        return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
+                .orElse(null);
+    }
+
+    /** {@code rootClassMappingByClass} — the class's relational set. */
+    public static Object rootClassMappingByClass(Object recv,
+            String classFqn) {
+        if (recv instanceof Mm m) {
+            for (var cm : m.mapping().classMappings()) {
+                if (cm instanceof com.legend.model.ClassMapping.Relational r
+                        && r.className().equals(classFqn)) {
+                    return new Cm(m.ctx(), r);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** {@code propertyMappingsByPropertyName} — declaration order. */
+    public static Object propertyMappingsByName(Object recv, String name) {
+        if (recv instanceof Cm c) {
+            List<Object> out = new ArrayList<>();
+            for (var pm : c.cm().propertyMappings()) {
+                if (pm.propertyName().equals(name)) {
+                    out.add(new Pm(c.ctx(), pm));
+                }
+            }
+            return out;
+        }
+        return null;
     }
 
     /** A Database ELEMENT reference as a metamodel handle, or null. */
@@ -81,7 +128,20 @@ public final class MetamodelWalk {
             return switch (prop) {
                 case "columnName" -> c.vcm().name();
                 case "relationalOperationElement" ->
-                        new Rop(c.db(), c.vcm().expression());
+                        new Rop(c.db(), null, c.vcm().expression());
+                default -> null;
+            };
+        }
+        if (recv instanceof Pm p
+                && prop.equals("relationalOperationElement")) {
+            return switch (p.pm()) {
+                case com.legend.model.PropertyMapping.Expression ex ->
+                        new Rop(null, p.ctx(), ex.expression());
+                case com.legend.model.PropertyMapping.Column col ->
+                        new Rop(null, p.ctx(),
+                                new RelationalOperation.ColumnRef(
+                                        col.database(), col.table(),
+                                        col.column()));
                 default -> null;
             };
         }
@@ -109,28 +169,60 @@ public final class MetamodelWalk {
         if (!(r instanceof Rop rop)) {
             return null;
         }
-        RelationalDataType t = inferOp(rop.db(), rop.op());
+        RelationalDataType t = inferOp(rop, rop.op());
         return t == null ? null : new Dt(t);
     }
 
-    private static RelationalDataType inferOp(DatabaseDefinition db,
+    private static RelationalDataType inferOp(Rop env,
             RelationalOperation op) {
         return switch (op) {
             case RelationalOperation.ColumnRef c ->
-                    columnType(db, c.table(), c.column());
+                    columnType(env, c.databaseName(), c.table(), c.column());
             case RelationalOperation.FunctionCall f -> switch (
                     f.name().toLowerCase(java.util.Locale.ROOT)) {
                 // aggregates carry their argument's type (engine
                 // inferDynaFunctionReturnType: max/min/sum/avg family)
-                case "max", "min", "sum", "distinct", "average", "avg" ->
+                case "max", "min", "distinct" ->
                         f.args().isEmpty() ? null
-                                : inferOp(db, f.args().get(0));
+                                : inferOp(env, f.args().get(0));
+                // sum/avg PROMOTE float-family to DOUBLE (engine
+                // inferDynaFunctionReturnType aggregation rule)
+                case "sum", "average", "avg" -> {
+                    RelationalDataType at = f.args().isEmpty() ? null
+                            : inferOp(env, f.args().get(0));
+                    yield at instanceof RelationalDataType.Float_
+                            || at instanceof RelationalDataType.Real
+                            ? new RelationalDataType.Double_() : at;
+                }
                 case "count" -> new RelationalDataType.Integer_();
+                // case(c1, v1, ..., else): the SAFE type over the value
+                // branches (engine getSafeType lattice)
+                case "case" -> {
+                    RelationalDataType acc = null;
+                    for (int i = 1; i < f.args().size(); i += 2) {
+                        acc = safe(acc, inferOp(env, f.args().get(i)));
+                    }
+                    if (f.args().size() % 2 == 1) {
+                        acc = safe(acc, inferOp(env,
+                                f.args().get(f.args().size() - 1)));
+                    }
+                    yield acc;
+                }
+                // numeric operators widen positionally (engine math
+                // compatibility: DOUBLE beats INT; DECIMAL beats both)
+                case "plus", "minus", "times", "divide" -> {
+                    RelationalDataType acc = null;
+                    for (var arg : f.args()) {
+                        acc = safe(acc, inferOp(env, arg));
+                    }
+                    yield acc;
+                }
                 default -> null;
             };
             case RelationalOperation.JoinNavigation j ->
-                    j.terminal() == null ? null : inferOp(db, j.terminal());
-            case RelationalOperation.Group g -> inferOp(db, g.inner());
+                    j.terminal() == null ? null
+                            : inferOp(env, j.terminal());
+            case RelationalOperation.Group g -> inferOp(env, g.inner());
             // boolean expressions spell BIT (engine H2 boolean SQL type)
             case RelationalOperation.Comparison ignored ->
                     new RelationalDataType.Bit();
@@ -144,10 +236,73 @@ public final class MetamodelWalk {
         };
     }
 
-    /** The declared type of {@code table.column}, searching every
-     * schema (view expressions spell bare table names). */
-    private static RelationalDataType columnType(DatabaseDefinition db,
+    /** The engine's getSafeType pair rule (typeInference.pure): equal
+     * types keep; DECIMAL beats int/double/float as-is; two decimals
+     * widen to DECIMAL(maxIntDigits+maxScale, maxScale); DOUBLE beats
+     * integers. Null operands pass the other side through. */
+    private static RelationalDataType safe(RelationalDataType a,
+            RelationalDataType b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        if (a.equals(b)) {
+            return a;
+        }
+        Integer[] da = decimalOf(a);
+        Integer[] db2 = decimalOf(b);
+        if (da != null && db2 != null) {
+            int intDigits = Math.max(da[0] - da[1], db2[0] - db2[1]);
+            int scale = Math.max(da[1], db2[1]);
+            return new RelationalDataType.Decimal(intDigits + scale, scale);
+        }
+        if (da != null) {
+            return new RelationalDataType.Decimal(da[0], da[1]);
+        }
+        if (db2 != null) {
+            return new RelationalDataType.Decimal(db2[0], db2[1]);
+        }
+        boolean aFloat = a instanceof RelationalDataType.Double_
+                || a instanceof RelationalDataType.Float_
+                || a instanceof RelationalDataType.Real;
+        boolean bFloat = b instanceof RelationalDataType.Double_
+                || b instanceof RelationalDataType.Float_
+                || b instanceof RelationalDataType.Real;
+        if (aFloat || bFloat) {
+            return new RelationalDataType.Double_();
+        }
+        if (a instanceof RelationalDataType.Varchar va
+                && b instanceof RelationalDataType.Varchar vb) {
+            return new RelationalDataType.Varchar(
+                    Math.max(va.size(), vb.size()));
+        }
+        return a;
+    }
+
+    private static Integer[] decimalOf(RelationalDataType t) {
+        if (t instanceof RelationalDataType.Decimal d) {
+            return new Integer[]{d.precision(), d.scale()};
+        }
+        if (t instanceof RelationalDataType.Numeric n) {
+            return new Integer[]{n.precision(), n.scale()};
+        }
+        return null;
+    }
+
+    /** The declared type of {@code table.column}: the op's OWN database
+     * (mapping expressions carry it) via ctx, else the handle db —
+     * searching declared schemas and the top-level default. */
+    private static RelationalDataType columnType(Rop env, String opDb,
             String table, String column) {
+        DatabaseDefinition db = env.db();
+        if (opDb != null && env.ctx() != null) {
+            db = env.ctx().findDatabase(opDb).orElse(db);
+        }
+        if (db == null) {
+            return null;
+        }
         List<DatabaseDefinition.TableDefinition> all = new ArrayList<>(
                 db.tables());
         for (var s : db.schemas()) {
