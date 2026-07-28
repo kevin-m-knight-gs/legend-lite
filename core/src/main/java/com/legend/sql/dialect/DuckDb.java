@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public final class DuckDb extends AnsiSqlRenderer {
 
     public DuckDb() {
-        super(Lexicon.DUCKDB, TypeNames.DUCKDB);
+        super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
     }
 
     @Override

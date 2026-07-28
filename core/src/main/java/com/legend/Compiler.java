@@ -334,7 +334,8 @@ public final class Compiler {
         return distinct.contains("SQLite")
                 ? new com.legend.sql.dialect.AnsiSqlRenderer(
                         com.legend.sql.dialect.Lexicon.SQLITE,
-                        com.legend.sql.dialect.TypeNames.ANSI)
+                        com.legend.sql.dialect.TypeNames.ANSI,
+                        com.legend.sql.dialect.Spellings.DUCKDB)
                 : new com.legend.sql.dialect.DuckDb();
     }
 

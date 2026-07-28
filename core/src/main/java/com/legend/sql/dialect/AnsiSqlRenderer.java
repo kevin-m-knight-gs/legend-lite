@@ -40,10 +40,12 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     private final Lexicon lexicon;
     private final TypeNames typeNames;
+    private final Spellings spellings;
 
-    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames) {
+    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames, Spellings spellings) {
         this.lexicon = java.util.Objects.requireNonNull(lexicon, "lexicon");
         this.typeNames = java.util.Objects.requireNonNull(typeNames, "typeNames");
+        this.spellings = java.util.Objects.requireNonNull(spellings, "spellings");
     }
 
     private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -353,6 +355,11 @@ public class AnsiSqlRenderer implements SqlDialect {
             return infix.prec() < parentPrec ? "(" + joined + ")" : joined.toString();
         }
         List<SqlExpr> a = c.args();
+        // PURE spellings are DATA (Spellings row): name(args), nothing else.
+        String plain = spellings.fnNames().get(c.fn());
+        if (plain != null) {
+            return fn(plain, a);
+        }
         return switch (c.fn()) {
             case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
                  PLUS, MINUS, TIMES ->
@@ -379,8 +386,6 @@ public class AnsiSqlRenderer implements SqlDialect {
             case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
             case IS_DISTINCT -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
                     + expr(a.get(1), 4) + ")";
-            case STRFTIME -> fn("strftime", a);
-            case STRPTIME -> fn("strptime", a);
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
             // operands render ABOVE TIMES precedence: a composite child
             // ((2*t)/(1+p)) must parenthesize or SQL re-associates it
@@ -388,31 +393,8 @@ public class AnsiSqlRenderer implements SqlDialect {
             case MOD -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
                     + expr(a.get(1), 0) + ", " + expr(a.get(1), 0) + ")";
             case REM -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
-            case ABS -> fn("abs", a);
-            case LENGTH -> fn("length", a);
-            case UPPER -> fn("upper", a);
-            case LOWER -> fn("lower", a);
-            case COALESCE -> fn("coalesce", a);
-            case GREATEST -> fn("greatest", a);
-            case LEAST -> fn("least", a);
             // Math — ANSI/portable spellings; ROUND is banker's (dialect maps).
-            case SQRT -> fn("sqrt", a);
-            case CBRT -> fn("cbrt", a);
-            case EXP -> fn("exp", a);
-            case LN -> fn("ln", a);
-            case LOG10 -> fn("log10", a);
-            case POW -> fn("power", a);
             case PI -> "pi()";
-            case SIN -> fn("sin", a);
-            case COS -> fn("cos", a);
-            case TAN -> fn("tan", a);
-            case ASIN -> fn("asin", a);
-            case ACOS -> fn("acos", a);
-            case ATAN -> fn("atan", a);
-            case ATAN2 -> fn("atan2", a);
-            case SINH -> fn("sinh", a);
-            case COSH -> fn("cosh", a);
-            case TANH -> fn("tanh", a);
             case CEILING -> "CAST(ceil(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case FLOOR -> "CAST(floor(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case ROUND -> roundHalfEven(a);
@@ -421,10 +403,8 @@ public class AnsiSqlRenderer implements SqlDialect {
             case ROUND_HALF_UP -> fn("ROUND", a);
             // Runtime assertion: raises with the message when evaluated
             // (guards that must fail LOUD, never clamp).
-            case ERROR -> fn("error", a);
             // floor WITHOUT the BIGINT cast (FLOOR casts — overflows at
             // 1e18): fraction-free tests over the full double range.
-            case FLOOR_RAW -> fn("floor", a);
             case SIGN -> "CAST(sign(" + expr(a.get(0), 0) + ") AS BIGINT)";
             case XOR -> {
                 String x = expr(a.get(0), 3);
@@ -436,76 +416,38 @@ public class AnsiSqlRenderer implements SqlDialect {
             }
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(c.fn(), a);
             // Strings
-            case SUBSTRING -> fn("substr", a);
-            case STRPOS -> fn("strpos", a);
-            case STARTS_WITH -> fn("starts_with", a);
-            case ENDS_WITH -> fn("ends_with", a);
             // MATCHES is the PARTIAL regexp test (regexpLike's SQL
             // semantics); pure matches() is REGEXP_FULL_MATCH (the engine
             // anchors ^...$).
-            case MATCHES -> fn("regexp_matches", a);
-            case REGEXP_FULL_MATCH -> fn("regexp_full_match", a);
-            case REGEXP_EXTRACT -> fn("regexp_extract", a);
-            case REGEXP_EXTRACT_ALL -> fn("regexp_extract_all", a);
-            case REGEXP_REPLACE -> fn("regexp_replace", a);
-            case MAP_FROM_LISTS -> fn("map", a);
-            case MAP_FROM_ENTRIES -> fn("map_from_entries", a);
             case MAP_EMPTY -> "MAP {}";
-            case MAP_EXTRACT -> fn("map_extract", a);
-            case MAP_KEYS -> fn("map_keys", a);
-            case MAP_VALUES -> fn("map_values", a);
-            case MAP_CONCAT -> fn("map_concat", a);
             case BIT_NOT -> "xor(" + expr(a.get(0), 0) + ", -1)";   // ~x without negation overflow at MIN_LONG
-            case LEFT -> fn("left", a);
-            case RIGHT -> fn("right", a);
             // the PAD CHAR is optional in Pure; SQL requires it — ' '.
             case LPAD -> fn("lpad", a.size() == 2
                     ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a);
             case RPAD -> fn("rpad", a.size() == 2
                     ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a);
-            case TRIM -> fn("trim", a);
-            case LTRIM -> fn("ltrim", a);
-            case RTRIM -> fn("rtrim", a);
-            case REPLACE -> fn("replace", a);
-            case SPLIT -> fn("string_split", a);
-            case SPLIT_PART -> fn("split_part", a);
-            case REVERSE_STRING -> fn("reverse", a);
-            case ASCII_CODE -> fn("ascii", a);
-            case CHR -> fn("chr", a);
             // the || concat misbinds under +/comparison — walk-wrapped
             case UC_FIRST -> opSpelling("upper(substr(" + expr(a.get(0), 0)
                     + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
             case LC_FIRST -> opSpelling("lower(substr(" + expr(a.get(0), 0)
                     + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
             case ENCODE_BASE64 -> "to_base64(CAST(" + expr(a.get(0), 0) + " AS BLOB))";
-            case LEVENSHTEIN -> fn("levenshtein", a);
             case GUID -> "uuid()";
-            case FORMAT -> fn("printf", a);
-            case HASH -> fn("hash", a);
-            case MD5 -> fn("md5", a);
-            case SHA1 -> fn("sha1", a);
-            case SHA256 -> fn("sha256", a);
             // Temporal
-            case EXTRACT -> fn("date_part", a);
             case TODAY -> "current_date";
             case NOW -> "now()";
             case DATE_TRUNC_DAY -> "CAST(" + expr(a.get(0), 0) + " AS DATE)";
-            case MAKE_DATE -> fn("make_date", a);
             // make_timestamp wants DOUBLE seconds.
             case MAKE_TIMESTAMP -> a.size() == 6
                     ? "make_timestamp(" + a.subList(0, 5).stream()
                             .map(x -> expr(x, 0)).collect(Collectors.joining(", "))
                             + ", CAST(" + expr(a.get(5), 0) + " AS DOUBLE))"
-                    : fn("make_timestamp", a);
-            case DATE_TRUNC -> fn("date_trunc", a);           // (part, value)
+                    : fn("make_timestamp", a);           // (part, value)
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
             case ADD_INTERVAL -> opSpelling(expr(a.get(2), 5) + " + "
                     + ((SqlExpr.StringLit) a.get(0)).value()
-                    + "(" + expr(a.get(1), 0) + ")", parentPrec);
-            case DATE_DIFF -> fn("date_diff", a);              // (part, d1, d2)
-            case TIMEZONE -> fn("timezone", a);               // (zone, ts) — ICU
-            case JSON_TYPE -> fn("json_type", a);
+                    + "(" + expr(a.get(1), 0) + ")", parentPrec);              // (part, d1, d2)               // (zone, ts) — ICU
             // Week buckets align to the Monday ON/BEFORE the epoch
             // (1969-12-29 — real pure's origin, PCT-pinned); every other
             // unit aligns to the 1970 epoch.
@@ -516,21 +458,10 @@ public class AnsiSqlRenderer implements SqlDialect {
                             ? ", TIMESTAMP '1969-12-29 00:00:00'"
                             : ", TIMESTAMP '1970-01-01 00:00:00'")
                     + ")";
-            case EPOCH_SECONDS -> fn("epoch", a);
-            case EPOCH_MS -> fn("epoch_ms", a);
-            case FROM_EPOCH_SECONDS -> fn("to_timestamp", a);
             case FROM_EPOCH_MS -> "epoch_ms(CAST(" + expr(a.get(0), 0) + " AS BIGINT))";
-            case DAYNAME -> fn("dayname", a);
-            case MONTHNAME -> fn("monthname", a);
-            case COT -> fn("cot", a);
             case INT_DIVIDE -> "(" + expr(a.get(0), 6) + " // " + expr(a.get(1), 6) + ")";
-            case RADIANS -> fn("radians", a);
-            case DEGREES -> fn("degrees", a);
-            case REPEAT_STR -> fn("repeat", a);
-            case JARO_WINKLER -> fn("jaro_winkler_similarity", a);
             case DECODE_BASE64 -> "CAST(from_base64(" + expr(a.get(0), 0) + ") AS VARCHAR)";
             case CURRENT_USER_FN -> "current_user";
-            case LIST_LENGTH -> fn("len", a);
             // Lists (dialect-owned; base throws like the lambda family)
             case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_SORT,
@@ -541,7 +472,6 @@ public class AnsiSqlRenderer implements SqlDialect {
             case TO_VARIANT -> variantConstruct(a);
             // Idiom points — no ANSI spelling; the dialect decides or dies.
             case UNNEST -> unnestProjection(a);
-            case LIST_FLATTEN -> fn("flatten", a);
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET,
                  LIST_POSITION ->
                     listCall(c.fn(), a);
@@ -549,6 +479,11 @@ public class AnsiSqlRenderer implements SqlDialect {
             case LIST_FOR_ALL -> listForAll(a);
             case VARIANT_ELEMENTS -> variantElements(a);
             case VARIANT_GET -> variantGet(a);
+            // Not a spelling row, not a coded rule: LOUD. Exhaustiveness is
+            // pinned by SpellingsTest.everySqlFnClassified (a new SqlFn must
+            // be classified there as data or code).
+            default -> throw new IllegalStateException(
+                    c.fn() + " has no spelling row and no rendering rule");
         };
     }
 
