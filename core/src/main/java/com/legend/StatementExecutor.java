@@ -734,9 +734,38 @@ final class StatementExecutor {
             }
             com.legend.model.RelationalOperation ro = constructOp(ni9,
                     specs, env);
-            return ro == null ? null
-                    : new com.legend.exec.MetamodelWalk.Rop(null,
-                            env.ctx(), ro);
+            if (ro != null) {
+                return new com.legend.exec.MetamodelWalk.Rop(null,
+                        env.ctx(), ro);
+            }
+            // MIXED-args DynaFunction (walked handles among relational
+            // ops): per-arg conversion channel
+            if (ni9.classFqn().endsWith("::DynaFunction")
+                    && ni9.properties().get("name") instanceof
+                            com.legend.compiler.spec.typed.TypedCString dn9) {
+                TypedSpec ps9 = ni9.properties().get("parameters");
+                java.util.List<TypedSpec> els9 = ps9 == null
+                        ? java.util.List.of()
+                        : ps9 instanceof com.legend.compiler.spec.typed
+                                .TypedCollection tc9 ? tc9.elements()
+                                : java.util.List.of(ps9);
+                java.util.List<Object> dargs =
+                        new java.util.ArrayList<>();
+                for (TypedSpec e9 : els9) {
+                    Object w9 = planWalk(e9, specs, env);
+                    if (w9 instanceof java.util.List<?> lw9
+                            && lw9.size() == 1) {
+                        w9 = lw9.get(0);
+                    }
+                    if (w9 == null) {
+                        return null;
+                    }
+                    dargs.add(w9);
+                }
+                return new com.legend.exec.MetamodelWalk.DynH(dn9.value(),
+                        dargs);
+            }
+            return null;
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
             Object recv = planWalk(pa.source(), specs, env);

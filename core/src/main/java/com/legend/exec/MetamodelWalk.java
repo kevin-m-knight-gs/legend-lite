@@ -74,6 +74,11 @@ public final class MetamodelWalk {
     public record TacH(String aliasName, Object column) {
     }
 
+    /** A DynaFunction whose arguments MIX relational ops with walked
+     * metamodel handles (getColumn chains) — converted per-arg. */
+    public record DynH(String name, List<Object> args) {
+    }
+
     /** GENERIC SQL-protocol node value: kind + ctor-provided props.
      * SORTED map (order-insensitive print+equality) and EMPTY/null
      * props dropped — the engine ctor-vs-converter default asymmetry
@@ -169,10 +174,22 @@ public final class MetamodelWalk {
                     : List.of(tb.schemaName(), tb.t().name());
             return node("Table", "name", new QnH(parts));
         }
+        if (r instanceof DynH dh) {
+            List<Object> converted = new ArrayList<>();
+            for (Object arg : dh.args()) {
+                Object v = convertElement(arg);
+                if (v == null) {
+                    return null;
+                }
+                converted.add(v);
+            }
+            return dynaNode(dh.name(), converted);
+        }
         if (r instanceof AliasH ah) {
             Object rel = convertElement(ah.relationalElement());
+            // alias names QUOTE (engine convertTableAliasName)
             return rel == null ? null : node("AliasedRelation", "alias",
-                    ah.name(), "relation", rel);
+                    "\"" + ah.name() + "\"", "relation", rel);
         }
         return null;
     }
@@ -208,7 +225,6 @@ public final class MetamodelWalk {
                 yield node("InListExpression", "values", vs);
             }
             case RelationalOperation.FunctionCall f -> {
-                String nm = f.name().toLowerCase(java.util.Locale.ROOT);
                 List<Object> args = new ArrayList<>();
                 for (var e : f.args()) {
                     Object v = convertOp(e);
@@ -217,32 +233,7 @@ public final class MetamodelWalk {
                     }
                     args.add(v);
                 }
-                yield switch (nm) {
-                    case "sqlnull" -> node("NullLiteral");
-                    case "and", "or" -> node("LogicalBinaryExpression",
-                            "type", nm.toUpperCase(java.util.Locale.ROOT),
-                            "left", args.get(0), "right", args.get(1));
-                    case "isnull" -> node("IsNullPredicate", "value",
-                            args.get(0));
-                    case "isnotnull" -> node("IsNotNullPredicate", "value",
-                            args.get(0));
-                    case "equal" -> node("ComparisonExpression", "left",
-                            args.get(0), "right", args.get(1),
-                            "operator", "EQUAL");
-                    case "notequal" -> node("ComparisonExpression", "left",
-                            args.get(0), "right", args.get(1),
-                            "operator", "NOT_EQUAL");
-                    case "greaterthan" -> node("ComparisonExpression",
-                            "left", args.get(0), "right", args.get(1),
-                            "operator", "GREATER_THAN");
-                    case "lessthan" -> node("ComparisonExpression",
-                            "left", args.get(0), "right", args.get(1),
-                            "operator", "LESS_THAN");
-                    case "in" -> node("InPredicate", "value", args.get(0),
-                            "valueList", args.get(1));
-                    default -> node("FunctionCall", "name",
-                            new QnH(List.of(f.name())), "arguments", args);
-                };
+                yield dynaNode(f.name(), args);
             }
             default -> null;
         };
@@ -499,6 +490,36 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
             case RelationalOperation.IsNotNull ignored ->
                     new RelationalDataType.Bit();
             default -> null;
+        };
+    }
+
+    /** The DYNAFUNCTION-to-SQL-node dispatch (engine convertDynaFunction
+     * families) over already-converted argument nodes. */
+    private static Object dynaNode(String name, List<Object> args) {
+        String nm = name.toLowerCase(java.util.Locale.ROOT);
+        return switch (nm) {
+            case "sqlnull" -> node("NullLiteral");
+            case "and", "or" -> node("LogicalBinaryExpression",
+                    "type", nm.toUpperCase(java.util.Locale.ROOT),
+                    "left", args.get(0), "right", args.get(1));
+            case "isnull" -> node("IsNullPredicate", "value", args.get(0));
+            case "isnotnull" -> node("IsNotNullPredicate", "value",
+                    args.get(0));
+            case "equal" -> node("ComparisonExpression", "left",
+                    args.get(0), "right", args.get(1), "operator", "EQUAL");
+            case "notequal" -> node("ComparisonExpression", "left",
+                    args.get(0), "right", args.get(1),
+                    "operator", "NOT_EQUAL");
+            case "greaterthan" -> node("ComparisonExpression", "left",
+                    args.get(0), "right", args.get(1),
+                    "operator", "GREATER_THAN");
+            case "lessthan" -> node("ComparisonExpression", "left",
+                    args.get(0), "right", args.get(1),
+                    "operator", "LESS_THAN");
+            case "in" -> node("InPredicate", "value", args.get(0),
+                    "valueList", args.get(1));
+            default -> node("FunctionCall", "name", new QnH(List.of(name)),
+                    "arguments", args);
         };
     }
 
