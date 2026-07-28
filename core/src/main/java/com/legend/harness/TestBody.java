@@ -1084,6 +1084,60 @@ public final class TestBody {
         return false;
     }
 
+    /** A predicate over PLAN TEXT (indexOf/contains chains): the
+     * plan-channel text inlines as a literal, the rest evaluates
+     * ordinarily (host-string semantics); walls stay SHAPE. */
+    private static String planPredicateAssert(AppliedFunction af,
+            List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        try {
+            ValueSpecification inlined = inlinePlanText(
+                    substitute(args.get(0), lets), lets, execStmts,
+                    execVars, execChains, ctx, imports, runtimeFqn, conn);
+            Object pv = evalScalar(inlined, lets, execStmts, execVars,
+                    execChains, ctx, imports, runtimeFqn, conn);
+            boolean pexp = af.function().equals("assert");
+            return Boolean.valueOf(pexp).equals(pv) ? null
+                    : "assert" + (pexp ? "" : "False")
+                            + " did not hold (" + pv + ")";
+        } catch (com.legend.error.NotImplementedException
+                | com.legend.error.LegendCompileException
+                | UnsupportedOperationException pw) {
+            return UNSUPPORTED_MARKER;
+        }
+    }
+
+    /** Replace each planToString-family SUBTREE with the literal text
+     * the plan channel produces — the surrounding host-string predicate
+     * then evaluates ordinarily. */
+    private static ValueSpecification inlinePlanText(ValueSpecification v,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        if (v instanceof AppliedFunction af) {
+            String fn = simpleName(af.function());
+            if (fn.equals("planToString")
+                    || fn.equals("planToStringWithoutFormatting")) {
+                Eval e = eval(v, lets, execStmts, execVars, execChains,
+                        ctx, imports, runtimeFqn, conn);
+                return new CString(String.valueOf(e.values().get(0)));
+            }
+            List<ValueSpecification> ps = new ArrayList<>();
+            for (ValueSpecification x : af.parameters()) {
+                ps.add(inlinePlanText(x, lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn));
+            }
+            return new AppliedFunction(af.function(), ps);
+        }
+        return v;
+    }
+
     /** The exec-frame variable an expression reads through (receiver /
      * first-arg chains), or null. */
     private static String rootExecVar(ValueSpecification v,
@@ -1744,6 +1798,11 @@ public final class TestBody {
             case "assert", "assertFalse" -> {
                 if (args.isEmpty()) {
                     return UNSUPPORTED_MARKER;
+                }
+                if (containsPlanToString(substitute(args.get(0), lets))) {
+                    return planPredicateAssert(af, args, lets, execStmts,
+                            execVars, execChains, ctx, imports,
+                            runtimeFqn, conn);
                 }
                 if (containsSqlText(args.get(0))) {
                     // predicate PURELY over golden SQL text is advisory; a

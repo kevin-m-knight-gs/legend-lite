@@ -185,20 +185,7 @@ final class StatementExecutor {
             while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
                 preRoot = pf.source();
             }
-            // pair(a, b).first/.second folds STRUCTURALLY (the datetime
-            // helpers thread plan + plan-text through a pair) — the
-            // projection is pure data selection, no evaluation order
-            while (preRoot instanceof com.legend.compiler.spec.typed
-                            .TypedPropertyAccess pp2
-                    && ("first".equals(pp2.property())
-                            || "second".equals(pp2.property()))
-                    && pp2.source() instanceof com.legend.compiler.spec
-                            .typed.TypedNativeCall pc2
-                    && pc2.callee().qualifiedName().endsWith("::pair")
-                    && pc2.args().size() == 2) {
-                preRoot = pc2.args().get(
-                        "first".equals(pp2.property()) ? 0 : 1);
-            }
+            preRoot = foldPairProjection(preRoot);
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall tsc
                     && com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
                             .equals(tsc.callee().qualifiedName())) {
@@ -258,8 +245,9 @@ final class StatementExecutor {
             if (preRoot instanceof com.legend.compiler.spec.typed
                             .TypedPropertyAccess ppa
                     && ppa.property().equals("processingTemplateFunctions")
-                    && ppa.source() instanceof com.legend.compiler.spec.typed
-                            .TypedNativeCall pep
+                    && foldPairProjection(ppa.source())
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedNativeCall pep
                     && com.legend.compiler.element.type.PlatformTypes
                             .EXECUTION_PLAN.equals(
                                     pep.callee().qualifiedName())) {
@@ -1795,6 +1783,23 @@ final class StatementExecutor {
         }
         out.addAll(body);
         return out;
+    }
+
+    /** pair(a, b).first/.second folds STRUCTURALLY (the datetime
+     * helpers thread plan + plan-text through a pair) — pure data
+     * selection, no evaluation order. */
+    private static TypedSpec foldPairProjection(TypedSpec n) {
+        while (n instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess pp2
+                && ("first".equals(pp2.property())
+                        || "second".equals(pp2.property()))
+                && pp2.source() instanceof com.legend.compiler.spec
+                        .typed.TypedNativeCall pc2
+                && pc2.callee().qualifiedName().endsWith("::pair")
+                && pc2.args().size() == 2) {
+            n = pc2.args().get("first".equals(pp2.property()) ? 0 : 1);
+        }
+        return n;
     }
 
     private static TypedSpec letBound(TypedSpec arg,
