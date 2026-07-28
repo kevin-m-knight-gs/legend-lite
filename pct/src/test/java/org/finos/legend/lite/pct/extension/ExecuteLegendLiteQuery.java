@@ -295,11 +295,64 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 continue;
             }
             String prop = String.valueOf(en.getKey());
-            CoreInstance ci = toCoreInstance(v, propertyTypeOf(declared, prop), ps);
+            // NESTED class-typed properties resolve their REAL type from
+            // the interpreter metamodel — the declared parent type must
+            // not leak onto children (CO_Firm.employees are CO_Person,
+            // never CO_Firm)
+            Type pt = v instanceof java.util.Map || v instanceof java.util.List
+                    ? classPropertyTypeOf(declared, prop, ps)
+                    : propertyTypeOf(declared, prop);
+            if (v instanceof java.util.List<?> lv) {
+                // multi-valued property: EVERY element reconstructs
+                var cis = new java.util.ArrayList<CoreInstance>();
+                for (Object e : lv) {
+                    if (e != null) {
+                        cis.add(toCoreInstance(e, pt, ps));
+                    }
+                }
+                Instance.setValuesForProperty(inst, prop,
+                        org.eclipse.collections.impl.factory.Lists.immutable
+                                .withAll(cis), ps);
+                continue;
+            }
+            CoreInstance ci = toCoreInstance(v, pt, ps);
             Instance.setValuesForProperty(inst, prop,
                     org.eclipse.collections.impl.factory.Lists.immutable.with(ci), ps);
         }
         return inst;
+    }
+
+    /** The property's return type from the interpreter metamodel when it
+     * is a CLASS (nested struct reconstruction); {@code declared}
+     * otherwise — scalar handling stays untouched. */
+    private static Type classPropertyTypeOf(Type declared, String prop,
+            ProcessorSupport ps) {
+        Type byGenerics = propertyTypeOf(declared, prop);
+        if (byGenerics != declared) {
+            return byGenerics;   // Pair generics already carry it
+        }
+        String fqn = classFqnOf(declared);
+        if (fqn == null) {
+            return declared;
+        }
+        CoreInstance cls = ps.package_getByUserPath(fqn);
+        CoreInstance p = cls == null ? null
+                : ps.class_findPropertyUsingGeneralization(cls, prop);
+        CoreInstance gt = p == null ? null
+                : Instance.getValueForMetaPropertyToOneResolved(
+                        p, M3Properties.genericType, ps);
+        CoreInstance raw = gt == null ? null
+                : Instance.getValueForMetaPropertyToOneResolved(
+                        gt, M3Properties.rawType, ps);
+        if (raw != null && ps.instance_instanceOf(raw,
+                org.finos.legend.pure.m3.navigation.M3Paths.Class)) {
+            String pf = org.finos.legend.pure.m3.navigation.PackageableElement
+                    .PackageableElement.getUserPathForPackageableElement(raw);
+            if (pf != null) {
+                return new Type.NameRef(pf);
+            }
+        }
+        return declared;
     }
 
     /** A pure GenericType CoreInstance mirroring the declared engine type (recursive). */

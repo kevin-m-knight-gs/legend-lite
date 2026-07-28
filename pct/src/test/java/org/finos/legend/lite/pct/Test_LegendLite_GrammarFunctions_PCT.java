@@ -44,9 +44,12 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             one("meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension_Function_1__Boolean_1_", "\"unknown type 'meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger' in @meta::pure::functions::boolean::tests::equalitymodel::ExtendedInteger\""),
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
-            // nested property navigation through an injected-model chain — honest
-            // compile gap, also reference-excluded
-            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "\"Cannot find property 'lastName' on meta::pure::functions::collection::tests::model::CO_Firm\""),
+            // testFirstComplex: nested-struct reconstruction now REBUILDS
+            // the CO_Person correctly (classPropertyTypeOf); the assert
+            // then requires the interpreter's ORIGINAL instance back —
+            // reference identity, unfixable over the wire (the reference
+            // adapter excludes it too, failing even earlier)
+            one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
 
             one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"runtime 'test::TestRuntime' has 0 mappings binding class 'meta::pure::metamodel::type::Class' (of 1 candidates); class-query dispatch needs exactly one\""),
             // INSTANCE IDENTITY through the wire: these asserts require the

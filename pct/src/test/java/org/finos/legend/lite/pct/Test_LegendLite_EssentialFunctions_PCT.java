@@ -67,10 +67,12 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // pins; the reference adapter excludes these too):
             one("meta::pure::functions::collection::tests::find::testFindInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
             one("meta::pure::functions::collection::tests::find::testFindUsingVarForFunction_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
-            // nested property navigation through an injected-model chain
-            // (CO_Firm.employees->...lastName) is not resolved yet — an
-            // honest compile gap, also reference-excluded
-            one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "\"Cannot find property 'lastName' on meta::pure::functions::collection::tests::model::CO_Firm\""),
+            // testHeadComplex: nested-struct reconstruction now REBUILDS
+            // the CO_Person correctly (classPropertyTypeOf); the assert
+            // then requires the interpreter's ORIGINAL instance back —
+            // reference identity, unfixable over the wire (the reference
+            // adapter excludes it too, failing even earlier)
+            one("meta::pure::functions::collection::tests::head::testHeadComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
 
 
             one("meta::pure::functions::collection::tests::at::testAtError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 37\""),
