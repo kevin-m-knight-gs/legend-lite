@@ -247,6 +247,20 @@ public final class Pure {
     public static final ClassDefinition DYNA_FUNCTION_METACLASS = nativeClass("native Class meta::relational::metamodel::DynaFunction extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; parameters: meta::relational::metamodel::RelationalOperationElement[*]; }");
     public static final ClassDefinition LITERAL_METACLASS = nativeClass("native Class meta::relational::metamodel::Literal extends meta::relational::metamodel::RelationalOperationElement { value: meta::pure::metamodel::type::Any[1]; }");
     public static final ClassDefinition LITERAL_LIST_METACLASS = nativeClass("native Class meta::relational::metamodel::LiteralList extends meta::relational::metamodel::RelationalOperationElement { values: meta::relational::metamodel::Literal[*]; }");
+    // The toPostgresModel STANDALONE-SQL bridge surface (real
+    // relational.pure:196-383 + postgres metamodel.pure:378-386 +
+    // toPostgresModel.pure:31-82)
+    public static final ClassDefinition SQL_NODE = nativeClass("native Class meta::external::query::sql::metamodel::Node extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition SQL_EXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::Expression extends meta::external::query::sql::metamodel::Node {}");
+    public static final ClassDefinition SQL_QUALIFIED_NAME = nativeClass("native Class meta::external::query::sql::metamodel::QualifiedName extends meta::pure::metamodel::type::Any { parts: meta::pure::metamodel::type::String[*]; }");
+    public static final ClassDefinition SQL_QUALIFIED_NAME_REF = nativeClass("native Class meta::external::query::sql::metamodel::QualifiedNameReference extends meta::external::query::sql::metamodel::Expression { name: meta::external::query::sql::metamodel::QualifiedName[1]; }");
+    public static final ClassDefinition MODEL_CONVERSION_STATE = nativeClass("native Class meta::relational::functions::toPostgresModel::ModelConversionState extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::Alias extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; relationalElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
+    public static final ClassDefinition TABLE_ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAlias extends meta::relational::metamodel::Alias { schema: meta::pure::metamodel::type::String[0..1]; }");
+    public static final ClassDefinition COLUMN_METAMODEL = nativeClass("native Class meta::relational::metamodel::Column extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; type: meta::relational::metamodel::datatype::DataType[1]; }");
+    public static final ClassDefinition COLUMN_NAME_METACLASS = nativeClass("native Class meta::relational::metamodel::ColumnName extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition TABLE_ALIAS_COLUMN_NAME_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAliasColumnName extends meta::relational::metamodel::RelationalOperationElement { alias: meta::relational::metamodel::TableAlias[1]; columnName: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition TABLE_ALIAS_COLUMN_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAliasColumn extends meta::relational::metamodel::RelationalOperationElement { columnName: meta::pure::metamodel::type::String[0..1]; alias: meta::relational::metamodel::TableAlias[1]; column: meta::relational::metamodel::Column[1]; }");
     public static final ClassDefinition DATA_TYPE_METACLASS = nativeClass("native Class meta::relational::metamodel::datatype::DataType extends meta::pure::metamodel::type::Any {}");
     // The MAPPING-side inference navigation (real functions_Mapping.pure
     // :61 + functions_PropertyMappingsImplementation.pure:74 +
@@ -278,7 +292,7 @@ public final class Pure {
     // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
     public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
-    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::pure::metamodel::ModelElement {}");
+    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; columns: meta::relational::metamodel::Column[*]; }");
     // The generated-SQL metamodel root the POST-PROCESSOR hooks receive
     // (relationalRuntime.pure:40-42) — opaque here: legend-lite applies
     // recognized post-processors over its OWN SQL IR
@@ -298,7 +312,7 @@ public final class Pure {
     /** Real core/pure/tds/tds.pure:76-80 (getString/isNull qualified properties omitted until demanded — the ResultSet Row precedent). */
     public static final ClassDefinition TDS_ROW = nativeClass("native Class meta::pure::tds::TDSRow extends meta::pure::metamodel::type::Any { parent: meta::pure::tds::TabularDataSet[0..1]; values: meta::pure::metamodel::type::Any[*]; }");
     /** Real platform_store_relational/grammar/relational.pure (Schema on Database; table lookups land on it). */
-    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement {}");
+    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; }");
     /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
     public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
     // real platform_store_relational/functions.pure:50-65 (dataSource and
@@ -1085,6 +1099,8 @@ public final class Pure {
     // Real platform_store_relational/functions.pure:227/:249 — metamodel
     // navigation (ordinary pure over the store metamodel there; typed
     // natives here, evaluated K-side when a consumer demands the values).
+    public static final NativeFunctionDefinition CONVERT_ELEMENT = signature("native function meta::relational::functions::toPostgresModel::convertElement(r:meta::relational::metamodel::RelationalOperationElement[1], state:meta::relational::functions::toPostgresModel::ModelConversionState[1]):meta::external::query::sql::metamodel::Node[1];");
+    public static final NativeFunctionDefinition NEW_STATE = signature("native function meta::relational::functions::toPostgresModel::newState():meta::relational::functions::toPostgresModel::ModelConversionState[1];");
     public static final NativeFunctionDefinition ROOT_CLASS_MAPPING_BY_CLASS = signature("native function meta::pure::mapping::rootClassMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[0..1];");
     public static final NativeFunctionDefinition PROPERTY_MAPPINGS_BY_NAME = signature("native function meta::pure::mapping::propertyMappingsByPropertyName(i:meta::pure::mapping::InstanceSetImplementation[1], propertyName:meta::pure::metamodel::type::String[1]):meta::pure::mapping::PropertyMapping[*];");
     public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");

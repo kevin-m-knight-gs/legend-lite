@@ -49,6 +49,78 @@ public final class MetamodelWalk {
     public record Dt(RelationalDataType type) {
     }
 
+    public record Tbl(DatabaseDefinition db,
+            DatabaseDefinition.TableDefinition t) {
+    }
+
+    public record ColH(DatabaseDefinition.ColumnDefinition c) {
+    }
+
+    // SQL-protocol NODE values (the toPostgresModel bridge) — java
+    // records give the STRUCTURAL equality/print the assertEquals
+    // comparison rides
+    public record QnH(List<String> parts) {
+    }
+
+    public record QnrH(QnH name) {
+    }
+
+    public record CnH(String name) {
+    }
+
+    public record TacH(String aliasName, Object column) {
+    }
+
+    /** {@code schema('name')} navigation over a Database handle. */
+    public static Object schema(Object recv, String name) {
+        if (recv instanceof Db d) {
+            for (var s : d.db().schemas()) {
+                if (s.name().equals(name)) {
+                    return new Sch(d.db(), s);
+                }
+            }
+            if ("default".equals(name)) {
+                return new Sch(d.db(),
+                        new DatabaseDefinition.SchemaDefinition("default",
+                                d.db().tables(), d.db().views()));
+            }
+        }
+        return null;
+    }
+
+    /** {@code table('name')} navigation over a Schema handle. */
+    public static Object table(Object recv, String name) {
+        if (recv instanceof Sch s) {
+            for (var t : s.schema().tables()) {
+                if (t.name().equals(name)) {
+                    return new Tbl(s.db(), t);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** {@code convertElement} — the toPostgresModel SIMPLE element arms
+     * (toPostgresModel.pure:93-96 + convertColumn:203 +
+     * convertTableAliasName:785: alias names QUOTE). */
+    public static Object convertElement(Object recv) {
+        Object r = recv instanceof List<?> l && l.size() == 1
+                ? l.get(0) : recv;
+        if (r instanceof TacH t) {
+            String col = t.column() instanceof ColH ch ? ch.c().name()
+                    : String.valueOf(t.column());
+            return new QnrH(new QnH(List.of(
+                    "\"" + t.aliasName() + "\"", col)));
+        }
+        if (r instanceof CnH c) {
+            return new QnrH(new QnH(List.of(c.name())));
+        }
+        if (r instanceof ColH ch) {
+            return new QnrH(new QnH(List.of(ch.c().name())));
+        }
+        return null;
+    }
+
     public record Mm(ModelContext ctx,
             com.legend.model.LegacyMappingDefinition mapping) {
     }
@@ -116,6 +188,26 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                                 d.db().tables(), d.db().views())));
             }
             return out;
+        }
+        if (recv instanceof Sch s9 && prop.equals("tables")) {
+            List<Object> out = new ArrayList<>();
+            for (var t : s9.schema().tables()) {
+                out.add(new Tbl(s9.db(), t));
+            }
+            return out;
+        }
+        if (recv instanceof Tbl tb9 && prop.equals("name")) {
+            return tb9.t().name();
+        }
+        if (recv instanceof Tbl tb && prop.equals("columns")) {
+            List<Object> out = new ArrayList<>();
+            for (var c : tb.t().columns()) {
+                out.add(new ColH(c));
+            }
+            return out;
+        }
+        if (recv instanceof ColH ch2 && prop.equals("name")) {
+            return ch2.c().name();
         }
         if (recv instanceof Vw v && prop.equals("columnMappings")) {
             List<Object> out = new ArrayList<>();

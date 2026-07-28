@@ -721,10 +721,17 @@ final class StatementExecutor {
                             pr9.fullPath());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNewInstance ni9
-                && ni9.classFqn().startsWith(
-                        "meta::relational::metamodel::")) {
-            // CONSTRUCTED relational-op instance (^DynaFunction(...)):
-            // convert to the host RelationalOperation for the inference
+                && (ni9.classFqn().startsWith(
+                        "meta::relational::metamodel::")
+                    || ni9.classFqn().startsWith(
+                        "meta::external::query::sql::metamodel::"))) {
+            // CONSTRUCTED metamodel instance: SQL-protocol nodes build
+            // HOST records (the bridge's structural-equality values);
+            // relational ops build RelationalOperations for inference
+            Object node = constructNode(ni9, specs, env);
+            if (node != null) {
+                return node;
+            }
             com.legend.model.RelationalOperation ro = constructOp(ni9,
                     specs, env);
             return ro == null ? null
@@ -799,6 +806,26 @@ final class StatementExecutor {
                     if (recv instanceof java.util.List<?> l) {
                         return l.isEmpty() ? null : l.get(0);
                     }
+                }
+                case "schema" -> {
+                    if (c.args().size() == 2 && c.args().get(1)
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedCString sn9) {
+                        return com.legend.exec.MetamodelWalk.schema(recv,
+                                sn9.value());
+                    }
+                }
+                case "table" -> {
+                    if (c.args().size() == 2 && c.args().get(1)
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedCString tn9) {
+                        return com.legend.exec.MetamodelWalk.table(recv,
+                                tn9.value());
+                    }
+                }
+                case "convertElement" -> {
+                    return com.legend.exec.MetamodelWalk
+                            .convertElement(recv);
                 }
                 case "view" -> {
                     if (c.args().size() == 2 && c.args().get(1)
@@ -928,6 +955,92 @@ final class StatementExecutor {
                 return null;
             }
         }
+    }
+
+    /** A constructed SQL-protocol/bridge node as a HOST record, or null
+     * when the class is not a bridge node (relational ops fall through
+     * to {@link #constructOp}). */
+    private static Object constructNode(
+            com.legend.compiler.spec.typed.TypedNewInstance ni,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        String simple = ni.classFqn().substring(
+                ni.classFqn().lastIndexOf(':') + 1);
+        switch (simple) {
+            case "QualifiedName" -> {
+                return new com.legend.exec.MetamodelWalk.QnH(
+                        stringsOf(ni.properties().get("parts")));
+            }
+            case "QualifiedNameReference" -> {
+                Object nm = ni.properties().get("name") instanceof
+                        com.legend.compiler.spec.typed.TypedNewInstance nn
+                        ? constructNode(nn, specs, env) : null;
+                return nm instanceof com.legend.exec.MetamodelWalk.QnH q
+                        ? new com.legend.exec.MetamodelWalk.QnrH(q) : null;
+            }
+            case "ColumnName" -> {
+                return ni.properties().get("name") instanceof
+                        com.legend.compiler.spec.typed.TypedCString cs2
+                        ? new com.legend.exec.MetamodelWalk.CnH(cs2.value())
+                        : null;
+            }
+            case "TableAliasColumnName" -> {
+                TypedSpec al2 = ni.properties().get("alias");
+                String an2 = al2 instanceof com.legend.compiler.spec.typed
+                        .TypedNewInstance ai
+                        && ai.properties().get("name") instanceof
+                                com.legend.compiler.spec.typed
+                                        .TypedCString acs2
+                        ? acs2.value() : null;
+                return an2 != null && ni.properties().get("columnName")
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedCString cn2
+                        ? new com.legend.exec.MetamodelWalk.TacH(an2,
+                                cn2.value())
+                        : null;
+            }
+            case "TableAliasColumn" -> {
+                TypedSpec al = ni.properties().get("alias");
+                String aliasName = al instanceof com.legend.compiler.spec
+                        .typed.TypedNewInstance an
+                        && an.properties().get("name") instanceof
+                                com.legend.compiler.spec.typed
+                                        .TypedCString acs
+                        ? acs.value() : null;
+                if (aliasName == null) {
+                    return null;
+                }
+                Object colV = null;
+                TypedSpec colSpec = ni.properties().get("column");
+                if (colSpec != null) {
+                    Object w = planWalk(colSpec, specs, env);
+                    if (w instanceof java.util.List<?> lw
+                            && lw.size() == 1) {
+                        w = lw.get(0);
+                    }
+                    colV = w;
+                }
+                return new com.legend.exec.MetamodelWalk.TacH(aliasName,
+                        colV);
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    /** String elements of a literal collection value. */
+    private static java.util.List<String> stringsOf(TypedSpec v) {
+        java.util.List<TypedSpec> els = v instanceof
+                com.legend.compiler.spec.typed.TypedCollection tc
+                ? tc.elements()
+                : v == null ? java.util.List.of() : java.util.List.of(v);
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (TypedSpec e : els) {
+            if (e instanceof com.legend.compiler.spec.typed.TypedCString c) {
+                out.add(c.value());
+            }
+        }
+        return out;
     }
 
     /** One constructor-argument op: nested instance, or a WALKED chain

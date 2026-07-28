@@ -427,6 +427,12 @@ public final class Runner {
     private List<com.legend.model.spec.ValueSpecification> expandHelperCalls(
             List<com.legend.model.spec.ValueSpecification> stmts,
             ParsedTest t, int depth) {
+        return expandHelperCalls(stmts, t, depth, false);
+    }
+
+    private List<com.legend.model.spec.ValueSpecification> expandHelperCalls(
+            List<com.legend.model.spec.ValueSpecification> stmts,
+            ParsedTest t, int depth, boolean assertExpansion) {
         if (depth >= 3) {
             return stmts;
         }
@@ -441,7 +447,15 @@ public final class Runner {
                         ? af.function() : qualify(af.function(), t);
                 FnDef fd = fnIndex.get(fqn + "/" + af.parameters().size());
                 if (fd != null && !fd.body().isEmpty()
-                        && containsExecuteShapeDeep(fd.body(), t, 0)) {
+                        && (containsExecuteShapeDeep(fd.body(), t, 0)
+                                || (assertExpansion
+                                        && containsAssertCall(fd.body())))) {
+                    // assert-carrying helpers expand ONLY on the try-run
+                    // path (no-execute bodies — assertConversion et al.);
+                    // mainstream families keep the execute-shape gate
+                    // (the widened gate regressed 600+ tests: helper
+                    // bodies carrying sqlRemoveFormatting spliced into
+                    // typed positions)
                     callee = fd;
                     call = af;
                 }
@@ -487,7 +501,8 @@ public final class Runner {
                                 call.parameters().get(i))));
             }
             List<com.legend.model.spec.ValueSpecification> expanded =
-                    expandHelperCalls(callee.body(), t, depth + 1);
+                    expandHelperCalls(callee.body(), t, depth + 1,
+                            assertExpansion);
             if (letName != null && !expanded.isEmpty()) {
                 com.legend.model.spec.ValueSpecification last =
                         expanded.remove(expanded.size() - 1);
@@ -791,11 +806,27 @@ public final class Runner {
         return name;
     }
 
+    /** Whether any statement is an assert* call (top level only). */
+    private static boolean containsAssertCall(
+            List<com.legend.model.spec.ValueSpecification> body) {
+        for (com.legend.model.spec.ValueSpecification st : body) {
+            if (st instanceof com.legend.model.spec.AppliedFunction af) {
+                String fn = af.function();
+                String simple = fn.substring(fn.lastIndexOf(':') + 1);
+                if (simple.startsWith("assert")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** A no-execute body attempted through the FULL pipeline: PASS/FAIL
      * outcomes are real; Unsupported/errors return null so the caller
      * falls back to the functional-bucket SHAPE. */
     private Outcome tryRunNoExecute(ParsedTest t,
             List<com.legend.model.spec.ValueSpecification> body) {
+        body = expandHelperCalls(body, t, 0, true);
         java.util.Set<String> called = new java.util.LinkedHashSet<>();
         java.util.Set<String> elements = new java.util.LinkedHashSet<>();
         for (com.legend.model.spec.ValueSpecification stmt : body) {

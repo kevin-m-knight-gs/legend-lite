@@ -437,7 +437,11 @@ class NativeFunctionTest {
         //     RelationalPropertyMapping (mapping-side inference nav).
         // 98: +DynaFunction/Literal/LiteralList (constructed relational
         //     ops in the inference tests).
-        assertEquals(98, Pure.allNativeClasses().size(),
+        // 108: +Node/Expression/QualifiedName/QualifiedNameReference/
+        //     ModelConversionState/Alias/TableAlias/Column/ColumnName/
+        //     TableAliasColumn (the toPostgresModel bridge surface).
+        // 109: +TableAliasColumnName (pureToSQLQuery/metamodel.pure:66).
+        assertEquals(109, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -477,6 +481,36 @@ class NativeFunctionTest {
                     java.util.Map.entry(
                     "meta::relational::mapping::RelationalPropertyMapping",
                     List.of("relationalOperationElement")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::QualifiedName",
+                    List.of("parts")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::QualifiedNameReference",
+                    List.of("name")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::Table",
+                    List.of("name", "columns")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::Schema",
+                    List.of("tables", "views")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::Alias",
+                    List.of("name", "relationalElement")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::TableAlias",
+                    List.of("schema")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::Column",
+                    List.of("name", "type")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::ColumnName",
+                    List.of("name")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::TableAliasColumn",
+                    List.of("columnName", "alias", "column")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::TableAliasColumnName",
+                    List.of("alias", "columnName")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::DynaFunction",
                     List.of("name", "parameters")),
@@ -738,7 +772,10 @@ class NativeFunctionTest {
                 "meta::pure::alloy::connections",
                 "meta::relational::postProcessor::cteExtraction",
                 // the inference DataType surface (relational.pure datatype)
-                "meta::relational::metamodel::datatype");
+                "meta::relational::metamodel::datatype",
+                // the standalone-SQL bridge surfaces
+                "meta::external::query::sql::metamodel",
+                "meta::relational::functions::toPostgresModel");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
