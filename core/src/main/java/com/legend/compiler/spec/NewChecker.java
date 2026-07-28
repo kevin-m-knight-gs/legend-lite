@@ -136,6 +136,17 @@ final class NewChecker {
                     new ExprType(new Type.GenericType(ni.className(), java.util.List.of(elem)),
                             Multiplicity.Bounded.ONE));
         }
+        // EXPLICIT generic instantiation (^Result<SelectSQLQuery>(...)):
+        // the spelled type arguments RIDE the instance type — dropping
+        // them made the value a raw ClassType and failed conformance
+        // against generic-typed properties (the post-processor hooks)
+        if (!ni.typeArguments().isEmpty()) {
+            java.util.List<Type> args = ni.typeArguments().stream()
+                    .map(t::namedType).toList();
+            return new TypedNewInstance(ni.className(), properties,
+                    new ExprType(new Type.GenericType(ni.className(), args),
+                            Multiplicity.Bounded.ONE));
+        }
         return new TypedNewInstance(ni.className(), properties,
                 new ExprType(new Type.ClassType(ni.className()), Multiplicity.Bounded.ONE));
     }
