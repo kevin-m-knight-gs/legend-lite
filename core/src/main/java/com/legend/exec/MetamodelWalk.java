@@ -71,6 +71,21 @@ public final class MetamodelWalk {
     public record TacH(String aliasName, Object column) {
     }
 
+    /** GENERIC SQL-protocol node value: kind + ctor-provided props
+     * (LinkedHashMap equality is order-insensitive — structural). */
+    public record NodeH(String kind,
+            java.util.LinkedHashMap<String, Object> props) {
+    }
+
+    static NodeH node(String kind, Object... kv) {
+        java.util.LinkedHashMap<String, Object> m =
+                new java.util.LinkedHashMap<>();
+        for (int i = 0; i < kv.length; i += 2) {
+            m.put((String) kv[i], kv[i + 1]);
+        }
+        return new NodeH(kind, m);
+    }
+
     /** {@code schema('name')} navigation over a Database handle. */
     public static Object schema(Object recv, String name) {
         if (recv instanceof Db d) {
@@ -118,7 +133,78 @@ public final class MetamodelWalk {
         if (r instanceof ColH ch) {
             return new QnrH(new QnH(List.of(ch.c().name())));
         }
+        if (r instanceof Rop rop) {
+            return convertOp(rop.op());
+        }
         return null;
+    }
+
+    /** Relational-op conversions (toPostgresModel convertLiteral +
+     * convertDynaFunction dispatch): literals to SQL literal nodes,
+     * and/or to LogicalBinaryExpression, null-tests to predicates,
+     * comparisons to ComparisonExpression, else FunctionCall. */
+    private static Object convertOp(RelationalOperation op) {
+        return switch (op) {
+            case RelationalOperation.Literal l -> switch (l.value()) {
+                case String str -> node("StringLiteral", "value", str);
+                case Integer i -> node("IntegerLiteral", "value",
+                        (long) (int) i);
+                case Long lg -> node("IntegerLiteral", "value", lg);
+                case Double d -> node("DoubleLiteral", "value", d);
+                case Boolean bo -> node("BooleanLiteral", "value", bo);
+                case com.legend.values.PureDateLiteral pd ->
+                        node(pd.toEngineString().indexOf('T') >= 0
+                                ? "TimestampLiteral" : "DateLiteral",
+                                "value", pd);
+                default -> null;
+            };
+            case RelationalOperation.ArrayLiteral al -> {
+                List<Object> vs = new ArrayList<>();
+                for (var e : al.elements()) {
+                    Object v = convertOp(e);
+                    if (v == null) {
+                        yield null;
+                    }
+                    vs.add(v);
+                }
+                yield node("InListExpression", "values", vs);
+            }
+            case RelationalOperation.FunctionCall f -> {
+                String nm = f.name().toLowerCase(java.util.Locale.ROOT);
+                List<Object> args = new ArrayList<>();
+                for (var e : f.args()) {
+                    Object v = convertOp(e);
+                    if (v == null) {
+                        yield null;
+                    }
+                    args.add(v);
+                }
+                yield switch (nm) {
+                    case "and", "or" -> node("LogicalBinaryExpression",
+                            "type", nm.toUpperCase(java.util.Locale.ROOT),
+                            "left", args.get(0), "right", args.get(1));
+                    case "isnull" -> node("IsNullPredicate", "value",
+                            args.get(0));
+                    case "isnotnull" -> node("IsNotNullPredicate", "value",
+                            args.get(0));
+                    case "equal" -> node("ComparisonExpression", "left",
+                            args.get(0), "right", args.get(1),
+                            "operator", "EQUAL");
+                    case "notequal" -> node("ComparisonExpression", "left",
+                            args.get(0), "right", args.get(1),
+                            "operator", "NOT_EQUAL");
+                    case "greaterthan" -> node("ComparisonExpression",
+                            "left", args.get(0), "right", args.get(1),
+                            "operator", "GREATER_THAN");
+                    case "lessthan" -> node("ComparisonExpression",
+                            "left", args.get(0), "right", args.get(1),
+                            "operator", "LESS_THAN");
+                    default -> node("FunctionCall", "name",
+                            new QnH(List.of(f.name())), "arguments", args);
+                };
+            }
+            default -> null;
+        };
     }
 
     public record Mm(ModelContext ctx,

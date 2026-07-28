@@ -925,6 +925,12 @@ final class StatementExecutor {
                             i2.value();
                     case com.legend.compiler.spec.typed.TypedCFloat f2 ->
                             f2.value();
+                    case com.legend.compiler.spec.typed.TypedCBoolean b3 ->
+                            b3.value();
+                    case com.legend.compiler.spec.typed.TypedCDate cd3 ->
+                            cd3.value();
+                    case com.legend.compiler.spec.typed.TypedEnumValue ev3 ->
+                            ev3.value();
                     default -> null;
                 };
                 return lit == null ? null
@@ -1023,9 +1029,70 @@ final class StatementExecutor {
                         colV);
             }
             default -> {
+                if (ni.classFqn().startsWith(
+                        "meta::external::query::sql::metamodel::")) {
+                    return genericNode(ni, simple, specs, env);
+                }
                 return null;
             }
         }
+    }
+
+    /** GENERIC SQL-protocol node: kind + converted ctor props (nested
+     * instances recurse; collections map; enum values spell their
+     * NAME; walked chains contribute their host values). */
+    private static Object genericNode(
+            com.legend.compiler.spec.typed.TypedNewInstance ni,
+            String simple, com.legend.compiler.spec.SpecCompiler specs,
+            ExecEnv env) {
+        java.util.LinkedHashMap<String, Object> props =
+                new java.util.LinkedHashMap<>();
+        for (var e : ni.properties().entrySet()) {
+            Object v = nodeValue(e.getValue(), specs, env);
+            if (v == null) {
+                return null;
+            }
+            props.put(e.getKey(), v);
+        }
+        return new com.legend.exec.MetamodelWalk.NodeH(simple, props);
+    }
+
+    private static Object nodeValue(TypedSpec v,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        return switch (v) {
+            case com.legend.compiler.spec.typed.TypedCString c ->
+                    c.value();
+            case com.legend.compiler.spec.typed.TypedCInteger i ->
+                    i.value().longValue();
+            case com.legend.compiler.spec.typed.TypedCBoolean b2 ->
+                    b2.value();
+            case com.legend.compiler.spec.typed.TypedCFloat f ->
+                    f.value();
+            case com.legend.compiler.spec.typed.TypedEnumValue ev ->
+                    ev.value();
+            case com.legend.compiler.spec.typed.TypedCDate cd9 ->
+                    cd9.value();
+            case com.legend.compiler.spec.typed.TypedNewInstance nn ->
+                    constructNode(nn, specs, env);
+            case com.legend.compiler.spec.typed.TypedCollection tc -> {
+                java.util.List<Object> out = new java.util.ArrayList<>();
+                for (TypedSpec e2 : tc.elements()) {
+                    Object x = nodeValue(e2, specs, env);
+                    if (x == null) {
+                        yield null;
+                    }
+                    out.add(x);
+                }
+                yield out;
+            }
+            default -> {
+                Object w = planWalk(v, specs, env);
+                if (w instanceof java.util.List<?> lw && lw.size() == 1) {
+                    w = lw.get(0);
+                }
+                yield w;
+            }
+        };
     }
 
     /** String elements of a literal collection value. */

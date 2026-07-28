@@ -254,6 +254,38 @@ public final class Pure {
     public static final ClassDefinition SQL_EXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::Expression extends meta::external::query::sql::metamodel::Node {}");
     public static final ClassDefinition SQL_QUALIFIED_NAME = nativeClass("native Class meta::external::query::sql::metamodel::QualifiedName extends meta::pure::metamodel::type::Any { parts: meta::pure::metamodel::type::String[*]; }");
     public static final ClassDefinition SQL_QUALIFIED_NAME_REF = nativeClass("native Class meta::external::query::sql::metamodel::QualifiedNameReference extends meta::external::query::sql::metamodel::Expression { name: meta::external::query::sql::metamodel::QualifiedName[1]; }");
+    public static final ClassDefinition SQLN_STATEMENT = nativeClass("native Class meta::external::query::sql::metamodel::Statement extends meta::external::query::sql::metamodel::Node {}");
+    public static final ClassDefinition SQLN_RELATION = nativeClass("native Class meta::external::query::sql::metamodel::Relation extends meta::external::query::sql::metamodel::Node {}");
+    public static final ClassDefinition SQLN_QUERYBODY = nativeClass("native Class meta::external::query::sql::metamodel::QueryBody extends meta::external::query::sql::metamodel::Relation {}");
+    public static final ClassDefinition SQLN_SELECTITEM = nativeClass("native Class meta::external::query::sql::metamodel::SelectItem extends meta::external::query::sql::metamodel::Node {}");
+    public static final ClassDefinition SQLN_LITERAL = nativeClass("native Class meta::external::query::sql::metamodel::Literal extends meta::external::query::sql::metamodel::Expression {}");
+    public static final ClassDefinition SQLN_DATELITERAL = nativeClass("native Class meta::external::query::sql::metamodel::DateLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::StrictDate[1]; }");
+    public static final ClassDefinition SQLN_TIMESTAMPLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::TimestampLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::DateTime[1]; }");
+    public static final ClassDefinition SQL_NULL_METACLASS = nativeClass("native Class meta::relational::metamodel::SQLNull extends meta::relational::metamodel::RelationalOperationElement {}");
+    public static final ClassDefinition SQLN_STRINGLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::StringLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::String[1]; quoted: meta::pure::metamodel::type::Boolean[0..1]; }");
+    public static final ClassDefinition SQLN_INTEGERLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::IntegerLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::Integer[1]; }");
+    public static final ClassDefinition SQLN_BOOLEANLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::BooleanLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::Boolean[1]; }");
+    public static final ClassDefinition SQLN_DOUBLELITERAL = nativeClass("native Class meta::external::query::sql::metamodel::DoubleLiteral extends meta::external::query::sql::metamodel::Literal { value: meta::pure::metamodel::type::Float[1]; }");
+    public static final ClassDefinition SQLN_NULLLITERAL = nativeClass("native Class meta::external::query::sql::metamodel::NullLiteral extends meta::external::query::sql::metamodel::Literal {}");
+    public static final ClassDefinition SQLN_FUNCTIONCALL = nativeClass("native Class meta::external::query::sql::metamodel::FunctionCall extends meta::external::query::sql::metamodel::Expression { name: meta::external::query::sql::metamodel::QualifiedName[1]; distinct: meta::pure::metamodel::type::Boolean[1]; arguments: meta::external::query::sql::metamodel::Expression[*]; filter: meta::external::query::sql::metamodel::Expression[0..1]; window: meta::external::query::sql::metamodel::Window[0..1]; }");
+    public static final ClassDefinition SQLN_WINDOW = nativeClass("native Class meta::external::query::sql::metamodel::Window extends meta::external::query::sql::metamodel::Node {}");
+    public static final ClassDefinition SQLN_LOGICALBINARYEXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::LogicalBinaryExpression extends meta::external::query::sql::metamodel::Expression { type: meta::external::query::sql::metamodel::LogicalBinaryType[1]; left: meta::external::query::sql::metamodel::Expression[1]; right: meta::external::query::sql::metamodel::Expression[1]; }");
+    public static final ClassDefinition SQLN_ISNULLPREDICATE = nativeClass("native Class meta::external::query::sql::metamodel::IsNullPredicate extends meta::external::query::sql::metamodel::Expression { value: meta::external::query::sql::metamodel::Expression[1]; }");
+    public static final ClassDefinition SQLN_ISNOTNULLPREDICATE = nativeClass("native Class meta::external::query::sql::metamodel::IsNotNullPredicate extends meta::external::query::sql::metamodel::Expression { value: meta::external::query::sql::metamodel::Expression[1]; }");
+    public static final ClassDefinition SQLN_INLISTEXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::InListExpression extends meta::external::query::sql::metamodel::Expression { values: meta::external::query::sql::metamodel::Expression[*]; }");
+    public static final ClassDefinition SQLN_INPREDICATE = nativeClass("native Class meta::external::query::sql::metamodel::InPredicate extends meta::external::query::sql::metamodel::Expression { value: meta::external::query::sql::metamodel::Expression[1]; valueList: meta::external::query::sql::metamodel::Expression[1]; }");
+    public static final ClassDefinition SQLN_COMPARISONEXPRESSION = nativeClass("native Class meta::external::query::sql::metamodel::ComparisonExpression extends meta::external::query::sql::metamodel::Expression { left: meta::external::query::sql::metamodel::Expression[1]; right: meta::external::query::sql::metamodel::Expression[1]; operator: meta::external::query::sql::metamodel::ComparisonOperator[1]; }");
+    public static final ClassDefinition SQLN_ALIASEDRELATION = nativeClass("native Class meta::external::query::sql::metamodel::AliasedRelation extends meta::external::query::sql::metamodel::Relation { relation: meta::external::query::sql::metamodel::Relation[1]; alias: meta::pure::metamodel::type::String[1]; columnNames: meta::pure::metamodel::type::String[*]; }");
+    public static final ClassDefinition SQLN_TABLE = nativeClass("native Class meta::external::query::sql::metamodel::Table extends meta::external::query::sql::metamodel::QueryBody { name: meta::external::query::sql::metamodel::QualifiedName[1]; }");
+    public static final ClassDefinition SQLN_TABLEFUNCTION = nativeClass("native Class meta::external::query::sql::metamodel::TableFunction extends meta::external::query::sql::metamodel::QueryBody { functionCall: meta::external::query::sql::metamodel::FunctionCall[1]; }");
+    public static final ClassDefinition SQLN_TABLESUBQUERY = nativeClass("native Class meta::external::query::sql::metamodel::TableSubquery extends meta::external::query::sql::metamodel::QueryBody { query: meta::external::query::sql::metamodel::Query[1]; }");
+    public static final ClassDefinition SQLN_JOIN = nativeClass("native Class meta::external::query::sql::metamodel::Join extends meta::external::query::sql::metamodel::Relation { type: meta::external::query::sql::metamodel::JoinType[1]; left: meta::external::query::sql::metamodel::Relation[1]; right: meta::external::query::sql::metamodel::Relation[1]; criteria: meta::external::query::sql::metamodel::JoinCriteria[0..1]; }");
+    public static final ClassDefinition SQLN_JOINCRITERIA = nativeClass("native Class meta::external::query::sql::metamodel::JoinCriteria extends meta::external::query::sql::metamodel::Node {}");
+    public static final ClassDefinition SQLN_JOINON = nativeClass("native Class meta::external::query::sql::metamodel::JoinOn extends meta::external::query::sql::metamodel::JoinCriteria { expression: meta::external::query::sql::metamodel::Expression[1]; }");
+    public static final ClassDefinition SQLN_QUERY = nativeClass("native Class meta::external::query::sql::metamodel::Query extends meta::external::query::sql::metamodel::Statement { queryBody: meta::external::query::sql::metamodel::QueryBody[1]; }");
+    public static final ClassDefinition SQLN_SINGLECOLUMN = nativeClass("native Class meta::external::query::sql::metamodel::SingleColumn extends meta::external::query::sql::metamodel::SelectItem { alias: meta::pure::metamodel::type::String[0..1]; expression: meta::external::query::sql::metamodel::Expression[1]; }");
+    public static final ClassDefinition SQLN_ALLCOLUMNS = nativeClass("native Class meta::external::query::sql::metamodel::AllColumns extends meta::external::query::sql::metamodel::SelectItem {}");
+    public static final ClassDefinition SQLN_SELECT = nativeClass("native Class meta::external::query::sql::metamodel::Select extends meta::external::query::sql::metamodel::Node { distinct: meta::pure::metamodel::type::Boolean[1]; selectItems: meta::external::query::sql::metamodel::SelectItem[*]; }");
     public static final ClassDefinition MODEL_CONVERSION_STATE = nativeClass("native Class meta::relational::functions::toPostgresModel::ModelConversionState extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::Alias extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; relationalElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     public static final ClassDefinition TABLE_ALIAS_METACLASS = nativeClass("native Class meta::relational::metamodel::TableAlias extends meta::relational::metamodel::Alias { schema: meta::pure::metamodel::type::String[0..1]; }");
@@ -439,6 +471,18 @@ public final class Pure {
     // ---- Relational runtime enums ----
     // real relationalRuntime.pure:21 — the corpus's testDatabaseConnection
     // constructs ^TestDatabaseConnection(type=DatabaseType.H2, ...)
+    public static final EnumDefinition SQL_JOIN_TYPE = nativeEnum("""
+            Enum meta::external::query::sql::metamodel::JoinType
+            { CROSS, INNER, LEFT, RIGHT, FULL }
+            """);
+    public static final EnumDefinition SQL_LOGICAL_BINARY_TYPE = nativeEnum("""
+            Enum meta::external::query::sql::metamodel::LogicalBinaryType
+            { AND, OR }
+            """);
+    public static final EnumDefinition SQL_COMPARISON_OPERATOR = nativeEnum("""
+            Enum meta::external::query::sql::metamodel::ComparisonOperator
+            { EQUAL, NOT_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL, GREATER_THAN, GREATER_THAN_OR_EQUAL, IS_DISTINCT_FROM }
+            """);
     public static final EnumDefinition DATABASE_TYPE = nativeEnum("""
             Enum meta::relational::runtime::DatabaseType
             {

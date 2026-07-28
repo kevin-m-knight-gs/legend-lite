@@ -441,7 +441,12 @@ class NativeFunctionTest {
         //     ModelConversionState/Alias/TableAlias/Column/ColumnName/
         //     TableAliasColumn (the toPostgresModel bridge surface).
         // 109: +TableAliasColumnName (pureToSQLQuery/metamodel.pure:66).
-        assertEquals(109, Pure.allNativeClasses().size(),
+        // 138: +the postgres SQL-protocol node surface (metamodel.pure —
+        //     Statement/Relation/QueryBody/SelectItem/Literal family/
+        //     FunctionCall/Logical/Comparison/predicates/Join/Query/
+        //     Select/columns — bridge batch 2).
+        // 141: +DateLiteral/TimestampLiteral/SQLNull (literal tests).
+        assertEquals(141, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -481,6 +486,72 @@ class NativeFunctionTest {
                     java.util.Map.entry(
                     "meta::relational::mapping::RelationalPropertyMapping",
                     List.of("relationalOperationElement")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::DateLiteral",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::TimestampLiteral",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::StringLiteral",
+                    List.of("value", "quoted")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::IntegerLiteral",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::BooleanLiteral",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::DoubleLiteral",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::FunctionCall",
+                    List.of("name", "distinct", "arguments", "filter", "window")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::LogicalBinaryExpression",
+                    List.of("type", "left", "right")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::IsNullPredicate",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::IsNotNullPredicate",
+                    List.of("value")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::InListExpression",
+                    List.of("values")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::InPredicate",
+                    List.of("value", "valueList")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::ComparisonExpression",
+                    List.of("left", "right", "operator")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::AliasedRelation",
+                    List.of("relation", "alias", "columnNames")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Table",
+                    List.of("name")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::TableFunction",
+                    List.of("functionCall")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::TableSubquery",
+                    List.of("query")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Join",
+                    List.of("type", "left", "right", "criteria")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::JoinOn",
+                    List.of("expression")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Query",
+                    List.of("queryBody")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::SingleColumn",
+                    List.of("alias", "expression")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Select",
+                    List.of("distinct", "selectItems")),
                     java.util.Map.entry(
                     "meta::external::query::sql::metamodel::QualifiedName",
                     List.of("parts")),
@@ -797,7 +868,9 @@ class NativeFunctionTest {
         // 13: +DatabaseType (relationalRuntime.pure:21).
         // 14: +executionPlan features::Feature (executionPlanFeature.pure:21
         //     — withFeatureFlags is identity; the flag enum types the call).
-        assertEquals(14, Pure.allNativeEnums().size(),
+        // 17: +JoinType/LogicalBinaryType/ComparisonOperator (postgres
+        //     metamodel.pure — the bridge node enums).
+        assertEquals(17, Pure.allNativeEnums().size(),
                 "Pure.allNativeEnums() size pin: review the catalog if this changes");
     }
 
