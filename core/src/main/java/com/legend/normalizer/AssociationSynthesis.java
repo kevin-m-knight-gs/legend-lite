@@ -464,16 +464,18 @@ final class AssociationSynthesis {
                             "AssociationMapping join '" + hop.joinName()
                           + "' not found in db '" + hopDb + "'; association='"
                           + associationName + "', mapping=" + md.qualifiedName()));
-            RelationalOperation cond2 = MappingNormalizer.resolveViewRefsInJoin(
-                    jd.operation(), hopDb, sourceTable, model, md,
-                    model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null,
-                    null);
-            String targetTable = MappingNormalizer.determineTargetTable(cond2, sourceTable,
-                    hop.joinName(), associationName, 1, md.qualifiedName());
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.
             String classBTable = MappingNormalizer.mainTableOf(md, classB, model);
+            RelationalOperation cond2 = MappingNormalizer.resolveViewRefsInJoin(
+                    jd.operation(), hopDb, sourceTable, model, md,
+                    model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null,
+                    null,
+                    model.findView(hopDb, classBTable).isPresent() ? classBTable : null,
+                    /*anySide*/ true);
+            String targetTable = MappingNormalizer.determineTargetTable(cond2, sourceTable,
+                    hop.joinName(), associationName, 1, md.qualifiedName());
             if (!targetTable.equals(classBTable)) {
                 // a join landing on classB's OWN main source is fine even
                 // when that source is a VIEW — the class-source override
@@ -495,7 +497,9 @@ final class AssociationSynthesis {
             Map<String, ValueSpecification> condScope = new LinkedHashMap<>();
             condScope.put(sourceTable, srcRow);
             if (!targetTable.equals(sourceTable)) condScope.put(targetTable, tgtRow);
-            return RelOpTranslator.translate(jd.operation(), condScope, tgtRow, /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
+            // translate the SAME view-resolved tree the target was picked
+            // from — raw refs name pre-resolution tables (T1.10)
+            return RelOpTranslator.translate(cond2, condScope, tgtRow, /*rowBind*/ null, RelOpTranslator.PipelineView.NONE);
         }
         // Unreachable: multi-hop associations are intercepted in
         // synthesizeAssociationMapping (returns null) and realized as per-end

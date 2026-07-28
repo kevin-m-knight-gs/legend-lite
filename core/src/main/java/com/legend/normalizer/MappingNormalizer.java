@@ -3197,6 +3197,20 @@ public final class MappingNormalizer {
     static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
             String db, String sourceTable, ModelBuilder model, LegacyMappingDefinition md,
             String backingView, String onlyView) {
+        return resolveViewRefsInJoin(op, db, sourceTable, model, md,
+                backingView, onlyView, null, false);
+    }
+
+    /** {@code anySide}: substitute plain-view refs on EITHER side of the
+     * condition (remediation T1.10 — the association's REVERSE end joins
+     * through a view over the TARGET's physical table); frame refs
+     * (source frame, backing view, {@code keepTargetView} = a
+     * view-mapped target class's own frame) stay VERBATIM — frame rows
+     * carry the declared view columns. */
+    static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
+            String db, String sourceTable, ModelBuilder model, LegacyMappingDefinition md,
+            String backingView, String onlyView, String keepTargetView,
+            boolean anySide) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
                 if (onlyView != null && !cr.table().equals(onlyView)) {
@@ -3209,7 +3223,11 @@ public final class MappingNormalizer {
                 }
                 String phys = ViewRelation.inferViewMainTable(view, cr.table(), md, model,
                         cr.databaseName() != null ? cr.databaseName() : db);
-                if (!phys.equals(sourceTable)) {
+                if (anySide
+                        ? (cr.table().equals(backingView)
+                                || cr.table().equals(sourceTable)
+                                || cr.table().equals(keepTargetView))
+                        : !phys.equals(sourceTable)) {
                     yield cr;
                 }
                 if ((view.filter() != null || !view.groupByColumns().isEmpty()
@@ -3237,20 +3255,20 @@ public final class MappingNormalizer {
                 yield cr;
             }
             case RelationalOperation.Comparison c -> new RelationalOperation.Comparison(
-                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md, backingView, onlyView), c.op(),
-                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md, backingView, onlyView));
+                    resolveViewRefsInJoin(c.left(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide), c.op(),
+                    resolveViewRefsInJoin(c.right(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide));
             case RelationalOperation.BooleanOp b -> new RelationalOperation.BooleanOp(
-                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md, backingView, onlyView), b.op(),
-                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md, backingView, onlyView));
+                    resolveViewRefsInJoin(b.left(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide), b.op(),
+                    resolveViewRefsInJoin(b.right(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide));
             case RelationalOperation.Group g -> new RelationalOperation.Group(
-                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md, backingView, onlyView));
+                    resolveViewRefsInJoin(g.inner(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide));
             case RelationalOperation.IsNull n -> new RelationalOperation.IsNull(
-                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView, onlyView));
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide));
             case RelationalOperation.IsNotNull n -> new RelationalOperation.IsNotNull(
-                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView, onlyView));
+                    resolveViewRefsInJoin(n.operand(), db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide));
             case RelationalOperation.FunctionCall f -> new RelationalOperation.FunctionCall(
                     f.name(), f.args().stream()
-                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md, backingView, onlyView))
+                            .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide))
                             .toList());
             default -> op;
         };

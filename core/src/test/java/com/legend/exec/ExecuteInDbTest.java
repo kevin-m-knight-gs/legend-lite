@@ -185,4 +185,38 @@ class ExecuteInDbTest {
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Insert into noSuchTable (id) values (1);', $c, 0, 1000);}", conn));
     }
+
+    @Test
+    @DisplayName("T1.9: class-query-derived effect sql — Phase H runs; the scalar-root arm is the LOUD wall")
+    void classQueryDerivedSqlResolves() throws Exception {
+        String model = """
+                Class t9::P { name: String[1]; }
+                Database t9::DB ( Table PT (NAME VARCHAR(20)) )
+                Mapping t9::M (
+                  *t9::P: Relational { ~mainTable [t9::DB] PT name: PT.NAME }
+                )
+                Runtime t9::RT { mappings: [t9::M]; }
+                """;
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE PT (NAME VARCHAR)");
+            st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
+        }
+        // The effect-let path now RUNS Phase H (T1.9); the remaining gap
+        // is the resolver's scalar-root arm — the inliner substitutes the
+        // let forward, so the class chain sits INLINE in the K-native
+        // string arg, a shape resolveNode has no arm for yet. This pins
+        // the LOUD wall (never a silent Lowerer internal error); when the
+        // scalar-root arm lands this test flips to assert the ROWS
+        // ('ann_bob' into T9OUT). Tracked in task #87.
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                Exception.class, () -> Compiler.execute(model, CONN_LET
+                + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
+                + "let x = meta::relational::metamodel::execute::executeInDb("
+                + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
+                + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
+                + "true;}", "t9::RT", conn));
+        assertTrue(ex.getMessage() != null
+                        && ex.getMessage().contains("TypedGetAll"),
+                "the wall names the unresolved fetch: " + ex.getMessage());
+    }
 }
