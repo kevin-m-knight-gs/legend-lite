@@ -384,18 +384,7 @@ public final class UserCallInliner {
             // contract, not this walker's. The hand-written arms this replaces
             // dropped TypedAggCol.orderKey and skipped MapReduce strategy
             // lambdas (remediation T2.1). Untouched subtrees keep identity.
-            default -> {
-                List<TypedSpec> kids = n.children();
-                List<TypedSpec> rw = list(kids, env);
-                TypedSpec out = n;
-                for (int i = 0; i < kids.size(); i++) {
-                    if (kids.get(i) != rw.get(i)) {
-                        out = n.withChildren(rw);
-                        break;
-                    }
-                }
-                yield out;
-            }
+            default -> n.mapChildren(k -> rewrite(k, env));
         };
     }
 

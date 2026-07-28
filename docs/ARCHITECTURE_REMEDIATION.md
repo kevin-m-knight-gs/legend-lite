@@ -19,7 +19,7 @@
 | **T1.8** avg | ✅ `5477a068` | Catalog pair registered; end-to-end grouped-mapping pin. |
 | **T1.9** Phase-H skip | ✅ fix / ⚠ residual `5477a068`+`8e1f79f4` | Effect-let path resolves before the back-half. Residual: the inliner substitutes lets forward, so a class chain can sit INLINE in a K-native string arg — a scalar-root shape the resolver has no arm for; pinned as the LOUD wall (flips to a row assert when the arm lands). |
 | **T1.10** assoc synthesis | ✅ `8e1f79f4` | Pick-and-translate aligned on the resolved tree — and the SAME bug one level deeper fixed (`resolveViewRefsInJoin` anySide: reverse-end view joins resolve; frame refs verbatim). Pinned both directions. |
-| T2.1 withChildren | ▶ next | |
+| **T2.1** withChildren | ✅ `41fe8523`+`e4fc1671`+(step 3) | Mandatory `withChildren` on all 68 variants + round-trip/arity pins; `mapChildren` default on `TypedSpec`; generic arms of `UserCallInliner` (one delegating default), `StoreResolver.resolveNode` (22 wrapper arms), and `Substitution` (rewrite + inlineParam) collapsed onto it. Three live dropped-field bugs died with the hand rebuilds: inliner `aggCol()` nulled `TypedAggCol.orderKey` (pinned fails-before), the inliner's `TypedFold` arm skipped MapReduce strategy lambdas, and `resolveNode`'s `TypedJoin` arm nulled `frameName` via the 6-arg compat ctor. |
 | T2.2 lossy ctors | partial | TypedGetAll done; SortKey/TypedCast/Subselect compat ctors added earlier in this session predate the rule — sweep in T2.2 proper. |
 | T2.3 / T3 / T4 | pending | |
 

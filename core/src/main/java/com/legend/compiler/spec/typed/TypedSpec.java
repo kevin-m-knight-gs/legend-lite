@@ -105,6 +105,24 @@ public sealed interface TypedSpec permits
      */
     TypedSpec withChildren(List<TypedSpec> children);
 
+    /**
+     * The one-step structural rewrite every walker shares: apply {@code f} to
+     * each child and reassemble through {@link #withChildren} — the variant's
+     * own inverse, so a hand rebuild can never drop a field. Identity is
+     * preserved when no child changed.
+     */
+    default TypedSpec mapChildren(java.util.function.UnaryOperator<TypedSpec> f) {
+        List<TypedSpec> kids = children();
+        List<TypedSpec> rw = new java.util.ArrayList<>(kids.size());
+        boolean same = true;
+        for (TypedSpec k : kids) {
+            TypedSpec r = f.apply(k);
+            same &= r == k;
+            rw.add(r);
+        }
+        return same ? this : withChildren(rw);
+    }
+
     /** {@link #withChildren} arity guard — count drift throws, never skews. */
     static void expectChildren(List<TypedSpec> children, int n, String who) {
         if (children.size() != n) {

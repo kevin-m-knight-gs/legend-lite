@@ -1347,12 +1347,9 @@ final class Substitution {
                             "object-space use of the instance variable '$" + v.name()
                                     + "' other than property access is not supported yet");
             case TypedVariable v -> v;
-            case TypedPropertyAccess pa -> new TypedPropertyAccess(
-                    rewrite(pa.source()), pa.property(), pa.info());
-            case TypedMilestonedAccess ma ->
-                    new TypedMilestonedAccess(
-                            rewrite(ma.source()), ma.property(),
-                            rewriteAll(ma.dates()), ma.sweep(), ma.info());
+            // structural family: children rewrite, withChildren reassembles
+            case TypedPropertyAccess pa -> pa.mapChildren(this::rewrite);
+            case TypedMilestonedAccess ma -> ma.mapChildren(this::rewrite);
             case TypedNativeCall c -> {
                 // A REDUCER call whose collection arg is an object-space
                 // ->map(computed) must NOT inline the mapper (audit 12 F4:
@@ -1371,17 +1368,14 @@ final class Substitution {
                             + " supported (the aggregate demand scan did not"
                             + " recognize this shape)");
                 }
-                yield new TypedNativeCall(c.callee(),
-                        rewriteAll(c.args()), c.info());
+                yield c.mapChildren(this::rewrite);
             }
-            case TypedCollection c -> new TypedCollection(rewriteAll(c.elements()), c.info());
+            case TypedCollection c -> c.mapChildren(this::rewrite);
             // ->cast(@T) over an object-space value: the cast rides, the
             // source substitutes (the in([...]) family spells casts over
             // property reads).
-            case TypedCast tc -> new TypedCast(rewrite(tc.source()),
-                    tc.target(), tc.info(), tc.wire());
-            case TypedIf i -> new TypedIf(rewrite(i.condition()),
-                    rewrite(i.thenBranch()), i.elseBranch().map(this::rewrite), i.info());
+            case TypedCast tc -> tc.mapChildren(this::rewrite);
+            case TypedIf i -> i.mapChildren(this::rewrite);
             case TypedLambda l -> {
                 if (l.parameters().contains(target.freshRowVar())) {
                     throw new IllegalStateException("resolver bug: nested lambda"
@@ -1733,23 +1727,17 @@ final class Substitution {
         }
         return switch (n) {
             case TypedVariable v -> v;
-            case TypedPropertyAccess pa -> new TypedPropertyAccess(
-                    inlineParam(pa.source(), param, source), pa.property(), pa.info());
+            // structural family: children inline, withChildren reassembles
+            case TypedPropertyAccess pa ->
+                    pa.mapChildren(k -> inlineParam(k, param, source));
             case TypedMilestonedAccess ma ->
-                    new TypedMilestonedAccess(
-                            inlineParam(ma.source(), param, source), ma.property(),
-                            ma.dates().stream().map(d ->
-                                    inlineParam(d, param, source)).toList(),
-                            ma.sweep(), ma.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a ->
-                            inlineParam(a, param, source)).toList(), c.info());
-            case TypedIf i -> new TypedIf(inlineParam(i.condition(), param, source),
-                    inlineParam(i.thenBranch(), param, source),
-                    i.elseBranch().map(e -> inlineParam(e, param, source)), i.info());
-            case TypedCollection c -> new TypedCollection(
-                    c.elements().stream().map(e ->
-                            inlineParam(e, param, source)).toList(), c.info());
+                    ma.mapChildren(k -> inlineParam(k, param, source));
+            case TypedNativeCall c ->
+                    c.mapChildren(k -> inlineParam(k, param, source));
+            case TypedIf i ->
+                    i.mapChildren(k -> inlineParam(k, param, source));
+            case TypedCollection c ->
+                    c.mapChildren(k -> inlineParam(k, param, source));
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;

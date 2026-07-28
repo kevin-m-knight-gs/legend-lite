@@ -353,59 +353,56 @@ public final class StoreResolver {
                             .element.type.PlatformTypes.ROWS_MARKER)
                     && pa.source().info().type() instanceof Type.RelationType ->
                     resolveNode(pa.source(), context);
-            // a COLUMN READ over a relation-shaped chain ($tds.rows.id —
-            // the TDS getter desugar): rebuild over the resolved source
+            // RELATION-SPACE WRAPPERS above a class chain: every child
+            // resolves structurally (a bare lambda is DATA — its arm below
+            // is identity, so predicates/mappers/keys pass through
+            // verbatim exactly as the hand-written arms did) and the
+            // variant rebuilds through its own withChildren inverse — the
+            // hand rebuilds this replaces dropped TypedJoin.frameName via
+            // the 6-arg compat ctor (remediation T2.1).
             case TypedPropertyAccess pa
                     when containsGetAll(pa.source())
                     && pa.source().info().type()
-                            instanceof Type
-                                    .RelationType ->
-                    new TypedPropertyAccess(
-                            resolveNode(pa.source(), context), pa.property(),
-                            pa.info());
-            case TypedFilter f when containsGetAll(f.source()) -> new TypedFilter(
-                    resolveNode(f.source(), context), f.predicate(), f.info());
-            case TypedProject p when containsGetAll(p.source()) -> new TypedProject(
-                    resolveNode(p.source(), context), p.columns(), p.info());
-            case TypedSort s when containsGetAll(s.source()) -> new TypedSort(
-                    resolveNode(s.source(), context), s.keys(), s.info());
+                            instanceof Type.RelationType ->
+                    structural(pa, context);
+            case TypedFilter f when containsGetAll(f.source()) ->
+                    structural(f, context);
+            case TypedProject p when containsGetAll(p.source()) ->
+                    structural(p, context);
+            case TypedSort s when containsGetAll(s.source()) ->
+                    structural(s, context);
             case TypedCast c
                     when containsGetAll(c.source())
-                    && c.info().type() instanceof Type
-                            .RelationType ->
-                    new TypedCast(
-                            resolveNode(c.source(), context), c.target(),
-                            c.info(), c.wire());
-            case TypedSortBy sb when containsGetAll(sb.source()) -> new TypedSortBy(
-                    resolveNode(sb.source(), context), sb.key(), sb.ascending(),
-                    sb.keyAlias(), sb.info());
-            case TypedLimit l when containsGetAll(l.source()) -> new TypedLimit(
-                    resolveNode(l.source(), context), l.count(), l.info());
-            case TypedDrop d when containsGetAll(d.source()) -> new TypedDrop(
-                    resolveNode(d.source(), context), d.count(), d.info());
-            case TypedSlice s when containsGetAll(s.source()) -> new TypedSlice(
-                    resolveNode(s.source(), context), s.start(), s.stop(), s.info());
-            case TypedDistinct d when containsGetAll(d.source()) -> new TypedDistinct(
-                    resolveNode(d.source(), context), d.columns(), d.info());
-            case TypedGroupBy g when containsGetAll(g.source()) -> new TypedGroupBy(
-                    resolveNode(g.source(), context), g.keys(), g.aggs(), g.info());
-            case TypedAggregate a when containsGetAll(a.source()) -> new TypedAggregate(
-                    resolveNode(a.source(), context), a.aggs(), a.info());
-            case TypedExtend e when containsGetAll(e.source()) -> new TypedExtend(
-                    resolveNode(e.source(), context), e.columns(), e.info());
+                    && c.info().type() instanceof Type.RelationType ->
+                    structural(c, context);
+            case TypedSortBy sb when containsGetAll(sb.source()) ->
+                    structural(sb, context);
+            case TypedLimit l when containsGetAll(l.source()) ->
+                    structural(l, context);
+            case TypedDrop d when containsGetAll(d.source()) ->
+                    structural(d, context);
+            case TypedSlice s when containsGetAll(s.source()) ->
+                    structural(s, context);
+            case TypedDistinct d when containsGetAll(d.source()) ->
+                    structural(d, context);
+            case TypedGroupBy g when containsGetAll(g.source()) ->
+                    structural(g, context);
+            case TypedAggregate a when containsGetAll(a.source()) ->
+                    structural(a, context);
+            case TypedExtend e when containsGetAll(e.source()) ->
+                    structural(e, context);
             case TypedExtendWindow w when containsGetAll(w.source()) ->
-                    new TypedExtendWindow(resolveNode(w.source(), context),
-                            w.window(), w.columns(), w.aggs(), w.info());
+                    structural(w, context);
             case TypedExtendAgg e when containsGetAll(e.source()) ->
-                    new TypedExtendAgg(resolveNode(e.source(), context),
-                            e.aggs(), e.info());
-            case TypedRename r when containsGetAll(r.source()) -> new TypedRename(
-                    resolveNode(r.source(), context), r.renames(), r.info());
-            case TypedSelect s when containsGetAll(s.source()) -> new TypedSelect(
-                    resolveNode(s.source(), context), s.columns(), s.info());
-            case TypedConcatenate c when containsGetAll(c) -> new TypedConcatenate(
-                    resolveNode(c.left(), context), resolveNode(c.right(), context),
-                    c.info());
+                    structural(e, context);
+            case TypedRename r when containsGetAll(r.source()) ->
+                    structural(r, context);
+            case TypedSelect s when containsGetAll(s.source()) ->
+                    structural(s, context);
+            case TypedConcatenate c when containsGetAll(c) ->
+                    structural(c, context);
+            // navigate keeps its TARGET verbatim (the navigation pipeline
+            // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav
                     when containsGetAll(nav.source())
                     && nav.target().info().type()
@@ -414,44 +411,32 @@ public final class StoreResolver {
                             resolveNode(nav.source(), context), nav.alias(),
                             nav.target(), nav.predicate(), nav.form(), nav.info());
             case TypedJoin j when containsGetAll(j) ->
-                    new TypedJoin(
-                            resolveNode(j.left(), context), resolveNode(j.right(), context),
-                            j.kind(), j.condition(), j.prefix(), j.info());
+                    structural(j, context);
             // map over RELATION rows above a class chain (the object-space
             // map arm matched earlier; this is the relation-space wrapper)
             case TypedMap m
                     when containsGetAll(m.source())
                     && m.source().info().type()
                             instanceof Type.RelationType ->
-                    new TypedMap(
-                            resolveNode(m.source(), context), m.mapper(), m.info());
+                    structural(m, context);
             // scalar/relation NATIVES over chains bottoming at a getAll:
             // args resolve structurally; CLASS-typed emptiness rewrites
             // FIRST (constant-project relation -> lowerer EXISTS; map §2).
             case TypedNativeCall nc
-                    when containsGetAll(nc) -> {
-                TypedNativeCall n2 = Pipelines.classEmptinessRewrite(nc,
-                        StoreResolver::isObjectSpace);
-                yield new TypedNativeCall(n2.callee(),
-                        n2.args().stream().map(a2 -> resolveNode(a2, context))
-                                .toList(), n2.info());
-            }
+                    when containsGetAll(nc) ->
+                    structural(Pipelines.classEmptinessRewrite(nc,
+                            StoreResolver::isObjectSpace), context);
             // collection literal whose ELEMENTS carry class chains:
             // each element resolves independently, structurally
             case com.legend.compiler.spec.typed.TypedCollection col
                     when containsGetAll(col) ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
-                            col.elements().stream()
-                                    .map(e2 -> resolveNode(e2, context))
-                                    .toList(), col.info());
+                    structural(col, context);
             // a CAST over a chain bottoming at a getAll (typed reads like
             // getFloat = cast(columnRead(chain))): the source resolves
             // structurally, the cast rides along
             case com.legend.compiler.spec.typed.TypedCast tc
                     when containsGetAll(tc) ->
-                    new com.legend.compiler.spec.typed.TypedCast(
-                            resolveNode(tc.source(), context),
-                            tc.target(), tc.info(), tc.wire());
+                    structural(tc, context);
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when containsGetAll(vpa.source()) -> {
                 TypedSpec am = Pipelines.autoMapRead(vpa);
@@ -473,6 +458,12 @@ public final class StoreResolver {
                 yield n;   // no class fetch anywhere beneath: pure relation query
             }
         };
+    }
+
+    /** Relation-space wrapper rebuild: children resolve, withChildren
+     * reassembles — no field can be re-founded by hand. */
+    private TypedSpec structural(TypedSpec n, Context context) {
+        return n.mapChildren(k -> resolveNode(k, context));
     }
 
     /** An op whose source chain is still in OBJECT space (class-typed). */
