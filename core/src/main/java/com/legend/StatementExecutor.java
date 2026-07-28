@@ -724,7 +724,12 @@ final class StatementExecutor {
                 && (ni9.classFqn().startsWith(
                         "meta::relational::metamodel::")
                     || ni9.classFqn().startsWith(
-                        "meta::external::query::sql::metamodel::"))) {
+                        "meta::external::query::sql::metamodel::")
+                    || ni9.classFqn().startsWith(
+                        "meta::relational::functions::pureToSqlQuery"
+                        + "::metamodel::")
+                    || ni9.classFqn().startsWith(
+                        "meta::pure::router::clustering::"))) {
             // CONSTRUCTED metamodel instance: SQL-protocol nodes build
             // HOST records (the bridge's structural-equality values);
             // relational ops build RelationalOperations for inference
@@ -1083,13 +1088,31 @@ final class StatementExecutor {
             }
             default -> {
                 if (ni.classFqn().startsWith(
-                        "meta::external::query::sql::metamodel::")) {
+                        "meta::external::query::sql::metamodel::")
+                        || ni.classFqn().startsWith(
+                                "meta::relational::functions::"
+                                + "pureToSqlQuery::metamodel::")
+                        || ni.classFqn().startsWith(
+                                "meta::pure::router::clustering::")
+                        || GENERIC_RELATIONAL_KINDS.contains(
+                                ni.classFqn())) {
                     return genericNode(ni, simple, specs, env);
                 }
                 return null;
             }
         }
     }
+
+    /** Relational-metamodel classes carried as GENERIC NodeH handles
+     * (no inference/op semantics of their own — only the dialect
+     * conversion consumes them). DynaFunction/Literal stay on the
+     * constructOp channel. */
+    private static final java.util.Set<String> GENERIC_RELATIONAL_KINDS =
+            java.util.Set.of(
+                    "meta::relational::metamodel::Window",
+                    "meta::relational::metamodel::SortByInfo",
+                    "meta::relational::metamodel::WindowColumn",
+                    "meta::relational::metamodel::relation::TabularFunction");
 
     /** GENERIC SQL-protocol node: kind + converted ctor props (nested
      * instances recurse; collections map; enum values spell their
@@ -1104,12 +1127,9 @@ final class StatementExecutor {
             if (v == null) {
                 return null;
             }
-            if (v instanceof java.util.List<?> lv && lv.isEmpty()) {
-                continue;
-            }
             props.put(e.getKey(), v);
         }
-        return new com.legend.exec.MetamodelWalk.NodeH(simple, props);
+        return com.legend.exec.MetamodelWalk.nodeOf(simple, props);
     }
 
     private static Object nodeValue(TypedSpec v,
@@ -1127,8 +1147,12 @@ final class StatementExecutor {
                     ev.value();
             case com.legend.compiler.spec.typed.TypedCDate cd9 ->
                     cd9.value();
-            case com.legend.compiler.spec.typed.TypedNewInstance nn ->
-                    constructNode(nn, specs, env);
+            case com.legend.compiler.spec.typed.TypedNewInstance nn -> {
+                Object x = constructNode(nn, specs, env);
+                // relational-op instances (DynaFunction/Literal) ride
+                // their walk channels as handle values
+                yield x != null ? x : planWalk(nn, specs, env);
+            }
             case com.legend.compiler.spec.typed.TypedCollection tc -> {
                 java.util.List<Object> out = new java.util.ArrayList<>();
                 for (TypedSpec e2 : tc.elements()) {
@@ -1144,6 +1168,14 @@ final class StatementExecutor {
                 Object w = planWalk(v, specs, env);
                 if (w instanceof java.util.List<?> lw && lw.size() == 1) {
                     w = lw.get(0);
+                }
+                if (w == null && v instanceof com.legend.compiler.spec
+                        .typed.TypedPackageableRef pr) {
+                    // class/type REFERENCE prop values (VarPlaceHolder
+                    // .type, CrossSetImplementation.class): the FQN
+                    // string is the handle — only construction identity
+                    // needs it, never evaluation
+                    yield pr.fullPath();
                 }
                 yield w;
             }

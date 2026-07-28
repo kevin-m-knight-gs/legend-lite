@@ -446,7 +446,13 @@ class NativeFunctionTest {
         //     FunctionCall/Logical/Comparison/predicates/Join/Query/
         //     Select/columns — bridge batch 2).
         // 141: +DateLiteral/TimestampLiteral/SQLNull (literal tests).
-        assertEquals(141, Pure.allNativeClasses().size(),
+        // 156: +SortItem/WindowFrame/Cast/ColumnType + extension
+        //     placeholders (TablePlaceholder/InClauseVariablePlaceholder)
+        //     + relational Window/SortByInfo/WindowColumn +
+        //     TdsSelectSqlQuery/TabularFunction + pureToSqlQuery
+        //     VarPlaceHolder/VarSetPlaceHolder/VarCrossSetPlaceHolder +
+        //     CrossSetImplementation (bridge batch 4).
+        assertEquals(156, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -560,10 +566,10 @@ class NativeFunctionTest {
                     List.of("name")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::relation::Table",
-                    List.of("name", "columns")),
+                    List.of("name", "columns", "schema")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Schema",
-                    List.of("tables", "views")),
+                    List.of("tables", "views", "name")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Alias",
                     List.of("name", "relationalElement")),
@@ -623,7 +629,57 @@ class NativeFunctionTest {
                     // task #78 step-1 (cites in Pure.java):
                     // relationalRuntimeExtension.pure:23-26
                     "meta::external::store::relational::runtime::GenerationFeaturesConfig",
-                    List.of("enabled", "disabled")));
+                    List.of("enabled", "disabled")),
+                    // bridge batch 4 (cites in Pure.java)
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Window",
+                    List.of("windowRef", "partitions", "orderBy",
+                            "windowFrame")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::SortItem",
+                    List.of("sortKey", "ordering", "nullOrdering")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Cast",
+                    List.of("expression", "type")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::ColumnType",
+                    List.of("name", "parameters")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::extension::TablePlaceholder",
+                    List.of("name")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::extension::InClauseVariablePlaceholder",
+                    List.of("name")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::Window",
+                    List.of("partition", "sortBy")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::SortByInfo",
+                    List.of("sortByElement", "sortDirection")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::WindowColumn",
+                    List.of("columnName", "window", "func")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::TabularFunction",
+                    List.of("name", "schema")),
+                    java.util.Map.entry(
+                    "meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder",
+                    List.of("name", "propertyPath", "type", "multiplicity")),
+                    java.util.Map.entry(
+                    "meta::relational::functions::pureToSqlQuery::metamodel::VarSetPlaceHolder",
+                    List.of("varName")),
+                    java.util.Map.entry(
+                    "meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder",
+                    List.of("varName", "crossSetImplementation")),
+                    java.util.Map.entry(
+                    "meta::pure::router::clustering::CrossSetImplementation",
+                    List.of("targetStore", "varName")),
+                    java.util.Map.entry(
+                    "meta::pure::mapping::SetImplementation",
+                    List.of("root", "id", "parent")),
+                    java.util.Map.entry(
+                    "meta::pure::mapping::InstanceSetImplementation",
+                    List.of("class")));
 
     /** The plan surface (real executionPlan.pure:60-205 + relational
      * executionPlan.pure:63-90 — declared subsets). */
@@ -846,7 +902,12 @@ class NativeFunctionTest {
                 "meta::relational::metamodel::datatype",
                 // the standalone-SQL bridge surfaces
                 "meta::external::query::sql::metamodel",
-                "meta::relational::functions::toPostgresModel");
+                "meta::relational::functions::toPostgresModel",
+                // bridge batch 4: extension placeholders + pureToSqlQuery
+                // plan-time metamodel + cross-store set impls
+                "meta::external::query::sql::metamodel::extension",
+                "meta::relational::functions::pureToSqlQuery::metamodel",
+                "meta::pure::router::clustering");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
@@ -870,7 +931,9 @@ class NativeFunctionTest {
         //     — withFeatureFlags is identity; the flag enum types the call).
         // 17: +JoinType/LogicalBinaryType/ComparisonOperator (postgres
         //     metamodel.pure — the bridge node enums).
-        assertEquals(17, Pure.allNativeEnums().size(),
+        // 19: +SortItemOrdering/SortItemNullOrdering (postgres
+        //     metamodel.pure:511/517).
+        assertEquals(19, Pure.allNativeEnums().size(),
                 "Pure.allNativeEnums() size pin: review the catalog if this changes");
     }
 
