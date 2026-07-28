@@ -348,14 +348,25 @@ class DuckDbRenderTest {
         org.junit.jupiter.api.Assertions.assertTrue(
                 andXor.contains("AND (("),
                 "xor under AND must parenthesize: " + andXor);
+        // under an OPERATOR the || expansion must wrap (the T1.6 misbind)…
+        String ucUnderPlus = renderExpr(new SqlExpr.Call(
+                com.legend.sql.SqlFn.PLUS, List.of(col("S"),
+                        new SqlExpr.Call(com.legend.sql.SqlFn.UC_FIRST,
+                                List.of(col("T"))))));
+        org.junit.jupiter.api.Assertions.assertTrue(
+                ucUnderPlus.contains("+ (upper(")
+                        && ucUnderPlus.contains(", 2))"),
+                "ucFirst composite must parenthesize under +: " + ucUnderPlus);
+        // …and in a FUNCTION-ARGUMENT context the walk adds NO redundant
+        // parens (parens are the walk's decision, not the arm's habit)
         String ucInConcat = renderExpr(new SqlExpr.Call(
                 com.legend.sql.SqlFn.CONCAT, List.of(col("S"),
                         new SqlExpr.Call(com.legend.sql.SqlFn.UC_FIRST,
                                 List.of(col("T"))))));
         org.junit.jupiter.api.Assertions.assertTrue(
-                ucInConcat.contains("(upper(")
-                        && ucInConcat.contains(", 2))"),
-                "ucFirst composite must parenthesize: " + ucInConcat);
+                ucInConcat.contains(", upper(")
+                        && !ucInConcat.contains("(upper("),
+                "ucFirst in a function argument needs no wrap: " + ucInConcat);
         String addI = renderExpr(new SqlExpr.Call(com.legend.sql.SqlFn.LESS,
                 List.of(new SqlExpr.Call(com.legend.sql.SqlFn.ADD_INTERVAL,
                         List.of(new SqlExpr.StringLit("to_days"),

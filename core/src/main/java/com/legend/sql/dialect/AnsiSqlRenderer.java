@@ -52,6 +52,17 @@ public class AnsiSqlRenderer implements SqlDialect {
     protected record Infix(String sql, int prec) {
     }
 
+    /**
+     * A composite arm whose SPELLING expands to operator text: the WALK
+     * decides the parens — the expansion is declared WEAKEST-binDING, so
+     * any enclosing operator wraps it and no arm ever hand-parenthesizes
+     * (remediation T1.6/T3.2: the misbind class is dead structurally, and
+     * a new composite arm cannot reintroduce it by forgetting parens).
+     */
+    protected final String opSpelling(String spelling, int parentPrec) {
+        return parentPrec > 0 ? "(" + spelling + ")" : spelling;
+    }
+
     private static final Map<SqlFn, Infix> INFIX = Map.ofEntries(
             Map.entry(SqlFn.OR, new Infix("OR", 1)),
             Map.entry(SqlFn.AND, new Infix("AND", 2)),
@@ -409,9 +420,10 @@ public class AnsiSqlRenderer implements SqlDialect {
             case XOR -> {
                 String x = expr(a.get(0), 3);
                 String y = expr(a.get(1), 3);
-                // whole-expression parens: the OR-chain misbinds under
-                // an enclosing AND (remediation T1.6)
-                yield "((" + x + " AND NOT " + y + ") OR (NOT " + x + " AND " + y + "))";
+                // the OR-chain misbinds under an enclosing AND — the WALK
+                // wraps it (opSpelling), never this arm by hand
+                yield opSpelling("(" + x + " AND NOT " + y + ") OR (NOT " + x
+                        + " AND " + y + ")", parentPrec);
             }
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(c.fn(), a);
             // Strings
@@ -451,11 +463,11 @@ public class AnsiSqlRenderer implements SqlDialect {
             case REVERSE_STRING -> fn("reverse", a);
             case ASCII_CODE -> fn("ascii", a);
             case CHR -> fn("chr", a);
-            // parenthesized: the || concat misbinds under +/comparison
-            case UC_FIRST -> "(upper(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
-                    + expr(a.get(0), 0) + ", 2))";
-            case LC_FIRST -> "(lower(substr(" + expr(a.get(0), 0) + ", 1, 1)) || substr("
-                    + expr(a.get(0), 0) + ", 2))";
+            // the || concat misbinds under +/comparison — walk-wrapped
+            case UC_FIRST -> opSpelling("upper(substr(" + expr(a.get(0), 0)
+                    + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
+            case LC_FIRST -> opSpelling("lower(substr(" + expr(a.get(0), 0)
+                    + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
             case ENCODE_BASE64 -> "to_base64(CAST(" + expr(a.get(0), 0) + " AS BLOB))";
             case LEVENSHTEIN -> fn("levenshtein", a);
             case GUID -> "uuid()";
@@ -479,9 +491,9 @@ public class AnsiSqlRenderer implements SqlDialect {
             case DATE_TRUNC -> fn("date_trunc", a);           // (part, value)
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
-            case ADD_INTERVAL -> "(" + expr(a.get(2), 5) + " + "
+            case ADD_INTERVAL -> opSpelling(expr(a.get(2), 5) + " + "
                     + ((SqlExpr.StringLit) a.get(0)).value()
-                    + "(" + expr(a.get(1), 0) + "))";
+                    + "(" + expr(a.get(1), 0) + ")", parentPrec);
             case DATE_DIFF -> fn("date_diff", a);              // (part, d1, d2)
             case TIMEZONE -> fn("timezone", a);               // (zone, ts) — ICU
             case JSON_TYPE -> fn("json_type", a);
