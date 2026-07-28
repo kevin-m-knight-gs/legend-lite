@@ -71,7 +71,7 @@ final class Fold {
             return null;
         }
         com.legend.sql.SqlSource.Subselect sub = findUnionSub(base.from());
-        if (sub == null) {
+        if (sub == null || !readsAlias(red.args(), sub.alias())) {
             return null;
         }
         var u = (com.legend.sql.SqlUnion) sub.inner();
@@ -114,6 +114,42 @@ final class Fold {
         w.add(new com.legend.sql.OutputCol("u_ord",
                 com.legend.sql.SqlType.Scalar.INTEGER, false));
         return w;
+    }
+
+    /** The aggregate's VALUE must actually read the union it is ordered
+     * by — anchor on the alias, never "the first union found". */
+    private static boolean readsAlias(
+            java.util.List<com.legend.sql.SqlExpr> args, String alias) {
+        var found = new boolean[1];
+        for (com.legend.sql.SqlExpr a : args) {
+            walkColumns(a, c -> {
+                if (alias.equals(c.table())) {
+                    found[0] = true;
+                }
+            });
+        }
+        return found[0];
+    }
+
+    private static void walkColumns(com.legend.sql.SqlExpr e,
+            java.util.function.Consumer<com.legend.sql.SqlExpr.Column> f) {
+        switch (e) {
+            case com.legend.sql.SqlExpr.Column c -> f.accept(c);
+            case com.legend.sql.SqlExpr.Call c ->
+                    c.args().forEach(x -> walkColumns(x, f));
+            case com.legend.sql.SqlExpr.Cast c -> walkColumns(c.value(), f);
+            case com.legend.sql.SqlExpr.Group g -> walkColumns(g.inner(), f);
+            case com.legend.sql.SqlExpr.Case cs -> {
+                cs.whens().forEach(w -> {
+                    walkColumns(w.condition(), f);
+                    walkColumns(w.then(), f);
+                });
+                if (cs.otherwise() != null) {
+                    walkColumns(cs.otherwise(), f);
+                }
+            }
+            default -> { }
+        }
     }
 
     private static com.legend.sql.SqlSource.Subselect findUnionSub(
