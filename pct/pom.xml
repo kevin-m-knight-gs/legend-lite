@@ -220,9 +220,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <useSystemClassLoader>false</useSystemClassLoader>
-                    <!-- Allow build to pass with known PCT test failures (array handling difference) -->
-                    <!-- TODO: Fix array handling for single-element arrays to remove this -->
-                    <testFailureIgnore>true</testFailureIgnore>
+                    <!-- PCT failures FAIL the build: known divergences are
+                         LEDGERED as expectedFailures pins (reference-adapter
+                         parity), never swallowed here. -->
                 </configuration>
             </plugin>
         </plugins>

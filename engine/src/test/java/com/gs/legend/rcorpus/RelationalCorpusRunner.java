@@ -139,6 +139,9 @@ public class RelationalCorpusRunner {
             seedFails.forEach(f -> sf.append("- `").append(f).append("`\n"));
             header = header + sf;
         }
+        // the COMMITTED baseline reads BEFORE the sweep rewrites it
+        Map<String, Integer> baseline =
+                readBaseline(Path.of("../docs/RELATIONAL_CORPUS.md"));
         if (onlyFilters.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);
@@ -160,6 +163,56 @@ public class RelationalCorpusRunner {
         if (onlyFilters.isEmpty()) {
             System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
         }
+        // MECHANICAL REGRESSION GATE (audit: this runner carried NO
+        // asserts — BUILD SUCCESS regardless of outcome). Every family
+        // run IN FULL must meet the committed per-family pass baseline;
+        // improvements advance the baseline through the rewritten
+        // scoreboard, regressions FAIL the build. Viable only since the
+        // flapper elimination (deterministic runner — consecutive sweeps
+        // identical). -Drcorpus.test runs skip: partial family counts.
+        if (System.getProperty("rcorpus.test", "").trim().isEmpty()) {
+            List<String> regressions = new ArrayList<>();
+            byFamily.forEach((f, outs) -> {
+                long p = outs.stream()
+                        .filter(o -> o.status() == Runner.Status.PASS).count();
+                Integer b = baseline.get(f);
+                if (b != null && p < b) {
+                    regressions.add(f + " " + p + " < baseline " + b);
+                }
+            });
+            org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
+                    "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
+                    + regressions
+                    + " — fix or revert; do not commit the rewritten scoreboard");
+        }
+    }
+
+    /** The committed scoreboard's per-family PASS counts ({@code | family
+     * | tests | pass | ... |}); empty (gate skipped, loud) when the file
+     * is absent or unreadable. */
+    private static Map<String, Integer> readBaseline(Path p) {
+        Map<String, Integer> m = new LinkedHashMap<>();
+        try {
+            for (String line : java.nio.file.Files.readAllLines(p)) {
+                if (!line.startsWith("| ") || line.startsWith("| family")
+                        || line.contains("**total**")) {
+                    continue;
+                }
+                String[] cells = line.split("\\|");
+                if (cells.length < 4) {
+                    continue;
+                }
+                try {
+                    m.put(cells[1].trim(), Integer.parseInt(cells[3].trim()));
+                } catch (NumberFormatException ignore) {
+                    // separator / non-table rows
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("[rcorpus] baseline unreadable (" + e
+                    + ") — regression gate SKIPPED");
+        }
+        return m;
     }
 
     /** ONE family through the pipeline — shared by the scoreboard and the
