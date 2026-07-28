@@ -772,6 +772,31 @@ final class StatementExecutor {
             }
             return null;
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedCopyInstance cp) {
+            // ^$joinTreeNode(alias = ...) — a walked join-tree handle
+            // copy-constructed with a subselect alias override
+            Object src = planWalk(cp.source(), specs, env);
+            if (src instanceof java.util.List<?> ls && ls.size() == 1) {
+                src = ls.get(0);
+            }
+            if (src instanceof com.legend.exec.MetamodelWalk.JtnH jt
+                    && cp.overrides().size() == 1
+                    && cp.overrides().containsKey("alias")) {
+                Object al = nodeValue(cp.overrides().get("alias"), specs,
+                        env);
+                if (al instanceof com.legend.exec.MetamodelWalk.AliasH) {
+                    return jt.withAlias(al);
+                }
+            }
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[walk] copy of " + cp.classFqn()
+                        + " does not walk: src="
+                        + (src == null ? "null" : src.getClass()
+                                .getSimpleName())
+                        + " overrides=" + cp.overrides().keySet());
+            }
+            return null;
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
             Object recv = planWalk(pa.source(), specs, env);
             if (recv == null) {
@@ -860,6 +885,14 @@ final class StatementExecutor {
                 case "convertElement" -> {
                     return com.legend.exec.MetamodelWalk
                             .convertElement(recv);
+                }
+                case "convertSelectSqlQuery" -> {
+                    Object body = com.legend.exec.MetamodelWalk
+                            .convertElement(recv);
+                    return body == null ? null
+                            : com.legend.exec.MetamodelWalk.nodeOf("Query",
+                                    new java.util.TreeMap<>(java.util.Map
+                                            .of("queryBody", body)));
                 }
                 case "view" -> {
                     if (c.args().size() == 2 && c.args().get(1)
@@ -1031,7 +1064,7 @@ final class StatementExecutor {
                         ? new com.legend.exec.MetamodelWalk.CnH(cs2.value())
                         : null;
             }
-            case "Alias" -> {
+            case "Alias", "TableAlias" -> {
                 if (ni.properties().get("name") instanceof
                         com.legend.compiler.spec.typed.TypedCString an9) {
                     TypedSpec rel = ni.properties().get("relationalElement");
@@ -1112,7 +1145,16 @@ final class StatementExecutor {
                     "meta::relational::metamodel::Window",
                     "meta::relational::metamodel::SortByInfo",
                     "meta::relational::metamodel::WindowColumn",
-                    "meta::relational::metamodel::relation::TabularFunction");
+                    "meta::relational::metamodel::relation::TabularFunction",
+                    "meta::relational::metamodel::relation::SelectSQLQuery",
+                    "meta::relational::metamodel::relation::TdsSelectSqlQuery",
+                    "meta::relational::metamodel::relation::Union",
+                    "meta::relational::metamodel::relation::UnionAll",
+                    "meta::relational::metamodel::relation::CommonTableExpression",
+                    "meta::relational::metamodel::relation::CommonTableExpressionReference",
+                    "meta::relational::metamodel::join::RootJoinTreeNode",
+                    "meta::relational::metamodel::OrderBy",
+                    "meta::relational::metamodel::operation::JoinStrings");
 
     /** GENERIC SQL-protocol node: kind + converted ctor props (nested
      * instances recurse; collections map; enum values spell their
@@ -1125,6 +1167,11 @@ final class StatementExecutor {
         for (var e : ni.properties().entrySet()) {
             Object v = nodeValue(e.getValue(), specs, env);
             if (v == null) {
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    System.err.println("[walk] " + simple + "." + e.getKey()
+                            + " does not walk: " + e.getValue().getClass()
+                                    .getSimpleName());
+                }
                 return null;
             }
             props.put(e.getKey(), v);

@@ -79,6 +79,25 @@ public final class MetamodelWalk {
     public record DynH(String name, List<Object> args) {
     }
 
+    /** A JoinTreeNode handle: the join's condition + display type, an
+     * optional copy-constructed alias override (subselect targets), and
+     * chained child hops. {@code children} is mutable — the chain
+     * builder links hops in place. */
+    public record JtnH(com.legend.model.DatabaseDefinition db,
+            String joinName, RelationalOperation operation,
+            String joinType, Object aliasOverride, List<Object> children) {
+
+        public JtnH withAlias(Object alias) {
+            return new JtnH(db, joinName, operation, joinType, alias,
+                    children);
+        }
+    }
+
+    /** RelationalOperationElementWithJoin — the join-slot property
+     * mapping's element (relational.pure:386). */
+    public record RoewjH(Object jtn) {
+    }
+
     /** GENERIC SQL-protocol node value: kind + ctor-provided props.
      * SORTED map (order-insensitive print+equality) and EMPTY/null
      * props dropped — the engine ctor-vs-converter default asymmetry
@@ -113,7 +132,9 @@ public final class MetamodelWalk {
             }
             m.put(e.getKey(), v);
         }
-        if ("FunctionCall".equals(kind)) {
+        if ("FunctionCall".equals(kind) || "Select".equals(kind)
+                || "Union".equals(kind)) {
+            // class-declared ctor defaults (distinct: Boolean[1] = false)
             m.putIfAbsent("distinct", Boolean.FALSE);
         }
         return new NodeH(kind, m);
@@ -167,23 +188,49 @@ public final class MetamodelWalk {
         return null;
     }
 
-    /** {@code convertElement} — the toPostgresModel SIMPLE element arms
-     * (toPostgresModel.pure:93-96 + convertColumn:203 +
-     * convertTableAliasName:785: alias names QUOTE). */
+    /** Conversion state (the engine's ModelConversionState axes that
+     * change output shape): {@code rootSelect} controls the
+     * TableSubquery wrap of a converted SelectSQLQuery;
+     * {@code processingSelect} the SingleColumn wrap of column
+     * references (convertColumn:206). */
+    record ConvState(boolean rootSelect, boolean processingSelect) {
+        static final ConvState ROOT = new ConvState(true, false);
+
+        ConvState nested() {
+            return new ConvState(false, false);
+        }
+
+        ConvState selectItems() {
+            return new ConvState(rootSelect, true);
+        }
+
+        /** Expression position — column refs stay bare references. */
+        ConvState expr() {
+            return processingSelect
+                    ? new ConvState(rootSelect, false) : this;
+        }
+    }
+
     public static Object convertElement(Object recv) {
+        return convertElement(recv, ConvState.ROOT);
+    }
+
+    /** {@code convertElement} — the toPostgresModel element arms
+     * (toPostgresModel.pure:82-116 + convertColumn:203 +
+     * convertTableAliasName:785: alias names QUOTE). */
+    static Object convertElement(Object recv, ConvState st) {
         Object r = recv instanceof List<?> l && l.size() == 1
                 ? l.get(0) : recv;
         if (r instanceof TacH t) {
             String col = t.column() instanceof ColH ch ? ch.c().name()
                     : String.valueOf(t.column());
-            return new QnrH(new QnH(List.of(
-                    "\"" + t.aliasName() + "\"", col)));
+            return columnRef(List.of("\"" + t.aliasName() + "\"", col), st);
         }
         if (r instanceof CnH c) {
-            return new QnrH(new QnH(List.of(c.name())));
+            return columnRef(List.of(c.name()), st);
         }
         if (r instanceof ColH ch) {
-            return new QnrH(new QnH(List.of(ch.c().name())));
+            return columnRef(List.of(ch.c().name()), st);
         }
         if (r instanceof Rop rop) {
             return convertOp(rop.op());
@@ -197,7 +244,7 @@ public final class MetamodelWalk {
         if (r instanceof DynH dh) {
             List<Object> converted = new ArrayList<>();
             for (Object arg : dh.args()) {
-                Object v = convertElement(arg);
+                Object v = convertElement(arg, st.expr());
                 if (v == null) {
                     return null;
                 }
@@ -206,7 +253,7 @@ public final class MetamodelWalk {
             return dynaNode(dh.name(), converted);
         }
         if (r instanceof AliasH ah) {
-            Object rel = convertElement(ah.relationalElement());
+            Object rel = convertElement(ah.relationalElement(), st);
             if (rel == null) {
                 return null;
             }
@@ -225,15 +272,23 @@ public final class MetamodelWalk {
                     "expression", expr);
         }
         if (r instanceof NodeH nh) {
-            return convertNodeKind(nh);
+            return convertNodeKind(nh, st);
         }
         return null;
     }
 
+    /** convertColumn (:203): a bare reference, wrapped as a
+     * SingleColumn in select-items position. */
+    private static Object columnRef(List<String> parts, ConvState st) {
+        Object ref = new QnrH(new QnH(parts));
+        return st.processingSelect()
+                ? node("SingleColumn", "expression", ref) : ref;
+    }
+
     /** Constructed-metamodel instances carried as generic NodeH handles
-     * (placeholders, window columns, tabular functions) — the
-     * toPostgresModel arms at :89-101. */
-    private static Object convertNodeKind(NodeH nh) {
+     * (placeholders, window columns, tabular functions, query-level
+     * relations) — the toPostgresModel arms at :89-116. */
+    private static Object convertNodeKind(NodeH nh, ConvState st) {
         return switch (nh.kind()) {
             case "VarPlaceHolder" -> node("InClauseVariablePlaceholder",
                     "name", nh.props().get("name"));
@@ -251,8 +306,318 @@ public final class MetamodelWalk {
                         node("FunctionCall", "name", new QnH(List.of(
                                 s.schema().name(), String.valueOf(nm)))));
             }
+            case "SelectSQLQuery", "TdsSelectSqlQuery" ->
+                    convertSelectSql(nh, st);
+            case "RootJoinTreeNode" -> convertJoinTree(nh, st);
+            case "Union" -> convertRelUnion(nh, true);
+            case "UnionAll" -> convertRelUnion(nh, false);
+            case "JoinStrings" -> convertJoinStrings(nh, st);
+            case "CommonTableExpressionReference" -> node("Table", "name",
+                    new QnH(List.of(String.valueOf(
+                            nh.props().get("name")))));
             default -> null;
         };
+    }
+
+    /** Engine convertSelectSQLQuery (toPostgresModel.pure:119-165): the
+     * one ExtendedQuerySpecification build — CTEs hoist into a
+     * QueryWithScope, and a NON-root select wraps as a TableSubquery. */
+    private static Object convertSelectSql(NodeH nh, ConvState st) {
+        ConvState inner = st.nested();
+        Object from = null;
+        if (nh.props().get("data") != null) {
+            from = convertElement(nh.props().get("data"), inner);
+            if (from == null) {
+                return null;
+            }
+        }
+        List<Object> items = new ArrayList<>();
+        for (Object c : asList(nh.props().get("columns"))) {
+            Object v = convertElement(c, inner.selectItems());
+            if (v == null) {
+                return null;
+            }
+            items.add(v instanceof NodeH n && ("SingleColumn"
+                    .equals(n.kind()) || "AllColumns".equals(n.kind()))
+                    ? v : node("SingleColumn", "expression", v));
+        }
+        Object select = node("Select",
+                "distinct", nh.props().get("distinct"),
+                "selectItems", items.isEmpty()
+                        ? List.of(node("AllColumns")) : items);
+        Object where = optionalExpr(nh.props().get("filteringOperation"),
+                inner);
+        List<Object> groupBy = new ArrayList<>();
+        for (Object g : asList(nh.props().get("groupBy"))) {
+            Object v = convertElement(g, inner.expr());
+            if (v == null) {
+                return null;
+            }
+            groupBy.add(v);
+        }
+        Object having = optionalExpr(nh.props().get("havingOperation"),
+                inner);
+        Object qualify = optionalExpr(nh.props().get("qualifyOperation"),
+                inner);
+        List<Object> orderBy = new ArrayList<>();
+        for (Object o : asList(nh.props().get("orderBy"))) {
+            if (!(o instanceof NodeH ob) || !"OrderBy".equals(ob.kind())) {
+                return null;
+            }
+            Object key = convertElement(ob.props().get("column"),
+                    inner.expr());
+            if (key == null) {
+                return null;
+            }
+            orderBy.add(node("SortItem", "sortKey", key,
+                    "ordering", "DESC".equals(String.valueOf(
+                            ob.props().get("direction")))
+                            ? "DESCENDING" : "ASCENDING",
+                    "nullOrdering", "UNDEFINED"));
+        }
+        // convertLimit (:170): limit = toRow - fromRow when both are
+        // integer literals; offset = fromRow
+        Long fromRow = literalLong(nh.props().get("fromRow"));
+        Long toRow = literalLong(nh.props().get("toRow"));
+        Object limit = toRow == null ? null
+                : node("IntegerLiteral", "value",
+                        fromRow == null ? toRow : toRow - fromRow);
+        Object offset = fromRow == null ? null
+                : node("IntegerLiteral", "value", fromRow);
+        List<Object> withQueries = new ArrayList<>();
+        for (Object e : asList(nh.props().get("commonTableExpressions"))) {
+            if (!(e instanceof NodeH cte)
+                    || !"CommonTableExpression".equals(cte.kind())) {
+                return null;
+            }
+            Object q = convertElement(cte.props().get("sqlQuery"),
+                    ConvState.ROOT);
+            if (q == null) {
+                return null;
+            }
+            withQueries.add(node("WithQuery",
+                    "name", cte.props().get("name"),
+                    "query", node("Query", "queryBody", q)));
+        }
+        Object base = node("ExtendedQuerySpecification",
+                "select", select, "from", from, "where", where,
+                "groupBy", groupBy, "having", having,
+                "orderBy", orderBy, "limit", limit, "offset", offset,
+                "qualify", qualify);
+        Object query = withQueries.isEmpty() ? base
+                : node("QueryWithScope",
+                        "with", node("With", "withQueries", withQueries),
+                        "queryBody", base);
+        return st.rootSelect() ? query
+                : node("TableSubquery", "query",
+                        node("Query", "queryBody", query));
+    }
+
+    private static Object optionalExpr(Object v, ConvState inner) {
+        List<Object> els = asList(v);
+        return els.isEmpty() ? null
+                : convertElement(els.get(0), inner.expr());
+    }
+
+    private static Long literalLong(Object v) {
+        Object r = v instanceof List<?> l && l.size() == 1 ? l.get(0) : v;
+        return r instanceof Rop rop
+                && rop.op() instanceof RelationalOperation.Literal li
+                && li.value() instanceof Number n2 ? n2.longValue() : null;
+    }
+
+    /** Engine convertJoinTreeNode (:209): pre-order relations fold into
+     * left-nested LEFT joins; each child's relation is its alias
+     * override (subselects) or the join's TARGET table aliased by the
+     * table's own name. */
+    private static Object convertJoinTree(NodeH nh, ConvState st) {
+        Object rootAlias = nh.props().get("alias");
+        Object acc = convertElement(rootAlias, st);
+        if (acc == null) {
+            return null;
+        }
+        String parentTable = rootAlias instanceof AliasH ah
+                && ah.relationalElement() instanceof Tbl tb
+                ? tb.t().name() : null;
+        return foldChildren(acc, asList(nh.props().get("childrenData")),
+                parentTable, st);
+    }
+
+    private static Object foldChildren(Object acc, List<Object> children,
+            String parentTable, ConvState st) {
+        for (Object c : children) {
+            if (!(c instanceof JtnH jt)) {
+                return null;
+            }
+            String target = null;
+            Object rel;
+            if (jt.aliasOverride() != null) {
+                rel = convertElement(jt.aliasOverride(), st);
+            } else {
+                target = targetTable(jt.operation(), parentTable);
+                Object tbl = target == null ? null
+                        : tableHandle(jt.db(), target);
+                rel = tbl == null ? null
+                        : node("AliasedRelation",
+                                "alias", "\"" + target + "\"",
+                                "relation", convertElement(tbl, st));
+            }
+            Object cond = jt.operation() == null ? null
+                    : convertOp(jt.operation());
+            if (rel == null || cond == null) {
+                return null;
+            }
+            acc = node("Join", "left", acc, "right", rel,
+                    "type", sqlJoinType(jt.joinType()),
+                    "criteria", node("JoinOn", "expression", cond));
+            if (!jt.children().isEmpty()) {
+                acc = foldChildren(acc, jt.children(),
+                        target != null ? target : parentTable, st);
+                if (acc == null) {
+                    return null;
+                }
+            }
+        }
+        return acc;
+    }
+
+    /** convertJoinType (:240): LEFT_OUTER default. */
+    private static String sqlJoinType(String joinType) {
+        return switch (joinType == null ? "LEFT_OUTER" : joinType) {
+            case "INNER" -> "INNER";
+            case "RIGHT_OUTER" -> "RIGHT";
+            case "FULL_OUTER" -> "FULL";
+            default -> "LEFT";
+        };
+    }
+
+    /** The join operation's table that is NOT the parent's — the
+     * engine mapping compiler's join-target alias. */
+    private static String targetTable(RelationalOperation op,
+            String parentTable) {
+        List<String> tables = new ArrayList<>();
+        collectTables(op, tables);
+        for (String t : tables) {
+            if (!t.equals(parentTable)) {
+                return t;
+            }
+        }
+        return tables.isEmpty() ? null : tables.get(0);
+    }
+
+    private static void collectTables(RelationalOperation op,
+            List<String> out) {
+        switch (op) {
+            case RelationalOperation.ColumnRef cr -> {
+                if (!out.contains(cr.table())) {
+                    out.add(cr.table());
+                }
+            }
+            case RelationalOperation.Comparison cp -> {
+                collectTables(cp.left(), out);
+                collectTables(cp.right(), out);
+            }
+            case RelationalOperation.BooleanOp bo -> {
+                collectTables(bo.left(), out);
+                collectTables(bo.right(), out);
+            }
+            case RelationalOperation.Group g ->
+                    collectTables(g.inner(), out);
+            case RelationalOperation.FunctionCall f -> {
+                for (var a : f.args()) {
+                    collectTables(a, out);
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
+    /** A table (any schema, default included) as a Tbl handle. */
+    private static Object tableHandle(
+            com.legend.model.DatabaseDefinition db, String name) {
+        for (var s : db.schemas()) {
+            for (var t : s.tables()) {
+                if (t.name().equals(name)) {
+                    return new Tbl(db, s.name(), t);
+                }
+            }
+        }
+        for (var t : defaultSchema(db).tables()) {
+            if (t.name().equals(name)) {
+                return new Tbl(db, "default", t);
+            }
+        }
+        return null;
+    }
+
+    /** Engine convertUnion (:867): queries convert under FRESH root
+     * states, pairwise-folded, always subquery-wrapped. */
+    private static Object convertRelUnion(NodeH nh, boolean distinct) {
+        Object acc = null;
+        for (Object q : asList(nh.props().get("queries"))) {
+            Object v = convertElement(q, ConvState.ROOT);
+            if (v == null) {
+                return null;
+            }
+            acc = acc == null ? v : node("Union", "left", acc,
+                    "right", v, "distinct", distinct);
+        }
+        return acc == null ? null
+                : node("TableSubquery", "query",
+                        node("Query", "queryBody", acc));
+    }
+
+    /** Engine convertJoinStrings (:844): one string aggregates via
+     * string_agg (empty-string separator default); several concat with
+     * the separator interleaved between prefix/suffix. Empty-string
+     * literal prefix/suffix/separator count as absent (:833). */
+    private static Object convertJoinStrings(NodeH nh, ConvState st) {
+        List<Object> strings = new ArrayList<>();
+        for (Object s : asList(nh.props().get("strings"))) {
+            Object v = convertElement(s, st.expr());
+            if (v == null) {
+                return null;
+            }
+            strings.add(v);
+        }
+        Object sep = joinStringsArg(nh.props().get("separator"));
+        Object prefix = joinStringsArg(nh.props().get("prefix"));
+        Object suffix = joinStringsArg(nh.props().get("suffix"));
+        if (strings.size() == 1) {
+            return node("FunctionCall",
+                    "name", new QnH(List.of("string_agg")),
+                    "arguments", List.of(strings.get(0), sep != null
+                            ? sep : node("StringLiteral", "value", "")));
+        }
+        List<Object> args = new ArrayList<>();
+        if (prefix != null) {
+            args.add(prefix);
+        }
+        for (int i = 0; i < strings.size(); i++) {
+            if (i > 0 && sep != null) {
+                args.add(sep);
+            }
+            args.add(strings.get(i));
+        }
+        if (suffix != null) {
+            args.add(suffix);
+        }
+        return node("FunctionCall", "name", new QnH(List.of("concat")),
+                "arguments", args);
+    }
+
+    private static Object joinStringsArg(Object v) {
+        Object r = v instanceof List<?> l && l.size() == 1 ? l.get(0) : v;
+        if (r == null) {
+            return null;
+        }
+        if (r instanceof Rop rop
+                && rop.op() instanceof RelationalOperation.Literal li
+                && "".equals(li.value())) {
+            return null;
+        }
+        return convertElement(r, ConvState.ROOT.expr());
     }
 
     /** Engine convertWindowColumn (toPostgresModel.pure:817-831): the
@@ -359,6 +724,35 @@ public final class MetamodelWalk {
                 }
                 yield dynaNode(f.name(), args);
             }
+            // join-condition vocabulary: table-qualified refs spell the
+            // table name as the QUOTED alias (the mapping compiler's
+            // table-name aliases)
+            case RelationalOperation.ColumnRef cr -> new QnrH(new QnH(
+                    List.of("\"" + cr.table() + "\"", cr.column())));
+            case RelationalOperation.Comparison cp -> {
+                Object l2 = convertOp(cp.left());
+                Object r2 = convertOp(cp.right());
+                yield l2 == null || r2 == null ? null
+                        : node("ComparisonExpression", "left", l2,
+                                "right", r2, "operator",
+                                switch (cp.op()) {
+                                    case EQ -> "EQUAL";
+                                    case NEQ -> "NOT_EQUAL";
+                                    case LT -> "LESS_THAN";
+                                    case LTE -> "LESS_THAN_OR_EQUAL";
+                                    case GT -> "GREATER_THAN";
+                                    case GTE -> "GREATER_THAN_OR_EQUAL";
+                                });
+            }
+            case RelationalOperation.BooleanOp bo -> {
+                Object l3 = convertOp(bo.left());
+                Object r3 = convertOp(bo.right());
+                yield l3 == null || r3 == null ? null
+                        : node("LogicalBinaryExpression",
+                                "type", bo.op().name(),
+                                "left", l3, "right", r3);
+            }
+            case RelationalOperation.Group g -> convertOp(g.inner());
             default -> null;
         };
     }
@@ -478,10 +872,54 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                                 new RelationalOperation.ColumnRef(
                                         col.database(), col.table(),
                                         col.column()));
+                case com.legend.model.PropertyMapping.Join j ->
+                        joinTreeOf(p.ctx(), j.database(), j.joins());
                 default -> null;
             };
         }
+        if (recv instanceof RoewjH rj && prop.equals("joinTreeNode")) {
+            return rj.jtn();
+        }
         return null;
+    }
+
+    /** A join-slot property mapping's RelationalOperationElementWithJoin
+     * handle: the join chain as nested JoinTreeNode handles (each hop's
+     * children carry the next). */
+    private static Object joinTreeOf(ModelContext ctx, String dbFqn,
+            List<com.legend.model.JoinChainElement> hops) {
+        Object dbh = database(ctx, dbFqn);
+        if (!(dbh instanceof Db d)) {
+            return null;
+        }
+        JtnH head = null;
+        JtnH tail = null;
+        for (var hop : hops) {
+            String hopDbFqn = hop.databaseName() != null
+                    ? hop.databaseName() : dbFqn;
+            var hopDb = database(ctx, hopDbFqn) instanceof Db hd
+                    ? hd.db() : d.db();
+            com.legend.model.DatabaseDefinition.JoinDefinition def = null;
+            for (var jd : hopDb.joins()) {
+                if (jd.name().equals(hop.joinName())) {
+                    def = jd;
+                    break;
+                }
+            }
+            if (def == null) {
+                return null;
+            }
+            JtnH node2 = new JtnH(hopDb, hop.joinName(), def.operation(),
+                    hop.joinType() == null ? null : hop.joinType().name(),
+                    null, new ArrayList<>());
+            if (head == null) {
+                head = node2;
+            } else {
+                tail.children().add(node2);
+            }
+            tail = node2;
+        }
+        return head == null ? null : new RoewjH(head);
     }
 
     /** {@code schema->view('name')} navigation; null = not applicable. */

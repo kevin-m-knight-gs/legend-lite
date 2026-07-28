@@ -57,10 +57,18 @@ final class TypeClassifier {
         return model.findEnum(fqn).isPresent() || Pure.findNativeEnum(fqn).isPresent();
     }
 
-    /** The parser definition behind a class FQN — user model first, then the native catalog. */
+    /**
+     * The parser definition behind a class FQN — NATIVE catalog first
+     * (the FunctionCompiler platform-owned rule, applied to classes): a
+     * corpus re-declaration of a platform class (pureToSQLQuery_union
+     * .pure's relation::Union) is the same source this prelude ports,
+     * but parsed against parents the corpus doesn't carry, so its
+     * inheritance chain dead-ends and subsumption breaks. User classes
+     * live outside the native FQN set and resolve as before.
+     */
     Optional<ClassDefinition> classDef(String fqn) {
-        Optional<ClassDefinition> user = model.findClass(fqn);
-        return user.isPresent() ? user : Pure.findNativeClass(fqn);
+        Optional<ClassDefinition> nat = Pure.findNativeClass(fqn);
+        return nat.isPresent() ? nat : model.findClass(fqn);
     }
 
     /** The parser definition behind an enum FQN — user model first, then the native catalog. */

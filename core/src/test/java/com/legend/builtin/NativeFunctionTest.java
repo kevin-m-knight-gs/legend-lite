@@ -452,7 +452,13 @@ class NativeFunctionTest {
         //     TdsSelectSqlQuery/TabularFunction + pureToSqlQuery
         //     VarPlaceHolder/VarSetPlaceHolder/VarCrossSetPlaceHolder +
         //     CrossSetImplementation (bridge batch 4).
-        assertEquals(156, Pure.allNativeClasses().size(),
+        // 172: +QuerySpecification/ExtendedQuerySpecification/WithQuery/
+        //     With/QueryWithScope/sql-Union + relational
+        //     RelationalTreeNode/RootJoinTreeNode/JoinTreeNode/OrderBy/
+        //     CommonTableExpression(+Reference)/JoinStrings/Union/
+        //     UnionAll/RelationalOperationElementWithJoin (the
+        //     query-level dialect-conversion surface, bridge batch 5).
+        assertEquals(172, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -679,7 +685,65 @@ class NativeFunctionTest {
                     List.of("root", "id", "parent")),
                     java.util.Map.entry(
                     "meta::pure::mapping::InstanceSetImplementation",
-                    List.of("class")));
+                    List.of("class")),
+                    // bridge batch 5: the query-level conversion surface
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::QuerySpecification",
+                    List.of("select", "from", "where", "groupBy", "having",
+                            "orderBy", "limit", "offset")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::extension::ExtendedQuerySpecification",
+                    List.of("qualify")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::WithQuery",
+                    List.of("name", "columns", "query")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::With",
+                    List.of("withQueries")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::QueryWithScope",
+                    List.of("with", "queryBody")),
+                    java.util.Map.entry(
+                    "meta::external::query::sql::metamodel::Union",
+                    List.of("left", "right", "distinct")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::SelectSQLQuery",
+                    List.of("columns", "distinct", "data",
+                            "filteringOperation", "groupBy",
+                            "havingOperation", "qualifyOperation",
+                            "orderBy", "fromRow", "toRow",
+                            "commonTableExpressions")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::join::RelationalTreeNode",
+                    List.of("alias", "childrenData")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::join::JoinTreeNode",
+                    List.of("setMappingOwner", "database", "joinName",
+                            "join", "joinType", "lateral")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::OrderBy",
+                    List.of("column", "direction")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::CommonTableExpression",
+                    List.of("name", "sqlQuery")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::CommonTableExpressionReference",
+                    List.of("name")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::operation::JoinStrings",
+                    List.of("strings", "prefix", "separator", "suffix")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::relation::Union",
+                    List.of("currentTreeNodes", "setImplementations",
+                            "queries")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::RelationalOperationElementWithJoin",
+                    List.of("relationalOperationElement", "joinTreeNode")),
+                    java.util.Map.entry(
+                    "meta::relational::functions::toPostgresModel::ModelConversionState",
+                    List.of("isRootSelect", "processingSelect",
+                            "processingFilter", "extensions",
+                            "dynaFunctionConverterMap")));
 
     /** The plan surface (real executionPlan.pure:60-205 + relational
      * executionPlan.pure:63-90 — declared subsets). */
