@@ -14,7 +14,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 28 | 30 | 11 | 41 |
-| functions/tests | 258 | 219 | 10 | 20 | 9 |
+| functions/tests | 258 | 218 | 11 | 20 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 9 | 15 | 4 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -31,7 +31,7 @@ in-process Alloy-shaped path).
 | postprocessor/tests | 30 | 21 | 0 | 5 | 4 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
 | router/tests | 26 | 4 | 0 | 3 | 19 |
-| sqlDialectTranslation | 21 | 5 | 1 | 0 | 15 |
+| sqlDialectTranslation | 21 | 7 | 1 | 0 | 13 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 |
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **1963** | 126 | 187 | 262 |
+| **total** | 2538 | **1964** | 127 | 187 | 260 |
 
 ### mapping walls (dropped at assembly)
 
@@ -9103,6 +9103,7 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call [calls meta::pure::graphFetch::execution]
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -9269,7 +9270,7 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -9351,14 +9352,12 @@ in-process Alloy-shaped path).
 - SHAPE testConvertDynaFnToFunctionCall [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertDynaFnToPredicate [sqlDialectTranslation]: no execute(|...) call
 - FAIL testConvertAlias [sqlDialectTranslation]: assertEquals: expected NodeH[kind=AliasedRelation, props={alias="root", relation=NodeH[kind=Table, props={name=QnH[parts=[firmTable]]}]}], got NodeH[kind=AliasedRelation, props={alias=root, relation=NodeH[kind=Table, props={name=QnH[parts=[firmTable]]}]}]
-- SHAPE testConvertLiteral [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertCommonTableExpressionReference [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertJoinTreeNode [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertSelectSQLQuery [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertSelectSQLQueryWithCTE [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertUnion [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testConvertJoinStrings [sqlDialectTranslation]: no execute(|...) call
-- SHAPE testConvertTable [sqlDialectTranslation]: no execute(|...) call
 - SHAPE testProcessIdentifierWithQuoteChar [sqlQueryToString]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::h2::v2_1_214]
 - SHAPE testSetupDataSqlGeneration [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
 - SHAPE testSetupDataSqlGenerationWithDataAsString [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
@@ -9376,7 +9375,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String

@@ -799,6 +799,38 @@ public final class TestBody {
         return null;
     }
 
+    /** {@code assertInstanceOf}: metamodel-walk values carry their
+     * KIND — compared against the type ref's simple name. */
+    private static String instanceOfAssert(List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        if (args.size() != 2) {
+            return UNSUPPORTED_MARKER;
+        }
+        Eval v9 = eval(args.get(0), lets, execStmts, execVars, execChains,
+                ctx, imports, runtimeFqn, conn);
+        Object sv9 = v9.result() instanceof
+                com.legend.exec.ExecutionResult.Scalar sc9
+                ? sc9.value() : null;
+        String tn9 = args.get(1) instanceof
+                com.legend.model.spec.PackageableElementPtr pep9
+                ? pep9.fullPath().substring(
+                        pep9.fullPath().lastIndexOf(':') + 1)
+                : null;
+        if (sv9 == null || tn9 == null) {
+            return UNSUPPORTED_MARKER;
+        }
+        String got9 = String.valueOf(sv9);
+        return got9.startsWith("NodeH[kind=" + tn9 + ",")
+                || got9.startsWith(tn9 + "[")
+                ? null
+                : "assertInstanceOf: expected " + tn9 + ", got " + got9;
+    }
+
     /** The ENGINE's own contract for golden-SQL asserts: render the
      * SAME query through the toSQLString surface (the EngineStyleH2
      * dialect over the one SQL IR — a sibling of the DuckDB renderer,
@@ -1864,6 +1896,10 @@ public final class TestBody {
                 }
                 Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
+            }
+            case "assertInstanceOf" -> {
+                return instanceOfAssert(args, lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn);
             }
             case "assertSameSQL" -> {
                 return sqlTextVerify(af.parameters(), lets, execStmts,

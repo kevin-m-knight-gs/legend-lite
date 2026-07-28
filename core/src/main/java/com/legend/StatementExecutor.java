@@ -933,6 +933,14 @@ final class StatementExecutor {
                             ev3.value();
                     default -> null;
                 };
+                // ^Literal(value=^SQLNull()) — the null marker rides as
+                // the sqlNull dynafunction (one downstream shape)
+                if (lit == null && v instanceof com.legend.compiler.spec
+                        .typed.TypedNewInstance sn
+                        && sn.classFqn().endsWith("::SQLNull")) {
+                    return new com.legend.model.RelationalOperation
+                            .FunctionCall("sqlNull", java.util.List.of());
+                }
                 return lit == null ? null
                         : new com.legend.model.RelationalOperation
                                 .Literal(lit);

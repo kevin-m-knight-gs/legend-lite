@@ -103,12 +103,31 @@ public final class MetamodelWalk {
                 }
             }
             if ("default".equals(name)) {
-                return new Sch(d.db(),
-                        new DatabaseDefinition.SchemaDefinition("default",
-                                d.db().tables(), d.db().views()));
+                return new Sch(d.db(), defaultSchema(d.db()));
             }
         }
         return null;
+    }
+
+    /** The synthetic 'default' schema: top-level tables/views minus
+     * those the parser flattened from declared schemas. */
+    private static DatabaseDefinition.SchemaDefinition defaultSchema(
+            DatabaseDefinition db) {
+        java.util.Set<String> dt = new java.util.HashSet<>();
+        java.util.Set<String> dv = new java.util.HashSet<>();
+        for (var sd : db.schemas()) {
+            for (var t : sd.tables()) {
+                dt.add(t.name());
+            }
+            for (var v : sd.views()) {
+                dv.add(v.name());
+            }
+        }
+        return new DatabaseDefinition.SchemaDefinition("default",
+                db.tables().stream().filter(t -> !dt.contains(t.name()))
+                        .toList(),
+                db.views().stream().filter(v -> !dv.contains(v.name()))
+                        .toList());
     }
 
     /** {@code table('name')} navigation over a Schema handle. */
@@ -199,6 +218,7 @@ public final class MetamodelWalk {
                     args.add(v);
                 }
                 yield switch (nm) {
+                    case "sqlnull" -> node("NullLiteral");
                     case "and", "or" -> node("LogicalBinaryExpression",
                             "type", nm.toUpperCase(java.util.Locale.ROOT),
                             "left", args.get(0), "right", args.get(1));
@@ -286,13 +306,12 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
             for (var s : d.db().schemas()) {
                 out.add(new Sch(d.db(), s));
             }
-            // top-level tables/views ARE the default schema (the parser
-            // stores them on the Database; the engine models a 'default'
-            // Schema instance)
-            if (!d.db().tables().isEmpty() || !d.db().views().isEmpty()) {
-                out.add(new Sch(d.db(),
-                        new DatabaseDefinition.SchemaDefinition("default",
-                                d.db().tables(), d.db().views())));
+            // top-level tables/views ARE the default schema — MINUS any
+            // the parser also flattened from declared schemas (top-level
+            // duplication is a lookup convenience, not schema identity)
+            var ds = defaultSchema(d.db());
+            if (!ds.tables().isEmpty() || !ds.views().isEmpty()) {
+                out.add(new Sch(d.db(), ds));
             }
             return out;
         }
