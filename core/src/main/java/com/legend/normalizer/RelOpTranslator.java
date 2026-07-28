@@ -465,12 +465,24 @@ final class RelOpTranslator {
                     translateArgs(call, tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline));
             case RelationalOperation.Comparison cmp -> {
+                // a RELATIONAL comparison over a column has SQL null
+                // semantics BY DEFINITION — conform by EMISSION (toOne;
+                // erasure at lowering) so the [1] overload applies and no
+                // [0..1] guard conjunct spells (engine mapping-~filter /
+                // view-filter SQL is bare; the guards belong to USER pure
+                // filters only). Join conditions stay verbatim.
+                java.util.function.Function<RelationalOperation,
+                        ValueSpecification> side = o -> {
+                    ValueSpecification t = translate(o, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline);
+                    return targetVarOrNull == null
+                            && o instanceof RelationalOperation.ColumnRef
+                            ? new AppliedFunction("toOne", List.of(t)) : t;
+                };
                 AppliedFunction c = new AppliedFunction(
                         comparisonFn(cmp.op()),
-                        List.of(translate(cmp.left(),  tableScope, targetVarOrNull,
-                                        rowBindOrNull, pipeline),
-                                translate(cmp.right(), tableScope, targetVarOrNull,
-                                        rowBindOrNull, pipeline)));
+                        List.of(side.apply(cmp.left()),
+                                side.apply(cmp.right())));
                 // NEQ emits not(equal(...)) — real pure has no notEqual.
                 yield cmp.op() == ComparisonOp.NEQ
                         ? new AppliedFunction("not", List.of(c)) : c;

@@ -600,8 +600,12 @@ class MappingNormalizerTest {
         assertEquals("equal", condition.function(),
                 "T_PERSON.IS_ACTIVE = 1 translates to equal(...)");
         assertEquals(2, condition.parameters().size());
-        // left = $row.IS_ACTIVE
-        AppliedProperty left = (AppliedProperty) condition.parameters().get(0);
+        // left = $row.IS_ACTIVE->toOne() — a relational comparison over a
+        // column conforms by EMISSION (SQL null semantics; no [0..1]
+        // guard conjunct in the lowered filter)
+        AppliedFunction leftToOne = (AppliedFunction) condition.parameters().get(0);
+        assertEquals("toOne", leftToOne.function());
+        AppliedProperty left = (AppliedProperty) leftToOne.parameters().get(0);
         assertEquals("IS_ACTIVE", left.property());
         assertEquals(new Variable("row"), left.receiver());
         // right = 1 (CInteger)
@@ -3349,7 +3353,12 @@ class MappingNormalizerTest {
         LambdaFunction filterLambda = (LambdaFunction) filterCall.parameters().get(1);
         AppliedFunction eq = (AppliedFunction) sole(filterLambda.body());
         assertEquals("equal", eq.function());
-        AppliedProperty isActive = (AppliedProperty) eq.parameters().get(0);
+        // the hoisted-chain read is a ColumnRef at translate time — the
+        // relational comparison conforms by EMISSION (toOne wrap)
+        AppliedFunction isActiveToOne = (AppliedFunction) eq.parameters().get(0);
+        assertEquals("toOne", isActiveToOne.function());
+        AppliedProperty isActive =
+                (AppliedProperty) isActiveToOne.parameters().get(0);
         assertEquals("IS_ACTIVE", isActive.property());
         assertEquals("Person_Firm",
                 ((AppliedProperty) isActive.receiver()).property(),
