@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 9 | 15 | 4 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 104 | 13 | 22 | 4 |
+| graphFetch/tests | 143 | 105 | 11 | 23 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
-| postprocessor | 7 | 0 | 0 | 7 | 0 |
+| postprocessor | 7 | 7 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
 | router/tests | 26 | 4 | 0 | 3 | 19 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **1934** | 129 | 189 | 286 |
+| **total** | 2538 | **1942** | 127 | 183 | 286 |
 
 ### mapping walls (dropped at assembly)
 
@@ -480,17 +480,14 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::relational::contract::supports => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::contract::supportsStream => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::contract::planExecution => Unknown type: 'meta::pure::mapping::StoreQuery' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::contract::postProcessorsMatch => Unknown type: 'meta::pure::alloy::connections::PostProcessor' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::contract::planGraphFetchExecution => Unknown type: 'StoreMappingLocalGraphFetchExecutionNodeGenerationInput' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::contract::planCrossGraphFetchExecution => Unknown type: 'StoreMappingCrossLocalGraphFetchExecutionNodeGenerationInput' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::contract::getterOverrideMapped => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::contract::getStore => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::RelationalMapperPostProcessor => Unknown type: 'RelationalMapper' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::alloy::connections::postProcessor::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- executionPlan/tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::alloy::connections::postProcessor::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- executionPlan/tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::RelationResultType => Unknown type: 'meta::relational::metamodel::Column' is not a known primitive, class, or enum
@@ -738,7 +735,7 @@ in-process Alloy-shaped path).
 - functions/tests duplicate Function::meta::relational::tests::query::filter::exists::testMultipleExistsOnSameProperty() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testExists.pure, kept functions/tests/sibling-4.pure)
 - functions/tests meta::relational::postProcessor::cteExtraction::CTEExtractionResultHolder => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
 - functions/tests meta::relational::mapping::PostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'PostProcessorWithParameter' is not a known primitive, class, or enum
+- functions/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -1626,11 +1623,9 @@ in-process Alloy-shaped path).
 - graphFetch/tests duplicate Function::meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithExplosion() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetch.pure, kept graphFetch/tests/sibling-1.pure)
 - graphFetch/tests duplicate Function::meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossStoreWithCSVDataSource() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testCrossStoreGraphFetch.pure, kept graphFetch/tests/sibling-1.pure)
 - graphFetch/tests meta::pure::alloy::connections::RelationalMapperPostProcessor => Unknown type: 'RelationalMapper' is not a known primitive, class, or enum
-- graphFetch/tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- graphFetch/tests meta::pure::alloy::connections::postProcessor::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- graphFetch/tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
-- graphFetch/tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- graphFetch/tests meta::pure::alloy::connections::postProcessor::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- graphFetch/tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -1999,11 +1994,9 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union duplicate LegacyMappingDefinition::meta::relational::graphFetch::tests::union::rootLevel::FirmsAndEmployees_M2M (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/union/testUnionRootLevel_relational.pure, kept graphFetch/tests/union/sibling-2.pure)
 - graphFetch/tests/union duplicate Function::meta::relational::graphFetch::tests::union::rootLevel::testSpecialUnion_m2m2r() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/union/testUnionRootLevel_relational.pure, kept graphFetch/tests/union/sibling-2.pure)
 - graphFetch/tests/union meta::pure::alloy::connections::RelationalMapperPostProcessor => Unknown type: 'RelationalMapper' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::pure::alloy::connections::postProcessor::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- graphFetch/tests/union meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::pure::alloy::connections::postProcessor::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- graphFetch/tests/union meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -2916,13 +2909,11 @@ in-process Alloy-shaped path).
 - postprocessor meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::fixTables => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::replaceTablesInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- postprocessor meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'PostProcessorWithParameter' is not a known primitive, class, or enum
+- postprocessor meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- postprocessor meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- postprocessor meta::pure::alloy::connections::postProcessor::relationalMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
-- postprocessor meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessorWithParameter' is not a known primitive, class, or enum
-- postprocessor meta::pure::alloy::connections::postProcessor::tableMapperPostProcessor => Unknown type: 'meta::relational::runtime::PostProcessor' is not a known primitive, class, or enum
+- postprocessor meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -3432,7 +3423,7 @@ in-process Alloy-shaped path).
 - tds/tests duplicate Function::meta::relational::tests::tds::tdsRestrict::testRestrictAfterConcatenate() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testTDSRestrict.pure, kept tds/tests/sibling-14.pure)
 - tds/tests meta::relational::postProcessor::cteExtraction::CTEExtractionResultHolder => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
 - tds/tests meta::relational::mapping::PostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tds/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'PostProcessorWithParameter' is not a known primitive, class, or enum
+- tds/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -7883,7 +7874,6 @@ in-process Alloy-shaped path).
 
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - 7x unknown function 'generateObjectReferences'
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
@@ -7911,6 +7901,7 @@ in-process Alloy-shaped path).
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x unknown function 'genericType'
+- 2x association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -8096,10 +8087,9 @@ in-process Alloy-shaped path).
 - ERROR testRelationalGraphFetchWithAlloySerializationConfig [graphFetch/tests]: unknown function 'alloyConfig'
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
-- FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
+- ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: property 'postProcessors' of 'meta::external::store::relational::runtime::RelationalDatabaseConnection': expected meta::pure::alloy::connections::PostProcessor, got meta::pure::alloy::connections::MapperPostProcessor (value: AppliedFunction[function=new, parameters=[PackageableElementPtr[fullPath=me
+- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=100.0, supportContact
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=200.0, supportContactName=John Johnson, orde
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -8170,7 +8160,7 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8202,13 +8192,6 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - FAIL testReplaceTablesPostProcessor [postprocessor/tests]: h2-advisory divergence: golden SQL on H2 gave 0 row(s) [], our pipeline gave 7 row(s) [Firm A|Fabrice, Firm B|Oliver, Firm C|David, Firm X|Anthony, Firm X|John]
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring]
 - FAIL testReplaceTablePostProcessorWithExists [postprocessor/tests]: sql-text: expected select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select distinct "persontable_1".FIRMID from differentPersonTable as "persontable_1" where "persontable_1".FIRSTNAME = 'John') as "persontable_0" on ("root".ID = "persontable_0".FI
@@ -8288,7 +8271,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
@@ -8470,7 +8453,7 @@ in-process Alloy-shaped path).
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'

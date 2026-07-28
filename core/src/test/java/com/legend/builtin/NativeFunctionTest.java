@@ -425,20 +425,28 @@ class NativeFunctionTest {
         //     — real executionPlan.pure:73-205 + relational :63-90).
         // 81: +SelectSQLQuery (relationalRuntime.pure post-processor hook
         //     parameter type — opaque; recognized pps apply over OUR IR).
-        assertEquals(81, Pure.allNativeClasses().size(),
+        // 86: +PostProcessorParameter/PostProcessor/PostProcessorWith-
+        //     Parameter (relationalRuntime.pure:46-70) + alloy
+        //     PostProcessor + ExtractSubQueriesAsCTEsPostProcessor
+        //     (cteExtractionPostProcessor.pure:26).
+        assertEquals(86, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
     private static final java.util.Map<String, List<String>> RUNTIME_SURFACE_PROPERTIES =
-            java.util.Map.of(
-                    "meta::core::runtime::ConnectionStore", List.of("connection", "element"),
+            java.util.Map.ofEntries(
+                    java.util.Map.entry(
+                    "meta::core::runtime::ConnectionStore", List.of("connection", "element")),
+                    java.util.Map.entry(
                     "meta::pure::graphFetch::execution::AlloySerializationConfig",
                     // real graphFetch.pure:89-111 (serialize config carrier)
                     List.of("typeKeyName", "includeType", "includeEnumType",
                             "dateTimeFormat", "removePropertiesWithNullValues",
                             "removePropertiesWithEmptySets",
-                            "fullyQualifiedTypePath", "includeObjectReference"),
-                    "meta::core::runtime::Runtime", List.of("connectionStores"),
+                            "fullyQualifiedTypePath", "includeObjectReference")),
+                    java.util.Map.entry(
+                    "meta::core::runtime::Runtime", List.of("connectionStores")),
+                    java.util.Map.entry(
                     "meta::external::store::relational::runtime::DatabaseConnection",
                     // real relationalRuntime.pure:26-48 (queryGenerationConfigs
                     // :48 — the removeUnionOrJoins feature-toggle surface)
@@ -446,26 +454,42 @@ class NativeFunctionTest {
                     // :40-42): recognized shapes apply over OUR SQL IR
                     List.of("type", "debug", "timeZone", "quoteIdentifiers",
                             "queryTimeOutInSeconds", "queryGenerationConfigs",
+                            "queryPostProcessorsWithParameter",
                             "sqlQueryPostProcessors",
-                            "sqlQueryPostProcessorsConnectionAware"),
+                            "sqlQueryPostProcessorsConnectionAware")),
+                    java.util.Map.entry(
                     "meta::external::store::relational::runtime::TestDatabaseConnection",
-                    List.of("testDataSetupCsv"),
+                    List.of("testDataSetupCsv")),
+                    java.util.Map.entry(
+                    "meta::relational::runtime::PostProcessor",
+                    // relationalRuntime.pure:63-70 (stored props only —
+                    // quals are engine-side conveniences)
+                    List.of("sqlQueryPostProcessorForExecution",
+                            "sqlQueryPostProcessorForPlan")),
+                    java.util.Map.entry(
+                    "meta::relational::runtime::PostProcessorWithParameter",
+                    List.of("postProcessor", "parameters")),
+                    java.util.Map.entry(
                     "meta::relational::metamodel::execute::ResultSet",
                     List.of("executionTimeInNanoSecond",
                             "connectionAcquisitionTimeInNanoSecond",
-                            "executionPlanInformation", "columnNames", "rows"),
+                            "executionPlanInformation", "columnNames", "rows")),
+                    java.util.Map.entry(
                     "meta::relational::metamodel::execute::Row",
-                    List.of("values", "parent"),
+                    List.of("values", "parent")),
+                    java.util.Map.entry(
                     // B2a (real pure: platform_dsl_mapping/result.pure)
                     "meta::pure::mapping::Result",
-                    List.of("values", "activities"),
+                    List.of("values", "activities")),
+                    java.util.Map.entry(
                     // B2b (real pure: platform/pure/tools.pure)
                     "meta::pure::tools::DebugContext",
-                    List.of("debug", "space"),
+                    List.of("debug", "space")),
+                    java.util.Map.entry(
                     // task #78 step-1 (cites in Pure.java):
                     // relationalRuntimeExtension.pure:23-26
                     "meta::external::store::relational::runtime::GenerationFeaturesConfig",
-                    List.of("enabled", "disabled"));
+                    List.of("enabled", "disabled")));
 
     /** The plan surface (real executionPlan.pure:60-205 + relational
      * executionPlan.pure:63-90 — declared subsets). */
@@ -678,7 +702,12 @@ class NativeFunctionTest {
                 // the checked-result surface (graphFetchChecked)
                 "meta::pure::dataQuality",
                 // the relational plan-node surface (SQLExecutionNode)
-                "meta::relational::mapping");
+                "meta::relational::mapping",
+                // the connection post-processor chain (relationalRuntime
+                // .pure:46-70 + cteExtractionPostProcessor.pure:26)
+                "meta::relational::runtime",
+                "meta::pure::alloy::connections",
+                "meta::relational::postProcessor::cteExtraction");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
