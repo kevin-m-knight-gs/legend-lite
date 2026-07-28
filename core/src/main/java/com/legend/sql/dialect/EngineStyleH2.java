@@ -176,7 +176,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case DATE -> "\"\\'\" \"\\'\" {}";
             case DATETIME -> "\"TIMESTAMP\\'\" \"\\'\" {}";
             case FLOAT -> "\"CAST(\" \" AS FLOAT)\" {}";
-            case OTHER -> "\"\" \"\" {}";
+            case ENUM, OTHER -> "\"\" \"\" {}";
         };
     }
 
@@ -375,6 +375,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         ? "TIMESTAMP'${GMTtoTZ( \"[" + timeZone + "]\" "
                                 + p.name() + ")}'"
                         : "TIMESTAMP'${" + p.name() + "}'";
+                // enum params spell QUOTED, no escape template
+                // ('\${yesOrNo}' = 'NO' — testIfEnumParameterInProject)
+                case ENUM -> "'${" + p.name() + "}'";
                 case FLOAT, OTHER -> "${" + p.name() + "}";
             };
         }

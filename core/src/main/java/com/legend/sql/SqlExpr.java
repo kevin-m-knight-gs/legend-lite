@@ -72,7 +72,7 @@ public sealed interface SqlExpr
      * executable dialect. */
     record PlanParam(String name, Kind kind, boolean optional,
             String enumMapFn) implements SqlExpr {
-        public enum Kind { STRING, DATE, DATETIME, FLOAT, OTHER }
+        public enum Kind { STRING, DATE, DATETIME, FLOAT, ENUM, OTHER }
 
         public PlanParam(String name, Kind kind, boolean optional) {
             this(name, kind, optional, null);

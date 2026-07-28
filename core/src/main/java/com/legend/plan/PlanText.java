@@ -405,6 +405,11 @@ public final class PlanText {
         if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
             return "INT";
         }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            // computed strings carry the engine's default width
+            // (executionPlan golden: (name, String, VARCHAR(8192), ""))
+            return "VARCHAR(8192)";
+        }
         return null;
     }
 

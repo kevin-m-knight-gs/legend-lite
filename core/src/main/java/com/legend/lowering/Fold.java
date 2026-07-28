@@ -41,6 +41,11 @@ final class Fold {
         if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
             return com.legend.sql.SqlExpr.PlanParam.Kind.FLOAT;
         }
+        if (t instanceof com.legend.compiler.element.type.Type.EnumType) {
+            // enum values travel as NAME strings — the engine spells the
+            // placeholder quoted ('\${yesOrNo}' = 'NO')
+            return com.legend.sql.SqlExpr.PlanParam.Kind.ENUM;
+        }
         return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
     }
 

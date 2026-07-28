@@ -978,6 +978,11 @@ public final class Runner {
                 List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
                         ctx, conn);
                 seedFailures.addAll(failedSeeds);
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    // wall-attribution marker: [plan-wall]/[walk] prints
+                    // that follow belong to THIS test
+                    System.err.println("[run] " + t.fqn());
+                }
                 com.legend.harness.TestBody.Outcome o = com.legend.harness.TestBody.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
