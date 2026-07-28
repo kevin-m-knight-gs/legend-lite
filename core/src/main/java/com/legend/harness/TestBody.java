@@ -1866,8 +1866,9 @@ public final class TestBody {
                 return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
             }
             case "assertSameSQL" -> {
-                return h2Upgrade(af.parameters(), lets, execStmts, execVars,
-                        execChains, ctx, imports, runtimeFqn, conn);
+                return sqlTextVerify(af.parameters(), lets, execStmts,
+                        execVars, execChains, ctx, imports, runtimeFqn,
+                        conn);
             }
             case "assertJsonStringsEqual" -> {
                 // graph-fetch JSON equality (engine semantics): object keys

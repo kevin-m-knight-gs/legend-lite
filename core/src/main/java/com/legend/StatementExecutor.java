@@ -53,7 +53,19 @@ final class StatementExecutor {
             java.sql.Connection connection,
             java.util.function.Consumer<String> rawSqlFailureSink,
             boolean addDriverTablePk,
-            java.util.Map<String, TypedSpec> queryLets) {
+            java.util.Map<String, TypedSpec> queryLets,
+            java.util.Map<String, String> tableReplace) {
+        ExecEnv(ModelContext ctx, String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                java.util.function.Consumer<String> rawSqlFailureSink,
+                boolean addDriverTablePk,
+                java.util.Map<String, TypedSpec> queryLets) {
+            // historical arity: no connection post-processor hooks
+            this(ctx, runtimeFqn, dialect, connection, rawSqlFailureSink,
+                    addDriverTablePk, queryLets, java.util.Map.of());
+        }
+
         ExecEnv(ModelContext ctx, String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -342,7 +354,11 @@ final class StatementExecutor {
                     "toSQLString mapping argument must be a mapping reference");
         }
         EngineSql es = engineSql(lam, pr.fullPath(), specs, env, renderer);
-        return new ExecutionResult.Scalar(es.sql(),
+        com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors
+                .apply(es.plan(), com.legend.exec.PostProcessBoundary
+                        .tableReplace());
+        return new ExecutionResult.Scalar(post == es.plan() ? es.sql()
+                        : renderer.render(post),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -1107,6 +1123,25 @@ final class StatementExecutor {
             runRuntimeArgEffects(letBound(ec.args().get(2), letPrefix),
                     letPrefix, specs, env);
         }
+        // connection POST-PROCESSOR hooks ride the runtime argument
+        // (sqlQueryPostProcessorsConnectionAware): inline the runtime
+        // helper, recognize the replaceTables shape, thread the rename
+        // map to the lowering seam (applied over OUR SQL IR)
+        if (ec.args().size() >= 3) {
+            TypedSpec rtArg = letBound(ec.args().get(2), letPrefix);
+            if (rtArg instanceof com.legend.compiler.spec.typed.TypedUserCall) {
+                rtArg = new com.legend.compiler.spec.UserCallInliner(specs)
+                        .inlineBody(java.util.List.of(rtArg)).get(0);
+            }
+            java.util.Map<String, String> tr = com.legend.lowering
+                    .SqlPostProcessors.tableReplaceMap(rtArg);
+            com.legend.exec.PostProcessBoundary.record(tr);
+            if (!tr.isEmpty()) {
+                env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
+                        env.connection(), env.rawSqlFailureSink(),
+                        env.addDriverTablePk(), env.queryLets(), tr);
+            }
+        }
         java.util.List<TypedSpec> qb = new java.util.ArrayList<>(letPrefix);
         qb.addAll(lam.body());
         var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
@@ -1837,6 +1872,8 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent())
                 .lower(withQueryLetPrefix(body, env, ctx));
+        plan = com.legend.lowering.SqlPostProcessors.apply(plan,
+                env.tableReplace());
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
