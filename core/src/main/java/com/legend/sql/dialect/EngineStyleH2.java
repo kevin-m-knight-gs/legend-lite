@@ -198,6 +198,29 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (iso.length() > 10 && iso.charAt(10) == 'T') {
             iso = iso.substring(0, 10) + ' ' + iso.substring(11);
         }
+        // a NON-default connection timeZone CONVERTS datetime constants
+        // (engine adjustDate: pure datetimes are GMT; the connection's
+        // zone respells them — EST'18:00' prints 13:00)
+        if (timeZone != null && !"GMT".equals(timeZone)
+                && iso.length() >= 19) {
+            try {
+                java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(
+                        iso.substring(0, 19).replace(' ', 'T'));
+                java.time.ZoneId zone = java.time.ZoneId.of(timeZone,
+                        java.time.ZoneId.SHORT_IDS);
+                java.time.LocalDateTime shifted = ldt
+                        .atZone(java.time.ZoneOffset.UTC)
+                        .withZoneSameInstant(zone).toLocalDateTime();
+                iso = shifted.toString().replace('T', ' ')
+                        + iso.substring(19);
+                if (iso.length() == 16) {
+                    iso = iso + ":00";
+                }
+            } catch (java.time.DateTimeException ignored) {
+                // unknown zone: spell unshifted (loudness lives in the
+                // engine parity diff, not a crash)
+            }
+        }
         return "TIMESTAMP'" + iso + "'";
     }
 
@@ -343,8 +366,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 case STRING -> "'${" + p.name()
                         + "?replace(\"'\", \"''\")}'";
                 // h2New spells date-typed placeholders with the type
-                // keyword (TIMESTAMP'${reportEndDate.date}')
-                case DATE, DATETIME -> "TIMESTAMP'${" + p.name() + "}'";
+                // keyword (TIMESTAMP'${reportEndDate.date}'); a non-default
+                // connection timeZone wraps DATETIME in GMTtoTZ (the same
+                // template the optional holder spells)
+                case DATE, DATETIME -> p.kind()
+                        == SqlExpr.PlanParam.Kind.DATETIME
+                        && timeZone != null
+                        ? "TIMESTAMP'${GMTtoTZ( \"[" + timeZone + "]\" "
+                                + p.name() + ")}'"
+                        : "TIMESTAMP'${" + p.name() + "}'";
                 case FLOAT, OTHER -> "${" + p.name() + "}";
             };
         }

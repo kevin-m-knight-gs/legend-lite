@@ -453,7 +453,7 @@ final class StatementExecutor {
                     + " pending)");
         }
         EngineSql es = engineSql(lam.body(), pr.fullPath(), specs, env,
-                new com.legend.sql.dialect.EngineStyleH2(quote),
+                new com.legend.sql.dialect.EngineStyleH2(quote, tz),
                 java.util.Map.of());
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
@@ -517,7 +517,7 @@ final class StatementExecutor {
                         "plan: non-let intermediate statement");
             }
             children.add(allocationNode(let, mappingFqn, specs, env,
-                    params, quote));
+                    params, quote, timeZone));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
                             let.info().type())));
@@ -554,7 +554,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
-            boolean quote) {
+            boolean quote, String timeZone) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -582,7 +582,8 @@ final class StatementExecutor {
         }
         EngineSql es = engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env,
-                new com.legend.sql.dialect.EngineStyleH2(quote), params);
+                new com.legend.sql.dialect.EngineStyleH2(quote, timeZone),
+                params);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
@@ -611,7 +612,8 @@ final class StatementExecutor {
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());
-        var renderer = new com.legend.sql.dialect.EngineStyleH2(quote);
+        var renderer = new com.legend.sql.dialect.EngineStyleH2(quote,
+                timeZone);
         String bareSql = renderer.render(bareSel);
         String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
                 impl[2], sel, typeName, size, bareSql,
