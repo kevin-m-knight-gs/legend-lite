@@ -147,17 +147,55 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     private String enumSelector(SqlExpr e) {
         if (!(e instanceof SqlExpr.Call c)
                 || c.fn() != com.legend.sql.SqlFn.EQUAL
-                || c.args().size() != 2
-                || !(c.args().get(1) instanceof SqlExpr.PlanParam p)
-                || p.enumMapFn() == null) {
+                || c.args().size() != 2) {
             return null;
         }
-        String col = expr(c.args().get(0), 4);
-        String fn = p.enumMapFn() + "(" + p.name() + ")";
-        return "(${optionalVarPlaceHolderOperationSelector(" + p.name()
+        // the ENUM param may sit on EITHER side
+        SqlExpr.PlanParam p =
+                c.args().get(1) instanceof SqlExpr.PlanParam p1
+                        && p1.enumMapFn() != null ? p1
+                : c.args().get(0) instanceof SqlExpr.PlanParam p0
+                        && p0.enumMapFn() != null ? p0 : null;
+        if (p == null) {
+            return null;
+        }
+        SqlExpr other = c.args().get(p == c.args().get(1) ? 0 : 1);
+        // the class-prop side may arrive as the mapping's enum DECODE
+        // case-chain — the template compares the RAW source column
+        // (toSourceValues; the engine never compares decoded names)
+        SqlExpr colExpr = decodeSourceColumn(other);
+        String col = expr(colExpr != null ? colExpr : other, 4);
+        String pn = p.name() + (p.optional() ? "![]" : "");
+        String fn = p.enumMapFn() + "(" + pn + ")";
+        return "(${optionalVarPlaceHolderOperationSelector(" + pn
                 + ", equalEnumOperationSelector(" + fn + ", '" + col
                 + " in (${" + fn + "})', '" + col + " = ${" + fn
                 + "}'), '0 = 1')})";
+    }
+
+    /** The ONE source column a literal-decode case chain reads (every
+     * condition {@code col = literal} over the same column, null
+     * terminal), or null when {@code e} is not that shape. */
+    private static SqlExpr decodeSourceColumn(SqlExpr e) {
+        SqlExpr col = null;
+        while (e instanceof SqlExpr.Case cs) {
+            for (var w : cs.whens()) {
+                if (!(w.then() instanceof SqlExpr.StringLit)
+                        || !(w.condition() instanceof SqlExpr.Call cc)
+                        || cc.fn() != com.legend.sql.SqlFn.EQUAL
+                        || cc.args().size() != 2) {
+                    return null;
+                }
+                SqlExpr left = cc.args().get(0);
+                if (col == null) {
+                    col = left;
+                } else if (!col.equals(left)) {
+                    return null;
+                }
+            }
+            e = cs.otherwise();
+        }
+        return (e == null || e instanceof SqlExpr.NullLit) ? col : null;
     }
 
     private String holder(SqlExpr.PlanParam p) {
