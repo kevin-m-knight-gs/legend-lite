@@ -2279,6 +2279,21 @@ final class Typer {
             System.err.println("[tdg-debug] enumValue fqn=" + ev.fullPath()
                     + " found=" + ctx.findEnum(ev.fullPath()).isPresent());
         }
+        // Enum.VALUE and <dbElement>.property parse identically — a
+        // DATABASE element on the left is store-METAMODEL property
+        // access (db.schemas, the typeInference walk surface)
+        if (ctx.findEnum(ev.fullPath()).isEmpty()
+                && ctx.findDatabase(ev.fullPath()).isPresent()) {
+            String dbCls = "meta::relational::metamodel::Database";
+            var dbRef = new com.legend.compiler.spec.typed
+                    .TypedPackageableRef(ev.fullPath(),
+                            ExprType.one(new Type.ClassType(dbCls)));
+            var pd = ctx.findProperty(dbCls, ev.value()).orElseThrow(
+                    () -> new TypeInferenceException("class Database has"
+                            + " no property '" + ev.value() + "'"));
+            return new TypedPropertyAccess(dbRef, ev.value(),
+                    new ExprType(pd.type(), pd.multiplicity()));
+        }
         var en = ctx.findEnum(ev.fullPath()).orElseThrow(() -> new TypeInferenceException(
                 "unknown enumeration '" + ev.fullPath() + "'"));
         if (!en.values().contains(ev.value())) {

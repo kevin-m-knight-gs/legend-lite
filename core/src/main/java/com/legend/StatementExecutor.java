@@ -711,6 +711,12 @@ final class StatementExecutor {
                         .EXECUTION_PLAN.equals(ep.callee().qualifiedName())) {
             return planModel(ep, specs, env);
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr9) {
+            // a Database ELEMENT in value position: the store-metamodel
+            // walk surface (typeInference family)
+            return com.legend.exec.MetamodelWalk.database(env.ctx(),
+                    pr9.fullPath());
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
             Object recv = planWalk(pa.source(), specs, env);
             if (recv == null) {
@@ -725,6 +731,22 @@ final class StatementExecutor {
             Object recvF = planWalk(tf.source(), specs, env);
             return recvF instanceof java.util.List<?> lf
                     ? walkFilter(lf, tf.predicate()) : null;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && tm.mapper() instanceof com.legend.compiler.spec.typed
+                        .TypedLambda tml) {
+            Object recvM = planWalk(tm.source(), specs, env);
+            if (recvM instanceof java.util.List<?> lm) {
+                java.util.List<Object> outM = new java.util.ArrayList<>();
+                for (Object e : lm) {
+                    Object v = walkMapBody(e, tml);
+                    if (v != null) {
+                        outM.add(v);
+                    }
+                }
+                return outM;
+            }
+            return null;
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && !c.args().isEmpty()) {
@@ -764,6 +786,36 @@ final class StatementExecutor {
                         return l.isEmpty() ? null : l.get(0);
                     }
                 }
+                case "view" -> {
+                    if (c.args().size() == 2 && c.args().get(1)
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedCString vn) {
+                        return com.legend.exec.MetamodelWalk.view(recv,
+                                vn.value());
+                    }
+                }
+                case "map" -> {
+                    if (recv instanceof java.util.List<?> l
+                            && c.args().get(1) instanceof
+                                    com.legend.compiler.spec.typed
+                                            .TypedLambda ml) {
+                        java.util.List<Object> out =
+                                new java.util.ArrayList<>();
+                        for (Object e : l) {
+                            Object v = walkMapBody(e, ml);
+                            if (v != null) {
+                                out.add(v);
+                            }
+                        }
+                        return out;
+                    }
+                }
+                case "inferRelationalType" -> {
+                    return com.legend.exec.MetamodelWalk.infer(recv);
+                }
+                case "dataTypeToSqlText" -> {
+                    return com.legend.exec.MetamodelWalk.sqlText(recv);
+                }
                 default -> {
                     return null;
                 }
@@ -772,8 +824,38 @@ final class StatementExecutor {
         return null;
     }
 
+    /** NARROW map-lambda body: one native call over the parameter
+     * ({@code x|$x->view('name')}) — evaluated per element; null on any
+     * other shape (the walk falls through to its walls). */
+    private static Object walkMapBody(Object e,
+            com.legend.compiler.spec.typed.TypedLambda ml) {
+        if (ml.body().size() != 1 || ml.parameters().isEmpty()
+                || !(ml.body().get(0) instanceof
+                        com.legend.compiler.spec.typed.TypedNativeCall mb)
+                || mb.args().isEmpty()
+                || !(mb.args().get(0) instanceof
+                        com.legend.compiler.spec.typed.TypedVariable mv)
+                || !mv.name().equals(ml.parameters().get(0))) {
+            return null;
+        }
+        String mfn = mb.callee().qualifiedName();
+        String msimple = mfn.substring(mfn.lastIndexOf(':') + 1);
+        return switch (msimple) {
+            case "view" -> mb.args().size() == 2
+                    && mb.args().get(1) instanceof
+                            com.legend.compiler.spec.typed.TypedCString mvn
+                    ? com.legend.exec.MetamodelWalk.view(e, mvn.value())
+                    : null;
+            default -> null;
+        };
+    }
+
     /** Property step, AUTO-MAPPING over lists (pure semantics). */
     private static Object walkProp(Object recv, String prop) {
+        Object mm = com.legend.exec.MetamodelWalk.prop(recv, prop);
+        if (mm != null) {
+            return mm;
+        }
         if (recv instanceof java.util.List<?> l) {
             java.util.List<Object> out = new java.util.ArrayList<>();
             for (Object e : l) {
@@ -835,14 +917,19 @@ final class StatementExecutor {
                 && eq.args().get(0)
                         instanceof com.legend.compiler.spec.typed
                                 .TypedPropertyAccess pa2
-                && pa2.property().equals("name")
                 && eq.args().get(1)
                         instanceof com.legend.compiler.spec.typed
                                 .TypedCString lit) {
+            // GENERIC property==literal predicate: plan Params (name)
+            // and metamodel handles (columnName) share the arm
             java.util.List<Object> out = new java.util.ArrayList<>();
             for (Object e : l) {
-                if (e instanceof com.legend.plan.PlanNode.Param pp
-                        && pp.name().equals(lit.value())) {
+                Object v = e instanceof com.legend.plan.PlanNode.Param pp
+                        && pa2.property().equals("name")
+                        ? pp.name()
+                        : com.legend.exec.MetamodelWalk.prop(e,
+                                pa2.property());
+                if (lit.value().equals(v)) {
                     out.add(e);
                 }
             }

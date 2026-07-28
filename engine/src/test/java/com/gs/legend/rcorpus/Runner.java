@@ -824,6 +824,10 @@ public final class Runner {
                                 importScopeOf(t), "rcorpus::Rt", conn,
                                 false, new ArrayList<>());
                 Outcome scored = score(t.fqn(), o);
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    System.err.println("[try-run] " + t.fqn() + " -> "
+                            + scored.status() + ": " + scored.detail());
+                }
                 // only REAL verdicts stand — vocabulary gaps and hollow
                 // shapes keep the functional-bucket SHAPE
                 if (scored.status() == Status.PASS
@@ -833,6 +837,10 @@ public final class Runner {
                 return null;
             }
         } catch (Exception e) {
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[try-run] " + t.fqn() + " threw "
+                        + e);
+            }
             return null;
         }
     }

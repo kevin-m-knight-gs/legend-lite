@@ -14,11 +14,11 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 28 | 30 | 11 | 41 |
-| functions/tests | 258 | 218 | 11 | 20 | 9 |
+| functions/tests | 258 | 219 | 10 | 20 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 127 | 9 | 15 | 4 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 105 | 11 | 23 | 4 |
+| graphFetch/tests | 143 | 106 | 10 | 23 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -39,7 +39,7 @@ in-process Alloy-shaped path).
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
 | tds/tests | 266 | 237 | 9 | 9 | 11 |
 | testDataGeneration/tests | 68 | 60 | 1 | 1 | 6 |
-| tests | 39 | 0 | 0 | 0 | 39 |
+| tests | 39 | 4 | 1 | 0 | 34 |
 | tests/advanced | 68 | 47 | 2 | 6 | 13 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 31 | 5 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **1943** | 126 | 183 | 286 |
+| **total** | 2538 | **1949** | 125 | 183 | 281 |
 
 ### mapping walls (dropped at assembly)
 
@@ -94,13 +94,7 @@ in-process Alloy-shaped path).
 - aggregationAware/test/rewrite duplicate Function::meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteWithMilestonedDescriptionPropertyAccess() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/aggregationAware/test/rewrite/objectGroupBy.pure, kept aggregationAware/test/rewrite/sibling-0.pure)
 - aggregationAware/test/rewrite meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- aggregationAware/test/rewrite meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -115,13 +109,7 @@ in-process Alloy-shaped path).
 - aggregationAware/test/rewrite/NOP duplicate Function::meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteTDSGroupBy() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/aggregationAware/test/rewrite/NOP/nonAggregationAware.pure, kept aggregationAware/test/rewrite/NOP/sibling-0.pure)
 - aggregationAware/test/rewrite/NOP meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- aggregationAware/test/rewrite/NOP meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite/NOP meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite/NOP meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - aggregationAware/test/rewrite/NOP meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -151,18 +139,12 @@ in-process Alloy-shaped path).
 - autogeneration/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- autogeneration/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::schemaToModel => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::m3::type::Class' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::columnFilterPredicate => Unknown type: 'Column' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::tableToClass => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::m3::type::Class' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::tabularFunctionToClass => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::transform::autogen::relationalElementToClass => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- autogeneration/tests meta::relational::transform::autogen::relationalElementToClass => Unknown type: 'Column' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::createPureGeneratedTaggedDoc => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::m3::extension::TaggedValue' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::columnToProperty => Unknown type: 'Column' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::databaseToAssociationJoinPair => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::m3::relationship::Association' is not a known primitive, class, or enum
@@ -173,7 +155,7 @@ in-process Alloy-shaped path).
 - autogeneration/tests meta::relational::transform::autogen::databaseToMappingWithClassMappings => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::mapping::Mapping' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::tableToClassMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::tabularFunctionToClassMapping => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::transform::autogen::relationalElementToClassMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- autogeneration/tests meta::relational::transform::autogen::relationalElementToClassMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::associationsAndJoinsToAssociationMappings => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::mapping::Mapping' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::generateRelationalPropertyMappings => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::m3::relationship::Association' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::transform::autogen::findMatchingClassID => Unknown type: 'meta::protocols::pure::vX_X_X::metamodel::mapping::Mapping' is not a known primitive, class, or enum
@@ -185,12 +167,10 @@ in-process Alloy-shaped path).
 - autogeneration/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- autogeneration/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- autogeneration/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - autogeneration/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -300,13 +280,7 @@ in-process Alloy-shaped path).
 - calendarAggregation/tests duplicate Function::meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/calendarAggregation/tests/testCalendarFunctions.pure, kept calendarAggregation/tests/sibling-2.pure)
 - calendarAggregation/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- calendarAggregation/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::relational::functions::pureToSqlQuery::calendarAggregations::insertCalendarJoins => Unknown type: 'SelectWithCursor' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::relational::functions::pureToSqlQuery::calendarAggregations::processCalendarAggPureToSQL => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -393,13 +367,7 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- executionPlan/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::executeServiceTests => Unknown type: 'Service' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::setUpData => Unknown type: 'Test' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -410,12 +378,10 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- executionPlan/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -559,16 +525,12 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::RelationResultType => Unknown type: 'meta::relational::metamodel::Column' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::mapping::SQLResultColumn => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::mapping::RelationMetadata => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::mapping::TableTDS => Unknown type: 'meta::relational::metamodel::relation::NamedRelation' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::functions::columnProjectionsFromRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
-- executionPlan/tests meta::pure::tds::viewToTDS => Unknown type: 'meta::relational::metamodel::relation::View' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::tds::tableColumnToTdsColumn => Unknown type: 'meta::relational::metamodel::Column' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::functions::database::viewReference => Unknown type: 'meta::relational::metamodel::relation::View' is not a known primitive, class, or enum
 - executionPlan/tests meta::relational::tests::functions::objectReferenceIn::simpleModelMapping => Circular M2M ~src chain detected in mapping 'meta::relational::tests::functions::objectReferenceIn::simpleModelMapping': meta::pure::mapping::modelToModel::test::shared::dest::Address -> meta::pure::mapping::modelToModel::test::shared::dest::Address
 - executionPlan/tests duplicate Function::meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure, kept executionPlan/tests/sibling-3.pure)
 - executionPlan/tests duplicate Function::meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/tests/m2m2rExecutionPlanTests.pure, kept executionPlan/tests/sibling-3.pure)
@@ -751,14 +713,7 @@ in-process Alloy-shaped path).
 - functions/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests meta::relational::functions::database::viewReference => Unknown type: 'meta::relational::metamodel::relation::View' is not a known primitive, class, or enum
+- functions/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::columnProjectionsFromRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - functions/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -768,12 +723,10 @@ in-process Alloy-shaped path).
 - functions/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- functions/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- functions/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- functions/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- functions/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -829,15 +782,12 @@ in-process Alloy-shaped path).
 - functions/tests meta::relational::mapping::PostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- functions/tests meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests meta::relational::postProcessor::postprocess => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- functions/tests meta::relational::postProcessor::fixTables => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests meta::relational::postProcessor::replaceTablesInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests duplicate DatabaseDefinition::meta::relational::tests::functions::fetchDbMetaData::testFetchDbMetaDataDb (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFetchDbMetaData.pure, kept functions/tests/sibling-5.pure)
 - functions/tests duplicate DatabaseDefinition::meta::relational::tests::functions::fetchDbMetaData::actualDB (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/testFetchDbMetaData.pure, kept functions/tests/sibling-5.pure)
@@ -1181,19 +1131,12 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- functions/tests/loadCsvToDbTable meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -1202,10 +1145,7 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- functions/tests/loadCsvToDbTable meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -1232,12 +1172,10 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -1332,13 +1270,7 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - functions/tests/projection meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -1347,12 +1279,10 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -1506,11 +1436,8 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::mapping::getRelationalTypeFromRelationalPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::uniqueRelationName => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::generateSQLExecutionNode => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::mapping::columnLabel => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::mapping::getRelationalTypeFromRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::addEnumMapSupportFunctions => Unknown type: 'meta::pure::mapping::StoreQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::execution => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::mapping::useDialectTranslation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::toSqlString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::executeQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::buildExecutionResultInTDS => Unknown type: 'PathInformation' is not a known primitive, class, or enum
@@ -1519,9 +1446,6 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::mapping::buildBuilders => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::generatePropertySql => Unknown type: 'RelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::getPropertyTargetSetImplementation => Unknown type: 'RelationalInstanceSetImplementation' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::mapping::pureTypeToDataType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::mapping::inferSourceDataType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::translation::translateCoreTypeToDbSpecificType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/projection duplicate Function::meta::relational::tests::projection::qualifier::testSimpleDerived() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testQualifier.pure, kept functions/tests/projection/sibling-13.pure)
 - functions/tests/projection duplicate Function::meta::relational::tests::projection::qualifier::testSimpleBoolean() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testQualifier.pure, kept functions/tests/projection/sibling-13.pure)
 - functions/tests/projection duplicate Function::meta::relational::tests::projection::qualifier::testSimpleDerivedThroughAssociation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testQualifier.pure, kept functions/tests/projection/sibling-13.pure)
@@ -1572,16 +1496,14 @@ in-process Alloy-shaped path).
 - functions/tests/projection duplicate LegacyMappingDefinition::meta::relational::tests::projection::view::unionOnViewsInclude (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testView.pure, kept functions/tests/projection/sibling-15.pure)
 - functions/tests/projection duplicate LegacyMappingDefinition::meta::relational::tests::projection::view::unionOnViewsMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testView.pure, kept functions/tests/projection/sibling-15.pure)
 - functions/tests/projection duplicate LegacyMappingDefinition::meta::relational::tests::projection::view::unionOnViewOnViewMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/functions/tests/projection/testView.pure, kept functions/tests/projection/sibling-15.pure)
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::RelationalElementCollection => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::dbSpecificProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::reAliasColumnName::search => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::reAliasColumnName::replace => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::reAliasColumnName::search => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::reAliasColumnName::replace => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::reAlias::traverse => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::reAlias::transformAliasName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::defaultPlanPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::postProcessorList => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::defaultProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::generateTempTableSelectSQLQuery => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::processObjectReferenceInOperation => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::filterPushDown::pushFiltersDownToJoins => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::filterPushDown::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -1589,18 +1511,15 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::postProcessor::filterPushDown::tryPushFiltersIntoSubQuery => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::filterPushDown::tryAddingFiltersToSubQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::filterPushDown::tryAddingSingleFilterToSubQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::resolveIfSingleTableAliasColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::filterPushDown::addFilterToJoinoperation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::tryAddingFiltersToJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::getPairForBinaryOp => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::getPairForUnaryOp => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::getFilteringPairs => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::collection => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::filterPushDown::extractRelationalElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::filterPushDown::tryAddingFiltersToJoinOperation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::filterPushDown::getPairForBinaryOp => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::filterPushDown::getPairForUnaryOp => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::filterPushDown::getFilteringPairs => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::filterPushDown::extractRelationalElements => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::connectionAwareProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::postProcessor::processInOperation => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::postProcessor::generatePostProcessorResult => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::postProcessor::generatePostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -1609,10 +1528,7 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- functions/tests/projection meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -1644,22 +1560,14 @@ in-process Alloy-shaped path).
 - graphFetch/domain meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- graphFetch/domain meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - graphFetch/domain meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- graphFetch/domain meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- graphFetch/domain meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/domain meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -1686,13 +1594,7 @@ in-process Alloy-shaped path).
 - graphFetch/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- graphFetch/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -1701,12 +1603,10 @@ in-process Alloy-shaped path).
 - graphFetch/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- graphFetch/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -1752,7 +1652,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- graphFetch/tests meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2053,13 +1952,7 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- graphFetch/tests/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -2068,12 +1961,10 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- graphFetch/tests/union meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -2123,7 +2014,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests/union meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- graphFetch/tests/union meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - graphFetch/tests/union meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2139,14 +2029,7 @@ in-process Alloy-shaped path).
 - helperFunctions/tests duplicate DatabaseDefinition::meta::relational::tests::ddl::foo_db (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/helperFunctions/tests/testDdlGeneration.pure, kept helperFunctions/tests/sibling-1.pure)
 - helperFunctions/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - helperFunctions/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- helperFunctions/tests meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- helperFunctions/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - helperFunctions/tests meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - helperFunctions/tests meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - helperFunctions/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -2170,13 +2053,7 @@ in-process Alloy-shaped path).
 - lineage/scanColumns meta::pure::lineage::scanColumns::EnrichedTreesStateContext => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - lineage/scanColumns meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - lineage/scanColumns meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanColumns meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- lineage/scanColumns meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - lineage/scanColumns meta::pure::lineage::scanColumns::scanColumns => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - lineage/scanColumns meta::pure::lineage::scanColumns::enrichPropertyPathTreeWithDataSetMapping => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - lineage/scanColumns meta::pure::lineage::scanColumns::enrichAnyPropertyWithDataSetMapping => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
@@ -2216,20 +2093,13 @@ in-process Alloy-shaped path).
 - lineage/scanRelations meta::pure::lineage::scanRelations::ClusterAndVars => Unknown type: 'ClusteredValueSpecification' is not a known primitive, class, or enum
 - lineage/scanRelations meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - lineage/scanRelations meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- lineage/scanRelations meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- lineage/scanRelations meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::scanRelations => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::scanRelationColumns => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::addAtBottomTreesAndColumns => Unknown type: 'Column' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::getRelationTree => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::getRelationColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- lineage/scanRelations meta::pure::lineage::scanRelations::getRelationTree => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- lineage/scanRelations meta::pure::lineage::scanRelations::getRelationColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::collectStoreMappingCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::addColumnsToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::addColumnToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
@@ -2238,10 +2108,9 @@ in-process Alloy-shaped path).
 - lineage/scanRelations meta::pure::lineage::scanRelations::extractSourceColumn => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::extractSourceColumnFromSelectSQLQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::extractJoinChildren => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::extractSourceRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- lineage/scanRelations meta::pure::lineage::scanRelations::extractSourceRelation => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
-- lineage/scanRelations meta::pure::lineage::scanRelations::RelationTree$prop$view => Unknown type: 'View' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - lineage/scanRelations meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - lineage/scanRelations meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -2299,13 +2168,11 @@ in-process Alloy-shaped path).
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testApplyMilestoningFilters.pure, kept milestoning/tests/sibling-2.pure)
 - milestoning/tests duplicate Function::meta::relational::tests::milestoning::projection::testMileStoningWithNewTDSFilterAndPostProcessor() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/milestoning/tests/testApplyMilestoningFilters.pure, kept milestoning/tests/sibling-2.pure)
 - milestoning/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::TemporalMilestoningContext => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::DateWrapper => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::milestoning::TemporalMilestoningContext => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::SelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::ColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::IsolationSelectState => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::EnumProcessingHolder => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::MergeResultContainer => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -2317,38 +2184,26 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::CompatibleResult => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder => Unknown type: 'CrossSetImplementation' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::metamodel::SemiStructuredArrayFlattenRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::metamodel::FreeMarkerOperationHolder => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::TableAliasColumnName => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::metamodel::RelationalLambdaParameter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::metamodel::RelationalLambda => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::StaticPivot => Unknown type: 'meta::relational::metamodel::Literal' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - milestoning/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::relationGrammarConfiguration => Unknown type: 'meta::pure::metamodel::serialization::grammar::Configuration' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalDateAlias => Unknown type: 'SingleDateTemporalStrategy' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::applyMilestoningFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::milestoning::applyMilestoningFilters => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getAllMilestonedTableFilter => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getEqualityMilestonedFiltering => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getEqualityMilestonedFilteringSelect => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
@@ -2364,7 +2219,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::milestoning::getTemporalMilestoneUnionFilter => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getSnapshotMilestoneUnionFilter => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getCoalesceForUnion => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::getSnapshotMilestoneFilter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::milestoning::getSnapshotMilestoneFilter => Unknown type: 'Operation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalMilestoneFilter => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalMilestoneRangeFilter => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalMilestoneRangeFilterForSnapshotMilestoning => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -2378,15 +2233,12 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::milestoning::getMilestoningContextForPropertyPathQualifiedProperty => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getQueryTableAliases => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getQueryRelationAliases => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::getQueryTableRelationalOperationElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getAppliedJoinMilestoningFilters => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getRelationalMilestoningType => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::temporalRangeDates => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::temporalDate => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::tableMilestoning => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::temporalColumnAliasProperties => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getInfinityDate => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::isLatestDate => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getKeyValueBuildClasses => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::resolveMilestoningDateParams => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::newThisMilestonedPropertyExpression => Unknown type: 'SingleDateTemporalStrategy' is not a known primitive, class, or enum
@@ -2395,7 +2247,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::milestoning::isThisMilestonedGeneratedDateProperty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::referencesVariableExpression => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::isNonThisRootVariableExpression => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::milestoning::relationalElementIsMilestoned => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::relationalElementCanSupportStrategy => Unknown type: 'TemporalStrategy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::milestoningCanSupportTemporalStrategy => Unknown type: 'Milestoning' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getAllTemporalColumns => Unknown type: 'Milestoning' is not a known primitive, class, or enum
@@ -2427,9 +2278,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::relationalExecutionContextToState => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::defaultState => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getClassMappingById => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::combineFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::andFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::orFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processValueSpecificationReturnPropertyMapping => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariableExpression => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -2439,18 +2287,14 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::removeLeafNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getParentNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getAllNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::wrapIfNecessary => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processInstanceValue => Unknown type: 'InstanceValue' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processValue => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findColumnOnOperationHierarchy => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processColumnFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processObjectGroupBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::isolateNonTerminalGroupByQueryWithEmptyGroupingColumns => Unknown type: 'TdsSelectSqlQuery' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processObjectGroupByWithWindowSubSet => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::gatherAllOperations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::isolateOrderBy => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processQualifiedPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::tdsQualifier => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -2460,10 +2304,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::moveFiltersOnTop => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::buildCorrelatedSubQuery => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::buildNameFromDeactivatedQualifierParameter => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractColumnName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractColumnTypeDefaultToInt => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::processColumnsInRelationalOperationElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::extractColumnAliasesInRelationalTreeNodes => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processProperty => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
@@ -2473,7 +2314,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processClassMappingInnerJoinFilter => Unknown type: 'RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::isSimpleJoinToPk => Unknown type: 'Join' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getUnionPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::findUnionPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addMissingColumn => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addMissingColumnIfUnion => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -2496,7 +2337,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::flattenConcatenate => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processConcatenate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::buildConcatenateSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::alignJoinAndPkColumnsForUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processNoOp => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processCast => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::relationTypeColumnAliases => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -2521,7 +2361,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processParseDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processMonth => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processFirstNotNull => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'Alias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processDynafuncWithRename => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::findAliasOrFail => Unknown type: 'Alias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processSortBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -2542,8 +2382,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processRelationWindowColumn => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processTdsFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::nestFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addPkForAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::isAggregationFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::containsAggregationFunctionInValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -2566,9 +2405,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processWavgRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::manageAggregation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::unwrapNestedSelect => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processIsEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processIsNotEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -2609,7 +2446,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantSlice => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantContains => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantRemoveDuplicates => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findVariantType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantInstanceOf => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processTo => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processToMany => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -2624,20 +2460,16 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantMap => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantPropertyNavigation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::toVariantFriendlyValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processDynaFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::unwrapAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processGetAllForEachDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processGetAll => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processRelationFunctionClassMapping => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getAllExpressionSetImplementations => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getRelationalElementWithInnerJoin => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processRelationalMappingSpecification => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::relationalmappingspecification::columnNamesWithRelationalElement => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::buildPossibleEnumMappingPushDown => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::relationalmappingspecification::viewSpecificationPrimaryKey => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
@@ -2645,9 +2477,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::collectAdditionalJoinColumnsForSource => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::applyTypeFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::applyGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::containsDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::containsElementRecursive => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'Alias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::isGetAll => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addPlaceHoldersForLambdaOpenVariables => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -2713,13 +2543,12 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubset => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubsetFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processProjectColumns => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processWindowColumns => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processProject => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::manageIsolation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addedSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::containsInnerJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::reAliasAndRemoveTopLevelDynaFunctionColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::collectJoinNames => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::joinName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addSelfJoinOnNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -2730,21 +2559,14 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::matchAnyAlias => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::matchAllAliases => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::findBestNodeToIsolate => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::incrementAliasRecursively => Unknown type: 'Alias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::replaceJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::moveSelectQueryToSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processEquals => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::hasReferenceToEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::hasEnumValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::hasEnumerationVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::generateFreeMarkerOpSelectorForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::generateFreeMarkerForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::hasOptionalVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::validateParamHasDataTypeReturnType => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::processEqualsForEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getEnumPropMappingTransformer => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::enumToStoreValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processEnumValue => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -2761,66 +2583,49 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processStringPlus => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processVariantJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::processJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::buildJoinStrings => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractSelectWithCursor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractSelectSQLQuery => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::reprocessJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::possiblyMergeIsolatedBranches => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::possiblyMergeUnions => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractColumnEqualityKeyForMerge => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::merge => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::addExtraJoinColumns => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::applyJoinInTreeDeep => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::applyJoinInTree => Unknown type: 'RootJoinTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::explodeInCurrentJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractExplodeSemiStructured => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::applyJoinWithExplodeInCondition => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::findLastJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findMainTable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findMainRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::findTarget => Unknown type: 'Join' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::applyOneJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::createJoinTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findAliasMappingBySchemaName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::reprocessJoin => Unknown type: 'Join' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::extractStore => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'Column' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'Alias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::flatten => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::extractTableAliasColumns => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::findTableForColumnInAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getJoinTreeNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getSourceRelationFromTargetRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getTargetRelationFromSourceRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::replaceJoinTreeNodeWithLeafNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getClassMapping => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::otherSideAlias => Unknown type: 'Join' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::isOrderedSubsetOf => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::extractLine => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::buildTree => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::findSupportedFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getDistinct => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::getRelationalTypeFromRelationalPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::genericTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::replaceAliasInSelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::getSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::union::resolveUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::union::isNestedUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::union::isUnionOrNestedUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::isNullJoinPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::managePrimaryKeys => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::buildUnion => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::buildFKs => Unknown type: 'Column' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::union::modifyColumnNameInOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::pureToSqlQuery::union::modifyColumnNameInOperation => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::findFkListForEachSet => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::buildColumnToNameMapForMappedFks => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::buildSQLQueryOutManySetImplementations => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -2835,7 +2640,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::realiasMissingColumnsToAddToUnionQueries => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::createLambdaToAddMissingColumnsToUnionQueries => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::canJoinTreeNodesBeSimplyMergedUsingOrOperation => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::pureToSqlQuery::buildUnionJoinName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::checkCompatibilityForUnionOrJoinRemoval => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::addChildByAttemptingToRemoveUnionOrJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::pureToSqlQuery::union::nullSafeEquals => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
@@ -3006,31 +2810,25 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::DynaFunctionToSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processJoinStringsOperationWithConcatCall => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processFrameValueDirection => Unknown type: 'meta::relational::metamodel::FrameValueDirection' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processFrameValue => Unknown type: 'meta::relational::metamodel::FrameValue' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processWindowColumn => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processCommonTableExpressionsProcessorDefault => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::default::processSelectColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::default::convertFullOuterJoinToLeftRightOuter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processJoin => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::default::processGroupByColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processOrderBy => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::getValueForTake => Unknown type: 'Literal' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::translateCreateSchemaStatementDefault => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::translateDropSchemaStatementDefault => Unknown type: 'DropSchemaSQL' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::translateDropTableStatementDefault => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::translateCreateTableStatementDefault => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::default::getColumnTypeSqlTextDefault => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::loadValuesToDbTableDefault => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::default::processJoinStringsOperation => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::sqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::ddlSqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::sqlQueryToStringPretty => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::processOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processCommitQuery => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::tabularFunctionToString => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
@@ -3043,11 +2841,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::sqlQueryToString::isOptionalPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::isCollectionPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::convertSQLNullToSQLString => Unknown type: 'SQLNull' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::wrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::wrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::isBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processExtractFromSemiStructured => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::processCase => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -3061,9 +2854,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::sqlQueryToString::sqlNull => Unknown type: 'SQLNull' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::getDynaFunctionDispatcher => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$windowColumnProcessor => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$semiStructuredElementProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$variableDeclarationProcessor => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$tableFunctionParamProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lateralJoinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$joinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$joinStringsProcessor => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
@@ -3076,10 +2867,8 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$translateDropTable => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$translateLoadTable => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$preAndFinallyExecutionSQLQuery => Unknown type: 'PreAndFinallyExecutionSQLQuery' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$dataTypeToSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaParameterProcessor => Unknown type: 'RelationalLambdaParameter' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaProcessor => Unknown type: 'RelationalLambda' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalUnionFilter => Unknown type: 'Union' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getMilestoneUnionFilter => Unknown type: 'Union' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::getTemporalMilestoneUnionFilter => Unknown type: 'Union' is not a known primitive, class, or enum
@@ -3087,7 +2876,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::milestoning::manageMilestoningContextPropogationForQualifiedProperties => Unknown type: 'OperationWithParentPropertyMapping' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::manageMilestoningContextPropogationForProperties => Unknown type: 'SelectWithCursor' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::milestoning::updateMilestoningContextProcessingStateForProperties => Unknown type: 'SelectWithCursor' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -3096,10 +2884,7 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- milestoning/tests meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -3298,13 +3083,7 @@ in-process Alloy-shaped path).
 - modelJoins meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - modelJoins meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - modelJoins meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelJoins meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- modelJoins meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - modelJoins meta::external::store::relational::modelJoins::localizeXStoreAssociation => Unknown type: 'XStoreAssociationImplementation' is not a known primitive, class, or enum
 - modelJoins meta::external::store::relational::modelJoins::transformXStorePropertyIntoRelationalProperty => Unknown type: 'meta::pure::mapping::xStore::XStorePropertyMapping' is not a known primitive, class, or enum
 - modelJoins meta::external::store::relational::modelJoins::getClassMappingAtId => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
@@ -3314,12 +3093,10 @@ in-process Alloy-shaped path).
 - modelJoins meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - modelJoins meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- modelJoins meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- modelJoins meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- modelJoins meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- modelJoins meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelJoins meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -3350,22 +3127,14 @@ in-process Alloy-shaped path).
 - modelToModelToRelational meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- modelToModelToRelational meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - modelToModelToRelational meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- modelToModelToRelational meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- modelToModelToRelational meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelToModelToRelational meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -3383,22 +3152,14 @@ in-process Alloy-shaped path).
 - modelToModelToRelational/milestoned meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- modelToModelToRelational/milestoned meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- modelToModelToRelational/milestoned meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - modelToModelToRelational/milestoned meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -3608,29 +3369,19 @@ in-process Alloy-shaped path).
 - postprocessor meta::pure::alloy::connections::RelationalMapperPostProcessor => Unknown type: 'RelationalMapper' is not a known primitive, class, or enum
 - postprocessor meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - postprocessor meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- postprocessor meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor meta::relational::postProcessor::postprocess => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- postprocessor meta::relational::postProcessor::fixTables => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::replaceTablesInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - postprocessor meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3673,14 +3424,7 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -3690,12 +3434,10 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -3703,7 +3445,6 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlstring::toSQL => Unknown type: 'ClusteredValueSpecification' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlstring::toSQLString => Unknown type: 'Format' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlstring::findDBCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -3716,31 +3457,25 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::DynaFunctionToSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processJoinStringsOperationWithConcatCall => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processFrameValueDirection => Unknown type: 'meta::relational::metamodel::FrameValueDirection' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processFrameValue => Unknown type: 'meta::relational::metamodel::FrameValue' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processWindowColumn => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processCommonTableExpressionsProcessorDefault => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::default::processSelectColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::default::convertFullOuterJoinToLeftRightOuter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processJoin => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::default::processGroupByColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processOrderBy => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::getValueForTake => Unknown type: 'Literal' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::translateCreateSchemaStatementDefault => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::translateDropSchemaStatementDefault => Unknown type: 'DropSchemaSQL' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::translateDropTableStatementDefault => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::translateCreateTableStatementDefault => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::default::getColumnTypeSqlTextDefault => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::loadValuesToDbTableDefault => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::default::processJoinStringsOperation => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::sqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::ddlSqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::sqlQueryToStringPretty => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::processOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processCommitQuery => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::tabularFunctionToString => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
@@ -3753,11 +3488,6 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::functions::sqlQueryToString::isOptionalPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::isCollectionPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::convertSQLNullToSQLString => Unknown type: 'SQLNull' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::wrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::wrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::isBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processExtractFromSemiStructured => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::processCase => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -3771,9 +3501,7 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::functions::sqlQueryToString::sqlNull => Unknown type: 'SQLNull' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::getDynaFunctionDispatcher => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$windowColumnProcessor => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$semiStructuredElementProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$variableDeclarationProcessor => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$tableFunctionParamProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lateralJoinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$joinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$joinStringsProcessor => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
@@ -3786,20 +3514,16 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$translateDropTable => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$translateLoadTable => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$preAndFinallyExecutionSQLQuery => Unknown type: 'PreAndFinallyExecutionSQLQuery' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$dataTypeToSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaParameterProcessor => Unknown type: 'RelationalLambdaParameter' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaProcessor => Unknown type: 'RelationalLambda' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::RelationalElementCollection => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::dbSpecificProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::reAliasColumnName::search => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::reAliasColumnName::replace => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::reAliasColumnName::search => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::reAliasColumnName::replace => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::reAlias::traverse => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::reAlias::transformAliasName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::defaultPlanPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::postProcessorList => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::defaultProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::generateTempTableSelectSQLQuery => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::processObjectReferenceInOperation => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::filterPushDown::pushFiltersDownToJoins => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::filterPushDown::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -3807,17 +3531,15 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::postProcessor::filterPushDown::tryPushFiltersIntoSubQuery => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::filterPushDown::tryAddingFiltersToSubQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::filterPushDown::tryAddingSingleFilterToSubQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::resolveIfSingleTableAliasColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::filterPushDown::addFilterToJoinoperation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::tryAddingFiltersToJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::getPairForBinaryOp => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::getPairForUnaryOp => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::getFilteringPairs => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::collection => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::filterPushDown::extractRelationalElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::filterPushDown::tryAddingFiltersToJoinOperation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::filterPushDown::getPairForBinaryOp => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::filterPushDown::getPairForUnaryOp => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::filterPushDown::getFilteringPairs => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::filterPushDown::extractRelationalElements => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::connectionAwareProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::processInOperation => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::generatePostProcessorResult => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- postprocessor/tests meta::relational::postProcessor::generatePostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::cteExtraction::CTEExtractionResultHolder => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::PostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
@@ -3825,10 +3547,8 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::postprocess => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::postProcessor::fixTables => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::postProcessor::replaceTablesInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests duplicate Function::meta::relational::tests::mergerules::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testMergeRules.pure, kept pureToSQLQuery/tests/sibling-0.pure)
 - pureToSQLQuery/tests duplicate Function::meta::relational::tests::mergerules::testToOneJoinTreeNodesForFilterAndProjectMerge() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/tests/testMergeRules.pure, kept pureToSQLQuery/tests/sibling-0.pure)
@@ -3841,13 +3561,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::tests::functions::pureToSqlQuery::buildJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::tests::functions::pureToSqlQuery::buildTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
@@ -3858,12 +3572,10 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -3891,8 +3603,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::SelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::ColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::IsolationSelectState => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::EnumProcessingHolder => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::MergeResultContainer => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -3904,18 +3615,13 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::CompatibleResult => Unknown type: 'Column' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder => Unknown type: 'CrossSetImplementation' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::SemiStructuredArrayFlattenRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::FreeMarkerOperationHolder => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::metamodel::TableAliasColumnName => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::metamodel::RelationalLambdaParameter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::metamodel::RelationalLambda => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::metamodel::StaticPivot => Unknown type: 'meta::relational::metamodel::Literal' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::Config => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DynaFunctionToSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::updateFunctionParamScope => Unknown type: 'FunctionType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::updateFunctionParamsScope => Unknown type: 'FunctionType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::toSQLQuery => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -3928,9 +3634,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::relationalExecutionContextToState => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::defaultState => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getClassMappingById => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::combineFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::andFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::orFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processValueSpecificationReturnPropertyMapping => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariableExpression => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -3940,18 +3643,14 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::removeLeafNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getParentNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getAllNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::wrapIfNecessary => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processInstanceValue => Unknown type: 'InstanceValue' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processValue => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findColumnOnOperationHierarchy => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processColumnFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processObjectGroupBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::isolateNonTerminalGroupByQueryWithEmptyGroupingColumns => Unknown type: 'TdsSelectSqlQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processObjectGroupByWithWindowSubSet => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::gatherAllOperations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::isolateOrderBy => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processQualifiedPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::tdsQualifier => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -3961,10 +3660,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::moveFiltersOnTop => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildCorrelatedSubQuery => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildNameFromDeactivatedQualifierParameter => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractColumnName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractColumnTypeDefaultToInt => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processColumnsInRelationalOperationElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractColumnAliasesInRelationalTreeNodes => Unknown type: 'Column' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processProperty => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
@@ -3974,7 +3670,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processClassMappingInnerJoinFilter => Unknown type: 'RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::isSimpleJoinToPk => Unknown type: 'Join' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getUnionPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findUnionPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addMissingColumn => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addMissingColumnIfUnion => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -3997,7 +3693,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::flattenConcatenate => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processConcatenate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildConcatenateSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::alignJoinAndPkColumnsForUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processNoOp => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processCast => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::relationTypeColumnAliases => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -4022,7 +3717,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processParseDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processMonth => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processFirstNotNull => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'Alias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processDynafuncWithRename => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findAliasOrFail => Unknown type: 'Alias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processSortBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4043,8 +3738,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processRelationWindowColumn => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processTdsFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::nestFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addPkForAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::isAggregationFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::containsAggregationFunctionInValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -4067,9 +3761,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processWavgRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::manageAggregation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::unwrapNestedSelect => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'Column' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processIsEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processIsNotEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4110,7 +3802,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantSlice => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantContains => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantRemoveDuplicates => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findVariantType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantInstanceOf => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processTo => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processToMany => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4125,20 +3816,17 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantMap => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantPropertyNavigation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::toVariantFriendlyValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processDynaFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::unwrapAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processGetAllForEachDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processGetAll => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processRelationFunctionClassMapping => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getAllExpressionSetImplementations => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getRelationalElementWithInnerJoin => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processRelationalMappingSpecification => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyMilestoningTypeFilters => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::relationalmappingspecification::columnNamesWithRelationalElement => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildPossibleEnumMappingPushDown => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -4147,9 +3835,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::collectAdditionalJoinColumnsForSource => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyTypeFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::containsDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::containsElementRecursive => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'Alias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::isGetAll => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addPlaceHoldersForLambdaOpenVariables => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -4215,13 +3901,12 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubset => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubsetFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processProjectColumns => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processWindowColumns => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processProject => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::manageIsolation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addedSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::containsInnerJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reAliasAndRemoveTopLevelDynaFunctionColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::collectJoinNames => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::joinName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addSelfJoinOnNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -4232,21 +3917,14 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::matchAnyAlias => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::matchAllAliases => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findBestNodeToIsolate => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::incrementAliasRecursively => Unknown type: 'Alias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::replaceJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::moveSelectQueryToSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processEquals => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::hasReferenceToEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::hasEnumValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::hasEnumerationVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::generateFreeMarkerOpSelectorForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::generateFreeMarkerForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::hasOptionalVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::validateParamHasDataTypeReturnType => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processEqualsForEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getEnumPropMappingTransformer => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::enumToStoreValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processEnumValue => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4263,66 +3941,49 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processStringPlus => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildJoinStrings => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractSelectWithCursor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractSelectSQLQuery => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reprocessJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::possiblyMergeIsolatedBranches => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::possiblyMergeUnions => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractColumnEqualityKeyForMerge => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::merge => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::addExtraJoinColumns => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyJoinInTreeDeep => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyJoinInTree => Unknown type: 'RootJoinTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::explodeInCurrentJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractExplodeSemiStructured => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyJoinWithExplodeInCondition => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findLastJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findMainTable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findMainRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findTarget => Unknown type: 'Join' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::applyOneJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::createJoinTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findAliasMappingBySchemaName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reprocessJoin => Unknown type: 'Join' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractStore => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'Column' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'Alias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::flatten => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractTableAliasColumns => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findTableForColumnInAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getJoinTreeNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getSourceRelationFromTargetRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getTargetRelationFromSourceRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::replaceJoinTreeNodeWithLeafNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getClassMapping => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::otherSideAlias => Unknown type: 'Join' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::isOrderedSubsetOf => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::extractLine => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildTree => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findSupportedFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getDistinct => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getRelationalTypeFromRelationalPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::genericTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::replaceAliasInSelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::resolveUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::isNestedUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::isUnionOrNestedUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::isNullJoinPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::managePrimaryKeys => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::buildUnion => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::buildFKs => Unknown type: 'Column' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::modifyColumnNameInOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::modifyColumnNameInOperation => Unknown type: 'Column' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::findFkListForEachSet => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::buildColumnToNameMapForMappedFks => Unknown type: 'Column' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::buildSQLQueryOutManySetImplementations => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -4337,7 +3998,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::realiasMissingColumnsToAddToUnionQueries => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::createLambdaToAddMissingColumnsToUnionQueries => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::canJoinTreeNodesBeSimplyMergedUsingOrOperation => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::buildUnionJoinName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::checkCompatibilityForUnionOrJoinRemoval => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::addChildByAttemptingToRemoveUnionOrJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::nullSafeEquals => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
@@ -4375,35 +4035,25 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processWindowColumn => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processCommonTableExpressionsProcessorDefault => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processSelectColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::convertFullOuterJoinToLeftRightOuter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processJoin => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processGroupByColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processOrderBy => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::getValueForTake => Unknown type: 'Literal' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::translateCreateSchemaStatementDefault => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::translateDropSchemaStatementDefault => Unknown type: 'DropSchemaSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::translateDropTableStatementDefault => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::translateCreateTableStatementDefault => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::getColumnTypeSqlTextDefault => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::loadValuesToDbTableDefault => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::default::processJoinStringsOperation => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::sqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::ddlSqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::sqlQueryToStringPretty => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processCommitQuery => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::tabularFunctionToString => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processUpsertSQLQuery => Unknown type: 'UpsertSQLQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processLiteral => Unknown type: 'Literal' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::convertSQLNullToSQLString => Unknown type: 'SQLNull' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::wrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::wrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::isBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processExtractFromSemiStructured => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processCase => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -4419,9 +4069,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::SelectWithCursor$prop$alias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::FunctionParamScope$prop$resolveFunctionReferenceByVar => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$windowColumnProcessor => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$semiStructuredElementProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$variableDeclarationProcessor => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$tableFunctionParamProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$lateralJoinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$joinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$joinStringsProcessor => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
@@ -4434,8 +4082,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$translateDropTable => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$translateLoadTable => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$preAndFinallyExecutionSQLQuery => Unknown type: 'PreAndFinallyExecutionSQLQuery' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$dataTypeToSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::convertPlaceHolderToSQLString => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processFreeMarkerOperationHolder => Unknown type: 'FreeMarkerOperationHolder' is not a known primitive, class, or enum
@@ -4449,13 +4095,7 @@ in-process Alloy-shaped path).
 - router/tests duplicate Function::meta::pure::router::preeval::tests::testPrerouting_Store() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/router/tests/testPreeval.pure, kept router/tests/sibling-0.pure)
 - router/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - router/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- router/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- router/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - router/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - router/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - router/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -4520,12 +4160,10 @@ in-process Alloy-shaped path).
 - router/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - router/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- router/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- router/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- router/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- router/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - router/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -4576,21 +4214,14 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::ModelConversionState => Unknown type: 'meta::external::query::sql::metamodel::Expression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::sqlDialectTranslation::getDialectTranslationConfig => Unknown type: 'SqlDialectTranslationConfig' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::sqlDialectTranslation::relOpToString => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::sqlDialectTranslation::relOpToString => Unknown type: 'FormatConfig' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::sqlDialectTranslation::toSqlDialect => Unknown type: 'Node' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertRelationalOperationElement => Unknown type: 'Node' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertSqlQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertSelectSqlQuery => Unknown type: 'meta::external::query::sql::metamodel::Query' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::printDataType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertElement => Unknown type: 'Node' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertSelectSQLQuery => Unknown type: 'Node' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertLimit => Unknown type: 'meta::external::query::sql::metamodel::Expression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertOrderBy => Unknown type: 'OrderBy' is not a known primitive, class, or enum
@@ -4633,8 +4264,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertFrameValue => Unknown type: 'meta::relational::metamodel::FrameValue' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertWindowColumn => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::isEmptyStringLiteral => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertJoinStringsArg => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertJoinStringsArg => Unknown type: 'meta::external::query::sql::metamodel::Expression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertJoinStrings => Unknown type: 'meta::relational::metamodel::operation::JoinStrings' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertTable => Unknown type: 'Node' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertUnion => Unknown type: 'meta::relational::metamodel::relation::Union' is not a known primitive, class, or enum
@@ -4648,9 +4278,8 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlattenOutput => Unknown type: 'meta::relational::metamodel::relation::SemiStructuredArrayFlattenOutput' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertSemiStructuredObjectNavigation => Unknown type: 'meta::relational::metamodel::operation::SemiStructuredObjectNavigation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertExtractFromSemiStructured => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::getStringLiteralValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertElementToExpression => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertOptionalElementToExpression => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertElementToExpression => Unknown type: 'meta::external::query::sql::metamodel::Expression' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::toPostgresModel::convertOptionalElementToExpression => Unknown type: 'meta::external::query::sql::metamodel::Expression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::qualifiedName => Unknown type: 'QualifiedName' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::tests::getColumn => Unknown type: 'TableAliasColumnName' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::tests::assertConversion => Unknown type: 'Node' is not a known primitive, class, or enum
@@ -4662,8 +4291,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::SelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::ColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::IsolationSelectState => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::EnumProcessingHolder => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::MergeResultContainer => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -4675,12 +4303,8 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::CompatibleResult => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::metamodel::VarCrossSetPlaceHolder => Unknown type: 'CrossSetImplementation' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::metamodel::SemiStructuredArrayFlattenRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::metamodel::FreeMarkerOperationHolder => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::metamodel::TableAliasColumnName => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::metamodel::RelationalLambdaParameter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::metamodel::RelationalLambda => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::metamodel::StaticPivot => Unknown type: 'meta::relational::metamodel::Literal' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertUnion => Unknown type: 'meta::external::query::sql::metamodel::Relation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::convertFreeMarkerOperationHolder => Unknown type: 'Node' is not a known primitive, class, or enum
@@ -4697,9 +4321,6 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::relationalExecutionContextToState => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::defaultState => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getClassMappingById => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::combineFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::andFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::orFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processValueSpecificationReturnPropertyMapping => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariableExpression => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -4709,18 +4330,14 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::removeLeafNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getParentNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getAllNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::wrapIfNecessary => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processInstanceValue => Unknown type: 'InstanceValue' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processValue => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findColumnOnOperationHierarchy => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processColumnFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processObjectGroupBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::isolateNonTerminalGroupByQueryWithEmptyGroupingColumns => Unknown type: 'TdsSelectSqlQuery' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processObjectGroupByWithWindowSubSet => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::gatherAllOperations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::isolateOrderBy => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processQualifiedPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::tdsQualifier => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4730,10 +4347,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::moveFiltersOnTop => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildCorrelatedSubQuery => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildNameFromDeactivatedQualifierParameter => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractColumnName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractColumnTypeDefaultToInt => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processColumnsInRelationalOperationElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractColumnAliasesInRelationalTreeNodes => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processProperty => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
@@ -4743,7 +4357,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processClassMappingInnerJoinFilter => Unknown type: 'RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::isSimpleJoinToPk => Unknown type: 'Join' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getUnionPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findUnionPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addMissingColumn => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addMissingColumnIfUnion => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -4766,7 +4380,6 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::flattenConcatenate => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processConcatenate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildConcatenateSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::alignJoinAndPkColumnsForUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processNoOp => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processCast => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::relationTypeColumnAliases => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -4791,7 +4404,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processParseDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processMonth => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processFirstNotNull => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'Alias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processDynafuncWithRename => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findAliasOrFail => Unknown type: 'Alias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processSortBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4812,8 +4425,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processRelationWindowColumn => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processTdsFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::nestFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addPkForAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::isAggregationFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::containsAggregationFunctionInValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -4836,9 +4448,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processWavgRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::manageAggregation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::unwrapNestedSelect => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processIsEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processIsNotEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4879,7 +4489,6 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantSlice => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantContains => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantRemoveDuplicates => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findVariantType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantInstanceOf => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processTo => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processToMany => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -4894,20 +4503,17 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantMap => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantPropertyNavigation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::toVariantFriendlyValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processDynaFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::unwrapAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processGetAllForEachDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processGetAll => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processRelationFunctionClassMapping => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getAllExpressionSetImplementations => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getRelationalElementWithInnerJoin => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processRelationalMappingSpecification => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyMilestoningTypeFilters => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::relationalmappingspecification::columnNamesWithRelationalElement => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildPossibleEnumMappingPushDown => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -4916,9 +4522,7 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::collectAdditionalJoinColumnsForSource => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyTypeFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::containsDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::containsElementRecursive => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'Alias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::isGetAll => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addPlaceHoldersForLambdaOpenVariables => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -4984,13 +4588,12 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubset => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubsetFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processProjectColumns => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processWindowColumns => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processProject => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::manageIsolation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addedSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::containsInnerJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reAliasAndRemoveTopLevelDynaFunctionColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::collectJoinNames => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::joinName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addSelfJoinOnNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -5001,21 +4604,14 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::matchAnyAlias => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::matchAllAliases => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findBestNodeToIsolate => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::incrementAliasRecursively => Unknown type: 'Alias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::replaceJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::moveSelectQueryToSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processEquals => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::hasReferenceToEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::hasEnumValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::hasEnumerationVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::generateFreeMarkerOpSelectorForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::generateFreeMarkerForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::hasOptionalVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::validateParamHasDataTypeReturnType => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processEqualsForEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getEnumPropMappingTransformer => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::enumToStoreValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processEnumValue => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -5032,66 +4628,49 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processStringPlus => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processVariantJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::processJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildJoinStrings => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractSelectWithCursor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractSelectSQLQuery => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reprocessJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::possiblyMergeIsolatedBranches => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::possiblyMergeUnions => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractColumnEqualityKeyForMerge => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::merge => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::addExtraJoinColumns => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyJoinInTreeDeep => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyJoinInTree => Unknown type: 'RootJoinTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::explodeInCurrentJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractExplodeSemiStructured => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyJoinWithExplodeInCondition => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findLastJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findMainTable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findMainRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findTarget => Unknown type: 'Join' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::applyOneJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::createJoinTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findAliasMappingBySchemaName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reprocessJoin => Unknown type: 'Join' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractStore => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'Column' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'Alias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::flatten => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractTableAliasColumns => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findTableForColumnInAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getJoinTreeNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getSourceRelationFromTargetRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getTargetRelationFromSourceRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::replaceJoinTreeNodeWithLeafNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getClassMapping => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::otherSideAlias => Unknown type: 'Join' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::isOrderedSubsetOf => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::extractLine => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildTree => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::findSupportedFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getDistinct => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getRelationalTypeFromRelationalPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::genericTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::replaceAliasInSelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::getSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::resolveUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::isNestedUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::isUnionOrNestedUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::isNullJoinPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::managePrimaryKeys => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::buildUnion => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::buildFKs => Unknown type: 'Column' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::modifyColumnNameInOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::modifyColumnNameInOperation => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::findFkListForEachSet => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::buildColumnToNameMapForMappedFks => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::buildSQLQueryOutManySetImplementations => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -5106,7 +4685,6 @@ in-process Alloy-shaped path).
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::realiasMissingColumnsToAddToUnionQueries => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::createLambdaToAddMissingColumnsToUnionQueries => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::canJoinTreeNodesBeSimplyMergedUsingOrOperation => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
-- sqlDialectTranslation meta::relational::functions::pureToSqlQuery::buildUnionJoinName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::checkCompatibilityForUnionOrJoinRemoval => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::addChildByAttemptingToRemoveUnionOrJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::pureToSqlQuery::union::nullSafeEquals => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
@@ -5214,20 +4792,12 @@ in-process Alloy-shaped path).
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::DynaFunctionToSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::sqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::ddlSqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::sqlQueryToStringPretty => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::processOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::processCommitQuery => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::processTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::tabularFunctionToString => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
@@ -5240,11 +4810,6 @@ in-process Alloy-shaped path).
 - sqlQueryToString meta::relational::functions::sqlQueryToString::isOptionalPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::isCollectionPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::convertSQLNullToSQLString => Unknown type: 'SQLNull' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::wrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::wrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::isBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::processDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::processExtractFromSemiStructured => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::processCase => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -5263,49 +4828,36 @@ in-process Alloy-shaped path).
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processWindowColumn => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processCommonTableExpressionsProcessorDefault => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::default::processSelectColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::default::convertFullOuterJoinToLeftRightOuter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processJoin => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::default::processGroupByColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processOrderBy => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::getValueForTake => Unknown type: 'Literal' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::translateCreateSchemaStatementDefault => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::translateDropSchemaStatementDefault => Unknown type: 'DropSchemaSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::translateDropTableStatementDefault => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::translateCreateTableStatementDefault => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::default::getColumnTypeSqlTextDefault => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::loadValuesToDbTableDefault => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::default::processJoinStringsOperation => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processCommitQueryForH2 => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::translateCreateTableStatementForH2 => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::getColumnTypeSqlTextH2 => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::translateCreateTableStatementH2 => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::loadValuesToDbTableForH2 => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::loadValuesToDbTableH2 => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::dataTypeToSqlTextH2 => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processUpsertSQLQueryForH2 => Unknown type: 'UpsertSQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processJoinTreeNodeWithLateralJoinForH2 => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processSemiStructuredElementForH2 => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::propertyAccessForSemiStructuredObjectNavigationH2 => Unknown type: 'SemiStructuredObjectNavigation' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processSemiStructuredArrayFlattenForH2 => Unknown type: 'SemiStructuredArrayFlatten' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processSemiStructuredArrayFlattenOutputForH2 => Unknown type: 'SemiStructuredArrayFlattenOutput' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processSemiStructuredObjectNavigationForH2 => Unknown type: 'SemiStructuredObjectNavigation' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processJoinStringsOperationForH2 => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processSelectColumnsH2 => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::isEqualComparingCastableDynaAndBoolean => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::isCastableDyna => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::isTrueFalseString => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::atRecursibleOperation => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::isBooleanExpr => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v2_1_214::processJoinTreeNodeH2 => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::processCommitQueryForH2 => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::getColumnTypeSqlTextH2 => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::translateCreateTableStatementForH2 => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::loadValuesToDbTableForH2 => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::processUpsertSQLQueryForH2 => Unknown type: 'UpsertSQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::processJoinTreeNodeWithLateralJoinForH2 => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::processSemiStructuredElementForH2 => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::propertyAccessForSemiStructuredObjectNavigationH2 => Unknown type: 'SemiStructuredObjectNavigation' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::processSemiStructuredArrayFlattenForH2 => Unknown type: 'SemiStructuredArrayFlatten' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::h2::v1_4_200::processSemiStructuredArrayFlattenOutputForH2 => Unknown type: 'SemiStructuredArrayFlattenOutput' is not a known primitive, class, or enum
@@ -5314,9 +4866,7 @@ in-process Alloy-shaped path).
 - sqlQueryToString meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - sqlQueryToString meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$windowColumnProcessor => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$semiStructuredElementProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$variableDeclarationProcessor => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$tableFunctionParamProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$lateralJoinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$joinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$joinStringsProcessor => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
@@ -5329,10 +4879,8 @@ in-process Alloy-shaped path).
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$translateDropTable => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$translateLoadTable => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$preAndFinallyExecutionSQLQuery => Unknown type: 'PreAndFinallyExecutionSQLQuery' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$dataTypeToSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaParameterProcessor => Unknown type: 'RelationalLambdaParameter' is not a known primitive, class, or enum
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaProcessor => Unknown type: 'RelationalLambda' is not a known primitive, class, or enum
-- sqlQueryToString meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - sqlQueryToString meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - sqlQueryToString/DDL duplicate Function::meta::relational::tests::ddl::testSetupDataSqlGeneration() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/DDL/testDDL.pure, kept sqlQueryToString/DDL/sibling-1.pure)
@@ -5342,18 +4890,10 @@ in-process Alloy-shaped path).
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DynaFunctionToSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlQueryToString/DDL meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -5362,10 +4902,7 @@ in-process Alloy-shaped path).
 - sqlQueryToString/DDL meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlQueryToString/DDL meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::mapping::propertyMappingsFromRouterMatchProperty => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
@@ -5394,24 +4931,19 @@ in-process Alloy-shaped path).
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processWindowColumn => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processCommonTableExpressionsProcessorDefault => Unknown type: 'CommonTableExpression' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processSelectColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::convertFullOuterJoinToLeftRightOuter => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processJoin => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processGroupByColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processOrderBy => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::getValueForTake => Unknown type: 'Literal' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::translateCreateSchemaStatementDefault => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::translateDropSchemaStatementDefault => Unknown type: 'DropSchemaSQL' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::translateDropTableStatementDefault => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::translateCreateTableStatementDefault => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::getColumnTypeSqlTextDefault => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::loadValuesToDbTableDefault => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::default::processJoinStringsOperation => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::sqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::ddlSqlQueryToString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::sqlQueryToStringPretty => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::processOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::processCommitQuery => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::processTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::tabularFunctionToString => Unknown type: 'TabularFunction' is not a known primitive, class, or enum
@@ -5424,11 +4956,6 @@ in-process Alloy-shaped path).
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::isOptionalPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::isCollectionPlaceHolder => Unknown type: 'VarPlaceHolder' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::convertSQLNullToSQLString => Unknown type: 'SQLNull' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::wrapAsBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::maybeWrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::wrapAsBooleanCaseOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::isBooleanOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::processDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::processExtractFromSemiStructured => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::processCase => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
@@ -5447,9 +4974,7 @@ in-process Alloy-shaped path).
 - sqlQueryToString/DDL meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$windowColumnProcessor => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$semiStructuredElementProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$variableDeclarationProcessor => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$tableFunctionParamProcessor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$lateralJoinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$joinProcessor => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$joinStringsProcessor => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
@@ -5462,10 +4987,8 @@ in-process Alloy-shaped path).
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$translateDropTable => Unknown type: 'DropTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$translateLoadTable => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$preAndFinallyExecutionSQLQuery => Unknown type: 'PreAndFinallyExecutionSQLQuery' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$dataTypeToSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaParameterProcessor => Unknown type: 'RelationalLambdaParameter' is not a known primitive, class, or enum
 - sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaProcessor => Unknown type: 'RelationalLambda' is not a known primitive, class, or enum
-- sqlQueryToString/DDL meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint duplicate Function::meta::relational::functions::sqlQueryToString::debugPrint::dbExtensionLoaderForDebugPrint() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbSpecific/debugPrint/debugPrintExtension.pure, kept sqlQueryToString/dbSpecific/debugPrint/sibling-0.pure)
 - sqlQueryToString/dbSpecific/debugPrint duplicate Function::meta::relational::functions::sqlQueryToString::debugPrint::createDbExtensionForDebugPrint() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbSpecific/debugPrint/debugPrintExtension.pure, kept sqlQueryToString/dbSpecific/debugPrint/sibling-0.pure)
 - sqlQueryToString/dbSpecific/debugPrint duplicate Function::meta::relational::functions::sqlQueryToString::debugPrint::processSelectSQLQueryForDebugPrint(,NameRef[name=SelectSQLQuery][1],NameRef[name=SqlGenerationContext][1],NameRef[name=Boolean][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbSpecific/debugPrint/debugPrintExtension.pure, kept sqlQueryToString/dbSpecific/debugPrint/sibling-0.pure)
@@ -5522,13 +5045,7 @@ in-process Alloy-shaped path).
 - sqlQueryToString/dbSpecific/debugPrint duplicate Function::meta::relational::functions::sqlQueryToString::debugPrint::testWhenCaseNestedByGroup_thenIsWrapped() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbSpecific/debugPrint/debugPrintExtension.pure, kept sqlQueryToString/dbSpecific/debugPrint/sibling-0.pure)
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::dbExtensionLoaderForDebugPrint => Unknown type: 'DbExtensionLoader' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::createDbExtensionForDebugPrint => Unknown type: 'DbExtension' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSelectSQLQueryForDebugPrint => Unknown type: 'SqlGenerationContext' is not a known primitive, class, or enum
@@ -5537,16 +5054,14 @@ in-process Alloy-shaped path).
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processJoinForDebugPrint => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::getDDLCommandsTranslator => Unknown type: 'RelationalDDLCommandsTranslator' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::translateCreateTableStatementForH2 => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::getColumnTypeSqlTextH2 => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::translateCreateTableStatementH2 => Unknown type: 'CreateTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::loadValuesToDbTableForH2 => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::loadValuesToDbTableH2 => Unknown type: 'LoadTableSQL' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::getLiteralProcessorsForH2 => Unknown type: 'LiteralProcessor' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::dataTypeToSqlTextH2 => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::getDynaFunctionToSqlForH2 => Unknown type: 'DynaFunctionToSql' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processUpsertSQLQueryForH2 => Unknown type: 'UpsertSQLQuery' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processJoinTreeNodeWithLateralJoinForH2 => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSemiStructuredElementForH2 => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSemiStructuredElementForH2 => Unknown type: 'SqlGenerationContext' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::propertyAccessForSemiStructuredObjectNavigationH2 => Unknown type: 'SemiStructuredObjectNavigation' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSemiStructuredArrayFlattenRelationForH2 => Unknown type: 'SemiStructuredArrayFlattenRelation' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSemiStructuredArrayFlattenForH2 => Unknown type: 'SemiStructuredArrayFlatten' is not a known primitive, class, or enum
@@ -5554,13 +5069,9 @@ in-process Alloy-shaped path).
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSemiStructuredObjectNavigationForH2 => Unknown type: 'SemiStructuredObjectNavigation' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processJoinStringsOperationForH2 => Unknown type: 'JoinStrings' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSelectSQLQueryForH2 => Unknown type: 'SqlGenerationContext' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSelectColumnsH2 => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::wrapH2Boolean => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSelectColumnsH2 => Unknown type: 'DbConfig' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::isEqualComparingCastableDynaAndBoolean => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::isCastableDyna => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::isTrueFalseString => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::atRecursibleOperation => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::isBooleanExpr => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processJoinTreeNodeH2 => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSliceOrDropForH2 => Unknown type: 'Format' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -5578,13 +5089,7 @@ in-process Alloy-shaped path).
 - sqlQueryToString/testSuite duplicate Function::meta::relational::functions::sqlQueryToString::tests::testTempTableSqlStatementsForH2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure, kept sqlQueryToString/testSuite/sibling-0.pure)
 - sqlQueryToString/testSuite meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - sqlQueryToString/testSuite meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- sqlQueryToString/testSuite meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- sqlQueryToString/testSuite meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - sqlQueryToString/testSuite meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - sqlQueryToString/testSuite meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - sqlQueryToString/testSuite meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -5594,23 +5099,15 @@ in-process Alloy-shaped path).
 - tds/relation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tds/relation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tds/relation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/relation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tds/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tds/relation meta::pure::tds::toRelation::tdsToRelationExtension => Unknown type: 'TdsToRelationExtension_V_X_X' is not a known primitive, class, or enum
 - tds/relation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tds/relation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tds/relation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tds/relation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tds/relation meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tds/relation meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tds/relation meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -5629,13 +5126,7 @@ in-process Alloy-shaped path).
 - tds/tests duplicate DatabaseDefinition::meta::relational::tests::tds::window::routing::AccountStore (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testCanRouteWrappedFunctions.pure, kept tds/tests/sibling-3.pure)
 - tds/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tds/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tds/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -5649,12 +5140,10 @@ in-process Alloy-shaped path).
 - tds/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tds/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tds/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tds/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tds/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tds/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -5696,9 +5185,7 @@ in-process Alloy-shaped path).
 - tds/tests duplicate Function::meta::relational::tests::tds::groupBy::testGroupByWithMultipleWavgAggregation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testGroupBy.pure, kept tds/tests/sibling-5.pure)
 - tds/tests meta::relational::mapping::TableTDS => Unknown type: 'meta::relational::metamodel::relation::NamedRelation' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::columnProjectionsFromRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
-- tds/tests meta::pure::tds::viewToTDS => Unknown type: 'meta::relational::metamodel::relation::View' is not a known primitive, class, or enum
 - tds/tests meta::pure::tds::tableColumnToTdsColumn => Unknown type: 'meta::relational::metamodel::Column' is not a known primitive, class, or enum
-- tds/tests meta::relational::functions::database::viewReference => Unknown type: 'meta::relational::metamodel::relation::View' is not a known primitive, class, or enum
 - tds/tests duplicate Function::meta::relational::tests::tds::slice::testSimpleSlice() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testSliceTakeLimitDrop.pure, kept tds/tests/sibling-6.pure)
 - tds/tests duplicate Function::meta::relational::tests::tds::slice::testSimpleSliceZeroSameAsTake() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testSliceTakeLimitDrop.pure, kept tds/tests/sibling-6.pure)
 - tds/tests duplicate Function::meta::relational::tests::projection::limit::testSimpleLimit() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testSliceTakeLimitDrop.pure, kept tds/tests/sibling-6.pure)
@@ -5770,7 +5257,6 @@ in-process Alloy-shaped path).
 - tds/tests duplicate Function::meta::relational::tests::tds::tdsExtend::testExtendsWithInClause() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testTDSExtend.pure, kept tds/tests/sibling-10.pure)
 - tds/tests meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
-- tds/tests meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlstring::toSQL => Unknown type: 'ClusteredValueSpecification' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlstring::toSQLString => Unknown type: 'Format' is not a known primitive, class, or enum
 - tds/tests meta::relational::functions::sqlstring::findDBCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -5924,15 +5410,12 @@ in-process Alloy-shaped path).
 - tds/tests meta::relational::mapping::PostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::cteExtraction::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- tds/tests meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tds/tests meta::relational::mapping::postProcessSQLQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::mapping::postProcessSQLQueryWithDefaultPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/tests meta::relational::mapping::postProcessQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tds/tests meta::relational::postProcessor::postprocess => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::transform => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::transformNonCached => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- tds/tests meta::relational::postProcessor::fixTables => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tds/tests meta::relational::postProcessor::replaceTablesInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tds/tests duplicate Function::meta::relational::tests::tds::tdsRestrictDistinct::testRestrictDistinct_JoinCutDown_ProjectFunctions() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testTDSRestrictDistinct.pure, kept tds/tests/sibling-15.pure)
 - tds/tests duplicate Function::meta::relational::tests::tds::tdsRestrictDistinct::testRestrictDistinct_JoinCutDown_ColumnSpecs() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/tests/testTDSRestrictDistinct.pure, kept tds/tests/sibling-15.pure)
@@ -6067,13 +5550,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -6082,18 +5559,15 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::relationGrammarConfiguration => Unknown type: 'meta::pure::metamodel::serialization::grammar::Configuration' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -6102,10 +5576,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -6134,10 +5605,8 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromRoot => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataForNestedViewTree => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromNode => Unknown type: 'RelationTree' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::getRowIdentifiersForTable => Unknown type: 'View' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getRowIdentifiersForChildViewRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateRelationColumnMap => Unknown type: 'RelationTree' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::findMainTableForView => Unknown type: 'View' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::parseDateIfRequired => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::getMilestoningFilter => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -6145,11 +5614,8 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationStartingFromNode => Unknown type: 'RelationTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationForNestedViewTree => Unknown type: 'RelationTree' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planRowIdentifierExtractionForTable => Unknown type: 'View' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::fixRelations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::replaceRelationsInJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::doesAliasPointToTempTable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::quoteVarPlaceHolderTableAliasColumnsIfNotQuouted => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::quoteVarPlaceHolderTableAliasColumnsIfNotQuouted => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -6159,10 +5625,9 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::pure::lineage::scanRelations::scanRelations => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::scanRelationColumns => Unknown type: 'PropertyPathTree' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::addAtBottomTreesAndColumns => Unknown type: 'Column' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::pure::lineage::scanRelations::getRelationTree => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::pure::lineage::scanRelations::getRelationColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::getRelationTree => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::getRelationColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::collectStoreMappingCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::generateRelationTreeFromRelationalTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::addColumnsToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::addColumnToRelationTree => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
@@ -6171,7 +5636,7 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceColumn => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceColumnFromSelectSQLQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::pure::lineage::scanRelations::extractJoinChildren => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- testDataGeneration/tests meta::pure::lineage::scanRelations::extractSourceRelation => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromRoot => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataForNestedViewTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::generateTestDataStartingFromNode => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
@@ -6179,7 +5644,6 @@ in-process Alloy-shaped path).
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGeneration => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationStartingFromNode => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::executionPlan::planTestDataGenerationForNestedViewTree => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
-- testDataGeneration/tests meta::pure::lineage::scanRelations::RelationTree$prop$view => Unknown type: 'View' is not a known primitive, class, or enum
 - tests duplicate DatabaseDefinition::meta::relational::tests::dbInc (tests/sibling-4.pure, kept shared-2.pure)
 - tests duplicate DatabaseDefinition::meta::relational::tests::dbIncWithStoreFilter (tests/sibling-4.pure, kept shared-2.pure)
 - tests duplicate DatabaseDefinition::meta::relational::tests::db (tests/sibling-4.pure, kept shared-2.pure)
@@ -6366,13 +5830,7 @@ in-process Alloy-shaped path).
 - tests duplicate Function::meta::relational::tests::json::testResultToJsonStream() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/relationalSetUp.pure, kept shared-2.pure)
 - tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
 - tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
@@ -6420,7 +5878,6 @@ in-process Alloy-shaped path).
 - tests meta::pure::alloy::connections::relationalMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests meta::pure::alloy::connections::processRelationalMappers => Unknown type: 'meta::relational::metamodel::DatabaseMapper' is not a known primitive, class, or enum
 - tests meta::pure::alloy::connections::tableMapperPostProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tests meta::pure::alloy::connections::postProcessTablesFn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests meta::pure::alloy::connections::processTabularFunctionMappers => Unknown type: 'meta::relational::metamodel::relation::TabularFunction' is not a known primitive, class, or enum
 - tests meta::relational::mapping::BuilderInfo => Unknown type: 'KeyValue' is not a known primitive, class, or enum
 - tests meta::relational::translation::TranslationContext => Unknown type: 'meta::relational::metamodel::datatype::CoreDataType' is not a known primitive, class, or enum
@@ -6430,11 +5887,8 @@ in-process Alloy-shaped path).
 - tests meta::relational::mapping::getRelationalTypeFromRelationalPropertyMapping => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - tests meta::relational::mapping::uniqueRelationName => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests meta::relational::mapping::generateSQLExecutionNode => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tests meta::relational::mapping::columnLabel => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests meta::relational::mapping::getRelationalTypeFromRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests meta::relational::mapping::addEnumMapSupportFunctions => Unknown type: 'meta::pure::mapping::StoreQuery' is not a known primitive, class, or enum
 - tests meta::relational::mapping::execution => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- tests meta::relational::mapping::useDialectTranslation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests meta::relational::mapping::toSqlString => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests meta::relational::mapping::executeQuery => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests meta::relational::mapping::buildExecutionResultInTDS => Unknown type: 'PathInformation' is not a known primitive, class, or enum
@@ -6443,10 +5897,6 @@ in-process Alloy-shaped path).
 - tests meta::relational::mapping::buildBuilders => Unknown type: 'InstanceSetImplementation' is not a known primitive, class, or enum
 - tests meta::relational::mapping::generatePropertySql => Unknown type: 'RelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests meta::relational::mapping::getPropertyTargetSetImplementation => Unknown type: 'RelationalInstanceSetImplementation' is not a known primitive, class, or enum
-- tests meta::relational::mapping::pureTypeToDataType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::mapping::inferSourceDataType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::translation::translateCoreTypeToDbSpecificType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - tests meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -6455,10 +5905,7 @@ in-process Alloy-shaped path).
 - tests meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- tests meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -6578,13 +6025,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlapp => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilter => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testNonMilestoningQueryWithMilestoneFilterProject => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
@@ -6592,12 +6033,10 @@ in-process Alloy-shaped path).
 - tests/advanced meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/advanced meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/advanced meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/advanced meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/advanced meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -6665,8 +6104,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::SelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::ColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::OperationWithParentPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::IsolationSelectState => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::EnumProcessingHolder => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::MergeResultContainer => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -6684,9 +6122,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::relationalExecutionContextToState => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::defaultState => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getClassMappingById => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::combineFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::andFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::orFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processValueSpecificationReturnPropertyMapping => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariableExpression => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -6696,18 +6131,14 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::removeLeafNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getParentNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getAllNodes => Unknown type: 'TreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::wrapIfNecessary => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processInstanceValue => Unknown type: 'InstanceValue' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processValue => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findColumnOnOperationHierarchy => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processColumnFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processObjectGroupBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isolateNonTerminalGroupByQueryWithEmptyGroupingColumns => Unknown type: 'TdsSelectSqlQuery' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processObjectGroupByWithWindowSubSet => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::gatherAllOperations => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isolateOrderBy => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processQualifiedPropertyFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::tdsQualifier => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -6717,10 +6148,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::moveFiltersOnTop => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::buildCorrelatedSubQuery => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::buildNameFromDeactivatedQualifierParameter => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractColumnName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractColumnTypeDefaultToInt => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::processColumnsInRelationalOperationElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::getNewColumnNameWithAlias => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::extractColumnAliasesInRelationalTreeNodes => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProperty => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processPropertyMapping => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
@@ -6730,7 +6158,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processClassMappingInnerJoinFilter => Unknown type: 'RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isSimpleJoinToPk => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getUnionPropertyName => Unknown type: 'Union' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::getPropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findUnionPropertyMapping => Unknown type: 'Union' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addMissingColumn => Unknown type: 'Union' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addMissingColumnIfUnion => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -6753,7 +6181,6 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::flattenConcatenate => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processConcatenate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::buildConcatenateSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::alignJoinAndPkColumnsForUnion => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processNoOp => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processCast => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::relationTypeColumnAliases => Unknown type: 'TableAlias' is not a known primitive, class, or enum
@@ -6778,7 +6205,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processParseDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processMonth => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processFirstNotNull => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::findAlias => Unknown type: 'Alias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processDynafuncWithRename => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findAliasOrFail => Unknown type: 'Alias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processSortBy => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -6799,8 +6226,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processWindowFrame => Unknown type: 'meta::relational::metamodel::Frame' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processRelationWindowColumn => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processTdsFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::nestFilters => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::getWindowColsFromOperation => Unknown type: 'WindowColumn' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addPkForAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isAggregationFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::containsAggregationFunctionInValueSpecification => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -6823,9 +6249,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processAggregation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processWavgRowMapper => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::manageAggregation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::unwrapNestedSelect => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::getPksFromAlias => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processIsEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processIsNotEmpty => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -6866,7 +6290,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantSlice => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantContains => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantRemoveDuplicates => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findVariantType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::findVariantType => Unknown type: 'meta::relational::metamodel::datatype::TypedSemiStructured' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantInstanceOf => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processTo => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processToMany => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -6881,20 +6305,17 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantMap => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantPropertyNavigation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::toVariantFriendlyValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processDynaFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::unwrapAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::newDynaFunction => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionWrappedInGroup => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::newAndOrDynaFunctionRelaxedBrackets => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processGetAllForEachDate => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processGetAll => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processRelationFunctionClassMapping => Unknown type: 'RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getAllExpressionSetImplementations => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getRelationalElementWithInnerJoin => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processRelationalMappingSpecification => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::processRelation => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyMilestoningTypeFilters => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::relationalmappingspecification::columnNamesWithRelationalElement => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::buildPossibleEnumMappingPushDown => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
@@ -6903,9 +6324,7 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::collectAdditionalJoinColumnsForSource => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyTypeFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::containsDynaFunction => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::containsElementRecursive => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn => Unknown type: 'Alias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processFilter => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::isGetAll => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addPlaceHoldersForLambdaOpenVariables => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -6972,13 +6391,12 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubset => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProjectWithColumnSubsetFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProjectColumns => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::getRootPrimaryKeyCols => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processWindowColumns => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processProject => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::manageIsolation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addedSelfJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::containsInnerJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::reAliasAndRemoveTopLevelDynaFunctionColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::collectJoinNames => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::joinName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addSelfJoinOnNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -6989,21 +6407,16 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::matchAnyAlias => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::matchAllAliases => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findBestNodeToIsolate => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::aliasesReferencedOnBothSidesOfSimpleBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::checkTableAliasesOnBothSidesBinaryOperation => Unknown type: 'TableAlias' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::buildUniqueName => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::incrementAliasRecursively => Unknown type: 'Alias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::replaceJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::moveSelectQueryToSubSelect => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processEquals => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::hasReferenceToEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::hasEnumValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::hasEnumerationVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::generateFreeMarkerOpSelectorForEnumParam => Unknown type: 'FreeMarkerOperationHolder' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::generateFreeMarkerForEnumParam => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::hasOptionalVarPlaceHolderValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::generateFreeMarkerForEnumParam => Unknown type: 'FreeMarkerOperationHolder' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::validateParamHasDataTypeReturnType => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::processEqualsForEnum => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getEnumPropMappingTransformer => Unknown type: 'PropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::enumToStoreValue => Unknown type: 'Literal' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processEnumValue => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -7020,53 +6433,39 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::processStringPlus => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processVariantJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::processJoinStrings => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::buildJoinStrings => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractSelectWithCursor => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractSelectSQLQuery => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractValue => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::reprocessJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::possiblyMergeIsolatedBranches => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::possiblyMergeUnions => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractColumnEqualityKeyForMerge => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::buildAndTransformJoinMetaData => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::merge => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::addExtraJoinColumns => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyJoinInTreeDeep => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyJoinInTree => Unknown type: 'RootJoinTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::explodeInCurrentJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractExplodeSemiStructured => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyJoinWithExplodeInCondition => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findLastJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findMainTable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findMainRelation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::findMainNamedRelation => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findTarget => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::applyOneJoin => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::createJoinTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findAliasMappingBySchemaName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::reprocessJoin => Unknown type: 'Join' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::extractStore => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::reprocessAliases => Unknown type: 'Column' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::usePropertyName => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
+- tests/advanced meta::relational::functions::pureToSqlQuery::extractColumnAliases => Unknown type: 'Alias' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::flatten => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::extractTableAliasColumns => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::findTableForColumnInAlias => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getJoinTreeNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getSourceRelationFromTargetRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getTargetRelationFromSourceRelation => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::replaceJoinTreeNodeWithLeafNode => Unknown type: 'RelationalPropertyMapping' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getClassMapping => Unknown type: 'SetImplementation' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::otherSideAlias => Unknown type: 'Join' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::isOrderedSubsetOf => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::extractLine => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::buildTree => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::findSupportedFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getGroupBy => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getFilter => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getDistinct => Unknown type: 'RelationalMappingSpecification' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::pureToSqlQuery::getRelationalTypeFromRelationalPropertyMapping => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::genericTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::replaceAliasInSelectWithCursor => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -7144,22 +6543,14 @@ in-process Alloy-shaped path).
 - tests/datatype meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/datatype meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/datatype meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/datatype meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/datatype meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/datatype meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/datatype meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/datatype meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/datatype meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/datatype meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/datatype meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7183,22 +6574,14 @@ in-process Alloy-shaped path).
 - tests/injection meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/injection meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/injection meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/injection meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/injection meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/injection meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/injection meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/injection meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/injection meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/injection meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/injection meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7215,13 +6598,7 @@ in-process Alloy-shaped path).
 - tests/mapping meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -7230,12 +6607,10 @@ in-process Alloy-shaped path).
 - tests/mapping meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7351,13 +6726,7 @@ in-process Alloy-shaped path).
 - tests/mapping/association meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/association meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -7366,12 +6735,10 @@ in-process Alloy-shaped path).
 - tests/mapping/association meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/association meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/association meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7592,13 +6959,7 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -7607,12 +6968,10 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7654,22 +7013,14 @@ in-process Alloy-shaped path).
 - tests/mapping/distinct meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/distinct meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/distinct meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7691,13 +7042,7 @@ in-process Alloy-shaped path).
 - tests/mapping/dynaJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/dynaJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -7706,12 +7051,10 @@ in-process Alloy-shaped path).
 - tests/mapping/dynaJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/dynaJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7822,22 +7165,14 @@ in-process Alloy-shaped path).
 - tests/mapping/embedded meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/embedded meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/embedded meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -7972,13 +7307,7 @@ in-process Alloy-shaped path).
 - tests/mapping/enumeration duplicate Function::meta::relational::tests::projection::enumeration::testEnumValueReturnedInIfExpNotDistinctTransformers() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/enumeration/testEnumerationMapping.pure, kept tests/mapping/enumeration/sibling-1.pure)
 - tests/mapping/enumeration meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/enumeration meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -7987,12 +7316,10 @@ in-process Alloy-shaped path).
 - tests/mapping/enumeration meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/enumeration meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8009,13 +7336,7 @@ in-process Alloy-shaped path).
 - tests/mapping/extends meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/extends meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/extends meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -8024,12 +7345,10 @@ in-process Alloy-shaped path).
 - tests/mapping/extends meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/extends meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/extends meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/extends meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8126,13 +7445,7 @@ in-process Alloy-shaped path).
 - tests/mapping/extends/union meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/extends/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -8141,12 +7454,10 @@ in-process Alloy-shaped path).
 - tests/mapping/extends/union meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/extends/union meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/extends/union meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/extends/union meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8236,13 +7547,7 @@ in-process Alloy-shaped path).
 - tests/mapping/filter meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/filter meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -8251,12 +7556,10 @@ in-process Alloy-shaped path).
 - tests/mapping/filter meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/filter meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8308,22 +7611,14 @@ in-process Alloy-shaped path).
 - tests/mapping/groupBy meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/groupBy meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/groupBy meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8417,22 +7712,14 @@ in-process Alloy-shaped path).
 - tests/mapping/inClause meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/inClause meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/inClause meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/inClause meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/inClause meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8445,13 +7732,7 @@ in-process Alloy-shaped path).
 - tests/mapping/include duplicate Function::meta::relational::tests::mapping::include::testStoreSubstitution() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/include/testStoreSubstitution.pure, kept tests/mapping/include/sibling-0.pure)
 - tests/mapping/include meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/include meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/include meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/include meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/include meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/include meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/include meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -8616,13 +7897,7 @@ in-process Alloy-shaped path).
 - tests/mapping/inheritance meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/inheritance meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -8631,12 +7906,10 @@ in-process Alloy-shaped path).
 - tests/mapping/inheritance meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/inheritance meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8727,22 +8000,14 @@ in-process Alloy-shaped path).
 - tests/mapping/innerJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/innerJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/innerJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/innerJoin meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/innerJoin meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8856,13 +8121,7 @@ in-process Alloy-shaped path).
 - tests/mapping/join meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/join meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -8871,12 +8130,10 @@ in-process Alloy-shaped path).
 - tests/mapping/join meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/join meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -8961,22 +8218,14 @@ in-process Alloy-shaped path).
 - tests/mapping/merge meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/merge meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/merge meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/merge meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9013,13 +8262,7 @@ in-process Alloy-shaped path).
 - tests/mapping/modelJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/modelJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -9028,12 +8271,10 @@ in-process Alloy-shaped path).
 - tests/mapping/modelJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/modelJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9158,22 +8399,14 @@ in-process Alloy-shaped path).
 - tests/mapping/multigrain meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/multigrain meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/multigrain meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9199,22 +8432,14 @@ in-process Alloy-shaped path).
 - tests/mapping/propertyfunc meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/propertyfunc meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/propertyfunc meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9270,13 +8495,7 @@ in-process Alloy-shaped path).
 - tests/mapping/relation duplicate Function::meta::relational::tests::mapping::relation::testAutoInferPKThroughComposedGroupBy() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/pkInferenceTests.pure, kept tests/mapping/relation/sibling-2.pure)
 - tests/mapping/relation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -9340,12 +8559,10 @@ in-process Alloy-shaped path).
 - tests/mapping/relation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/relation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/relation meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9406,13 +8623,7 @@ in-process Alloy-shaped path).
 - tests/mapping/relation/aggregation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -9421,12 +8632,10 @@ in-process Alloy-shaped path).
 - tests/mapping/relation/aggregation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/relation/aggregation meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/relation/aggregation meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9444,22 +8653,14 @@ in-process Alloy-shaped path).
 - tests/mapping/selfJoin meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/selfJoin meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/selfJoin meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9553,22 +8754,14 @@ in-process Alloy-shaped path).
 - tests/mapping/sqlFunction meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/sqlFunction meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/sqlFunction meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9610,22 +8803,14 @@ in-process Alloy-shaped path).
 - tests/mapping/tree meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/tree meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/tree meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/tree meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -9718,13 +8903,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union duplicate LegacyMappingDefinition::meta::relational::tests::mapping::union::specialUnion::specialUnionMapping (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/union/testSpecialUnionMapping.pure, kept tests/mapping/union/sibling-0.pure)
 - tests/mapping/union meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -9815,27 +8994,23 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::relationGrammarConfiguration => Unknown type: 'meta::pure::metamodel::serialization::grammar::Configuration' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::RelationalElementCollection => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::dbSpecificProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::reAliasColumnName::search => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::reAliasColumnName::replace => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::reAliasColumnName::search => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::reAliasColumnName::replace => Unknown type: 'OrderBy' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::reAlias::traverse => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::reAlias::transformAliasName => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::defaultPlanPostProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::postProcessorList => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::defaultProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::generateTempTableSelectSQLQuery => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::processObjectReferenceInOperation => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::filterPushDown::pushFiltersDownToJoins => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::filterPushDown::allNodes => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -9843,18 +9018,15 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::relational::postProcessor::filterPushDown::tryPushFiltersIntoSubQuery => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::filterPushDown::tryAddingFiltersToSubQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::filterPushDown::tryAddingSingleFilterToSubQuery => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::resolveIfSingleTableAliasColumnGroup => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::filterPushDown::addFilterToJoinoperation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::tryAddingFiltersToJoinOperation => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::getPairForBinaryOp => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::getPairForUnaryOp => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::getFilteringPairs => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::collection => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::filterPushDown::extractRelationalElements => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::filterPushDown::tryAddingFiltersToJoinOperation => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::filterPushDown::getPairForBinaryOp => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::filterPushDown::getPairForUnaryOp => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::filterPushDown::getFilteringPairs => Unknown type: 'TableAliasColumn' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::filterPushDown::extractRelationalElements => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::connectionAwareProcessors => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::postProcessor::processInOperation => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::postProcessor::generatePostProcessorResult => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::postProcessor::generatePostProcessorResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -9863,10 +9035,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/union meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -10195,13 +9364,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union/relation meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/union/relation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -10210,12 +9373,10 @@ in-process Alloy-shaped path).
 - tests/mapping/union/relation meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/mapping/union/relation meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -10228,22 +9389,14 @@ in-process Alloy-shaped path).
 - tests/platformOperations meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/platformOperations meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/platformOperations meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/platformOperations meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -10359,29 +9512,20 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::functions::sqlstring::SQLResult => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tests/query meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/query meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - tests/query meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- tests/query meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- tests/query meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- tests/query meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- tests/query meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::relationGrammarConfiguration => Unknown type: 'meta::pure::metamodel::serialization::grammar::Configuration' is not a known primitive, class, or enum
 - tests/query meta::relational::grammar::serialization::relationGrammarExtension => Unknown type: 'meta::pure::metamodel::serialization::grammar::GrammarExtension' is not a known primitive, class, or enum
 - tests/query meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
-- tests/query meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlstring::toSQL => Unknown type: 'ClusteredValueSpecification' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlstring::toSQLString => Unknown type: 'Format' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::sqlstring::findDBCluster => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -10487,7 +9631,6 @@ in-process Alloy-shaped path).
 - tests/query duplicate Function::meta::relational::tests::query::function::testJoinStringFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure, kept tests/query/sibling-11.pure)
 - tests/query duplicate Function::meta::relational::tests::query::function::testDayOfWeekFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure, kept tests/query/sibling-11.pure)
 - tests/query duplicate Function::meta::relational::tests::query::function::testDayOfWeekNumberFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure, kept tests/query/sibling-11.pure)
-- tests/query meta::relational::functions::toDDL::getColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::toDDL::getSemiStructuredColumnTypeSqlText => Unknown type: 'meta::relational::metamodel::datatype::SemiStructured' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::toDDL::createTempTableStatement => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::database::constructDb => Unknown type: 'Join' is not a known primitive, class, or enum
@@ -10496,10 +9639,7 @@ in-process Alloy-shaped path).
 - tests/query meta::relational::metamodel::relation::schema => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::relation::allJoins => Unknown type: 'Join' is not a known primitive, class, or enum
 - tests/query meta::relational::metamodel::relation::allFilters => Unknown type: 'Filter' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::database::resultSetToSchemas => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::database::resultSetToTables => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::database::resultSetToColumns => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- tests/query meta::relational::functions::database::sqlTextToRelationalDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/query meta::relational::functions::database::resultSetToColumns => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/query meta::relational::functions::database::loadValuesToDbTable2 => Unknown type: 'Column' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::findPropertySequence => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - tests/query meta::relational::mapping::buildSemiStructuredPropertyMapping => Unknown type: 'SemiStructuredEmbeddedRelationalInstanceSetImplementation' is not a known primitive, class, or enum
@@ -10581,15 +9721,8 @@ in-process Alloy-shaped path).
 - transform/fromPure/tests meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::transform::fromPure::pureTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::transform::fromPure::pureTypeToDataTypeMap => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
@@ -10598,12 +9731,10 @@ in-process Alloy-shaped path).
 - transform/fromPure/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- transform/fromPure/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - transform/fromPure/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -10634,13 +9765,7 @@ in-process Alloy-shaped path).
 - validation/showcase meta::relational::extension::RelationalExtension => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - validation/showcase meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/showcase meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- validation/showcase meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::validate => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::generateValidationQuery => Unknown type: 'RelationalExecutionContext' is not a known primitive, class, or enum
 - validation/showcase meta::relational::validation::functions::tranformPostTDSOperation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -10652,12 +9777,10 @@ in-process Alloy-shaped path).
 - validation/showcase meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - validation/showcase meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- validation/showcase meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- validation/showcase meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- validation/showcase meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- validation/showcase meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - validation/showcase meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -10694,13 +9817,7 @@ in-process Alloy-shaped path).
 - validation/tests meta::relational::runtime::RelationalExecutionContext => Unknown type: 'Column' is not a known primitive, class, or enum
 - validation/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
 - validation/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
-- validation/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- validation/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'TranslationContext' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::tranformPostTDSOperation => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::resolveVars => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - validation/tests meta::relational::validation::functions::generateConstraintNegatedProjectQuery => Unknown type: 'Constraint' is not a known primitive, class, or enum
@@ -10710,12 +9827,10 @@ in-process Alloy-shaped path).
 - validation/tests meta::pure::router::clustering::getResolvedStore => Unknown type: 'meta::relational::mapping::RootRelationalInstanceSetImplementation' is not a known primitive, class, or enum
 - validation/tests meta::relational::functions::sqlQueryToString::processLiteralListForPlanService => Unknown type: 'meta::relational::functions::sqlQueryToString::DbConfig' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::printDatabaseColumn => Unknown type: 'Column' is not a known primitive, class, or enum
-- validation/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'ColumnMapping' is not a known primitive, class, or enum
+- validation/tests meta::relational::grammar::serialization::printViewColumnMapping => Unknown type: 'Column' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::printFilterMapping => Unknown type: 'FilterMapping' is not a known primitive, class, or enum
-- validation/tests meta::relational::grammar::serialization::printRelationalOperationElementTarget => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::flattenJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::printJoinTreeNode => Unknown type: 'JoinTreeNode' is not a known primitive, class, or enum
-- validation/tests meta::relational::grammar::serialization::printRelationalOperationElement => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::dynaFunc2 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::dynaFunc1 => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
 - validation/tests meta::relational::grammar::serialization::printRelationalDatabaseConnection => Unknown type: 'meta::external::store::relational::runtime::RelationalDatabaseConnection' is not a known primitive, class, or enum
@@ -10768,7 +9883,7 @@ in-process Alloy-shaped path).
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x no overload of 'executionPlan' matches the argument types
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- 2x Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 1: expected meta::relational::metamodel::RelationalOperationElement, got meta::relational::metamodel::relation::SelectSQLQuery
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - 2x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
@@ -10877,14 +9992,13 @@ in-process Alloy-shaped path).
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call [calls meta::pure::graphFetch::execution]
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- FAIL testConcatenateClassAgg [functions/tests]: h2-advisory divergence: golden SQL on H2 gave 4 row(s) [Firm A|ISIN2|CUSIP2, Firm C|ISIN3|CUSIP3, Firm D|<null>, Firm X|ISIN1|CUSIP1], our pipeline gave 4 row(s) [Firm A|CUSIP2|ISIN2, Firm C|CUSIP3|ISIN3, Firm D|<null>, Firm X|CUSIP1|ISIN1]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - SHAPE testComplexOrExistsToManyProperty [functions/tests]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testDupsFilterProject [functions/tests]: assertEquals: expected Firm X, got [Firm X, Yes]
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 1: expected meta::relational::metamodel::RelationalOperationElement, got meta::relational::metamodel::relation::SelectSQLQuery
 - ERROR testAssociationWithProjectionHandlingDups [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: exists/forAll predicate references column 'firm_employees', unresolvable even after isolation [param=t_n; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::exists, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=value, type=Type
 - SHAPE testFetchDbTablesMetaData [functions/tests]: no execute(|...) call
@@ -10971,7 +10085,6 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: property 'postProcessors' of 'meta::external::store::relational::runtime::RelationalDatabaseConnection': expected meta::pure::alloy::connections::PostProcessor, got meta::pure::alloy::connections::MapperPostProcessor (value: AppliedFunction[function=new, parameters=[PackageableElementPtr[fullPath=me
-- FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 200.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContact
 - FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].pnl expected 200.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=100.0, supportContactName=Peter Smith, order
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
@@ -11043,7 +10156,7 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -11154,7 +10267,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
@@ -11164,7 +10277,7 @@ in-process Alloy-shaped path).
 - SHAPE testDecimal [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring]
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
-- ERROR testRestrictWithPostProcessor [tds/tests]: Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 1: expected meta::relational::metamodel::RelationalOperationElement, got meta::relational::metamodel::relation::SelectSQLQuery
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable
 - FAIL testSimpleRelationalUnion [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName" from (select "root".LASTNAME as "lastName" from personTable as "root" union select "root".LASTNAME as "lastName" from personTable as "root") as "unionalias_0", got select distinct "root".lastName from (select "root".LASTNAME as "l
 - FAIL testUnionWithGroupBy [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName", sum("unionalias_0"."age") as "age" from (select "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", "root".AGE as "age" from personTable as "root" union select "root".LASTNAME as "lastName", "root".FIRSTNAME as "first
@@ -11198,11 +10311,7 @@ in-process Alloy-shaped path).
 - SHAPE testConnectionEqualityTypeSpecSameAuthDiff [tests]: no execute(|...) call
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute]
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype]
-- SHAPE testTableAliasColumnInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
-- SHAPE testRelOpWithJoinInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
-- SHAPE testMaxIntAggregationInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
-- SHAPE testMaxDateAggregationInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
-- SHAPE testSumAggregationWithJoinInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
+- FAIL testSumAggregationWithJoinInference [tests]: assertEquals: expected DOUBLE, got FLOAT
 - SHAPE testDynaAndOrInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
 - SHAPE testDynaCaseInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
 - SHAPE testDynaCaseWithDecimalInference_Decimal_Integer [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
@@ -11335,7 +10444,7 @@ in-process Alloy-shaped path).
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
