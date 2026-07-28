@@ -462,6 +462,8 @@ public final class StoreResolver {
                 }
                 yield resolveNode(am, context);
             }
+            // a BARE lambda VALUE is DATA — its consumer owns resolution
+            case com.legend.compiler.spec.typed.TypedLambda l -> l;
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "

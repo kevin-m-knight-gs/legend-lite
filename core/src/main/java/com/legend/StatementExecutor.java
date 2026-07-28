@@ -185,6 +185,20 @@ final class StatementExecutor {
             while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
                 preRoot = pf.source();
             }
+            // pair(a, b).first/.second folds STRUCTURALLY (the datetime
+            // helpers thread plan + plan-text through a pair) — the
+            // projection is pure data selection, no evaluation order
+            while (preRoot instanceof com.legend.compiler.spec.typed
+                            .TypedPropertyAccess pp2
+                    && ("first".equals(pp2.property())
+                            || "second".equals(pp2.property()))
+                    && pp2.source() instanceof com.legend.compiler.spec
+                            .typed.TypedNativeCall pc2
+                    && pc2.callee().qualifiedName().endsWith("::pair")
+                    && pc2.args().size() == 2) {
+                preRoot = pc2.args().get(
+                        "first".equals(pp2.property()) ? 0 : 1);
+            }
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall tsc
                     && com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
                             .equals(tsc.callee().qualifiedName())) {

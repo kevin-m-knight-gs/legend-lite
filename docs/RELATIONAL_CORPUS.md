@@ -8426,10 +8426,10 @@ in-process Alloy-shaped path).
 
 ### top error buckets
 
-- 8x class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - 7x unknown function 'generateObjectReferences'
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
+- 5x store resolution left getAll(meta::relational::tests::model::simple::Order) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedLambda > TypedFilter]
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
 - 4x null
@@ -8444,6 +8444,7 @@ in-process Alloy-shaped path).
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - 2x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
+- 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - 2x unknown function 'alloyConfig'
 - 2x unknown function 'parseJSON'
@@ -8455,7 +8456,6 @@ in-process Alloy-shaped path).
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
-- 2x unknown function 'genericType'
 
 ### per-test outcomes (non-passing)
 
@@ -8475,11 +8475,11 @@ in-process Alloy-shaped path).
 - SHAPE testIfEnumParameterWithClassPropInProject [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testIfOpFilterEnumValueWithClassPropInProject [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testOptionalEnumParameterEqualsClassProp [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- ERROR testPlanForDateTimeConstantParameterNoTimeZone [executionPlan/tests]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
-- ERROR testPlanForDateTimeConstantParameterGMTTimeZone [executionPlan/tests]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
-- ERROR testPlanForDateTimeConstantParameterESTTimeZone [executionPlan/tests]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
-- ERROR testPlanForDateTimeVariableNoTimeZone [executionPlan/tests]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
-- ERROR testPlanForDateTimeVariableESTTimeZone [executionPlan/tests]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
+- ERROR testPlanForDateTimeConstantParameterNoTimeZone [executionPlan/tests]: store resolution left getAll(meta::relational::tests::model::simple::Order) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedLambda
+- ERROR testPlanForDateTimeConstantParameterGMTTimeZone [executionPlan/tests]: store resolution left getAll(meta::relational::tests::model::simple::Order) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedLambda
+- ERROR testPlanForDateTimeConstantParameterESTTimeZone [executionPlan/tests]: store resolution left getAll(meta::relational::tests::model::simple::Order) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedLambda
+- ERROR testPlanForDateTimeVariableNoTimeZone [executionPlan/tests]: store resolution left getAll(meta::relational::tests::model::simple::Order) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedLambda
+- ERROR testPlanForDateTimeVariableESTTimeZone [executionPlan/tests]: store resolution left getAll(meta::relational::tests::model::simple::Order) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedNativeCall > TypedLambda
 - SHAPE inheritance [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - FAIL testGroupByWithOpenVariableInAgg [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Sales Division, String, VARCHAR(30), ""), (Income Function, Number, FLOAT, "")]\n  (\n    Allocation\n    (\n      type = Class[impls=(meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate | myMapping.meta_relational_tests_groupBy
 - FAIL testGroupByWithTwoOpenVariablesInAggAndFilter [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = TDS[(Sales Division, String, VARCHAR(30), ""), (Income Function, Number, FLOAT, "")]\n  (\n    Allocation\n    (\n      type = StrictDate\n      resultSizeRange = 1\n      name = startDate\n      value = \n        (\n          Constant\n          (\n     
@@ -8598,8 +8598,8 @@ in-process Alloy-shaped path).
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
-- ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
-- ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
+- ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
+- ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
 - FAIL testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: h2-advisory divergence: golden SQL on H2 gave 7 row(s) [Allen|<null>, Harris|<null>, Hill|<null>, Hill|<null>, Johnson|<null>], our pipeline gave 15 row(s) [Allen|New York, Allen|New York, Allen|New York, Harris|<null>, Hill|<null>]
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
@@ -8636,8 +8636,8 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, 
 - ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: property 'postProcessors' of 'meta::external::store::relational::runtime::RelationalDatabaseConnection': expected meta::pure::alloy::connections::PostProcessor, got meta::pure::alloy::connections::MapperPostProcessor (value: AppliedFunction[function=new, parameters=[PackageableElementPtr[fullPath=me
 - FAIL testGraphFetchWithViewRootFlat [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith}, {pnl=200.0, supportContactName=John Johnson}, {pnl=150.0, supportContactName=John Johnson}], got [{pnl=150.0, supportContactName=John Johnson}, {pnl=200.0, supportContact
-- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].pnl expected 200.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=100.0, supportContactName=Peter Smith, order
-- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].orders[0].pnlContact expected {name=Peter Smith}, got null | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, ord
+- FAIL testGraphFetchWithViewRootNested [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].pnl expected 100.0, got 150.0 | expected [{pnl=100.0, supportContactName=Peter Smith, order={date=2014-12-01, quantity=25.0, id=1}}, {pnl=200.0, supportContactName=John Johnson, order={date=2014-12-..., got [{pnl=150.0, supportContactName=John Johnson, orde
+- FAIL testGraphFetchWithViewAtChild [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[1].orders[0].id expected 2, got 4 | expected [{name=Account 1, orders=[{pnlContact={name=Peter Smith}, id=1, pnl=100.0}, {pnlContact=null, id=3, pnl=null}]}, {name=Account 2, orders=[{pnlContact={name=J..., got [{name=Account 1, orders=[{id=1, pnl=100.0, pnlCo
 - ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -8708,7 +8708,7 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8799,7 +8799,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
@@ -8963,14 +8963,14 @@ in-process Alloy-shaped path).
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
-- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
+- FAIL testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: h2-advisory divergence: golden SQL on H2 gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], our pipeline gave 5 row(s) [LastName Ext1A,LastName Ext1D, LastName Ext1C, LastName Ext2A, LastName Ext2B, LastName Ext2D,LastName Ex
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: no overload of 'execute' matches the argument types
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy:
-- ERROR testWithParameterToClassNestedSelect [tests/query]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
+- ERROR testWithParameterToClassNestedSelect [tests/query]: store resolution left getAll(meta::relational::tests::model::simple::Product) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedFilter]
 - SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testPushDownProjectWithParameter [tests/query]: no overload of 'meta::legend::executeLegendQuery' matches 3 argument(s) of these shapes (no candidates at all)
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
