@@ -155,4 +155,36 @@ class UserCallInlinerTest {
                 "inlining a dated version sweep must stay a SWEEP, not a point fetch");
         assertEquals(2, g.milestoning().size(), "range dates ride along");
     }
+
+    @Test
+    @DisplayName("agg orderKey survives the inliner rebuild (remediation T2.1)")
+    void aggOrderKeySurvivesInlining() {
+        // the hand-written TypedGroupBy arm rebuilt each TypedAggCol through
+        // the 3-arg convenience constructor, silently nulling orderKey —
+        // graft one on and prove the withChildren rebuild keeps it
+        var ctx = Compiler.compileModel(MODEL);
+        var specs = new SpecCompiler(ctx);
+        var body = specs.typeQueryBody(
+                com.legend.compiler.NameResolver.resolveQuery(
+                        com.legend.parser.SpecParser.parse(
+                                "|m::Person.all()"
+                                        + "->project(~[name: p|$p.name, age: p|$p.age])"
+                                        + "->groupBy(~[name], ~[total: x|$x.age : y|$y->sum()])")));
+        var gb = org.junit.jupiter.api.Assertions.assertInstanceOf(
+                com.legend.compiler.spec.typed.TypedGroupBy.class,
+                body.get(body.size() - 1));
+        var a = gb.aggs().get(0);
+        var grafted = new com.legend.compiler.spec.typed.TypedGroupBy(gb.source(), gb.keys(),
+                java.util.List.of(new com.legend.compiler.spec.typed.TypedAggCol(
+                        a.name(), a.map(), a.reduce(), a.map(), false)),
+                gb.info());
+        var out = new UserCallInliner(specs).inlineBody(java.util.List.of(grafted));
+        var g2 = org.junit.jupiter.api.Assertions.assertInstanceOf(
+                com.legend.compiler.spec.typed.TypedGroupBy.class,
+                out.get(out.size() - 1));
+        org.junit.jupiter.api.Assertions.assertNotNull(g2.aggs().get(0).orderKey(),
+                "the inliner rebuild must not null the agg's orderKey");
+        org.junit.jupiter.api.Assertions.assertFalse(g2.aggs().get(0).orderAsc(),
+                "orderAsc must ride along too");
+    }
 }

@@ -26,6 +26,11 @@ public record TypedGraphFetch(TypedSpec source, List<TypedGraphTree> tree, ExprT
         tree = List.copyOf(tree);
     }
 
+    // tree ARGS are deliberately NOT children — they stay VERBATIM through
+    // rewrites: the serialize key renders their SOURCE spelling (engine:
+    // product($bd), not the bound date); date resolution reads the let env
+    // at the resolver instead (queryLets — engine
+    // resolveMilestoningDateParams/inScopeVars). Same rule in TypedSerialize.
     @Override
     public List<TypedSpec> children() {
         return List.of(source);

@@ -1,73 +1,17 @@
 package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedAggCol;
-import com.legend.compiler.spec.typed.TypedAggColSpec;
-import com.legend.compiler.spec.typed.TypedAggColSpecArray;
-import com.legend.compiler.spec.typed.TypedAggregate;
-import com.legend.compiler.spec.typed.TypedAsOfJoin;
-import com.legend.compiler.spec.typed.TypedCBoolean;
-import com.legend.compiler.spec.typed.TypedCDate;
-import com.legend.compiler.spec.typed.TypedCDecimal;
-import com.legend.compiler.spec.typed.TypedCFloat;
-import com.legend.compiler.spec.typed.TypedCInteger;
-import com.legend.compiler.spec.typed.TypedCLatestDate;
-import com.legend.compiler.spec.typed.TypedCString;
-import com.legend.compiler.spec.typed.TypedCTime;
-import com.legend.compiler.spec.typed.TypedCast;
-import com.legend.compiler.spec.typed.TypedColSpec;
-import com.legend.compiler.spec.typed.TypedColSpecArray;
-import com.legend.compiler.spec.typed.TypedCollection;
-import com.legend.compiler.spec.typed.TypedConcatenate;
-import com.legend.compiler.spec.typed.TypedDistinct;
-import com.legend.compiler.spec.typed.TypedDrop;
-import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedEval;
-import com.legend.compiler.spec.typed.TypedExtend;
-import com.legend.compiler.spec.typed.TypedExtendAgg;
-import com.legend.compiler.spec.typed.TypedExtendWindow;
-import com.legend.compiler.spec.typed.TypedFilter;
-import com.legend.compiler.spec.typed.TypedFlatten;
-import com.legend.compiler.spec.typed.TypedFold;
-import com.legend.compiler.spec.typed.TypedFrom;
-import com.legend.compiler.spec.typed.TypedFuncCol;
-import com.legend.compiler.spec.typed.TypedFuncColSpec;
-import com.legend.compiler.spec.typed.TypedFuncColSpecArray;
-import com.legend.compiler.spec.typed.TypedGetAll;
-import com.legend.compiler.spec.typed.TypedGraphFetch;
-import com.legend.compiler.spec.typed.TypedGroupBy;
-import com.legend.compiler.spec.typed.TypedIf;
-import com.legend.compiler.spec.typed.TypedJoin;
-import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLet;
-import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedMatch;
 import com.legend.compiler.spec.typed.TypedNativeCall;
-import com.legend.compiler.spec.typed.TypedNavigate;
-import com.legend.compiler.spec.typed.TypedNewInstance;
-import com.legend.compiler.spec.typed.TypedNewInstanceCast;
-import com.legend.compiler.spec.typed.TypedOver;
-import com.legend.compiler.spec.typed.TypedPackageableRef;
-import com.legend.compiler.spec.typed.TypedPivot;
-import com.legend.compiler.spec.typed.TypedProject;
-import com.legend.compiler.spec.typed.TypedPropertyAccess;
-import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSelect;
-import com.legend.compiler.spec.typed.TypedSerialize;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
-import com.legend.compiler.spec.typed.TypedSlice;
-import com.legend.compiler.spec.typed.TypedSort;
-import com.legend.compiler.spec.typed.TypedSortBy;
-import com.legend.compiler.spec.typed.TypedSortInfo;
-import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.compiler.spec.typed.TypedTableReference;
-import com.legend.compiler.spec.typed.TypedTds;
-import com.legend.compiler.spec.typed.TypedTypeRef;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.compiler.spec.typed.TypedWrite;
 import com.legend.error.NotImplementedException;
 
 import java.util.ArrayDeque;
@@ -375,34 +319,6 @@ public final class UserCallInliner {
                 yield new TypedLet(let.name(), rewrite(let.value(), env), let.info());
             }
 
-            // Literals and leaves.
-            case TypedCInteger c -> c;
-            case TypedCString c -> c;
-            case TypedCBoolean c -> c;
-            case TypedCFloat c -> c;
-            case TypedCDecimal c -> c;
-            case TypedCDate c -> c;
-            case TypedCTime c -> c;
-            case TypedCLatestDate c -> c;
-            case TypedEnumValue c -> c;
-            case TypedColSpec c -> c;
-            case TypedColSpecArray c -> c;
-            case TypedSortInfo c -> c;
-            case TypedTypeRef c -> c;
-            case TypedTds c -> c;
-            case TypedSourceUrl c -> c;
-            case TypedTableReference c -> c;
-            case TypedPackageableRef c -> c;
-            case TypedGetAll g -> g.milestoning().isEmpty() ? g
-                    : new TypedGetAll(g.classFqn(), list(g.milestoning(), env), g.versionSweep(), g.info());
-
-            // Expressions.
-            case TypedPropertyAccess p -> new TypedPropertyAccess(
-                    rewrite(p.source(), env), p.property(), p.info());
-            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
-                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
-                            rewrite(ma.source(), env), ma.property(),
-                            list(ma.dates(), env), ma.sweep(), ma.info());
             case TypedNativeCall c -> {
                 // execute()'s RUNTIME argument is ORCHESTRATION position
                 // (engine: the router evaluates connections outside the
@@ -457,114 +373,29 @@ public final class UserCallInliner {
                 }
                 yield new TypedNativeCall(c.callee(), args, c.info());
             }
-            case TypedCollection c -> new TypedCollection(list(c.elements(), env), c.info());
-            case TypedIf i -> new TypedIf(rewrite(i.condition(), env),
-                    rewrite(i.thenBranch(), env),
-                    i.elseBranch().map(e -> rewrite(e, env)), i.info());
-            case TypedCast c -> new TypedCast(rewrite(c.source(), env), c.target(), c.info(), c.wire());
-            case TypedNewInstance ni -> {
-                Map<String, TypedSpec> props = new LinkedHashMap<>();
-                ni.properties().forEach((k, v) -> props.put(k, rewrite(v, env)));
-                yield new TypedNewInstance(ni.classFqn(), props, ni.info());
-            }
-            case com.legend.compiler.spec.typed.TypedCopyInstance cp -> {
-                Map<String, TypedSpec> ov = new LinkedHashMap<>();
-                cp.overrides().forEach((k, v) -> ov.put(k, rewrite(v, env)));
-                yield new com.legend.compiler.spec.typed.TypedCopyInstance(
-                        rewrite(cp.source(), env), cp.classFqn(), ov, cp.info());
-            }
-            case TypedNewInstanceCast nc -> new TypedNewInstanceCast(nc.classFqn(),
-                    rewrite(nc.source(), env), nc.info(), nc.targetSetId());
-            case TypedFold f -> new TypedFold(rewrite(f.source(), env),
-                    lambda(f.reducer(), env), rewrite(f.init(), env),
-                    f.strategy(), f.info());
-            case TypedFuncColSpec fc -> new TypedFuncColSpec(
-                    funcCol(fc.col(), env), fc.info());
-            case TypedFuncColSpecArray fa -> new TypedFuncColSpecArray(
-                    fa.cols().stream().map(c -> funcCol(c, env)).toList(), fa.info());
-            case TypedAggColSpec ac -> new TypedAggColSpec(aggCol(ac.col(), env), ac.info());
-            case TypedAggColSpecArray aa -> new TypedAggColSpecArray(
-                    aa.cols().stream().map(c -> aggCol(c, env)).toList(), aa.info());
-
-            // Relation operators.
-            case TypedFilter f -> new TypedFilter(rewrite(f.source(), env),
-                    lambda(f.predicate(), env), f.info());
-            case TypedMap m -> new TypedMap(rewrite(m.source(), env),
-                    lambda(m.mapper(), env), m.info());
-            case TypedProject p -> new TypedProject(rewrite(p.source(), env),
-                    funcCols(p.columns(), env), p.info());
-            case TypedExtend e -> new TypedExtend(rewrite(e.source(), env),
-                    funcCols(e.columns(), env), e.info());
-            case TypedExtendAgg e -> new TypedExtendAgg(rewrite(e.source(), env),
-                    aggCols(e.aggs(), env), e.info());
-            case TypedExtendWindow w -> new TypedExtendWindow(rewrite(w.source(), env),
-                    (TypedOver) rewrite(w.window(), env),
-                    funcCols(w.columns(), env), aggCols(w.aggs(), env), w.info());
-            case TypedOver o -> new TypedOver(o.partitions(), o.sortKeys(),
-                    o.frame().map(f -> rewrite(f, env)), o.info());
-            case TypedGroupBy g -> new TypedGroupBy(rewrite(g.source(), env),
-                    g.keys().stream().map(k -> new TypedGroupBy.GroupKey(k.column(),
-                            k.fn().map(f -> lambda(f, env)))).toList(),
-                    aggCols(g.aggs(), env), g.info());
-            case TypedAggregate a -> new TypedAggregate(rewrite(a.source(), env),
-                    aggCols(a.aggs(), env), a.info());
-            case TypedSort s -> new TypedSort(rewrite(s.source(), env), s.keys(), s.info());
-            case TypedSortBy sb -> new TypedSortBy(rewrite(sb.source(), env),
-                    lambda(sb.key(), env), sb.ascending(), sb.keyAlias(),
-                    sb.info());
-            case TypedSelect s -> new TypedSelect(rewrite(s.source(), env),
-                    s.columns(), s.info());
-            case TypedRename r -> new TypedRename(rewrite(r.source(), env),
-                    r.renames(), r.info());
-            case TypedDistinct d -> new TypedDistinct(rewrite(d.source(), env),
-                    d.columns(), d.info());
-            case TypedConcatenate c -> new TypedConcatenate(rewrite(c.left(), env),
-                    rewrite(c.right(), env), c.info());
-            case TypedLimit l -> new TypedLimit(rewrite(l.source(), env),
-                    rewrite(l.count(), env), l.info());
-            case TypedDrop d -> new TypedDrop(rewrite(d.source(), env),
-                    rewrite(d.count(), env), d.info());
-            case TypedSlice s -> new TypedSlice(rewrite(s.source(), env),
-                    rewrite(s.start(), env), rewrite(s.stop(), env), s.info());
-            case com.legend.compiler.spec.typed.TypedCollectionRelation cr ->
-                    new com.legend.compiler.spec.typed.TypedCollectionRelation(
-                            rewrite(cr.value(), env), cr.column(), cr.info());
-            case TypedFlatten f -> new TypedFlatten(rewrite(f.source(), env),
-                    f.column(), f.info());
-            case TypedPivot p -> new TypedPivot(rewrite(p.source(), env),
-                    p.pivotColumns(),
-                    p.values().stream().map(v -> rewrite(v, env)).toList(),
-                    aggCols(p.aggs(), env), p.info());
-            case TypedJoin j -> new TypedJoin(rewrite(j.left(), env),
-                    rewrite(j.right(), env), j.kind(),
-                    lambda(j.condition(), env), j.prefix(), j.frameName(), j.info());
-            case TypedAsOfJoin j -> new TypedAsOfJoin(rewrite(j.left(), env),
-                    rewrite(j.right(), env), lambda(j.match(), env),
-                    j.condition().map(c -> lambda(c, env)), j.prefix(), j.info());
-            case TypedJoinSlot js -> new TypedJoinSlot(rewrite(js.source(), env),
-                    js.alias(), rewrite(js.target(), env),
-                    lambda(js.condition(), env), js.frameName(), js.info());
-            case TypedNavigate nav -> new TypedNavigate(rewrite(nav.source(), env),
-                    nav.alias(), rewrite(nav.target(), env),
-                    lambda(nav.predicate(), env), nav.form(), nav.info());
-            case TypedFrom f -> new TypedFrom(rewrite(f.source(), env),
-                    f.mapping(), f.runtime(), f.chainMappings(),
-                    f.jsonSources(), f.info());
-            case TypedWrite w -> new TypedWrite(rewrite(w.source(), env),
-                    w.destination().map(d -> rewrite(d, env)), w.info());
-            // tree ARGS stay VERBATIM: the serialize key renders their
-            // SOURCE spelling (engine: product($bd), not the bound date);
-            // date resolution reads the let env at the resolver instead
-            // (queryLets — engine resolveMilestoningDateParams/inScopeVars)
-            case TypedGraphFetch gf -> new TypedGraphFetch(rewrite(gf.source(), env),
-                    gf.tree(), gf.info(), gf.checked());
-            case TypedSerialize sz -> new TypedSerialize(rewrite(sz.source(), env),
-                    sz.tree(), sz.config().map(c -> rewrite(c, env)), sz.info());
-            // Resolver OUTPUT vocabulary — never present pre-H, but the
-            // switch stays total so a pipeline reordering fails loud here
-            // rather than silently skipping bodies.
+            // Resolver OUTPUT vocabulary — never present pre-H; fails loud
+            // here on a pipeline reordering rather than silently rebuilding.
             case TypedSerializeGraph sg -> throw new IllegalStateException(
                     "TypedSerializeGraph reached the inliner — it runs BEFORE the store resolver");
+            // EVERY other variant is a pure structural rebuild: rewrite the
+            // children (a lambda child re-enters through the TypedLambda arm,
+            // so α-hygiene stays uniform) and reassemble through the variant's
+            // own withChildren inverse — field preservation is the VARIANT's
+            // contract, not this walker's. The hand-written arms this replaces
+            // dropped TypedAggCol.orderKey and skipped MapReduce strategy
+            // lambdas (remediation T2.1). Untouched subtrees keep identity.
+            default -> {
+                List<TypedSpec> kids = n.children();
+                List<TypedSpec> rw = list(kids, env);
+                TypedSpec out = n;
+                for (int i = 0; i < kids.size(); i++) {
+                    if (kids.get(i) != rw.get(i)) {
+                        out = n.withChildren(rw);
+                        break;
+                    }
+                }
+                yield out;
+            }
         };
     }
 
@@ -631,20 +462,4 @@ public final class UserCallInliner {
     }
 
 
-    private TypedFuncCol funcCol(TypedFuncCol c, Map<String, TypedSpec> env) {
-        return new TypedFuncCol(c.name(), lambda(c.fn(), env),
-                c.documentation());
-    }
-
-    private List<TypedFuncCol> funcCols(List<TypedFuncCol> cs, Map<String, TypedSpec> env) {
-        return cs.stream().map(c -> funcCol(c, env)).toList();
-    }
-
-    private TypedAggCol aggCol(TypedAggCol c, Map<String, TypedSpec> env) {
-        return new TypedAggCol(c.name(), lambda(c.map(), env), lambda(c.reduce(), env));
-    }
-
-    private List<TypedAggCol> aggCols(List<TypedAggCol> cs, Map<String, TypedSpec> env) {
-        return cs.stream().map(c -> aggCol(c, env)).toList();
-    }
 }
