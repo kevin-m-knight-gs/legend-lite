@@ -63,12 +63,8 @@ public final class MetamodelWalk {
 
     /** A Mapping ELEMENT reference as a metamodel handle, or null. */
     public static Object mapping(ModelContext ctx, String fqn) {
-        Object h = ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
+return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                 .orElse(null);
-        if (System.getenv("LL_TMP_DEBUG") != null) {
-            System.err.println("[mm] mapping(" + fqn + ") -> " + (h != null));
-        }
-        return h;
     }
 
     /** {@code rootClassMappingByClass} — the class's relational set. */
@@ -80,14 +76,6 @@ public final class MetamodelWalk {
                         && r.className().equals(classFqn)) {
                     return new Cm(m.ctx(), r);
                 }
-            }
-            if (System.getenv("LL_TMP_DEBUG") != null) {
-                System.err.println("[mm] rcmbc miss " + classFqn + " in "
-                        + m.mapping().classMappings().stream().map(x ->
-                                x instanceof com.legend.model.ClassMapping
-                                        .Relational r2 ? r2.className()
-                                        : x.getClass().getSimpleName())
-                                .toList());
             }
         }
         return null;
@@ -101,13 +89,6 @@ public final class MetamodelWalk {
                 if (pm.propertyName().equals(name)) {
                     out.add(new Pm(c.ctx(), pm));
                 }
-            }
-            if (System.getenv("LL_TMP_DEBUG") != null) {
-                System.err.println("[mm] pmsByName(" + name + ") -> "
-                        + out.size() + " of " + c.cm().propertyMappings()
-                                .stream().map(x -> x.propertyName()
-                                        + ":" + x.getClass().getSimpleName())
-                                .toList());
             }
             return out;
         }
@@ -222,9 +203,27 @@ public final class MetamodelWalk {
                         "contains" -> new RelationalDataType.Bit();
                 // sqlNull carries the engine's OTHER type
                 case "sqlnull" -> new RelationalDataType.Other();
+                // string transforms keep their input's type
+                case "substring", "left", "right", "trim", "ltrim",
+                        "rtrim", "toupper", "tolower", "upper", "lower" ->
+                        f.args().isEmpty() ? null
+                                : inferOp(env, f.args().get(0));
+                case "position", "length", "charindex", "locate",
+                        "indexof" -> new RelationalDataType.Integer_();
+                case "sub" -> {
+                    RelationalDataType acc2 = null;
+                    for (var arg : f.args()) {
+                        acc2 = safe(acc2, inferOp(env, arg));
+                    }
+                    yield acc2 == null
+                            ? new RelationalDataType.Integer_() : acc2;
+                }
                 // string concatenation SUMS the operand sizes (engine
                 // getSize over joinStrings/concat)
-                case "concat", "joinstrings", "group_concat" -> {
+                // joinStrings AGGREGATES: the engine assigns the fixed
+                // 4000 buffer size
+                case "joinstrings" -> new RelationalDataType.Varchar(4000);
+                case "concat", "group_concat" -> {
                     int size = 0;
                     for (var arg : f.args()) {
                         RelationalDataType at2 = inferOp(env, arg);
@@ -357,8 +356,11 @@ public final class MetamodelWalk {
         for (var s : db.schemas()) {
             all.addAll(s.tables());
         }
+        // ColumnRefs may spell schema-qualified names (default.T / S.T)
+        String bare = table.contains(".")
+                ? table.substring(table.lastIndexOf('.') + 1) : table;
         for (var t : all) {
-            if (t.name().equalsIgnoreCase(table)) {
+            if (t.name().equalsIgnoreCase(bare)) {
                 for (var c : t.columns()) {
                     if (c.name().equalsIgnoreCase(column)) {
                         return c.dataType();
@@ -373,7 +375,7 @@ public final class MetamodelWalk {
             vs.addAll(s.views());
         }
         for (var v : vs) {
-            if (v.name().equalsIgnoreCase(table)) {
+            if (v.name().equalsIgnoreCase(bare)) {
                 for (var cm : v.columnMappings()) {
                     if (cm.name().equalsIgnoreCase(column)) {
                         return inferOp(new Rop(db, env.ctx(),

@@ -825,10 +825,6 @@ final class StatementExecutor {
                     }
                 }
                 case "rootClassMappingByClass" -> {
-                    if (System.getenv("LL_TMP_DEBUG") != null) {
-                        System.err.println("[mm] rcmbc arg1="
-                                + c.args().get(1).getClass().getSimpleName());
-                    }
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
                                     .TypedPackageableRef cref) {
