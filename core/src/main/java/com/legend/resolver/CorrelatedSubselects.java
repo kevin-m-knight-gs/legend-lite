@@ -141,7 +141,7 @@ final class CorrelatedSubselects {
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
                 aj.targetPipeline(), StoreResolver.leftKind(), aj.condition(),
-                Optional.of(corrTp), jInfo);
+                Optional.of(corrTp), null, jInfo);
         String corrRowVar = "_cj";
         // audit 23: a user lambda variable named _cj would shadow-stop the
         // rewriters — bump until fresh against the pred's own names
@@ -199,7 +199,7 @@ final class CorrelatedSubselects {
                         .Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
                 aj.targetPipeline(), StoreResolver.leftKind(), aj.condition(),
-                Optional.of(corrTp), jInfo);
+                Optional.of(corrTp), null, jInfo);
         // audit 23: same _cj freshness bump as corrAggSubSource
         String cjVar = "_cj";
         Set<String> cjTaken2 = new LinkedHashSet<>();
@@ -579,7 +579,7 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
         }
         Type.RelationType jRow = new Type.RelationType(jCols);
         TypedSpec joined = new TypedJoin(pMat.pipeline(), aj.targetPipeline(),
-                StoreResolver.leftKind(), cond, Optional.of(corrTp),
+                StoreResolver.leftKind(), cond, Optional.of(corrTp), null,
                 new ExprType(jRow,
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE));
@@ -965,7 +965,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             }
             Type.RelationType widened = new Type.RelationType(cols);
             pipe = new TypedJoin(pipe, aj2.targetPipeline(), StoreResolver.leftKind(),
-                    aj2.condition(), Optional.of(aj2.prefix()),
+                    aj2.condition(), Optional.of(aj2.prefix()), null,
                     new ExprType(widened,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
             nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
@@ -1075,7 +1075,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 }
                 pipe = new TypedJoin(pipe, aj3.targetPipeline(),
                         StoreResolver.leftKind(), cond3,
-                        Optional.of(chainPrefix),
+                        Optional.of(chainPrefix), null,
                         new ExprType(new Type.RelationType(cols3),
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE));
@@ -1282,7 +1282,7 @@ CompositeChain compositeChainTarget(ClassSource cs,
                                     new Type.Param(optRow, one)),
                             new Type.Param(Type.Primitive.BOOLEAN, one)), one));
             composite = new TypedJoin(composite, slotTarget,
-                    StoreResolver.leftKind(), joinCond, Optional.of(pfx),
+                    StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
                     new ExprType(newRow, one));
             compRow = newRow;
         }

@@ -250,7 +250,7 @@ public final class Lowerer {
                 return proj;
             }
             String sub = nextAlias();
-            return SqlSelect.starOf(new SqlSource.Subselect(proj, sub))
+            return SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                     .withProjections(List.of(new SqlSelect.Projection(
                                     SqlExpr.Call.of(SqlFn.UNNEST,
                                             new SqlExpr.Column(sub, "value")),
@@ -366,7 +366,7 @@ public final class Lowerer {
                     enclosing.pop();
                 }
                 SqlSource.Join join = new SqlSource.Join(leftSide,
-                        new SqlSource.Subselect(right, nextAlias()),
+                        new SqlSource.Subselect(right, nextAlias(), null),
                         SqlSource.Join.Kind.CROSS_LATERAL,
                         null);   // CROSS JOIN takes no ON clause
                 yield SqlSelect.starOf(join)
@@ -407,7 +407,7 @@ public final class Lowerer {
                                         cr.column())),
                                 false, null, null, List.of(), null, null, List.of(),
                                 null, null, outputsOf(cr.info())),
-                        nextAlias()));
+                        nextAlias(), null));
             }
 
             case TypedRename r -> rename(r);
@@ -459,7 +459,7 @@ public final class Lowerer {
             case TypedProject p -> project(relation(p.source()), p.columns(), p.info());
 
             case TypedConcatenate c -> SqlSelect.starOf(
-                    new SqlSource.Subselect(union(c), nextAlias()));
+                    new SqlSource.Subselect(union(c), nextAlias(), null));
 
             case TypedExtendWindow w -> extendWindow(w);
 
@@ -879,7 +879,7 @@ public final class Lowerer {
                 : List.of(new SqlSelect.SortKey(
                         scalar(last(a.orderKey()),
                                 (v, name) -> resolveOrThrow(base, name)),
-                        a.orderAsc(), null));
+                        a.orderAsc(), null, null));
         // Reducer EXTRA arguments (joinStrings('_') carries its separator;
         // percentile carries p [+ ascending, continuous]): literal args ride
         // along after the value; variable refs are the reducer's own
@@ -957,10 +957,10 @@ public final class Lowerer {
                 // Weighted average: SUM(v*w)/SUM(w) — no single SQL reducer.
                 return SqlExpr.Call.of(SqlFn.DIVIDE,
                         new SqlAgg.Reducer("SUM",
-                                List.of(SqlExpr.Call.of(SqlFn.TIMES, first, second)), false),
-                        new SqlAgg.Reducer("SUM", List.of(second), false));
+                                List.of(SqlExpr.Call.of(SqlFn.TIMES, first, second)), false, java.util.List.of()),
+                        new SqlAgg.Reducer("SUM", List.of(second), false, java.util.List.of()));
             }
-            return new SqlAgg.Reducer(fn, List.of(first, second), false);
+            return new SqlAgg.Reducer(fn, List.of(first, second), false, java.util.List.of());
         }
         if ("__WAVG__".equals(fn)) {
             throw new IllegalStateException(
@@ -981,14 +981,14 @@ public final class Lowerer {
                         "composed aggregate '" + call.callee().qualifiedName()
                         + "' over a bare group variable — no value column");
             }
-            return new SqlAgg.Reducer(fn, List.of(), false);
+            return new SqlAgg.Reducer(fn, List.of(), false, java.util.List.of());
         }
         // count-of-rows desugar (x|$x -> x|1): count(*), count(1) on UNIONs
         if ("COUNT".equals(fn) && mapBody instanceof TypedCInteger one
                 && one.value().longValue() == 1 && extra.isEmpty()
                 && !distinctValues && valueCast == null
                 && !Fold.unionBacked(base.from())) {
-            return new SqlAgg.Reducer(fn, List.of(), false);
+            return new SqlAgg.Reducer(fn, List.of(), false, java.util.List.of());
         }
         // CALENDAR native in map position: the value is the CASE over the
         // pre-joined calendar aliases; the fn's VALUE argument aggregates
@@ -999,7 +999,7 @@ public final class Lowerer {
                     (v, name) -> resolveOrThrow(base, name));
             return new SqlAgg.Reducer(fn,
                     List.of(CalendarAgg.caseValue(calCall, calendar, calVal)),
-                    false);
+                    false, java.util.List.of());
         }
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
@@ -1015,8 +1015,8 @@ public final class Lowerer {
                         + " SQL for a non-group call)");
             }
             return SqlExpr.Call.of(SqlFn.EQUAL,
-                    new SqlAgg.Reducer("COUNT", List.of(value), true),
-                    new SqlAgg.Reducer("COUNT", List.of(value), false));
+                    new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
+                    new SqlAgg.Reducer("COUNT", List.of(value), false, java.util.List.of()));
         }
         // uniqueValueOnly over a group (collectionExtension.pure): the
         // single distinct value, else empty — CASE WHEN COUNT(DISTINCT x)
@@ -1032,9 +1032,9 @@ public final class Lowerer {
             }
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
-                            new SqlAgg.Reducer("COUNT", List.of(value), true),
+                            new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
                             new SqlExpr.IntLit(1)),
-                    new SqlAgg.Reducer("MAX", List.of(value), false))),
+                    new SqlAgg.Reducer("MAX", List.of(value), false, java.util.List.of()))),
                     uvDefault);
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL
@@ -1047,7 +1047,7 @@ public final class Lowerer {
                     SqlExpr.Call.of(SqlFn.PLUS,
                             new SqlExpr.Cast(
                                     SqlExpr.Call.of(SqlFn.HASH,
-                                            new SqlAgg.Reducer("LIST", List.of(value), false)),
+                                            new SqlAgg.Reducer("LIST", List.of(value), false, java.util.List.of())),
                                     SqlType.Scalar.HUGEINT),
                             new SqlExpr.IntLit(Long.MIN_VALUE)),
                     SqlType.Scalar.BIGINT);
@@ -1500,11 +1500,11 @@ public final class Lowerer {
         if (attempt(() -> scalar(last(sb.key()), (v, name) -> resolveOrThrow(fin1, name)))
                 instanceof Resolution.Resolved r) {
             return base.withOrderBy(List.of(
-                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null)));
+                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null)));
         }
         SqlSelect iso = isolate(base);
         SqlExpr key = scalar(last(sb.key()), (v, name) -> resolveOrThrow(iso, name));
-        return iso.withOrderBy(List.of(new SqlSelect.SortKey(key, sb.ascending(), null)));
+        return iso.withOrderBy(List.of(new SqlSelect.SortKey(key, sb.ascending(), null, null)));
     }
 
     private SqlSelect sortOnto(SqlSelect base, TypedSort s) {
@@ -1515,7 +1515,7 @@ public final class Lowerer {
                 throw new IllegalStateException("sort key '" + k.column()
                         + "' cannot be resolved after isolation");
             }
-            keys.add(new SqlSelect.SortKey(e, k.ascending(), null));
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), null, null));
         }
         return base.withOrderBy(keys);
     }
@@ -1576,7 +1576,7 @@ public final class Lowerer {
                 "meta::pure::functions::relation::JoinKind", "LEFT", nav.info());
         return join(new TypedJoin(nav.source(),
                 nav.target(), leftKind, nav.predicate(),
-                Optional.of(navSlotPrefix(alias)), flatInfo));
+                Optional.of(navSlotPrefix(alias)), null, flatInfo));
     }
 
     /** THE navigate flat-column convention ({@code slot_COL}): mint and
@@ -1721,7 +1721,7 @@ public final class Lowerer {
      * bare join TREE (SQL joins are left-associative, so chains stay flat).
      */
     private SqlSource asLeftJoinSide(SqlSelect side) {
-        return isBareSelect(side) ? side.from() : new SqlSource.Subselect(side, nextAlias());
+        return isBareSelect(side) ? side.from() : new SqlSource.Subselect(side, nextAlias(), null);
     }
 
     /**
@@ -1848,7 +1848,7 @@ public final class Lowerer {
         for (TypedSort.TypedSortKey k : over.sortKeys()) {
             keys.add(new SqlSelect.SortKey(resolveOrThrow(base, k.column()), k.ascending(),
                     k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
-                            : SqlSelect.SortKey.NullOrder.NULLS_FIRST));
+                            : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
         return new Over(parts, keys, over.frame().map(this::frame).orElse(null));
     }
@@ -2033,7 +2033,7 @@ public final class Lowerer {
                     && call.args().size() == 5
                     && call.args().get(3) instanceof TypedLambda mapFn
                     && call.args().get(4) instanceof TypedLambda aggFn -> {
-                return Windows.windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn)),
+                return Windows.windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn, null, true)),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
             // zScore(p,w,r,~col): COMPOSED window expression — real zScore.pure
@@ -2046,10 +2046,10 @@ public final class Lowerer {
                             instanceof TypedColSpec zcs -> {
                 SqlExpr col = resolveOrThrow(base, zcs.name());
                 SqlExpr avg = new SqlExpr.WindowCall(
-                        new SqlAgg.Reducer("AVG", List.of(col), false),
+                        new SqlAgg.Reducer("AVG", List.of(col), false, java.util.List.of()),
                         over.partitionBy(), over.orderBy(), over.frame());
                 SqlExpr std = new SqlExpr.WindowCall(
-                        new SqlAgg.Reducer("STDDEV_POP", List.of(col), false),
+                        new SqlAgg.Reducer("STDDEV_POP", List.of(col), false, java.util.List.of()),
                         over.partitionBy(), over.orderBy(), over.frame());
                 return SqlExpr.Call.of(SqlFn.DIVIDE,
                         SqlExpr.Call.of(SqlFn.MINUS, col, avg),
@@ -2069,7 +2069,7 @@ public final class Lowerer {
                                 // resolve through the select — a folded
                                 // project's alias substitutes its expression
                                 List.of(resolveOrThrow(base, cs.name())),
-                                false),
+                                false, java.util.List.of()),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
             case TypedNativeCall call when Windows.lookup(call.callee()) != null -> {
@@ -2614,9 +2614,9 @@ public final class Lowerer {
                 }
                 SqlSelect src = relation(w.source());
                 SqlSelect count = SqlSelect.starOf(
-                                new SqlSource.Subselect(src, nextAlias()))
+                                new SqlSource.Subselect(src, nextAlias(), null))
                         .withProjections(List.of(new SqlSelect.Projection(
-                                        new SqlAgg.Reducer("COUNT", List.of(), false), null)),
+                                        new SqlAgg.Reducer("COUNT", List.of(), false, java.util.List.of()), null)),
                                 List.of(new OutputCol("count",
                                         SqlType.Scalar.BIGINT, false)));
                 yield new SqlExpr.ScalarSubquery(count);
@@ -2653,10 +2653,10 @@ public final class Lowerer {
                                                 m2.info().type(), colMult2))),
                                 Multiplicity.Bounded.ONE)));
                 String sub = nextAlias();
-                SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub))
+                SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                         .withProjections(List.of(new SqlSelect.Projection(
                                         new SqlAgg.Reducer("LIST", List.of(
-                                                new SqlExpr.Column(sub, "value")), false),
+                                                new SqlExpr.Column(sub, "value")), false, java.util.List.of()),
                                         null)),
                                 List.of(new OutputCol("value",
                                         SqlType.Scalar.VARCHAR, true)));
@@ -2812,7 +2812,7 @@ public final class Lowerer {
             return (SqlSelect) branches.get(0);
         }
         return SqlSelect.starOf(new SqlSource.Subselect(
-                new SqlUnion(branches, true, outputs), nextAlias()));
+                new SqlUnion(branches, true, outputs), nextAlias(), null));
     }
 
     private SqlSelect instanceSelect(TypedNewInstance inst,
@@ -2886,7 +2886,7 @@ public final class Lowerer {
                                 false, null, null, List.of(), null, null, List.of(), null, null,
                                 List.of(new OutputCol("elem",
                                         SqlType.Scalar.VARCHAR, true)));
-                        SqlSource right = new SqlSource.Subselect(unnest, alias);
+                        SqlSource right = new SqlSource.Subselect(unnest, alias, null);
                         src = src == null
                                 ? anchorJoin(right)
                                 : new SqlSource.Join(src, right,
@@ -3025,7 +3025,7 @@ public final class Lowerer {
                                     new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null),
                             new SqlSelect.Projection(key, keyName)),
                     keyedOutputs);
-            inner = new SqlSource.Subselect(keyed, nextAlias());
+            inner = new SqlSource.Subselect(keyed, nextAlias(), null);
             on = List.of(Fold.sourceColumn(inner, keyName));
         }
         List<SqlSource.Pivot.Using> usings = new ArrayList<>();
@@ -3406,7 +3406,7 @@ public final class Lowerer {
     }
 
     SqlSelect isolate(SqlSelect s) {
-        return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias()));
+        return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias(), null));
     }
 
     private static TypedSpec last(TypedLambda lambda) {

@@ -68,9 +68,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                     .collect(Collectors.joining(", "))).append(")");
         }
         sb.append(" USING ").append(p.usings().stream()
-                .map(u -> reducer(new SqlAgg.Reducer(u.agg().fn(),
-                        u.agg().args().stream().map(DuckDb::unqualify).toList(),
-                        u.agg().distinct()))
+                .map(u -> reducer((SqlAgg.Reducer) unqualify(u.agg()))
                         // real pure names pivot columns value__|__agg; DuckDB
                         // joins value + '_' + alias, so the alias carries the
                         // '_|__agg' tail.
@@ -106,7 +104,10 @@ public final class DuckDb extends AnsiSqlRenderer {
                                     .map(DuckDb::unqualify).toList());
             case SqlAgg.Reducer r -> new SqlAgg.Reducer(r.fn(),
                     r.args().stream().map(DuckDb::unqualify).toList(),
-                    r.distinct());
+                    r.distinct(),
+                    r.orderBy().stream().map(k -> new SqlSelect.SortKey(
+                            unqualify(k.expr()), k.ascending(), k.nullOrder(),
+                            k.outputName())).toList());
             case SqlExpr.FoldCall f -> new SqlExpr.FoldCall(
                     unqualify(f.source()), f.lambda(), unqualify(f.init()),
                     f.accIsList(), f.homogeneous());

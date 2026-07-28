@@ -1333,7 +1333,7 @@ public final class NameResolver {
             if (r == ke.value()) {
                 out.put(e.getKey(), ke);
             } else {
-                out.put(e.getKey(), new KeyExpression(r, ke.isAdd()));
+                out.put(e.getKey(), ke.withValue(r));
                 changed = true;
             }
         }

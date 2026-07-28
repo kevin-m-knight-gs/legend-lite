@@ -69,7 +69,7 @@ final class JoinChecker {
             throw new TypeInferenceException(
                     "join expects (rel1, rel2, JoinKind, {t,v|cond} [, 'prefix'])");
         }
-        return new TypedJoin(a.args().get(0), a.args().get(1), kind, cond, Optional.empty(), a.out());
+        return new TypedJoin(a.args().get(0), a.args().get(1), kind, cond, Optional.empty(), null, a.out());
     }
 
     /** ENGINE-LEGACY tolerance: a TDS join condition's {@code get*('col')}
@@ -400,7 +400,7 @@ final class JoinChecker {
 
         // Bespoke output: left columns + EVERY right column renamed prefix+name.
         Type.RelationType schema = Checkers.prefixedUnion(left, right, prefix, c -> true);
-        return new TypedJoin(left, right, kind, cond, Optional.of(prefix),
+        return new TypedJoin(left, right, kind, cond, Optional.of(prefix), null,
                 new ExprType(schema, sig.returnMultiplicity()));
     }
 }

@@ -49,20 +49,12 @@ public record KeyExpression(ValueSpecification value, boolean isAdd, boolean isL
         Objects.requireNonNull(value, "value");
     }
 
-    /**
-     * Convenience constructor for the common {@code =} (assign) case
-     * binding a public property.
-     */
-    public KeyExpression(ValueSpecification value) {
-        this(value, false, false);
-    }
+    // NO short overloads: a defaulted isLocal silently demoted a
+    // mapping-private (+prop) declaration to a public property at rebuild
+    // sites (remediation T2.2); every construction names every field.
 
-    /**
-     * Backwards-compatible two-arg constructor: assign / add semantics
-     * for a public property. Use the three-arg form to mark a local
-     * (mapping-private) property declaration ({@code +name=value}).
-     */
-    public KeyExpression(ValueSpecification value, boolean isAdd) {
-        this(value, isAdd, false);
+    /** Same binding semantics over a transformed value (rebuild sites). */
+    public KeyExpression withValue(ValueSpecification newValue) {
+        return new KeyExpression(newValue, isAdd, isLocal);
     }
 }

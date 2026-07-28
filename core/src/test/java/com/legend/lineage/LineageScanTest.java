@@ -66,7 +66,7 @@ class LineageScanTest {
                 new SqlSelect.Projection(col("t0", "ID"), "id")),
                 new SqlSource.Table("T", "t0", List.of()), null);
         SqlSource from = new SqlSource.Join(
-                new SqlSource.Subselect(inner, "t2"),
+                new SqlSource.Subselect(inner, "t2", null),
                 new SqlSource.Table("U", "t3", List.of()),
                 SqlSource.Join.Kind.INNER,
                 eq(col("t2", "id"), col("t3", "fk")));
@@ -94,7 +94,7 @@ class LineageScanTest {
                 List.of(new SqlSelect.Projection(col("t4", "c"), "c")),
                 new SqlSource.Subselect(
                         new SqlUnion(List.of(left, right), true, List.of()),
-                        "t4"),
+                        "t4", null),
                 null);
         assertEquals(List.of(
                 "A.x <TableAliasColumn>",

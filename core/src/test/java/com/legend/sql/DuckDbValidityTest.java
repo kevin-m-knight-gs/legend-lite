@@ -108,7 +108,7 @@ class DuckDbValidityTest {
                 new SqlAgg.RankingFn("ROW_NUMBER", List.of()),
                 List.of(col("FIRM_ID")),
                 List.of(new SqlSelect.SortKey(col("AGE"), false,
-                        SqlSelect.SortKey.NullOrder.NULLS_FIRST)),
+                        SqlSelect.SortKey.NullOrder.NULLS_FIRST, null)),
                 null);
         SqlExpr.WindowCall running = new SqlExpr.WindowCall(
                 SqlAgg.Reducer.of("SUM", col("AGE")),
@@ -183,7 +183,7 @@ class DuckDbValidityTest {
                 false,
                 new SqlSource.Subselect(new SqlUnion(List.of(
                         SqlSelect.starOf(T_PERSON), SqlSelect.starOf(T_PERSON)), false, List.of()),
-                        "u"),
+                        "u", null),
                 null, List.of(), null, null, List.of(), null, null, List.of()))).longValue(),
                 "UNION dedups 3 rows; UNION ALL would give 6");
 

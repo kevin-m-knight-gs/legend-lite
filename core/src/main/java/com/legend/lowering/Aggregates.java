@@ -135,12 +135,12 @@ public final class Aggregates {
     static SqlExpr qdiscDesc(SqlExpr value, SqlExpr p) {
         return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.LIST_GET,
                 SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
-                        new SqlAgg.Reducer("LIST", java.util.List.of(value), false)),
+                        new SqlAgg.Reducer("LIST", java.util.List.of(value), false, java.util.List.of())),
                 new SqlExpr.Cast(
                         SqlExpr.Call.of(SqlFn.CEILING,
                                 SqlExpr.Call.of(SqlFn.TIMES, p,
                                         new SqlAgg.Reducer("COUNT",
-                                                java.util.List.of(value), false))),
+                                                java.util.List.of(value), false, java.util.List.of()))),
                         SqlType.Scalar.BIGINT)),
                 SqlType.Scalar.DOUBLE);
     }

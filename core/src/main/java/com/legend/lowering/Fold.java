@@ -100,7 +100,7 @@ final class Fold {
                 red.distinct(), java.util.List.of(
                         new com.legend.sql.SqlSelect.SortKey(
                                 new com.legend.sql.SqlExpr.Column(
-                                        sub.alias(), "u_ord"), true, null)));
+                                        sub.alias(), "u_ord"), true, null, null)));
         return new OrderedAgg(
                 base.withFrom(replaceSub(base.from(), sub, repl)), red2);
     }

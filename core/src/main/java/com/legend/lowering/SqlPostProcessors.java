@@ -169,7 +169,8 @@ public final class SqlPostProcessors {
                 s.having() == null ? null : expr(s.having(), m),
                 s.qualify() == null ? null : expr(s.qualify(), m),
                 s.orderBy().stream().map(k -> new SqlSelect.SortKey(
-                        expr(k.expr(), m), k.ascending(), k.nullOrder()))
+                        expr(k.expr(), m), k.ascending(), k.nullOrder(),
+                        k.outputName()))
                         .toList(),
                 s.limit(), s.offset(), s.outputs());
     }

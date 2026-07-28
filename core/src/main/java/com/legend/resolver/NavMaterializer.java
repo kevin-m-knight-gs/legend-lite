@@ -556,7 +556,7 @@ final class NavMaterializer {
             }
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
                     aj.targetPipeline(), StoreResolver.leftKind(),
-                    aj.condition(), java.util.Optional.of(aj.prefix()),
+                    aj.condition(), java.util.Optional.of(aj.prefix()), null,
                     new com.legend.compiler.element.type.ExprType(
                             new com.legend.compiler.element.type.Type
                                     .RelationType(cols),
@@ -619,7 +619,7 @@ final class NavMaterializer {
             }
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
                     xPipe, StoreResolver.leftKind(),
-                    step.predicate(), java.util.Optional.of(xPrefix),
+                    step.predicate(), java.util.Optional.of(xPrefix), null,
                     new com.legend.compiler.element.type.ExprType(
                             new com.legend.compiler.element.type.Type
                                     .RelationType(xCols),
@@ -705,7 +705,7 @@ final class NavMaterializer {
             }
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe, sub2,
                     StoreResolver.leftKind(), firstJoin.condition(),
-                    java.util.Optional.of(prefix2),
+                    java.util.Optional.of(prefix2), null,
                     new com.legend.compiler.element.type.ExprType(
                             new com.legend.compiler.element.type.Type
                                     .RelationType(cols),

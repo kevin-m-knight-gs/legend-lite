@@ -430,7 +430,7 @@ final class Pipelines {
                         new TypedEnumValue(JOIN_KIND_FQN, "LEFT",
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
-                        cond, Optional.of(prefix),
+                        cond, Optional.of(prefix), null,
                         new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
             }
             case TypedFilter f -> {

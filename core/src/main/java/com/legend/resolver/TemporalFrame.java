@@ -1697,7 +1697,8 @@ final class TemporalFrame {
                             j.right() instanceof com.legend.compiler.spec.typed
                                     .TypedTableReference rt
                                     ? wrap.apply(rt) : j.right(),
-                            j.kind(), j.condition(), j.prefix(), j.info());
+                            j.kind(), j.condition(), j.prefix(),
+                            j.frameName(), j.info());
             case TypedJoinSlot js ->
                     new TypedJoinSlot(
                             replaceScan(js.source(), wrap), js.alias(), js.target(),

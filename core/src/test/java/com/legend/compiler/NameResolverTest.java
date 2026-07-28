@@ -364,7 +364,7 @@ class NameResolverTest {
     void valueSpecNewInstanceClassNameAndTypeArgsResolved() {
         var ni = new NewInstance("Person",
                 List.of(nameRef("Firm")),
-                Map.of("name", new KeyExpression(new CString("alice"), false)));
+                Map.of("name", new KeyExpression(new CString("alice"), false, false)));
         var r = (NewInstance) NameResolver.resolve(ni, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.className());
         assertEquals("model::Firm",
@@ -408,7 +408,7 @@ class NameResolverTest {
                 "Person", "p_set", null, true,
                 new TableReference("DB", "PersonTbl"),
                 null, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
@@ -464,7 +464,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "PersonTbl"),
                 null, false, List.of(), List.of(), List.of(col),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -482,7 +482,7 @@ class NameResolverTest {
                 "model::Sub", "s_set", null, true,
                 new TableReference("store::DB", "T"),
                 null, false, List.of(), List.of(), List.of(lp),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
@@ -865,7 +865,7 @@ class NameResolverTest {
                 className, "s_set", null, true,
                 new TableReference("DB", "T"),
                 null, false, List.of(), List.of(), List.of(pm),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         return new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
     }
@@ -1075,7 +1075,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1090,7 +1090,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1110,7 +1110,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1228,7 +1228,7 @@ class NameResolverTest {
         // ^Person(friend = ^Firm(...))
         var inner = new NewInstance("Firm", List.of(), Map.of());
         var outer = new NewInstance("Person", List.of(),
-                Map.of("friend", new KeyExpression(inner, false)));
+                Map.of("friend", new KeyExpression(inner, false, false)));
         var r = (NewInstance) NameResolver.resolve(outer, NameResolver.Scope.of(WILDCARD_MODEL, FQNS));
         assertEquals("model::Person", r.className());
         var rInner = (NewInstance) r.properties().get("friend").value();
@@ -1301,7 +1301,7 @@ class NameResolverTest {
                 "Person", "p_set", "parent_set", true,
                 new TableReference("DB", "T"),
                 null, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, imp, trickyFqns);
@@ -1674,7 +1674,7 @@ class NameResolverTest {
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "g")),  // groupBy
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "pk")), // primaryKey
                 List.of(pmCol, pmJoin),
-                /* sourceUrl */ null);
+                /* sourceUrl */ null, java.util.Map.of());
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, both, FQNS);

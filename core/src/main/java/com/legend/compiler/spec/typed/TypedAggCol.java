@@ -16,10 +16,10 @@ import java.util.Objects;
 public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce,
         TypedLambda orderKey, boolean orderAsc) {
 
-    /** Un-ordered aggregation (the common case). */
-    public TypedAggCol(String name, TypedLambda map, TypedLambda reduce) {
-        this(name, map, reduce, null, true);
-    }
+    // NO short overload: a defaulted orderKey silently turned an ordered
+    // aggregate into an unordered one at rebuild sites (remediation T2.2 —
+    // the inliner's aggCol() was a live instance); every construction
+    // names every field.
 
     public TypedAggCol {
         Objects.requireNonNull(name, "name");

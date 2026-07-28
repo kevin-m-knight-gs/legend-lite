@@ -87,6 +87,8 @@ public final class Bindings {
         Bindings c = new Bindings();
         c.types.putAll(types);
         c.mults.putAll(mults);
+        c.rigid.addAll(rigid);
+        c.contravariantDepth = contravariantDepth;
         return c;
     }
 }

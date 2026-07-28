@@ -46,7 +46,7 @@ final class ScalarStats {
                                 new SqlExpr.StringLit(e.getValue()),
                                 args.get(0)))
                         : new SqlAgg.Reducer(e.getValue(),
-                                List.of(args.get(0)), false));
+                                List.of(args.get(0)), false, java.util.List.of()));
             }
         }
     }

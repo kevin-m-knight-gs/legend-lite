@@ -22,13 +22,11 @@ public record TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
                         TypedLambda condition, java.util.Optional<String> prefix,
                         String frameName, ExprType info) implements TypedSpec {
 
-    /** frameName: the RIGHT side's derived-table identity (a view-backed
-     * target's view name) — null for anonymous targets. */
-    public TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
-            TypedLambda condition, java.util.Optional<String> prefix,
-            ExprType info) {
-        this(left, right, kind, condition, prefix, null, info);
-    }
+    // frameName: the RIGHT side's derived-table identity (a view-backed
+    // target's view name) — null for anonymous targets. NO short overload:
+    // a defaulted frameName silently anonymized view-backed targets at
+    // rebuild sites (remediation T2.2); every construction names every
+    // field.
 
     @Override
     public List<TypedSpec> children() {

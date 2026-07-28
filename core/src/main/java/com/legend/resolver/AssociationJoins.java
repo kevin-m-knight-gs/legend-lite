@@ -809,7 +809,7 @@ final class AssociationJoins {
             basePipe = new com.legend.compiler.spec.typed.TypedJoin(
                     basePipe, aj2.targetPipeline(),
                     StoreResolver.leftKind(), aj2.condition(),
-                    java.util.Optional.of(pfx),
+                    java.util.Optional.of(pfx), null,
                     new ExprType(new Type.RelationType(wcols),
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE));

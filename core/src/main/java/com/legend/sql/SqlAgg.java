@@ -20,13 +20,17 @@ public sealed interface SqlAgg {
     record Reducer(String fn, List<SqlExpr> args, boolean distinct,
             List<SqlSelect.SortKey> orderBy) implements SqlAgg, SqlExpr {
 
-        /** Order-insensitive aggregate (the common case). */
-        public Reducer(String fn, List<SqlExpr> args, boolean distinct) {
-            this(fn, args, distinct, List.of());
-        }
+        // NO short overload: a defaulted orderBy silently dropped an ordered
+        // aggregate's ORDER BY at rebuild sites (remediation T2.2); every
+        // construction names every field.
 
         public static Reducer of(String fn, SqlExpr... args) {
-            return new Reducer(fn, List.of(args), false);
+            return new Reducer(fn, List.of(args), false, List.of());
+        }
+
+        /** Same aggregate over transformed arguments (rebuild sites). */
+        public Reducer withArgs(List<SqlExpr> newArgs) {
+            return new Reducer(fn, newArgs, distinct, orderBy);
         }
     }
 

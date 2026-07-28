@@ -51,9 +51,9 @@ public sealed interface SqlSource {
     record Subselect(SqlQuery inner, String alias, String frameName)
             implements SqlSource {
 
-        public Subselect(SqlQuery inner, String alias) {
-            this(inner, alias, null);
-        }
+        // NO short overload: a defaulted frameName silently anonymized a
+        // view frame at rebuild sites (remediation T2.2); every
+        // construction names every field.
 
         @Override
         public List<OutputCol> outputs() {

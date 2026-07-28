@@ -21,10 +21,9 @@ import java.util.List;
 public record TypedCast(TypedSpec source, Type target, ExprType info,
         boolean wire) implements TypedSpec {
 
-    /** An ordinary (user-written / synth-structural) cast. */
-    public TypedCast(TypedSpec source, Type target, ExprType info) {
-        this(source, target, info, false);
-    }
+    // NO short overload: a defaulted wire flag re-founded the user-cast vs
+    // conformance-cast provenance at rebuild sites (remediation T2.2);
+    // every construction names every field.
 
     @Override
     public List<TypedSpec> children() {

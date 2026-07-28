@@ -522,7 +522,11 @@ final class SyntheticHeads {
                             gb.aggs().stream().map(a ->
                                     new TypedAggCol(a.name(), (TypedLambda)
                                             liftFilteredHeads(a.map(), enabled),
-                                            a.reduce()))
+                                            a.reduce(),
+                                            a.orderKey() == null ? null
+                                                    : (TypedLambda) liftFilteredHeads(
+                                                            a.orderKey(), enabled),
+                                            a.orderAsc()))
                                     .toList(),
                             gb.info());
             default -> n;
@@ -954,7 +958,10 @@ final class SyntheticHeads {
                             k.column(), k.fn().map(fn -> (TypedLambda) f.apply(fn))))
                             .toList(),
                     gb.aggs().stream().map(a -> new TypedAggCol(a.name(),
-                            (TypedLambda) f.apply(a.map()), a.reduce()))
+                            (TypedLambda) f.apply(a.map()), a.reduce(),
+                            a.orderKey() == null ? null
+                                    : (TypedLambda) f.apply(a.orderKey()),
+                            a.orderAsc()))
                             .toList(),
                     gb.info());
             case TypedSortBy sb -> new TypedSortBy(f.apply(sb.source()),

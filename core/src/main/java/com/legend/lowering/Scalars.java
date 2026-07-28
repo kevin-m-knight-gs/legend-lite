@@ -843,7 +843,7 @@ final class Scalars {
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v")),
                                 false, null, null, List.of(), null, null, List.of(),
                                 null, null, List.of());
-                        var src = new SqlSource.Subselect(inner, "_mx");
+                        var src = new SqlSource.Subselect(inner, "_mx", null);
                         var outer = new SqlSelect(List.of(
                                 new SqlSelect.Projection(
                                         new SqlExpr.OrderedListAgg(
@@ -1712,9 +1712,9 @@ final class Scalars {
                             new SqlSelect.Projection(
                                     new SqlAgg.Reducer(e.getValue(),
                                             List.of(new SqlExpr.Column(null, "a"),
-                                                    new SqlExpr.Column(null, "b")), false),
+                                                    new SqlExpr.Column(null, "b")), false, java.util.List.of()),
                                     null)),
-                            false, new SqlSource.Subselect(inner, "_uz"),
+                            false, new SqlSource.Subselect(inner, "_uz", null),
                             null, List.of(), null, null, List.of(), null, null, List.of());
                     // MISMATCHED lengths would zip-pad with NULLs and the
                     // reducer would silently drop the unpaired tail (audit:
@@ -2850,12 +2850,12 @@ final class Scalars {
                                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
                                         new SqlExpr.IntLit(1)))), "i")),
                 false, null, null, List.of(), null, null, List.of(), null, null, List.of());
-        var src = new SqlSource.Subselect(inner, "_cx");
+        var src = new SqlSource.Subselect(inner, "_cx", null);
         var outer = new SqlSelect(List.of(
                 new SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),
                 false, src, null, List.of(), null, null,
                 List.of(new SqlSelect.SortKey(keyOverElem, !max,
-                                SqlSelect.SortKey.NullOrder.NULLS_LAST),
+                                SqlSelect.SortKey.NullOrder.NULLS_LAST, null),
                         SqlSelect.SortKey.asc(new SqlExpr.Column("_cx", "i"))),
                 1L, null, List.of());
         return new SqlExpr.ScalarSubquery(outer);

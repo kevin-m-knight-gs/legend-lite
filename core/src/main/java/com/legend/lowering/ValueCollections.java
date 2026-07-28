@@ -35,10 +35,10 @@ final class ValueCollections {
     /** {@code SELECT LIST(col)} over {@code rel} — the single-column
      * value collection. */
     static SqlSelect columnList(SqlSelect rel, String col, String sub) {
-        return SqlSelect.starOf(new SqlSource.Subselect(rel, sub))
+        return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer("LIST", List.of(
-                                        new SqlExpr.Column(sub, col)), false),
+                                        new SqlExpr.Column(sub, col)), false, java.util.List.of()),
                                 null)),
                         List.of(new OutputCol(col, SqlType.Scalar.VARCHAR,
                                 true)));
@@ -56,12 +56,12 @@ final class ValueCollections {
             cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
                     new SqlExpr.Column(sub, c.name())));
         }
-        return SqlSelect.starOf(new SqlSource.Subselect(rel, sub))
+        return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 SqlExpr.Call.of(SqlFn.LIST_FLATTEN,
                                         new SqlAgg.Reducer("LIST", List.of(
                                                 new SqlExpr.ArrayLit(cells)),
-                                                false)),
+                                                false, java.util.List.of())),
                                 null)),
                         List.of(new OutputCol("value", SqlType.Scalar.VARCHAR,
                                 true)));

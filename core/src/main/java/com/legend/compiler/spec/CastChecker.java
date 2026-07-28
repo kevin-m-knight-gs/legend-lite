@@ -37,6 +37,6 @@ final class CastChecker {
                         instanceof com.legend.compiler.element.type.Type.RelationType) {
             return a.args().get(0);
         }
-        return new TypedCast(a.args().get(0), ref.target(), a.out());
+        return new TypedCast(a.args().get(0), ref.target(), a.out(), false);
     }
 }

@@ -1397,7 +1397,7 @@ public final class MappingNormalizer {
                 }
                 M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
                 fields.put(pb.propertyName(),
-                        new KeyExpression(m2mPropertyValue(pb, tgt, md, model, cycleStack)));
+                        new KeyExpression(m2mPropertyValue(pb, tgt, md, model, cycleStack), false, false));
             }
             return new AppliedFunction("map", List.of(source,
                     new LambdaFunction(List.of(srcBind),
@@ -1853,7 +1853,7 @@ public final class MappingNormalizer {
                     ? new AppliedFunction("to", List.of(get,
                             new TypeAnnotation.Named(new TypeExpression.NameRef(nr.name()))))
                     : get;
-            fields.put(prop.name(), new KeyExpression(value));
+            fields.put(prop.name(), new KeyExpression(value, false, false));
         }
         return new AppliedFunction("map", List.of(source,
                 new LambdaFunction(List.of(rowBind),

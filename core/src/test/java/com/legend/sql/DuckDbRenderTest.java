@@ -163,7 +163,7 @@ class DuckDbRenderTest {
     void subselectIndents() {
         SqlSelect inner = SqlSelect.starOf(T_PERSON)
                 .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)));
-        SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(inner, "t1"))
+        SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(inner, "t1", null))
                 .withLimit(5L);
         assertEquals("""
                 SELECT *
@@ -198,7 +198,7 @@ class DuckDbRenderTest {
                 new SqlAgg.RankingFn("ROW_NUMBER", List.of()),
                 List.of(col("FIRM")),
                 List.of(new SqlSelect.SortKey(col("AGE"), false,
-                        SqlSelect.SortKey.NullOrder.NULLS_FIRST)),
+                        SqlSelect.SortKey.NullOrder.NULLS_FIRST, null)),
                 null);
         SqlExpr.WindowCall running = new SqlExpr.WindowCall(
                 SqlAgg.Reducer.of("SUM", col("AGE")),
@@ -262,7 +262,7 @@ class DuckDbRenderTest {
                 new SqlExpr.StringLit("minor"));
         assertEquals("CASE WHEN t0.AGE > 18 THEN 'adult' ELSE 'minor' END", renderExpr(c));
         assertEquals("COUNT(DISTINCT t0.FIRM)",
-                renderExpr(new SqlAgg.Reducer("COUNT", List.of(col("FIRM")), true)));
+                renderExpr(new SqlAgg.Reducer("COUNT", List.of(col("FIRM")), true, java.util.List.of())));
     }
 
     @Test
@@ -309,8 +309,8 @@ class DuckDbRenderTest {
     void depthTwoIndent() {
         SqlSelect inner = SqlSelect.starOf(T_PERSON)
                 .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)));
-        SqlSelect mid = SqlSelect.starOf(new SqlSource.Subselect(inner, "t1")).withLimit(5L);
-        SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(mid, "t2")).withLimit(3L);
+        SqlSelect mid = SqlSelect.starOf(new SqlSource.Subselect(inner, "t1", null)).withLimit(5L);
+        SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(mid, "t2", null)).withLimit(3L);
         assertEquals("""
                 SELECT *
                 FROM (

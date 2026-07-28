@@ -1796,7 +1796,7 @@ final class Typer {
             TypedLambda map = (TypedLambda) typeLambda(cs.function1(), mapF, local, env);
             TypedLambda reduce = (TypedLambda) typeLambda(cs.function2(), reduceF, local, env);
             Type.Param result = ((Type.FunctionType) reduce.info().type()).result();
-            cols.add(new TypedAggCol(cs.name(), map, reduce));
+            cols.add(new TypedAggCol(cs.name(), map, reduce, null, true));
             schema.add(new Type.Column(cs.name(), result.type(), result.multiplicity()));
         }
 

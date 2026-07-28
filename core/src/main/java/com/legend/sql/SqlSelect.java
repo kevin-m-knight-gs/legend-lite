@@ -43,18 +43,17 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
             NullOrder nullOrder, String outputName) {
         public enum NullOrder { NULLS_FIRST, NULLS_LAST }
 
-        public SortKey(SqlExpr expr, boolean ascending,
-                NullOrder nullOrder) {
-            this(expr, ascending, nullOrder, null);
-        }
+        // NO short overload: a defaulted outputName silently de-addressed a
+        // column-name-keyed sort at rebuild sites (remediation T2.2); every
+        // construction names every field.
 
         public static SortKey asc(SqlExpr e) {
-            return new SortKey(e, true, null);
+            return new SortKey(e, true, null, null);
         }
 
         /** Test-DSL convenience (no production callers; hand-built IR only). */
         public static SortKey desc(SqlExpr e) {
-            return new SortKey(e, false, null);
+            return new SortKey(e, false, null, null);
         }
     }
 

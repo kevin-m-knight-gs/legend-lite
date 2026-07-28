@@ -839,7 +839,7 @@ public final class StoreResolver {
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joined = new TypedJoin(left, aj.targetPipeline(),
                 rowPreserving ? leftKind() : innerKind(), aj.condition(),
-                Optional.of(aj.prefix()), rowInfo);
+                Optional.of(aj.prefix()), null, rowInfo);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
             // scalar-through-slot bindings flatten onto the MATERIALIZED
@@ -1879,7 +1879,7 @@ public final class StoreResolver {
             }
             withJoins = new TypedJoin(withJoins,
                     joinTarget, leftKind(), joinCond,
-                    Optional.of(aj.prefix()),
+                    Optional.of(aj.prefix()), null,
                     new ExprType(
                             new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
@@ -1991,7 +1991,7 @@ public final class StoreResolver {
                             splitKeys);
             withJoins = new TypedJoin(withJoins,
                     sub, leftKind(), backCond,
-                    Optional.of(prefix),
+                    Optional.of(prefix), null,
                     new ExprType(
                             new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity
@@ -2947,7 +2947,9 @@ public final class StoreResolver {
                                         aggReads, inQueryReads, false, fv,
                                         a.map()).identityLambda(a.map())
                                 : sub.apply(a.map()),
-                        a.reduce());
+                        a.reduce(),
+                        a.orderKey() == null ? null : sub.apply(a.orderKey()),
+                        a.orderAsc());
         return switch (top) {
             case TypedProject p -> new TypedProject(base,
                     p.columns().stream().map(col -> new TypedFuncCol(col.name(),

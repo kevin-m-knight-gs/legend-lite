@@ -929,8 +929,8 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Person"),
                         new NewInstance("Person", List.of(), Map.of(
-                                "name", new KeyExpression(new CString("Alice")),
-                                "age", new KeyExpression(new CInteger(30L)))))),
+                                "name", new KeyExpression(new CString("Alice"), false, false),
+                                "age", new KeyExpression(new CInteger(30L), false, false))))),
                 SpecParser.parse("^Person(name='Alice', age=30)"));
     }
 
@@ -945,7 +945,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("my::app::Person"),
                         new NewInstance("my::app::Person", List.of(), Map.of(
-                                "name", new KeyExpression(new CString("Bob")))))),
+                                "name", new KeyExpression(new CString("Bob"), false, false))))),
                 SpecParser.parse("^my::app::Person(name='Bob')"));
     }
 
@@ -959,8 +959,8 @@ final class SpecParserTest {
                         new NewInstance("Pair",
                                 List.of(nr("Integer"), nr("String")),
                                 Map.of(
-                                        "first", new KeyExpression(new CInteger(1L)),
-                                        "second", new KeyExpression(new CString("a")))))),
+                                        "first", new KeyExpression(new CInteger(1L), false, false),
+                                        "second", new KeyExpression(new CString("a"), false, false))))),
                 SpecParser.parse("^Pair<Integer, String>(first=1, second='a')"));
     }
 
@@ -974,7 +974,7 @@ final class SpecParserTest {
                         new NewInstance("Box", List.of(), Map.of(
                                 "value", new KeyExpression(
                                         new AppliedFunction("plus", List.of(
-                                                new CInteger(1L), new CInteger(2L))))))
+                                                new CInteger(1L), new CInteger(2L))), false, false)))
                 )),
                 SpecParser.parse("^Box(value=1+2)"));
     }
@@ -996,9 +996,9 @@ final class SpecParserTest {
                         new PackageableElementPtr("Person"),
                         new NewInstance("Person", List.of(), Map.of(
                                 "name", new KeyExpression(
-                                        new CString("Alice"), false),
+                                        new CString("Alice"), false, false),
                                 "tags", new KeyExpression(
-                                        new CString("admin"), true))))),
+                                        new CString("admin"), true, false))))),
                 SpecParser.parse("^Person(name='Alice', tags+='admin')"));
     }
 
@@ -1016,7 +1016,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
                         new NewInstance("Foo", List.of(), Map.of(
-                                "x", new KeyExpression(new CInteger(2L)))))),
+                                "x", new KeyExpression(new CInteger(2L), false, false))))),
                 SpecParser.parse("^Foo(x=1, x=2)"));
     }
 
@@ -1111,7 +1111,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Person"),
                         new NewInstance("Person", List.of(), Map.of(
-                                "name", new KeyExpression(new CString("Alice")))))),
+                                "name", new KeyExpression(new CString("Alice"), false, false))))),
                 SpecParser.parse("^Person(name='Alice')"));
     }
 
@@ -2867,7 +2867,7 @@ final class SpecParserTest {
         // time. Function name stays 'new' for engine-lite binding
         // parity.
         Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("name", new KeyExpression(new CString("new"), false));
+        props.put("name", new KeyExpression(new CString("new"), false, false));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new Variable("existing"),
@@ -2881,7 +2881,7 @@ final class SpecParserTest {
         // append-form binding. KeyExpression.isAdd must be preserved
         // so the type-checker can distinguish the append form.
         Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("items", new KeyExpression(new Variable("x"), true));
+        props.put("items", new KeyExpression(new Variable("x"), true, false));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new Variable("list"),
@@ -2907,7 +2907,7 @@ final class SpecParserTest {
         // into a single map key; TypeChecker walks the chain
         // against the class's declared properties.
         Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("addr.city", new KeyExpression(new CString("NYC"), false));
+        props.put("addr.city", new KeyExpression(new CString("NYC"), false, false));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
@@ -2919,7 +2919,7 @@ final class SpecParserTest {
     void newInstanceDeepDottedPropertyKey() {
         // '^Foo(a.b.c.d = 1)' \u2014 arbitrary-depth dotted path.
         Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("a.b.c.d", new KeyExpression(new CInteger(1L), false));
+        props.put("a.b.c.d", new KeyExpression(new CInteger(1L), false, false));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Foo"),
@@ -2947,7 +2947,7 @@ final class SpecParserTest {
         // '^$x(addr.city = \\'NYC\\')' \u2014 the two features compose.
         // Copy-with-update receiver + dotted property key.
         Map<String, KeyExpression> props = new LinkedHashMap<>();
-        props.put("addr.city", new KeyExpression(new CString("NYC"), false));
+        props.put("addr.city", new KeyExpression(new CString("NYC"), false, false));
         assertEquals(
                 new AppliedFunction("new", List.of(
                         new Variable("x"),

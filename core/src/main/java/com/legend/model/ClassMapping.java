@@ -151,17 +151,9 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             String sourceUrl,
             java.util.Map<String, String> propertyTargetSets) implements ClassMapping {
 
-        /** Without {@code prop[setId]} routing (synthetic constructions). */
-        public Relational(String className, String setId, String extendsSetId,
-                boolean root, LegacyMappingDefinition.TableReference mainTable,
-                FilterMapping filter, boolean distinct,
-                List<RelationalOperation> groupBy,
-                List<RelationalOperation> primaryKey,
-                List<PropertyMapping> propertyMappings, String sourceUrl) {
-            this(className, setId, extendsSetId, root, mainTable, filter,
-                    distinct, groupBy, primaryKey, propertyMappings, sourceUrl,
-                    java.util.Map.of());
-        }
+        // NO short overload: a defaulted propertyTargetSets silently dropped
+        // prop[setId] routing at rebuild sites (remediation T2.2); every
+        // construction names every field.
 
         public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");

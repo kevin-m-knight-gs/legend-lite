@@ -1448,7 +1448,7 @@ public final class SpecParser implements TokenStreamCursor {
                 + "' after property name '" + key
                 + "' in ^NewInstance binding");
         ValueSpecification value = parseCombinedExpression();
-        properties.put(key.toString(), new KeyExpression(value, isAdd));
+        properties.put(key.toString(), new KeyExpression(value, isAdd, false));
     }
 
     /**
