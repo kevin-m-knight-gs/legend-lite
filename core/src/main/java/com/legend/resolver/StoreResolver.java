@@ -255,23 +255,23 @@ public final class StoreResolver {
             // Bare class fetch: GRAPH output — implicit serialize with a
             // leaf-only tree over the class's SCALAR bindings (plan §E10).
             case TypedGetAll g -> resolveChain(g, context);
-            case TypedFilter f when isObjectSpace(f.source()) ->
+            case TypedFilter f when objectSpace(f.source()) ->
                     resolveChain(f, context);
-            case TypedProject p when isObjectSpace(p.source()) ->
+            case TypedProject p when objectSpace(p.source()) ->
                     resolveChain(p, context);
             // a CLASS-TERMINAL hop chain at the ROOT (bare
             // Firm.all().employees): object space — the flatten composes in
             // collectOpChain and the envelope roots at the target.
             case TypedPropertyAccess pa
                     when pa.info().type() instanceof Type.ClassType
-                    && isObjectSpace(pa) ->
+                    && objectSpace(pa) ->
                     resolveChain(pa, context);
             // ->map(f|$f.assocEnd->filter(...)) — a CLASS-RESULT mapper:
             // the auto-map flatten IS the mapper body with the source
             // spliced for the param (flatten composition is associative);
             // the resulting hop chain re-enters resolution.
             case TypedMap m
-                    when isObjectSpace(m.source())
+                    when objectSpace(m.source())
                     && ((Type.FunctionType) m.mapper().info().type()).result()
                             .type() instanceof Type.ClassType ->
                     resolveNode(substituteParam(m.mapper(), m.source()), context);
@@ -285,7 +285,7 @@ public final class StoreResolver {
                             n2 -> resolveNode(n2, context));
             // BARE object-space chain headed by toOne/first/at/distinct:
             // the chain resolver owns these in-pipeline
-            case TypedNativeCall nc when isObjectSpace(nc) ->
+            case TypedNativeCall nc when objectSpace(nc) ->
                     resolveChain(nc, context);
             // project DISTRIBUTES over a class-collection concatenate
             // (UNION ALL): each side is its own object-space chain
@@ -303,7 +303,7 @@ public final class StoreResolver {
             // size()/count() over a class extent = row count (engine
             // emits select count(*)); classExtentCount projects ONE const
             case TypedNativeCall nc
-                    when nc.args().size() == 1 && isObjectSpace(nc.args().get(0))
+                    when nc.args().size() == 1 && objectSpace(nc.args().get(0))
                     && (nc.callee().qualifiedName().equals(
                                     "meta::pure::functions::collection::size")
                             || nc.callee().qualifiedName().equals(
@@ -312,7 +312,7 @@ public final class StoreResolver {
             // ->map(p|$p.scalarExpr) over instances = single-column
             // projection (map-terminal invariant)
             case TypedMap m
-                    when isObjectSpace(m.source())
+                    when objectSpace(m.source())
                     && !(((Type.FunctionType) m.mapper().info().type()).result().type()
                             instanceof Type.ClassType) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
@@ -325,23 +325,23 @@ public final class StoreResolver {
                     && !(f.source().info().type() instanceof Type.RelationType)
                     && f.source() instanceof TypedPropertyAccess ->
                     foldScalarHopFilter(f, context);
-            case TypedPropertyAccess pa when isObjectSpace(pa.source())
+            case TypedPropertyAccess pa when objectSpace(pa.source())
                     && !(pa.info().type() instanceof Type.ClassType) ->
                     scalarReadAsProject(pa, context);
-            case TypedLimit l when isObjectSpace(l.source()) ->
+            case TypedLimit l when objectSpace(l.source()) ->
                     resolveChain(l, context);
-            case TypedDrop d when isObjectSpace(d.source()) ->
+            case TypedDrop d when objectSpace(d.source()) ->
                     resolveChain(d, context);
-            case TypedSlice s when isObjectSpace(s.source()) ->
+            case TypedSlice s when objectSpace(s.source()) ->
                     resolveChain(s, context);
-            case TypedSortBy sb when isObjectSpace(sb.source()) ->
+            case TypedSortBy sb when objectSpace(sb.source()) ->
                     resolveChain(sb, context);
             // Class-source groupBy (tds::groupBy cl:C[*] overload; the legacy
             // 4-arg form desugars into it): a relation-shaping TERMINAL like
             // project — key/map lambdas read the object and substitute
             // through the one funnel (plan: uniform lifting set). aggregate
             // is Relation-only in real pure — no class-source arm exists.
-            case TypedGroupBy g when isObjectSpace(g.source()) ->
+            case TypedGroupBy g when objectSpace(g.source()) ->
                     resolveChain(g, context);
             // serialize / graphFetch->serialize: the GRAPH terminal —
             // the graphFetch wrapper is source-preserving; the tree governs.
@@ -426,7 +426,7 @@ public final class StoreResolver {
             case TypedNativeCall nc
                     when anchored(nc) ->
                     structural(Pipelines.classEmptinessRewrite(nc,
-                            StoreResolver::isObjectSpace), context);
+                            this::objectSpace), context);
             // collection literal whose ELEMENTS carry class chains:
             // each element resolves independently, structurally
             case com.legend.compiler.spec.typed.TypedCollection col
@@ -1044,44 +1044,13 @@ public final class StoreResolver {
         return c;
     }
 
-    private static boolean isObjectSpace(TypedSpec source) {
-        return switch (source) {
-            case TypedGetAll ignored -> true;
-            // a CLASS-typed property HOP over an object-space chain IS
-            // object space (the auto-map flatten re-roots at its target —
-            // collectOpChain composes the joined source)
-            case TypedPropertyAccess pa
-                    when pa.info().type() instanceof Type.ClassType ->
-                    isObjectSpace(pa.source());
-            // ->map with a CLASS-result mapper stays in object space (the
-            // flatten's map spelling — collectOpChain beta-folds it)
-            case TypedMap m
-                    when ((Type.FunctionType) m.mapper().info().type()).result()
-                            .type() instanceof Type.ClassType ->
-                    isObjectSpace(m.source());
-            case TypedFrom fr ->
-                    isObjectSpace(fr.source());
-            case TypedFilter f -> isObjectSpace(f.source());
-            case TypedLimit l -> isObjectSpace(l.source());
-            case TypedDrop d -> isObjectSpace(d.source());
-            case TypedSlice s -> isObjectSpace(s.source());
-            case TypedSortBy sb -> isObjectSpace(sb.source());
-            case TypedNativeCall c when isFirstLike(c) ->
-                    isObjectSpace(c.args().get(0));
-            case TypedNativeCall c when isStaticAt(c) ->
-                    isObjectSpace(c.args().get(0));
-            case TypedNativeCall c when isClassToOne(c) ->
-                    isObjectSpace(c.args().get(0));
-            case TypedNativeCall c when Pipelines.isClassDistinct(c) ->
-                    isObjectSpace(c.args().get(0));
-            case TypedNativeCall c when classSortOf(c) != null ->
-                    isObjectSpace(c.args().get(0));
-            default -> false;
-        };
+    /** The node is (part of) an object-space chain — see {@link Anchors#spaceOf}. */
+    private boolean objectSpace(TypedSpec s) {
+        return anchors.spaceOf(s) == Space.OBJECT;
     }
 
     /** {@code at(coll, k)} with a LITERAL index — class-space slice. */
-    private static boolean isStaticAt(TypedNativeCall c) {
+    static boolean isStaticAt(TypedNativeCall c) {
         return c.args().size() == 2
                 && "meta::pure::functions::collection::at"
                         .equals(c.callee().qualifiedName())
@@ -1093,7 +1062,7 @@ public final class StoreResolver {
      * collection — PASS-THROUGH in the pipeline (the engine raises on
      * N&ne;1; here the value compare sees all N and fails loud — a
      * documented, weaker-but-never-silent stand-in). */
-    private static boolean isClassToOne(TypedNativeCall c) {
+    static boolean isClassToOne(TypedNativeCall c) {
         return c.args().size() == 1
                 && "meta::pure::functions::multiplicity::toOne"
                         .equals(c.callee().qualifiedName());
@@ -1111,7 +1080,7 @@ public final class StoreResolver {
     private static final String EQ_FQN = "meta::pure::functions::boolean::eq";
 
     /** first()/head() over an object-space chain — LIMIT 1 in disguise. */
-    private static boolean isFirstLike(TypedNativeCall c) {
+    static boolean isFirstLike(TypedNativeCall c) {
         String fqn = c.callee().qualifiedName();
         return c.args().size() == 1
                 && (FIRST_FQN.equals(fqn) || HEAD_FQN.equals(fqn));
@@ -1123,7 +1092,7 @@ public final class StoreResolver {
      * direction ({@code $x->compare($y)} ascending, {@code $y->compare($x)}
      * descending). Anything richer has no relation sort shape.
      */
-    private static TypedSortBy classSortOf(TypedSpec n) {
+    static TypedSortBy classSortOf(TypedSpec n) {
         // class-space sortBy(coll, key)/sortByReversed — the 2-arg native
         // spelling of the relation sort (computed keys substitute like any)
         if (n instanceof TypedNativeCall sb && sb.args().size() == 2
