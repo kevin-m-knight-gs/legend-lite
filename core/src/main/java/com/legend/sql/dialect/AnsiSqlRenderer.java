@@ -36,7 +36,13 @@ import java.util.stream.Collectors;
  * <p>Every {@code throw} below is a capability statement, not a TODO: a
  * dialect that cannot express a construct fails LOUDLY at render time.
  */
-public abstract class AnsiSqlRenderer implements SqlDialect {
+public class AnsiSqlRenderer implements SqlDialect {
+
+    private final Lexicon lexicon;
+
+    public AnsiSqlRenderer(Lexicon lexicon) {
+        this.lexicon = java.util.Objects.requireNonNull(lexicon, "lexicon");
+    }
 
     private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
@@ -666,10 +672,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     // ==================================================================
 
     /** Reserved words forcing quotes even when plainly spelled (lowercase). */
-    protected abstract Set<String> reservedWords();
+    protected final Set<String> reservedWords() {
+        return lexicon.reservedWords();
+    }
 
-    protected char quoteChar() {
-        return '"';
+    protected final char quoteChar() {
+        return lexicon.quoteChar();
     }
 
     protected String stringLit(String value) {

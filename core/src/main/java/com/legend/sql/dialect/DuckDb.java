@@ -20,17 +20,8 @@ import java.util.stream.Collectors;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
-    private static final Set<String> RESERVED = Set.of(
-            "all", "and", "as", "asc", "between", "by", "case", "cast", "create", "cross",
-            "default", "delete", "desc", "distinct", "drop", "else", "end", "except", "exists",
-            "false", "from", "full", "group", "having", "in", "inner", "insert", "intersect",
-            "into", "is", "join", "left", "like", "limit", "not", "null", "offset", "on", "or",
-            "order", "outer", "pivot", "qualify", "right", "select", "table", "then", "true",
-            "union", "update", "using", "values", "when", "where", "window", "with");
-
-    @Override
-    protected Set<String> reservedWords() {
-        return RESERVED;
+    public DuckDb() {
+        super(Lexicon.DUCKDB);
     }
 
     // ---- structural capabilities ----

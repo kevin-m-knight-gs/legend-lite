@@ -329,8 +329,11 @@ public final class Compiler {
                     "runtime '" + runtimeFqn + "' mixes database types "
                             + distinct + " — one dialect per query is supported");
         }
+        // SQLite differs from the ANSI baseline ONLY lexically — it is a
+        // Lexicon row, not a dialect subclass (remediation T3.2).
         return distinct.contains("SQLite")
-                ? new com.legend.sql.dialect.Sqlite()
+                ? new com.legend.sql.dialect.AnsiSqlRenderer(
+                        com.legend.sql.dialect.Lexicon.SQLITE)
                 : new com.legend.sql.dialect.DuckDb();
     }
 

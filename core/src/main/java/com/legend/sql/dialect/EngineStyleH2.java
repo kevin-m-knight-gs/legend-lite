@@ -45,6 +45,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     public EngineStyleH2(boolean quoteIdentifiers, String timeZone) {
+        super(Lexicon.ENGINE_STYLE);
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
     }
@@ -920,8 +921,4 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return "cast(" + expr(c.value(), 0) + " as " + t + ")";
     }
 
-    @Override
-    protected Set<String> reservedWords() {
-        return Set.of();
-    }
 }
