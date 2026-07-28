@@ -1028,16 +1028,7 @@ public final class ClassSources {
 
     /** Whether any {@code $var} read occurs in {@code n}'s subtree. */
     private static boolean readsVar(TypedSpec n, String var) {
-        if (n instanceof TypedVariable v
-                && v.name().equals(var)) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (readsVar(c, var)) {
-                return true;
-            }
-        }
-        return false;
+        return com.legend.compiler.spec.typed.VarUse.reads(n, var);
     }
 
     /**

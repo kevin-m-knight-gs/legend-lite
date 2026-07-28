@@ -2295,14 +2295,6 @@ final class GraphEmission {
     }
 
     private static boolean containsVar(TypedSpec n, String var) {
-        if (n instanceof TypedVariable v && v.name().equals(var)) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsVar(c, var)) {
-                return true;
-            }
-        }
-        return false;
+        return com.legend.compiler.spec.typed.VarUse.reads(n, var);
     }
 }

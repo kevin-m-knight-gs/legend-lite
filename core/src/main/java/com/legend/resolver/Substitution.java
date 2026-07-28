@@ -1772,15 +1772,7 @@ final class Substitution {
 
     /** Whether any {@code $var} read occurs in the subtree. */
     private static boolean readsVariable(TypedSpec n, String var) {
-        if (n instanceof TypedVariable v && v.name().equals(var)) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (readsVariable(c, var)) {
-                return true;
-            }
-        }
-        return false;
+        return com.legend.compiler.spec.typed.VarUse.reads(n, var);
     }
 
     /** A bi-temporal context carries (processingDate, businessDate) — the
