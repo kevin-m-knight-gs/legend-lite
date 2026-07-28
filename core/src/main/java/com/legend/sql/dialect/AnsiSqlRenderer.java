@@ -78,9 +78,24 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(SqlQuery query) {
+        SqlQuery q = query;
+        for (com.legend.sql.SqlRewriter pass : passes()) {
+            q = pass.rewrite(q);
+        }
         StringBuilder sb = new StringBuilder();
-        query(sb, query, 0);
+        query(sb, q, 0);
         return sb.toString();
+    }
+
+    /**
+     * This dialect's MIR passes, run at {@code render()} entry — IR
+     * rewrites live HERE as named passes, never inside render methods
+     * (remediation T3.2; {@code SubselectPrune} is the common-pass model
+     * at the lowering exit).
+     */
+    protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+        return supportsQualify() ? java.util.List.of()
+                : java.util.List.of(new QualifyToSubselect());
     }
 
     // ==================================================================
@@ -105,16 +120,10 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     protected void select(StringBuilder sb, SqlSelect s, int depth) {
         if (s.qualify() != null && !supportsQualify()) {
-            // Structural capability: filter-over-window-results without a
-            // QUALIFY clause = the select wraps ITSELF.
-            SqlSelect inner = s.withQualify(null);
-            sb.append("SELECT *");
-            nl(sb, depth).append("FROM (");
-            nl(sb, depth + 1);
-            select(sb, inner, depth + 1);
-            nl(sb, depth).append(") AS qualify_src");
-            nl(sb, depth).append("WHERE ").append(expr(s.qualify(), 0));
-            return;
+            // The QualifyToSubselect PASS owns this rewrite — a QUALIFY
+            // reaching the writer means the pass did not run: our bug.
+            throw new IllegalStateException("QUALIFY reached a writer without"
+                    + " QUALIFY support — the QualifyToSubselect pass must run");
         }
         sb.append("SELECT ");
         if (s.distinct()) {

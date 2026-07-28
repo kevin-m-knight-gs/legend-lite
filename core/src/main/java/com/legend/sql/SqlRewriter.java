@@ -1,0 +1,260 @@
+package com.legend.sql;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Structural MIR&rarr;MIR rewriter (remediation T3.2 step 3) &mdash; the SQL
+ * layer's analog of {@code TypedSpec.mapChildren}: a bottom-up deep map with
+ * identity preservation, so a pass overrides only the node hooks it cares
+ * about and can never drop a field by hand-rebuilding. Hooks fire AFTER the
+ * node's children were rewritten; the default hook is the identity.
+ *
+ * <p>This is the ONE traversal dialect passes share (the hand-walked
+ * {@code SubselectPrune} predates it). Renderers run passes at
+ * {@code render()} entry &mdash; rewrites belong here, never inside render
+ * methods.
+ */
+public abstract class SqlRewriter {
+
+    // ---- hooks (post-children; default identity) ----
+
+    protected SqlQuery select(SqlSelect s) {
+        return s;
+    }
+
+    protected SqlQuery union(SqlUnion u) {
+        return u;
+    }
+
+    protected SqlSource source(SqlSource s) {
+        return s;
+    }
+
+    protected SqlExpr expr(SqlExpr e) {
+        return e;
+    }
+
+    // ---- the walk ----
+
+    public final SqlQuery rewrite(SqlQuery q) {
+        return switch (q) {
+            case SqlSelect s -> {
+                List<SqlSelect.Projection> ps = mapList(s.projections(), p -> {
+                    SqlExpr e2 = rewriteExpr(p.expr());
+                    return e2 == p.expr() ? p : new SqlSelect.Projection(e2, p.alias());
+                });
+                SqlSource f = s.from() == null ? null : rewriteSource(s.from());
+                SqlExpr w = s.where() == null ? null : rewriteExpr(s.where());
+                List<SqlExpr> g = mapList(s.groupBy(), this::rewriteExpr);
+                SqlExpr h = s.having() == null ? null : rewriteExpr(s.having());
+                SqlExpr ql = s.qualify() == null ? null : rewriteExpr(s.qualify());
+                List<SqlSelect.SortKey> ob = mapList(s.orderBy(), k -> {
+                    SqlExpr e2 = rewriteExpr(k.expr());
+                    return e2 == k.expr() ? k : new SqlSelect.SortKey(
+                            e2, k.ascending(), k.nullOrder(), k.outputName());
+                });
+                SqlSelect out = ps == s.projections() && f == s.from()
+                        && w == s.where() && g == s.groupBy() && h == s.having()
+                        && ql == s.qualify() && ob == s.orderBy()
+                        ? s
+                        : new SqlSelect(ps, s.distinct(), f, w, g, h, ql, ob,
+                                s.limit(), s.offset(), s.outputs());
+                yield select(out);
+            }
+            case SqlUnion u -> {
+                List<SqlQuery> bs = mapList(u.branches(), this::rewrite);
+                yield union(bs == u.branches() ? u
+                        : new SqlUnion(bs, u.all(), u.outputs()));
+            }
+        };
+    }
+
+    protected final SqlSource rewriteSource(SqlSource s) {
+        SqlSource out = switch (s) {
+            case SqlSource.Table t -> t;
+            case SqlSource.SourceUrl u -> u;
+            case SqlSource.Subselect sub -> {
+                SqlQuery i = rewrite(sub.inner());
+                yield i == sub.inner() ? sub
+                        : new SqlSource.Subselect(i, sub.alias(), sub.frameName());
+            }
+            case SqlSource.Values v -> {
+                List<List<SqlExpr>> rows = mapList(v.rows(),
+                        r -> mapList(r, this::rewriteExpr));
+                yield rows == v.rows() ? v
+                        : new SqlSource.Values(rows, v.columns(), v.alias(),
+                                v.outputs());
+            }
+            case SqlSource.Join j -> {
+                SqlSource l = rewriteSource(j.left());
+                SqlSource r = rewriteSource(j.right());
+                SqlExpr on = j.on() == null ? null : rewriteExpr(j.on());
+                yield l == j.left() && r == j.right() && on == j.on() ? j
+                        : new SqlSource.Join(l, r, j.kind(), on);
+            }
+            case SqlSource.Pivot p -> {
+                SqlSource src = rewriteSource(p.source());
+                List<SqlExpr> on = mapList(p.on(), this::rewriteExpr);
+                List<SqlExpr> in = mapList(p.in(), this::rewriteExpr);
+                List<SqlSource.Pivot.Using> us = mapList(p.usings(), u -> {
+                    SqlAgg.Reducer r2 = (SqlAgg.Reducer) rewriteExpr(u.agg());
+                    return r2 == u.agg() ? u
+                            : new SqlSource.Pivot.Using(r2, u.alias());
+                });
+                yield src == p.source() && on == p.on() && in == p.in()
+                        && us == p.usings() ? p
+                        : new SqlSource.Pivot(src, on, in, us, p.alias(), p.outputs());
+            }
+        };
+        return source(out);
+    }
+
+    protected final SqlExpr rewriteExpr(SqlExpr e) {
+        SqlExpr out = switch (e) {
+            case SqlExpr.Column c -> c;
+            case SqlExpr.Star st -> st;
+            case SqlExpr.StarExcept se -> se;
+            case SqlExpr.StringLit l -> l;
+            case SqlExpr.IntLit l -> l;
+            case SqlExpr.FloatLit l -> l;
+            case SqlExpr.DecimalLit l -> l;
+            case SqlExpr.BoolLit l -> l;
+            case SqlExpr.NullLit l -> l;
+            case SqlExpr.DateLit l -> l;
+            case SqlExpr.TimestampLit l -> l;
+            case SqlExpr.PlanParam p -> p;
+            case SqlExpr.Group g -> {
+                SqlExpr i = rewriteExpr(g.inner());
+                yield i == g.inner() ? g : new SqlExpr.Group(i);
+            }
+            case SqlExpr.OrderedListAgg o -> {
+                SqlExpr v = rewriteExpr(o.value());
+                SqlExpr ob = rewriteExpr(o.orderBy());
+                yield v == o.value() && ob == o.orderBy() ? o
+                        : new SqlExpr.OrderedListAgg(v, ob);
+            }
+            case SqlExpr.ArrayLit a -> {
+                List<SqlExpr> es = mapList(a.elements(), this::rewriteExpr);
+                yield es == a.elements() ? a : new SqlExpr.ArrayLit(es);
+            }
+            case SqlExpr.StructLit sl -> {
+                List<SqlExpr.StructLit.Field> fs = mapList(sl.fields(), fl -> {
+                    SqlExpr v = rewriteExpr(fl.value());
+                    return v == fl.value() ? fl
+                            : new SqlExpr.StructLit.Field(fl.name(), v);
+                });
+                yield fs == sl.fields() ? sl : new SqlExpr.StructLit(fs);
+            }
+            case SqlExpr.StructGet sg -> {
+                SqlExpr src = rewriteExpr(sg.source());
+                yield src == sg.source() ? sg
+                        : new SqlExpr.StructGet(src, sg.field());
+            }
+            case SqlExpr.Call c -> {
+                List<SqlExpr> as = mapList(c.args(), this::rewriteExpr);
+                yield as == c.args() ? c : new SqlExpr.Call(c.fn(), as);
+            }
+            case SqlExpr.Case cs -> {
+                List<SqlExpr.Case.When> ws = mapList(cs.whens(), wn -> {
+                    SqlExpr cd = rewriteExpr(wn.condition());
+                    SqlExpr th = rewriteExpr(wn.then());
+                    return cd == wn.condition() && th == wn.then() ? wn
+                            : new SqlExpr.Case.When(cd, th);
+                });
+                SqlExpr ot = cs.otherwise() == null ? null
+                        : rewriteExpr(cs.otherwise());
+                yield ws == cs.whens() && ot == cs.otherwise() ? cs
+                        : new SqlExpr.Case(ws, ot);
+            }
+            case SqlExpr.Exists ex -> {
+                SqlQuery sub = rewrite(ex.subquery());
+                yield sub == ex.subquery() ? ex : new SqlExpr.Exists(sub);
+            }
+            case SqlExpr.ScalarSubquery sq -> {
+                SqlQuery sub = rewrite(sq.subquery());
+                yield sub == sq.subquery() ? sq
+                        : new SqlExpr.ScalarSubquery(sub);
+            }
+            case SqlExpr.JsonObject j -> {
+                List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);
+                yield kv == j.kv() ? j : new SqlExpr.JsonObject(kv);
+            }
+            case SqlExpr.JsonArrayAgg ja -> {
+                SqlExpr v = rewriteExpr(ja.value());
+                List<SqlExpr> ks = mapList(ja.orderKeys(), this::rewriteExpr);
+                yield v == ja.value() && ks == ja.orderKeys() ? ja
+                        : new SqlExpr.JsonArrayAgg(v, ks);
+            }
+            case SqlExpr.WindowCall w -> {
+                SqlAgg fn2 = rewriteAgg(w.fn());
+                List<SqlExpr> pb = mapList(w.partitionBy(), this::rewriteExpr);
+                List<SqlSelect.SortKey> ob = mapList(w.orderBy(), k -> {
+                    SqlExpr e2 = rewriteExpr(k.expr());
+                    return e2 == k.expr() ? k : new SqlSelect.SortKey(
+                            e2, k.ascending(), k.nullOrder(), k.outputName());
+                });
+                yield fn2 == w.fn() && pb == w.partitionBy() && ob == w.orderBy()
+                        ? w : new SqlExpr.WindowCall(fn2, pb, ob, w.frame());
+            }
+            case SqlExpr.Lambda l -> {
+                SqlExpr b = rewriteExpr(l.body());
+                yield b == l.body() ? l : new SqlExpr.Lambda(l.params(), b);
+            }
+            case SqlExpr.Cast c -> {
+                SqlExpr v = rewriteExpr(c.value());
+                yield v == c.value() ? c : new SqlExpr.Cast(v, c.target());
+            }
+            case SqlExpr.FoldCall f -> {
+                SqlExpr src = rewriteExpr(f.source());
+                SqlExpr.Lambda lm = (SqlExpr.Lambda) rewriteExpr(f.lambda());
+                SqlExpr in = rewriteExpr(f.init());
+                yield src == f.source() && lm == f.lambda() && in == f.init()
+                        ? f : new SqlExpr.FoldCall(src, lm, in, f.accIsList(),
+                                f.homogeneous());
+            }
+            case SqlAgg.Reducer r -> (SqlExpr) rewriteAgg(r);
+        };
+        return expr(out);
+    }
+
+    /** SqlAgg variants (Reducer doubles as an SqlExpr). */
+    protected final SqlAgg rewriteAgg(SqlAgg a) {
+        return switch (a) {
+            case SqlAgg.Reducer r -> {
+                List<SqlExpr> as = mapList(r.args(), this::rewriteExpr);
+                List<SqlSelect.SortKey> ob = mapList(r.orderBy(), k -> {
+                    SqlExpr e2 = rewriteExpr(k.expr());
+                    return e2 == k.expr() ? k : new SqlSelect.SortKey(
+                            e2, k.ascending(), k.nullOrder(), k.outputName());
+                });
+                yield as == r.args() && ob == r.orderBy() ? r
+                        : new SqlAgg.Reducer(r.fn(), as, r.distinct(), ob);
+            }
+            case SqlAgg.RankingFn rf -> {
+                List<SqlExpr> as = mapList(rf.args(), this::rewriteExpr);
+                yield as == rf.args() ? rf : new SqlAgg.RankingFn(rf.fn(), as);
+            }
+            case SqlAgg.ValueFn vf -> {
+                List<SqlExpr> as = mapList(vf.args(), this::rewriteExpr);
+                yield as == vf.args() ? vf : new SqlAgg.ValueFn(vf.fn(), as);
+            }
+        };
+    }
+
+    /** Element-wise map preserving LIST identity when nothing changed. */
+    private static <T> List<T> mapList(List<T> xs,
+            java.util.function.UnaryOperator<T> f) {
+        List<T> out = null;
+        for (int i = 0; i < xs.size(); i++) {
+            T y = f.apply(xs.get(i));
+            if (out == null && y != xs.get(i)) {
+                out = new ArrayList<>(xs.subList(0, i));
+            }
+            if (out != null) {
+                out.add(y);
+            }
+        }
+        return out == null ? xs : out;
+    }
+}

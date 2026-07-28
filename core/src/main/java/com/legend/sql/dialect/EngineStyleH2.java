@@ -287,6 +287,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     // == single-line lowercase clause assembly ==========================
 
+    /** No MIR passes: engine-text goldens have NO QUALIFY spelling — the
+     * select wall below stays LOUD rather than inventing one. */
+    @Override
+    protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+        return java.util.List.of();
+    }
+
     @Override
     protected void select(StringBuilder sb, SqlSelect s, int depth) {
         if (s.qualify() != null) {
