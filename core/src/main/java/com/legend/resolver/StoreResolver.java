@@ -571,7 +571,7 @@ public final class StoreResolver {
                     navMats);
             return src == js.source() ? pipe
                     : new com.legend.compiler.spec.typed.TypedJoinSlot(src,
-                            js.alias(), js.target(), js.condition(), js.info());
+                            js.alias(), js.target(), js.condition(), js.frameName(), js.info());
         }
         return pipe;
     }

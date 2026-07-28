@@ -178,12 +178,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     sb.append(" AS ").append(ident(t.alias()));
                 }
             }
-            case SqlSource.Subselect sub -> {
-                sb.append("(");
-                nl(sb, depth + 1);
-                query(sb, sub.inner(), depth + 1);
-                nl(sb, depth).append(") AS ").append(ident(sub.alias()));
-            }
+            case SqlSource.Subselect sub -> subselectSource(sb, sub, depth);
             case SqlSource.Values v -> valuesSource(sb, v);
             case SqlSource.SourceUrl u -> {
                 sb.append("(");
@@ -209,6 +204,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** ANSI row-constructor VALUES with column aliases; SQLite overrides (UNION ALL). */
+    protected void subselectSource(StringBuilder sb,
+            SqlSource.Subselect sub, int depth) {
+        sb.append("(");
+        nl(sb, depth + 1);
+        query(sb, sub.inner(), depth + 1);
+        nl(sb, depth).append(") AS ").append(ident(sub.alias()));
+    }
+
     protected void valuesSource(StringBuilder sb, SqlSource.Values v) {
         sb.append("(VALUES ")
                 .append(v.rows().stream()

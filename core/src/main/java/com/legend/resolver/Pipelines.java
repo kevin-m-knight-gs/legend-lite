@@ -105,6 +105,8 @@ final class Pipelines {
                                     .target(),
                             ((com.legend.compiler.spec.typed.TypedJoinSlot) s)
                                     .condition(),
+                            ((com.legend.compiler.spec.typed.TypedJoinSlot) s)
+                                    .frameName(),
                             s.info());
         }
         return p;
@@ -345,7 +347,7 @@ final class Pipelines {
                         new TypedEnumValue(JOIN_KIND_FQN, "LEFT",
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
-                        cond, Optional.of(prefix),
+                        cond, Optional.of(prefix), js.frameName(),
                         new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
                 }
 

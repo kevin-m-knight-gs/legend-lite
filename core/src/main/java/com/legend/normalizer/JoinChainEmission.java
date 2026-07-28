@@ -462,8 +462,11 @@ final class JoinChainEmission {
                                 viewTarget, hopDb, model, md)
                         : new AppliedFunction("tableReference",
                                 List.of(new PackageableElementPtr(hopDb), new CString(targetTable)));
+                // a VIEW hop carries the frame identity in the spare
+                // alias channel — the checker lifts it onto the slot
                 ColSpec slot = new ColSpec(slotAlias,
-                        new LambdaFunction(List.of(), List.of(targetRel)), null);
+                        new LambdaFunction(List.of(), List.of(targetRel)),
+                        null, viewTarget);
                 p.expr = new AppliedFunction("join",
                         List.of(p.expr, slot, condLambda));
             }

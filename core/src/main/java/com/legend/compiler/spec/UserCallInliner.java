@@ -543,7 +543,7 @@ public final class UserCallInliner {
                     j.condition().map(c -> lambda(c, env)), j.prefix(), j.info());
             case TypedJoinSlot js -> new TypedJoinSlot(rewrite(js.source(), env),
                     js.alias(), rewrite(js.target(), env),
-                    lambda(js.condition(), env), js.info());
+                    lambda(js.condition(), env), js.frameName(), js.info());
             case TypedNavigate nav -> new TypedNavigate(rewrite(nav.source(), env),
                     nav.alias(), rewrite(nav.target(), env),
                     lambda(nav.predicate(), env), nav.form(), nav.info());

@@ -95,7 +95,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             case SqlSource.Subselect sub -> {
                 planQuery(sub.inner(), groups);
-                String named = nextInGroup(firstInnerTable(sub.inner()), groups);
+                // a NAMED frame (view-backed target) groups by its own
+                // model identity — orderpnlview_0, never the underlying
+                // physical table's group
+                String group = sub.frameName() != null
+                        ? sub.frameName().toLowerCase(Locale.ROOT)
+                        : firstInnerTable(sub.inner());
+                String named = nextInGroup(group, groups);
                 renames.put(sub.alias(), leftmost ? "root" : named);
             }
             case SqlSource.Join j -> {
@@ -263,7 +269,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             case SqlSource.Subselect sub -> {
                 sb.append('(');
-                query(sb, sub.inner(), depth);
+                if (sub.frameName() != null) {
+                    frameDepth++;
+                }
+                try {
+                    query(sb, sub.inner(), depth);
+                } finally {
+                    if (sub.frameName() != null) {
+                        frameDepth--;
+                    }
+                }
                 sb.append(") as \"").append(rename(sub.alias())).append('"');
             }
             case SqlSource.Join j -> {
@@ -282,9 +297,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
     }
 
+    /** Nesting depth of NAMED frames (view-backed subselects) currently
+     * rendering — their projections spell the engine view generator's
+     * form: every column aliased, alias UNQUOTED. */
+    private int frameDepth;
+
     @Override
     protected String projection(SqlSelect.Projection p) {
         String e = expr(p.expr(), 0);
+        if (frameDepth > 0 && p.outputName() != null) {
+            // engine view SQL: '"root".ORDER_ID as ORDER_ID' — always
+            // aliased, unquoted
+            return e + " as " + p.outputName().replace("\"", "");
+        }
         if (p.alias() == null) {
             return e;
         }

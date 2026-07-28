@@ -109,7 +109,7 @@ final class FlattenOps {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoinSlot js) {
             return new com.legend.compiler.spec.typed.TypedJoinSlot(
                     spliceBelow(js.source(), belowOps, sub), js.alias(),
-                    js.target(), js.condition(), js.info());
+                    js.target(), js.condition(), js.frameName(), js.info());
         }
         if (pipe instanceof TypedFilter mf) {
             // mapping ~filter above the steps: keep it BELOW the ops

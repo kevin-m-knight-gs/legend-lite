@@ -1700,7 +1700,7 @@ final class TemporalFrame {
             case TypedJoinSlot js ->
                     new TypedJoinSlot(
                             replaceScan(js.source(), wrap), js.alias(), js.target(),
-                            js.condition(), js.info());
+                            js.condition(), js.frameName(), js.info());
             // a UNION pipeline: the temporal filter applies to EACH member
             // (every table alias filters — engine rule, per member scan)
             case TypedConcatenate c ->

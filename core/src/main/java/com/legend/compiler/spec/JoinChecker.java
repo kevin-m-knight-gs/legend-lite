@@ -366,7 +366,8 @@ final class JoinChecker {
         TypedLambda cond = (TypedLambda) t.typeLambda(condLam, sig.parameters().get(2).type(), b, env);
 
         ExprType out = t.kernel().resolveOutput(sig.returnType(), sig.returnMultiplicity(), b);
-        return new TypedJoinSlot(source, cs.name(), thunk.body().get(0), cond, out);
+        return new TypedJoinSlot(source, cs.name(), thunk.body().get(0), cond,
+                cs.alias(), out);
     }
 
     private static TypedSpec withPrefix(Typer t, AppliedFunction af, Env env) {

@@ -410,7 +410,7 @@ final class NavMaterializer {
             TypedSpec src = rewriteNavPredicate(js.source(), alias, cond);
             return src == js.source() ? pipe
                     : new com.legend.compiler.spec.typed.TypedJoinSlot(src,
-                            js.alias(), js.target(), js.condition(), js.info());
+                            js.alias(), js.target(), js.condition(), js.frameName(), js.info());
         }
         if (pipe instanceof com.legend.compiler.spec.typed.TypedFilter f) {
             TypedSpec src = rewriteNavPredicate(f.source(), alias, cond);

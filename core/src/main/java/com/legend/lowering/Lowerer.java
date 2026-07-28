@@ -1653,7 +1653,7 @@ public final class Lowerer {
         } else {
             left = asLeftJoinSide(leftSel);
         }
-        SqlSource right = asRightSide(relation(j.right()));
+        SqlSource right = asRightSide(relation(j.right()), j.frameName());
         SqlExpr on = sideCondition(j.condition(), left, right, leftCarry);
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
             case "INNER" -> SqlSource.Join.Kind.INNER;
@@ -1767,9 +1767,15 @@ public final class Lowerer {
      * to a non-join source — a join tree on the right would re-associate.
      */
     private SqlSource asRightSide(SqlSelect side) {
+        return asRightSide(side, null);
+    }
+
+    /** {@code frameName}: the derived table's model identity (a view-
+     * backed join target) — rides the Subselect for dialect grouping. */
+    private SqlSource asRightSide(SqlSelect side, String frameName) {
         return isBareSelect(side) && !(side.from() instanceof SqlSource.Join)
                 ? side.from()
-                : new SqlSource.Subselect(side, nextAlias());
+                : new SqlSource.Subselect(side, nextAlias(), frameName);
     }
 
     /** No clause set — the select adds nothing over its source. */
