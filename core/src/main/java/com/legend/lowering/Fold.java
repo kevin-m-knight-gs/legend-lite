@@ -54,6 +54,18 @@ final class Fold {
         return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
     }
 
+    /** Whether the source reads (possibly through joins) a UNION
+     * subselect — the count-of-rows aggregate spelling seam. */
+    static boolean unionBacked(com.legend.sql.SqlSource src) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.Subselect s ->
+                    s.inner() instanceof com.legend.sql.SqlUnion;
+            case com.legend.sql.SqlSource.Join j ->
+                    unionBacked(j.left()) || unionBacked(j.right());
+            case null, default -> false;
+        };
+    }
+
     /** Combine conjuncts into one AND, FLATTENING same-operator nesting
      * and Group-of-AND operands (the engine's andFilters: same-operator
      * chains never keep their group — a guard group survives only

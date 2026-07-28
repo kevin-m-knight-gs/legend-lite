@@ -284,7 +284,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
         if (!s.groupBy().isEmpty()) {
             sb.append(" group by ").append(s.groupBy().stream()
-                    .map(e -> expr(e, 0)).collect(Collectors.joining(", ")));
+                    .map(e -> groupKey(s, e))
+                    .collect(Collectors.joining(", ")));
         }
         if (s.having() != null) {
             sb.append(" having ").append(expr(s.having(), 0));
@@ -305,6 +306,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * conjunction in one extra paren pair. */
     protected String whereSql(SqlExpr w) {
         return expr(w, 0);
+    }
+
+    /** A group-by key: a key that is PROJECTED UNDER AN ALIAS spells the
+     * quoted OUTPUT alias (the engine's TDS group-by-alias text —
+     * {@code group by "prodName"}); a bare same-name key (mapping
+     * ~groupBy has no alias) keeps the physical expression. Render-only:
+     * the IR keys stay real expressions for the execution dialects. */
+    private String groupKey(SqlSelect s, SqlExpr e) {
+        if (e instanceof SqlExpr.Column c && c.table() == null) {
+            return '"' + c.name() + '"';
+        }
+        for (SqlSelect.Projection p : s.projections()) {
+            if (p.outputName() != null && e.equals(p.expr())) {
+                return '"' + p.outputName().replace("\"", "") + '"';
+            }
+        }
+        return expr(e, 0);
     }
 
     @Override
@@ -611,11 +629,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * ({@code asc}/{@code desc} — every ordered golden's spelling). */
     @Override
     protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
-        // a table-less column key is an OUTPUT-column reference (TDS
-        // ->sort): the engine spells it quoted — `order by "name" asc`
-        String e = k.expr() instanceof SqlExpr.Column c && c.table() == null
-                ? '"' + c.name() + '"'
-                : expr(k.expr(), 0);
+        // a COLUMN-NAME-keyed sort (or a table-less column key) is an
+        // OUTPUT-column reference (TDS ->sort): the engine spells it
+        // quoted — `order by "name" asc`
+        String e = k.outputName() != null
+                ? '"' + k.outputName().replace("\"", "") + '"'
+                : k.expr() instanceof SqlExpr.Column c && c.table() == null
+                        ? '"' + c.name() + '"'
+                        : expr(k.expr(), 0);
         String s = e + (k.ascending() ? " asc" : " desc");
         if (k.nullOrder() != null) {
             s += k.nullOrder() == com.legend.sql.SqlSelect.SortKey

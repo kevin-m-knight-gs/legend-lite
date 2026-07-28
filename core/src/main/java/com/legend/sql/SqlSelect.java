@@ -35,9 +35,18 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
 
     }
 
-    /** One ORDER BY key; {@code nullOrder} null = dialect default. */
-    public record SortKey(SqlExpr expr, boolean ascending, NullOrder nullOrder) {
+    /** One ORDER BY key; {@code nullOrder} null = dialect default.
+     * {@code outputName} — the projected TDS column a COLUMN-NAME-keyed
+     * sort addresses; engine text spells it ({@code order by "name"
+     * asc}), execution dialects render {@code expr}. Null otherwise. */
+    public record SortKey(SqlExpr expr, boolean ascending,
+            NullOrder nullOrder, String outputName) {
         public enum NullOrder { NULLS_FIRST, NULLS_LAST }
+
+        public SortKey(SqlExpr expr, boolean ascending,
+                NullOrder nullOrder) {
+            this(expr, ascending, nullOrder, null);
+        }
 
         public static SortKey asc(SqlExpr e) {
             return new SortKey(e, true, null);

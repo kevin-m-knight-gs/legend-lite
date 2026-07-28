@@ -1038,6 +1038,14 @@ public final class Lowerer {
             }
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
+        // the checker's count-of-rows desugar (x|$x -> x|1): the engine
+        // spells count(*) over plain sources, count(1) over UNIONs
+        if ("COUNT".equals(fn) && mapBody instanceof TypedCInteger one
+                && one.value().longValue() == 1 && extra.isEmpty()
+                && !distinctValues && valueCast == null
+                && !Fold.unionBacked(base.from())) {
+            return new SqlAgg.Reducer(fn, List.of(), false);
+        }
         // CALENDAR native in map position: the value is the CASE over the
         // pre-joined calendar aliases; the fn's VALUE argument aggregates
         if (calendar != null
@@ -1518,7 +1526,11 @@ public final class Lowerer {
                 base = isolate(base);
                 return sortOnto(base, s);
             }
-            keys.add(new SqlSelect.SortKey(e, k.ascending(), null));
+            // COLUMN-NAME-keyed sort addresses the OUTPUT column in
+            // engine TEXT (sort('name') -> order by "name" asc; the
+            // lambda-keyed sortBy stays physical) — execution renders e
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), null,
+                    k.column()));
         }
         return base.withOrderBy(keys);
     }
