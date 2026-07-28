@@ -90,6 +90,34 @@ public sealed interface PureDateLiteral
     String toEngineString();
 
     /**
+     * THE precision ladder (remediation T3.1) &mdash; one ordered scale
+     * defined WITH the hierarchy. Ordinal order is the precision order, so
+     * {@link #atLeast} is the only comparison consumers need; the
+     * mutually-incompatible integer scales that re-derived this downstream
+     * are gone.
+     */
+    enum Precision {
+        YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, SUBSECOND;
+
+        public boolean atLeast(Precision p) {
+            return ordinal() >= p.ordinal();
+        }
+    }
+
+    /** This literal's written precision. */
+    default Precision precision() {
+        return switch (this) {
+            case Year ignored -> Precision.YEAR;
+            case YearMonth ignored -> Precision.MONTH;
+            case StrictDate ignored -> Precision.DAY;
+            case DateWithHour ignored -> Precision.HOUR;
+            case DateWithMinute ignored -> Precision.MINUTE;
+            case DateWithSecond ignored -> Precision.SECOND;
+            case DateWithSubsecond ignored -> Precision.SUBSECOND;
+        };
+    }
+
+    /**
      * The DAY this literal names, as a {@link StrictDate} — structural
      * truncation of any day-carrying variant. Null for {@link Year} and
      * {@link YearMonth}, which name no day. (Replaces

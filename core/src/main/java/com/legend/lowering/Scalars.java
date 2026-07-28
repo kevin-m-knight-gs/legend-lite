@@ -642,11 +642,16 @@ final class Scalars {
         // Precision predicates: a LITERAL answers from its own written
         // precision; a column answers from its Pure type (StrictDate =
         // day precision, DateTime = SQL TIMESTAMP = full precision).
-        for (var e : Map.of("hasMonth", 1, "hasDay", 2, "hasHour", 3,
-                "hasMinute", 4, "hasSecond", 5, "hasSubsecond", 6).entrySet()) {
+        for (var e : Map.of(
+                "hasMonth", PureDateLiteral.Precision.MONTH,
+                "hasDay", PureDateLiteral.Precision.DAY,
+                "hasHour", PureDateLiteral.Precision.HOUR,
+                "hasMinute", PureDateLiteral.Precision.MINUTE,
+                "hasSecond", PureDateLiteral.Precision.SECOND,
+                "hasSubsecond", PureDateLiteral.Precision.SUBSECOND).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> {
-                    boolean has = datePrecision(n.args().get(0)) >= e.getValue();
+                    boolean has = datePrecision(n.args().get(0)).atLeast(e.getValue());
                     // A LITERAL answers boolean (the PCT spelling); a COLUMN
                     // answers 1/0 — the engine's integer surface for date
                     // precision checks over stored values.
@@ -670,7 +675,8 @@ final class Scalars {
                         && d.value() instanceof PureDateLiteral.DateWithSubsecond ds) {
                     return new SqlExpr.BoolLit(ds.subsecond().length() >= p2);
                 }
-                return new SqlExpr.BoolLit(datePrecision(n.args().get(0)) >= 6 && p2 <= 6);
+                return new SqlExpr.BoolLit(datePrecision(n.args().get(0))
+                        .atLeast(PureDateLiteral.Precision.SUBSECOND) && p2 <= 6);
             });
         }
         // ---- Misc (registrations bucket) ----
@@ -944,13 +950,13 @@ final class Scalars {
             // a PARTIAL date lacking the component RAISES real pure's
             // message ('Cannot get day of month for 2017') — statically
             // decidable from the precision; the message composes in SQL
-            int needed = switch (e.getValue()) {
-                case "month" -> 1;
-                case "day" -> 2;
-                case "hour" -> 3;
-                case "minute" -> 4;
-                case "second" -> 5;
-                default -> 0;
+            PureDateLiteral.Precision needed = switch (e.getValue()) {
+                case "month" -> PureDateLiteral.Precision.MONTH;
+                case "day" -> PureDateLiteral.Precision.DAY;
+                case "hour" -> PureDateLiteral.Precision.HOUR;
+                case "minute" -> PureDateLiteral.Precision.MINUTE;
+                case "second" -> PureDateLiteral.Precision.SECOND;
+                default -> PureDateLiteral.Precision.YEAR;
             };
             String label = switch (e.getValue()) {
                 case "day" -> "day of month";
@@ -958,8 +964,9 @@ final class Scalars {
             };
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> {
-                    int prec = datePrecisionOrUnknown(n.args().get(0));
-                    if (prec >= 0 && prec < needed) {
+                    PureDateLiteral.Precision prec =
+                            datePrecisionOrUnknown(n.args().get(0));
+                    if (prec != null && !prec.atLeast(needed)) {
                         return SqlExpr.Call.of(SqlFn.ERROR,
                                 cat(new SqlExpr.StringLit("Cannot get " + label + " for "),
                                         str(args.get(0))));
@@ -2545,8 +2552,8 @@ final class Scalars {
      */
     private static SqlExpr partialComparable(TypedSpec e,
                                              SqlExpr x) {
-        int prec = datePrecision(e);
-        if (prec < 0 || prec > 2) {
+        PureDateLiteral.Precision prec = datePrecision(e);
+        if (prec.atLeast(PureDateLiteral.Precision.HOUR)) {
             return null;
         }
         SqlExpr one = new SqlExpr.IntLit(1);
@@ -2554,11 +2561,11 @@ final class Scalars {
         SqlExpr year = new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"), one),
                 SqlType.Scalar.BIGINT);
-        SqlExpr month = prec >= 1 ? new SqlExpr.Cast(
+        SqlExpr month = prec.atLeast(PureDateLiteral.Precision.MONTH) ? new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
                         new SqlExpr.IntLit(2)),
                 SqlType.Scalar.BIGINT) : one;
-        SqlExpr day = prec >= 2 ? new SqlExpr.Cast(
+        SqlExpr day = prec.atLeast(PureDateLiteral.Precision.DAY) ? new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
                         new SqlExpr.IntLit(3)),
                 SqlType.Scalar.BIGINT) : one;
@@ -2686,12 +2693,12 @@ final class Scalars {
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 
-    /** datePrecision, or -1 where the abstract Date makes it undecidable. */
-    private static int datePrecisionOrUnknown(TypedSpec arg) {
+    /** datePrecision, or null where the abstract Date makes it undecidable. */
+    private static PureDateLiteral.Precision datePrecisionOrUnknown(TypedSpec arg) {
         try {
             return datePrecision(arg);
         } catch (IllegalStateException undecidable) {
-            return -1;
+            return null;
         }
     }
 
@@ -3379,14 +3386,15 @@ final class Scalars {
     }
 
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
+    /** Split-part FIELD COUNT of a partial (year / year-month) literal —
+     * derived from the one precision ladder, not a second scale. */
     private static Integer partialPrecision(TypedSpec t) {
         if (t instanceof TypedCDate d) {
-            if (d.value() instanceof PureDateLiteral.Year) {
-                return 1;
-            }
-            if (d.value() instanceof PureDateLiteral.YearMonth) {
-                return 2;
-            }
+            return switch (d.value().precision()) {
+                case YEAR -> 1;
+                case MONTH -> 2;
+                default -> null;
+            };
         }
         return null;
     }
@@ -3436,17 +3444,9 @@ final class Scalars {
      * Pure type (StrictDate = day, DateTime = SQL TIMESTAMP = full); the
      * abstract Date is undecidable and refuses loudly.
      */
-    private static int datePrecision(TypedSpec arg) {
+    private static PureDateLiteral.Precision datePrecision(TypedSpec arg) {
         if (arg instanceof TypedCDate d) {
-            return switch (d.value()) {
-                case PureDateLiteral.Year ignored -> 0;
-                case PureDateLiteral.YearMonth ignored -> 1;
-                case PureDateLiteral.StrictDate ignored -> 2;
-                case PureDateLiteral.DateWithHour ignored -> 3;
-                case PureDateLiteral.DateWithMinute ignored -> 4;
-                case PureDateLiteral.DateWithSecond ignored -> 5;
-                default -> 6;
-            };
+            return d.value().precision();
         }
         // A date() CONSTRUCTOR call's precision is its ARITY — the static
         // return type says DateTime for every arity (audit: hasMinute of
@@ -3454,24 +3454,25 @@ final class Scalars {
         if (arg instanceof TypedNativeCall dc
                 && dc.callee().qualifiedName().equals("meta::pure::functions::date::date")) {
             return switch (dc.args().size()) {
-                case 1 -> 0;
-                case 2 -> 1;
-                case 3 -> 2;
-                case 4 -> 3;
-                case 5 -> 4;
+                case 1 -> PureDateLiteral.Precision.YEAR;
+                case 2 -> PureDateLiteral.Precision.MONTH;
+                case 3 -> PureDateLiteral.Precision.DAY;
+                case 4 -> PureDateLiteral.Precision.HOUR;
+                case 5 -> PureDateLiteral.Precision.MINUTE;
                 default -> dc.args().get(5).info().type()
                         == Type.Primitive.FLOAT
                         || dc.args().get(5).info().type()
                                 == Type.Primitive.DECIMAL
-                        ? 6 : 5;
+                        ? PureDateLiteral.Precision.SUBSECOND
+                        : PureDateLiteral.Precision.SECOND;
             };
         }
         var t = arg.info().type();
         if (t == Type.Primitive.DATE_TIME) {
-            return 6;
+            return PureDateLiteral.Precision.SUBSECOND;
         }
         if (t == Type.Primitive.STRICT_DATE) {
-            return 2;
+            return PureDateLiteral.Precision.DAY;
         }
         throw new IllegalStateException("a date-precision predicate over the"
                 + " abstract Date type is not statically decidable — declare"

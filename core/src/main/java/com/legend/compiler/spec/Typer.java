@@ -2474,12 +2474,10 @@ final class Typer {
 
     /** Date-literal precision: year/year-month = Date; a full day = StrictDate; any time part = DateTime. */
     private static Type dateType(PureDateLiteral lit) {
-        return switch (lit) {
-            case PureDateLiteral.Year ignored -> Type.Primitive.DATE;
-            case PureDateLiteral.YearMonth ignored -> Type.Primitive.DATE;
-            case PureDateLiteral.StrictDate ignored -> Type.Primitive.STRICT_DATE;
-            default -> Type.Primitive.DATE_TIME;   // any variant carrying a time component
-        };
+        PureDateLiteral.Precision p = lit.precision();
+        return p.atLeast(PureDateLiteral.Precision.HOUR) ? Type.Primitive.DATE_TIME
+                : p == PureDateLiteral.Precision.DAY ? Type.Primitive.STRICT_DATE
+                : Type.Primitive.DATE;
     }
 
     /** A bare {@code ~col}: a first-class {@code ColSpec<(col:?)>[1]} value (see {@link TypedColSpec}). */
