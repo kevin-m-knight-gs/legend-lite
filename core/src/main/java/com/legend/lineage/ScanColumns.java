@@ -74,6 +74,18 @@ public final class ScanColumns {
                     use(s.where(), env, VALUE, out);
                 }
                 for (SqlExpr g : s.groupBy()) {
+                    // an INNER select's PASS-THROUGH grouped key (grouped
+                    // subselect joined back on the key): its use is the
+                    // CONSUMER's — the outer ON already reports it as
+                    // JoinTreeNode; engine golden carries no extra VALUE
+                    // read (testAssociationMapping FIRMID)
+                    if (!root && g instanceof SqlExpr.Column gc
+                            && s.projections().stream().anyMatch(p ->
+                                    p.expr() instanceof SqlExpr.Column pc
+                                    && pc.table().equals(gc.table())
+                                    && pc.name().equals(gc.name()))) {
+                        continue;
+                    }
                     use(g, env, VALUE, out);
                 }
                 if (s.having() != null) {

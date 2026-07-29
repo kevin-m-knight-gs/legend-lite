@@ -21,7 +21,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests | 143 | 124 | 2 | 13 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
-| lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
+| lineage/scanColumns | 6 | 3 | 1 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
 | milestoning/tests | 224 | 202 | 9 | 3 | 10 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2071** | 94 | 174 | 199 |
+| **total** | 2538 | **2072** | 93 | 174 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8619,7 +8619,6 @@ in-process Alloy-shaped path).
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - ERROR testSubType [lineage/scanColumns]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:
-- FAIL testAssociationMapping [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, firmTable.LEGALNAME <TableAliasColumn>, personTable.FIRMID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, firmTable.LEGALNAME <TableAliasColumn>, personTable.FIRMID <JoinTreeNode>, personTable.FIRMID <TableAliasColumn>]
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - FAIL testView [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <RelationalOperationElementWithJoin>, personTable.ID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <Joi
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
