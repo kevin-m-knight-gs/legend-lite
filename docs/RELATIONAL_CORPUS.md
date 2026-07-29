@@ -37,7 +37,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 238 | 9 | 9 | 10 |
+| tds/tests | 266 | 243 | 4 | 9 | 10 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 |
 | tests | 39 | 17 | 1 | 0 | 21 |
 | tests/advanced | 68 | 47 | 2 | 6 | 13 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2078** | 93 | 172 | 195 |
+| **total** | 2538 | **2083** | 88 | 172 | 195 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8627,12 +8627,7 @@ in-process Alloy-shaped path).
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
 - ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOpe
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable
-- FAIL testSimpleRelationalUnion [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName" from (select "root".LASTNAME as "lastName" from personTable as "root" union select "root".LASTNAME as "lastName" from personTable as "root") as "unionalias_0", got select distinct "persontable_2".lastName from (select "root".LASTN
-- FAIL testUnionWithGroupBy [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName", sum("unionalias_0"."age") as "age" from (select "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", "root".AGE as "age" from personTable as "root" union select "root".LASTNAME as "lastName", "root".FIRSTNAME as "first
 - SHAPE testMultiUnion [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL testUnionWithPreOperation [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName" from (select "root".LASTNAME as "lastName" from personTable as "root" where "root".LASTNAME <> 'hello' or "root".LASTNAME is null union select "root".LASTNAME as "lastName" from personTable as "root") as "unionalias_0", got select
-- FAIL testUnionWithPostOperation [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName" from (select "root".LASTNAME as "lastName" from personTable as "root" union select "root".LASTNAME as "lastName" from personTable as "root" where "root".LASTNAME <> 'hello' or "root".LASTNAME is null) as "unionalias_0", got select
-- FAIL testUnionWithPrePostOperation [tds/tests]: assertEquals: expected select "unionalias_0"."lastName" as "lastName" from (select "root".LASTNAME as "lastName" from personTable as "root" where "root".LASTNAME = 'hello' union select "root".LASTNAME as "lastName" from personTable as "root" where "root".LASTNAME = 'hello') as "unionalias_0", got se
 - FAIL testUnionWithJoin [tds/tests]: assertEquals: expected select "unionalias_0"."lhs_lastName" as "lhs_lastName", "unionalias_0"."rhs_firstName" as "rhs_firstName" from (select * from (select "unionalias_2"."lhs_lastName" as "lhs_lastName" from (select "root".LASTNAME as "lhs_lastName" from personTable as "root" union select "root".L
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call

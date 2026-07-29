@@ -225,7 +225,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * interiors) and the distinct root materialization stay physical. */
     private boolean quotedFrameRead(SqlExpr.Column c) {
         SqlSource.Subselect sub = subselects.get(c.table());
-        if (sub == null || sub.frameName() != null
+        if (sub == null) {
+            return false;
+        }
+        // the UNION frame reads its QUOTED output aliases (tds union
+        // goldens: "unionalias_0"."lastName") — unlike view frames,
+        // whose interiors render bare
+        if (sub.inner() instanceof com.legend.sql.SqlUnion iu) {
+            return "unionAlias".equals(sub.frameName())
+                    && !iu.branches().isEmpty()
+                    && iu.branches().get(0) instanceof SqlSelect b0
+                    && b0.projections().stream()
+                            .anyMatch(p -> c.name().equals(p.alias()));
+        }
+        if (sub.frameName() != null
                 || !(sub.inner() instanceof SqlSelect is)
                 || is.distinct()) {
             return false;
@@ -292,6 +305,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         return java.util.List.of();
+    }
+
+    @Override
+    protected void query(StringBuilder sb, com.legend.sql.SqlQuery q,
+            int depth) {
+        // engine union text: one line, lowercase, branches joined inline
+        if (q instanceof com.legend.sql.SqlUnion u) {
+            String op = u.all() ? " union all " : " union ";
+            for (int i = 0; i < u.branches().size(); i++) {
+                if (i > 0) {
+                    sb.append(op);
+                }
+                query(sb, u.branches().get(i), depth);
+            }
+            return;
+        }
+        super.query(sb, q, depth);
     }
 
     @Override
@@ -366,7 +396,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
         for (SqlSelect.Projection p : s.projections()) {
             if (p.outputName() != null && e.equals(p.expr())) {
-                if (p.expr() instanceof SqlExpr.Column pc
+                // union-frame reads always spell the quoted OUTPUT name
+                // (group by "lastName") — the self-alias physical
+                // spelling is a VIEW-frame rule
+                boolean unionRead = p.expr() instanceof SqlExpr.Column uc
+                        && s.from() instanceof SqlSource.Subselect sub
+                        && "unionAlias".equals(sub.frameName())
+                        && sub.alias().equals(uc.table());
+                if (!unionRead && p.expr() instanceof SqlExpr.Column pc
                         && pc.name().equals(p.outputName())) {
                     return expr(e, 0);
                 }
@@ -392,13 +429,17 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             case SqlSource.Subselect sub -> {
                 sb.append('(');
-                if (sub.frameName() != null) {
+                // union frames keep the QUOTED alias interior (tds
+                // goldens); only VIEW frames unquote their projections
+                boolean viewFrame = sub.frameName() != null
+                        && !"unionAlias".equals(sub.frameName());
+                if (viewFrame) {
                     frameDepth++;
                 }
                 try {
                     query(sb, sub.inner(), depth);
                 } finally {
-                    if (sub.frameName() != null) {
+                    if (viewFrame) {
                         frameDepth--;
                     }
                 }
@@ -638,6 +679,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                 + " in (${renderCollection(" + cp.name()
                                 + "![] \",\" " + holderArgs(cp.kind())
                                 + " \"null\")})";
+                    }
+                    // the engine collapses a SINGLETON literal in-list
+                    // to equality ('x in ([v])' text = 'x = v')
+                    if (bc.args().size() == 2) {
+                        return expr(bc.args().get(0), 4) + " = "
+                                + expr(bc.args().get(1), 4);
                     }
                     // engine keyword text is lowercase
                     StringBuilder items = new StringBuilder();

@@ -579,8 +579,16 @@ public final class Lowerer {
                     ? scalar(last(k.fn().get()), (v, name) -> resolveOrThrow(base, name))
                     : resolveOrThrow(base, k.column());
             keys.add(e);
+            // a self-aliased key drops the alias (view-frame goldens) —
+            // EXCEPT reads of a union frame's outputs, which keep it
+            // ("unionalias_0"."lastName" as "lastName")
+            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
+                    && "unionAlias".equals(sub.frameName())
+                    && e instanceof SqlExpr.Column uc
+                    && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
-                    e instanceof SqlExpr.Column c && c.name().equals(k.column()) ? null : k.column()));
+                    !unionRead && e instanceof SqlExpr.Column c
+                            && c.name().equals(k.column()) ? null : k.column()));
         }
         AggCols ac = aggCols(base, g.aggs(), calCtx);
         ps.addAll(ac.ps());
@@ -1480,6 +1488,27 @@ public final class Lowerer {
     }
 
     private SqlSelect distinct(TypedDistinct d) {
+        // TDS union (the Typer's distinct-over-concatenation desugar):
+        // the engine form — subselect(A union B) named by the unionAlias
+        // frame, plain outer re-projection of the output columns (SQL
+        // UNION dedups; never a distinct wrapper)
+        boolean wholeRow = d.columns() == null || d.columns().isEmpty()
+                || d.columns().equals(((Type.RelationType) d.info().type())
+                        .columns().stream().map(Type.Column::name).toList());
+        if (wholeRow && d.source() instanceof TypedConcatenate tc) {
+            SqlUnion u = union(tc);
+            SqlUnion dedup = new SqlUnion(u.branches(), false, u.outputs());
+            SqlSource.Subselect sub = new SqlSource.Subselect(
+                    dedup, nextAlias(), "unionAlias");
+            List<SqlSelect.Projection> projs = new ArrayList<>();
+            for (Type.Column c : ((Type.RelationType) d.info().type())
+                    .columns()) {
+                projs.add(new SqlSelect.Projection(
+                        new SqlExpr.Column(sub.alias(), c.name()), c.name()));
+            }
+            return new SqlSelect(projs, false, sub, null, List.of(), null,
+                    null, List.of(), null, null, u.outputs());
+        }
         SqlSelect src = relation(d.source());
         if (d.columns() != null && !d.columns().isEmpty()) {
             return distinctNarrowTo(src, d.columns(), d.info());
