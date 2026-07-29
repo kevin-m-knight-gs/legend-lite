@@ -969,10 +969,24 @@ final class GraphEmission {
         // graph executor runs per-member serial child queries) — a merged
         // union navigate carries the paired variant for exactly this
         // consumer (TypedNavigate.pairedPredicate)
+        TypedLambda navCond = nav.pairedPredicate().orElse(nav.predicate());
+        // COMPOSITE chain (bridge-table hop: employees: @A > @B): the
+        // condition reads a SIBLING joinslot of the parent — pull the
+        // bridge INTO the child pipeline, correlated outward by hop-1's
+        // condition (same reorientation as the exists route, #70)
+        if (navCond.parameters().size() == 2) {
+            CorrelatedSubselects.CompositeChain cc =
+                    new CorrelatedSubselects(sources, assocMaterial)
+                            .compositeChainTarget(cs, navCond, childPipe);
+            if (cc != null) {
+                childPipe = cc.pipeline();
+                navCond = cc.orientedCond();
+            }
+        }
         return correlatedGraphChild(child, childPipe,
                 (Type.RelationType)
                         childPipe.info().type(),
-                nav.pairedPredicate().orElse(nav.predicate()),
+                navCond,
                 toMany, node, parentRowVar, parentRowType, context,
                 cMat.slotPrefixes());
     }

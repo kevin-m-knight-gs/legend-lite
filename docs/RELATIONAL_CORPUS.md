@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 120 | 3 | 16 | 4 |
+| graphFetch/tests | 143 | 122 | 3 | 14 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2067** | 95 | 177 | 199 |
+| **total** | 2538 | **2069** | 95 | 175 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8599,11 +8599,9 @@ in-process Alloy-shaped path).
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend]
 - ERROR testRelationalChainExecutionNested [graphFetch/tests]: serialize leaf 'managers' references column 'manager', unresolvable in the envelope source
-- ERROR testComplexPropertyOtherwiseGetterDeepTraversal [graphFetch/tests]: filter predicate references column 'BondDetailJoin_PRODUCT_ID', unresolvable even after isolation [param=t; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=ClassTyp
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - FAIL testMilestonedProperty [graphFetch/tests]: assertEquals: expected PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classificationTypeStr()}}}#)\n  (\n    StoreMappingGlobalGraphFetch\n    (\n      type = PartialClass[impls=[(meta::relational::tests::
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
-- ERROR testIsolationOfPropertyTargetFilter [graphFetch/tests]: filter predicate references column 'firmTable_personFirmBridgeTable_personId', unresolvable even after isolation [param=t; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left
 - ERROR testRelationalGraphFetchWithAlloySerializationConfig [graphFetch/tests]: unknown function 'alloyConfig'
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: property 'postProcessors' of 'meta::external::store::relational::runtime::RelationalDatabaseConnection': expected meta::pure::alloy::connections::PostProcessor, got meta::pure::alloy::connections::MapperPostProcessor (value: AppliedFunction[function=new, parameters=[PackageableElementPtr[fullPath=me
