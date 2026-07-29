@@ -8447,7 +8447,6 @@ in-process Alloy-shaped path).
 - 2x unknown function 'alloyConfig'
 - 2x unknown function 'parseJSON'
 - 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
-- 2x unknown function 'tdsRows'
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
 - 2x cannot access 'name' on String
@@ -8456,6 +8455,7 @@ in-process Alloy-shaped path).
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x unknown function 'genericType'
+- 2x association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -8640,7 +8640,7 @@ in-process Alloy-shaped path).
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension]
 - FAIL testBiTemporalDateInjectionFromVarReference [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [<null>, <null>], our pipeline gave 2 row(s) [<null>, STOCK]
-- ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: unknown function 'tdsRows'
+- ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: milestoned property access 'systemDescription' on a NESTED navigation is not supported yet
 - FAIL testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [CST|Error|Ensure that milestoning qualified properties passed function arguments which reference $this.temporalDate are processed correctly|2|ProductName2, CST|Error|Ensure that milestoning qualified properties passed function arguments which r
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8926,7 +8926,7 @@ in-process Alloy-shaped path).
 - ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR validateComplexValidation4 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- ERROR validateComplexValidation5 [validation/tests]: unknown function 'tdsRows'
+- ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro
 - ERROR validateComplexValidation6 [validation/tests]: filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::complex::Address' — slot-demanding leaves under value-position filters are not supported yet
 - ERROR validateComplexValidation7 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR validateComplexValidation9 [validation/tests]: aggregate 'meta::pure::functions::collection::isDistinct' over a to-many navigation in FILTER position is not supported yet

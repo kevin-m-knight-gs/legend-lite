@@ -253,6 +253,15 @@ final class Typer {
         if (tdsSchema != null) {
             return tdsSchema;
         }
+        // tdsRows(tds) = $tds.rows (real tds.pure:301) — the rows-marker
+        // read; emptiness et al. compose over it like any rows access
+        if ((af.function().equals("tdsRows")
+                    || af.function().equals("meta::pure::tds::tdsRows"))
+                && af.parameters().size() == 1) {
+            return synth(new AppliedProperty(af.parameters().get(0),
+                    com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER),
+                    env);
+        }
         // $r.getString('COL') / getInteger / ... — TDSRow typed accessors
         // read the named COLUMN of the relation row (a plain property
         // access post-desugar; a type mismatch is loud downstream). The
