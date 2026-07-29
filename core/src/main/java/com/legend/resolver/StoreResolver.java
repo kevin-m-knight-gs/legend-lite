@@ -161,10 +161,48 @@ public final class StoreResolver {
             }
             out.add(resolveNode(stmt, context));
         }
+        for (int i = 0; i < out.size(); i++) {
+            out.set(i, onFormPass(out.get(i), andCallee()));
+        }
         for (TypedSpec stmt : out) {
             assertNoStoreOnlyEscapees(stmt);
         }
         return out;
+    }
+
+    /** ENGINE ON-FORM post-pass (memory milestoning-onclause-seam): a
+     * LEFT/INNER join whose RIGHT side is temporal-STAMP filter layers
+     * (STAMP_ROW_VAR-marked) hoists them into its ON — the window spells
+     * in the join condition, the pipe joins raw. Runs over the FULLY
+     * resolved tree, after every consumer decision (the grouped routes'
+     * internals hoist identically — same rows, engine shape). */
+    private static TypedSpec onFormPass(TypedSpec n,
+            com.legend.compiler.element.TypedFunction andFn) {
+        n = n.mapChildren(c -> onFormPass(c, andFn));
+        if (n instanceof TypedJoin j
+                && ("LEFT".equals(j.kind().value())
+                        || "INNER".equals(j.kind().value()))) {
+            Object[] r = Pipelines.onFormRelocate(j.right(), j.condition(),
+                    andFn);
+            if (r[0] != j.right()) {
+                return new TypedJoin(j.left(), (TypedSpec) r[0], j.kind(),
+                        (com.legend.compiler.spec.typed.TypedLambda) r[1],
+                        j.prefix(), j.frameName(), j.info());
+            }
+        }
+        return n;
+    }
+
+    /** The one resolved 2-arg {@code boolean::and} — the ON-form pass's
+     * conjunction builder. */
+    private com.legend.compiler.element.TypedFunction andCallee() {
+        var fns = ctx.findFunction("meta::pure::functions::boolean::and")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (fns.size() != 1) {
+            throw new IllegalStateException(
+                    "resolver bug: expected one 2-arg boolean::and");
+        }
+        return fns.get(0);
     }
 
     /**

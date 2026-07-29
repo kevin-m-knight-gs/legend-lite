@@ -202,12 +202,13 @@ final class AssociationJoins {
     private OnForm onFormOf(TypedSpec stamped, TypedLambda cond) {
         java.util.List<TypedLambda> stamps = new java.util.ArrayList<>();
         TypedSpec cur = stamped;
-        while (cur instanceof com.legend.compiler.spec.typed.TypedFilter tf0) {
+        while (cur instanceof com.legend.compiler.spec.typed.TypedFilter tf0
+                && TemporalFrame.STAMP_ROW_VAR.equals(
+                        tf0.predicate().parameters().get(0))) {
             stamps.add(tf0.predicate());
             cur = tf0.source();
         }
-        if (stamps.isEmpty() || !filterFree(cur)
-                || Pipelines.containsConcatenate(cur)) {
+        if (stamps.isEmpty() || Pipelines.containsConcatenate(cur)) {
             return null;
         }
         var boolT = ExprType.one(Type.Primitive.BOOLEAN);

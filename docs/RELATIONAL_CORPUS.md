@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 48 | 16 | 11 | 35 |
+| executionPlan/tests | 110 | 49 | 15 | 11 | 35 |
 | functions/tests | 258 | 220 | 9 | 20 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
-| milestoning/tests | 224 | 196 | 11 | 6 | 11 |
+| milestoning/tests | 224 | 197 | 11 | 6 | 10 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2057** | 99 | 182 | 200 |
+| **total** | 2538 | **2059** | 98 | 182 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8492,7 +8492,6 @@ in-process Alloy-shaped path).
 - SHAPE testCrossDbPlanGenerationWithFromWithoutExternalMapping [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testCrossDbPlanGenerationWithRelationUsesCorrectColumnTypes [executionPlan/tests]: no execute(|...) call [calls meta::relational::extension]
-- FAIL testTemporalDateVariableInPropertySequence [executionPlan/tests]: assertEquals: expected select "productclassificationtable_0".type as "classificationType" from ProductTable as "root" left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".from_z <= '${bd}
 - FAIL testTemporalDateVariableInFunctionExpression [executionPlan/tests]: assertEquals: expected select "productclassificationtable_0".type as "classificationType" from ProductTable as "root" left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".from_z <= datead
 - FAIL testTemporalDateVariableInFunctionExpressionWithPropagation [executionPlan/tests]: assertEquals: expected select "productexchangetable_0".name as "exchangeName" from ProductTable as "root" left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".from_z <= dateadd(DAY, 1, '$
 - SHAPE testModelConnectionSimple [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
@@ -8651,14 +8650,13 @@ in-process Alloy-shaped path).
 - FAIL testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: assertEquals: expected ProductName2,GS-Mod-S1*GS-Mod-S2, got ProductName2,GS-Mod-S2*GS-Mod-S1
 - ERROR testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction [milestoning/tests]: milestoned property access 'product' on a NESTED navigation is not supported yet
 - SHAPE testBusinessDatePropagationInColFunction_asQueryParam [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
-- SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet
+- FAIL testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::milestoning::Product | milestoningmap.meta_relational_tests_milestoning_Product)]\n         as meta::relational::tests::milestoning::Product\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type = StrictDate\
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-text: expected select "root".name as "name", "productclassificationtable_0".type as "classificationType" from ProductTable as "root" left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_
 - FAIL testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "cancelactivitiestable_0".created_by as "cancelProductActivityCreatedBy", '2015-10-16' as "k_businessDate" from ProductTable as "root" left outer join (select "cancelactivitiestable_0".productId as productId, "c
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

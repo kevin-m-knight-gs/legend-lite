@@ -46,6 +46,13 @@ import java.util.function.UnaryOperator;
  */
 final class TemporalFrame {
 
+    /** The temporal STAMP's lambda row var — the typed-HIR provenance
+     * marker (like PK_ORDER_PREFIX): a TypedFilter whose predicate binds
+     * this var was added by the temporal stamp and MAY relocate onto a
+     * join condition (memory milestoning-onclause-seam); no other filter
+     * producer uses it. */
+    static final String STAMP_ROW_VAR = "ms_row";
+
     /** Generated milestone-date KEYS in the milestone-columns map — ONE
      * spelling for the producer (milestoneColumnsOf) and the consumers
      * (Substitution generated-date reads, GraphEmission generatedDateLeaf).
@@ -1344,7 +1351,7 @@ final class TemporalFrame {
                     : sc);
         }
         Type.RelationType row = (Type.RelationType) pipe.info().type();
-        String v = "ms_row";
+        String v = STAMP_ROW_VAR;
         ExprType rowT =
                 new ExprType(row,
                         Multiplicity.Bounded.ONE);
@@ -1792,7 +1799,7 @@ final class TemporalFrame {
         }
         Type.RelationType row =
                 (Type.RelationType) pipe.info().type();
-        String v = "ms_row";
+        String v = STAMP_ROW_VAR;
         ExprType rowT =
                 new ExprType(row,
                         Multiplicity.Bounded.ONE);

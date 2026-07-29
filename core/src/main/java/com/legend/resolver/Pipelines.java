@@ -351,6 +351,51 @@ final class Pipelines {
                         new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
                 }
 
+    /** ENGINE ON-FORM (memory milestoning-onclause-seam): the temporal
+     * STAMP layers (STAMP_ROW_VAR-marked filters) on a join target
+     * relocate onto the join condition — window in the ON, pipe raw.
+     * The resolved AND callee arrives from the caller (the post-pass
+     * has the ModelContext). Returns {target, cond}. */
+    static Object[] onFormRelocate(TypedSpec target,
+            TypedLambda cond,
+            com.legend.compiler.element.TypedFunction andFn) {
+        java.util.List<TypedLambda> stamps = new ArrayList<>();
+        TypedSpec cur = target;
+        while (cur instanceof TypedFilter twf
+                && TemporalFrame.STAMP_ROW_VAR.equals(
+                        twf.predicate().parameters().get(0))) {
+            stamps.add(twf.predicate());
+            cur = twf.source();
+        }
+        if (stamps.isEmpty()) {
+            return new Object[] {target, cond};
+        }
+        String tv = cond.parameters().get(1);
+        var rowInfo = new ExprType(cur.info().type(),
+                Multiplicity.Bounded.ONE);
+        var boolT = new ExprType(Type.Primitive.BOOLEAN,
+                Multiplicity.Bounded.ONE);
+        TypedSpec merged = cond.body().get(0);
+        for (int i = stamps.size() - 1; i >= 0; i--) {
+            TypedLambda st = stamps.get(i);
+            TypedSpec pb = renameStampVar(st.body().get(0),
+                    st.parameters().get(0), tv, rowInfo);
+            merged = new com.legend.compiler.spec.typed.TypedNativeCall(
+                    andFn, List.of(merged, pb), boolT);
+        }
+        return new Object[] {cur, new TypedLambda(cond.parameters(),
+                List.of(merged), cond.info())};
+    }
+
+    private static TypedSpec renameStampVar(TypedSpec n, String from,
+            String to, ExprType rowInfo) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(from)) {
+            return new com.legend.compiler.spec.typed.TypedVariable(to, rowInfo);
+        }
+        return n.mapChildren(c -> renameStampVar(c, from, to, rowInfo));
+    }
+
     /** Slot/nav aliases read by any {@link TypedFilter} predicate in the
      * pipeline (mapping ~filters and spliced below-hop filters alike). */
     private static void collectFilterDemand(TypedSpec n, Set<String> slotUniverse,
