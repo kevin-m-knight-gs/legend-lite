@@ -85,8 +85,36 @@ final class JoinChainEmission {
                     mainDb, mainTable, rowBind, model, md, /*classTypedTerminus*/ false);
             case PropertyMapping.LocalProperty lp -> emitHopsForStructuralPm(p, lp.body(),
                     ownerClassFqn, mainDb, mainTable, rowBind, model, md);
-            case PropertyMapping.OtherwiseEmbedded oe -> emitOtherwiseEmbeddedHop(p, oe,
-                    ownerClassFqn, mainDb, mainTable, rowBind, model, md);
+            case PropertyMapping.OtherwiseEmbedded oe -> {
+                emitOtherwiseEmbeddedHop(p, oe,
+                        ownerClassFqn, mainDb, mainTable, rowBind, model, md);
+                // the PARTIAL's structural sub-PMs hoist like a plain
+                // embedded block (bondClassification: @J inside
+                // Otherwise(...)) — without them the partial's ctor
+                // field reads a slot that was never minted
+                ClassDefinition oeOwner = model.findClass(ownerClassFqn)
+                        .orElse(null);
+                TypeExpression oeType = oeOwner == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(oeOwner,
+                                oe.propertyName(), model);
+                if (oeType instanceof TypeExpression.NameRef nr) {
+                    for (PropertyMapping sub : oe.embedded()) {
+                        if (sub instanceof PropertyMapping.Join j
+                                && p.aliasToTargetTable.containsKey(j.propertyName())
+                                && classTypedTargetIfMapped(nr.name(),
+                                        j.propertyName(), model) != null) {
+                            throw new NotImplementedException(
+                                    "Otherwise-embedded sub-PM '"
+                                  + j.propertyName()
+                                  + "' collides with an existing pipeline slot"
+                                  + " of the same name. Mapping="
+                                  + md.qualifiedName());
+                        }
+                        emitHopsForStructuralPm(p, sub, nr.name(), mainDb,
+                                mainTable, rowBind, model, md);
+                    }
+                }
+            }
             case PropertyMapping.Embedded emb -> {
                 // sub-PM join chains hoist into the TOP pipeline (the
                 // embedded instance shares the owner's row); the owner for

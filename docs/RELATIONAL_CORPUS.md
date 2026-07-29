@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 118 | 3 | 18 | 4 |
+| graphFetch/tests | 143 | 120 | 3 | 16 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2065** | 95 | 179 | 199 |
+| **total** | 2538 | **2067** | 95 | 177 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8443,7 +8443,6 @@ in-process Alloy-shaped path).
 - 2x aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - 2x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
-- 2x in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - 2x unknown function 'alloyConfig'
 - 2x unknown function 'parseJSON'
 - 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
@@ -8456,6 +8455,7 @@ in-process Alloy-shaped path).
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x unknown function 'genericType'
 - 2x association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
+- 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 
 ### per-test outcomes (non-passing)
 
@@ -8599,9 +8599,7 @@ in-process Alloy-shaped path).
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend]
 - ERROR testRelationalChainExecutionNested [graphFetch/tests]: serialize leaf 'managers' references column 'manager', unresolvable in the envelope source
-- ERROR testEmbeddedToRootMapping [graphFetch/tests]: embedded graph child 'firm.employees' is class-typed through a non-ctor binding — not supported yet
-- ERROR testWithAssociationFromRootMappingWithFilter [graphFetch/tests]: property 'bondClassification' of embedded 'bondDetails' on class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedParent' [otherwise fallback=ABSENT]
-- ERROR testComplexPropertyOtherwiseGetterDeepTraversal [graphFetch/tests]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
+- ERROR testComplexPropertyOtherwiseGetterDeepTraversal [graphFetch/tests]: filter predicate references column 'BondDetailJoin_PRODUCT_ID', unresolvable even after isolation [param=t; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=ClassTyp
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - FAIL testMilestonedProperty [graphFetch/tests]: assertEquals: expected PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classificationTypeStr()}}}#)\n  (\n    StoreMappingGlobalGraphFetch\n    (\n      type = PartialClass[impls=[(meta::relational::tests::
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -8820,7 +8818,7 @@ in-process Alloy-shaped path).
 - ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: derived property 'isFirmX' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: assertEquals: expected name,firm\n\n, got []
-- ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
+- ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[bondDetails]; head subNavs=[holder]; head binding=TypedNativeCall]
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'address' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail'
 - ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'unit' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::Person'

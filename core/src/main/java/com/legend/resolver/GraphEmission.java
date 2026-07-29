@@ -888,14 +888,26 @@ final class GraphEmission {
             TypedNavigate nav, String castClassFqn,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
+        return navSlotChild(cs, cs.classFqn(), node, nav, castClassFqn,
+                context, parentRowVar, parentRowType);
+    }
+
+    /** {@code ownerClassFqn}: the class DECLARING the child property —
+     * the source class itself, or the EMBEDDED class when the slot sits
+     * inside an embedded ctor (the pipeline/row stay the source's). */
+    TypedSerializeGraph.Child navSlotChild(ClassSource cs,
+            String ownerClassFqn, TypedGraphTree node,
+            TypedNavigate nav, String castClassFqn,
+            StoreResolver.Context context, String parentRowVar,
+            Type.RelationType parentRowType) {
         String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
                 + '\u0000'
                 + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
         String rawTarget = ((TypedGetAll) nav.target()).classFqn();
-        var prop = ctx.findProperty(cs.classFqn(), node.property()).orElseThrow(
+        var prop = ctx.findProperty(ownerClassFqn, node.property()).orElseThrow(
                 () -> new IllegalStateException("resolver bug: graph child '"
                         + node.property() + "' is not a property of '"
-                        + cs.classFqn() + "'"));
+                        + ownerClassFqn + "'"));
         String childClass = castClassFqn != null ? castClassFqn
                 : prop.type() instanceof Type.ClassType cc
                         ? cc.fqn() : null;
@@ -1463,6 +1475,35 @@ final class GraphEmission {
                 }
             }
             if (e == null) {
+                // ASSOCIATION child of the EMBEDDED class (the inline-
+                // embedded set's association mapping): the embedded node
+                // shares the parent's row — the association correlates
+                // against it (correlatedGraphChild rewrites the source
+                // param onto the parent row var; same-table sets align)
+                var embAssoc = ctx.findAssociationOf(childClass,
+                        c.property());
+                if (embAssoc.isPresent()) {
+                    ClassSource embSrc = sources.get(cs.mappingFqn(),
+                            childClass);
+                    java.util.Set<String> embLeaves =
+                            new java.util.LinkedHashSet<>();
+                    for (TypedGraphTree cc2 : c.children()) {
+                        embLeaves.add(cc2.property());
+                    }
+                    AssociationJoins.AssocJoin aj = assocMaterial
+                            .associationJoin(temporal, embSrc, c.property(),
+                                    context, /*forExists*/ true, embLeaves);
+                    var embEnd = embAssoc.get().property1().propertyName()
+                            .equals(c.property())
+                            ? embAssoc.get().property1()
+                            : embAssoc.get().property2();
+                    nested.add(correlatedGraphChild(aj.target(),
+                            aj.targetPipeline(), aj.targetRow(),
+                            aj.condition(), !embEnd.isToOne(), c,
+                            cs.rowVar(), rowT, context,
+                            aj.targetSlotPrefixes()));
+                    continue;
+                }
                 // DERIVED property of the EMBEDDED class: the lifted body
                 // inlines against the ctor's bindings — parent-row exprs,
                 // same machinery as top-level qualifier leaves (task #78)
@@ -1505,6 +1546,21 @@ final class GraphEmission {
                 continue;
             }
             if (ei.info().type() instanceof Type.ClassType) {
+                // JOIN property INSIDE the embedded ctor (firm(employees:
+                // @firmEmployees)): the embedded node shares the PARENT's
+                // row, so the slot child correlates against the parent —
+                // the same navigate-slot route as a top-level child
+                if (ei instanceof TypedPropertyAccess pa3
+                        && pa3.source() instanceof TypedVariable v3
+                        && v3.name().equals(cs.rowVar())) {
+                    var nav3 = Pipelines.outerNavSteps(cs.pipeline())
+                            .get(pa3.property());
+                    if (nav3 != null) {
+                        nested.add(navSlotChild(cs, childClass, c, nav3,
+                                null, context, cs.rowVar(), rowT));
+                        continue;
+                    }
+                }
                 throw new NotImplementedException("embedded graph child '"
                         + node.property() + "." + c.property()
                         + "' is class-typed through a non-ctor binding —"
