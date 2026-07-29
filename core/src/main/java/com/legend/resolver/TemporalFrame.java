@@ -1965,6 +1965,27 @@ final class TemporalFrame {
                 return;
             }
         }
+        // PROJECT over a navigation (constraint bodies: $this
+        // .referenceSystem->toOne()->project(r|$r.systemDescription($d)
+        // ...)): each column lambda is an INNER cursor over the projected
+        // nav — same composition as filter/map.
+        if (n instanceof com.legend.compiler.spec.typed.TypedProject tp) {
+            List<String> pp = Substitution.pathOf(tp.source(), userVar);
+            if (pp != null) {
+                for (var col : tp.columns()) {
+                    TypedLambda fl = col.fn();
+                    if (fl.parameters().size() == 1) {
+                        for (TypedSpec bb : fl.body()) {
+                            collectTemporalNodes(bb,
+                                    fl.parameters().get(0), out,
+                                    prefix + String.join(".", pp) + ".");
+                        }
+                    }
+                }
+                collectTemporalNodes(tp.source(), userVar, out, prefix);
+                return;
+            }
+        }
         // qualifier AUTO-MAP spelling (map($o.product(...), v_qam|$v_qam
         // .classification(...))) — same cursor composition as filter
         if (n instanceof com.legend.compiler.spec.typed.TypedMap tm

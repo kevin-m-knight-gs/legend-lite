@@ -512,12 +512,14 @@ public final class Lowerer {
             // itself. The exactly-one contract is enforced where the value
             // is CONSUMED (the executor's scalar second-row guard, audit
             // 21b F10) — engine toOne throws at the reader, never in SQL.
+            // ANY 1-arg toOne in relation position looks through — the
+            // POSITION is the contract (a class-typed nav arg arrives
+            // here after resolution; the inner dispatch stays loud when
+            // the arg is genuinely not relation-lowerable).
             case TypedNativeCall nc when
                     "meta::pure::functions::multiplicity::toOne"
                             .equals(nc.callee().qualifiedName())
-                    && !nc.args().isEmpty()
-                    && nc.args().get(0).info().type()
-                            instanceof Type.RelationType ->
+                    && nc.args().size() == 1 ->
                     relation(nc.args().get(0));
 
             case TypedNativeCall nc when isBareSingleColumnSort(nc) ->

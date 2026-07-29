@@ -8432,10 +8432,11 @@ in-process Alloy-shaped path).
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
 - 4x in call to 'meta::relational::tests::postProcessor::runtimeWithTableReplace', argument 1: expected meta::external::query::sql::metamodel::Table, got meta::relational::metamodel::relation::Table
-- 3x null
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
+- 2x Index 0 out of bounds for length 0
+- 2x null
 - 2x no overload of 'executionPlan' matches the argument types
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
@@ -8455,7 +8456,6 @@ in-process Alloy-shaped path).
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x unknown function 'genericType'
-- 2x association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -8483,7 +8483,7 @@ in-process Alloy-shaped path).
 - ERROR testDatabaseConnectionSQLPopulation [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - FAIL testTDSRenameExpression [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(first_name, String, VARCHAR(200), ""), (employer_id, Integer, INT, "")]\n  resultColumns = [("first_name", VARCHAR(200)), ("employer_id", INT)]\n  sql = select "persontable_0"."firstName" as "first_name", "persontable_0"."eID" as "employer_id" from
 - ERROR tdsJoinOneDBOneExpression [executionPlan/tests]: Index 0 out of bounds for length 0
-- ERROR tdsJoinTwoDBWithColumnMappedViaJoins [executionPlan/tests]: null
+- ERROR tdsJoinTwoDBWithColumnMappedViaJoins [executionPlan/tests]: Index 0 out of bounds for length 0
 - SHAPE twoDBRenameColumns [executionPlan/tests]: no verifying assertions
 - ERROR tdsJoinTwoDBExtend [executionPlan/tests]: null
 - ERROR tdsTwoJoinThreeDB [executionPlan/tests]: null
@@ -8640,7 +8640,7 @@ in-process Alloy-shaped path).
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension]
 - FAIL testBiTemporalDateInjectionFromVarReference [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [<null>, <null>], our pipeline gave 2 row(s) [<null>, STOCK]
-- ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: milestoned property access 'systemDescription' on a NESTED navigation is not supported yet
+- ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: lowering not yet implemented for TypedPropertyAccess
 - FAIL testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [CST|Error|Ensure that milestoning qualified properties passed function arguments which reference $this.temporalDate are processed correctly|2|ProductName2, CST|Error|Ensure that milestoning qualified properties passed function arguments which r
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
