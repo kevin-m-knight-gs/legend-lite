@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
-| lineage/scanRelations | 49 | 33 | 0 | 0 | 16 |
+| lineage/scanRelations | 49 | 36 | 0 | 0 | 13 |
 | milestoning/tests | 224 | 196 | 11 | 6 | 11 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2020** | 103 | 186 | 229 |
+| **total** | 2538 | **2023** | 103 | 186 | 226 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8645,15 +8645,12 @@ in-process Alloy-shaped path).
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - FAIL testView [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <RelationalOperationElementWithJoin>, personTable.ID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <Joi
 - SHAPE testTableTree_Inheritance_1 [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
-- SHAPE testSelectOnLeftSide [lineage/scanRelations]: scanRelations: scanRelations: scalar 'name' in MID position
-- SHAPE testTableTreeTwoFilters [lineage/scanRelations]: scanRelations: scanRelations: scalar 'name' in MID position
+- SHAPE testTableTreeTwoFilters [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testUnionToUnion [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testUnionToSameTableWithDiffKeys [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testViewEmbeddedInChainedJoin [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testSameRelationsAtSameLevel [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableInQualifiedPropertiesInGraphFetchTree [lineage/scanRelations]: scanRelations: scanRelations: scalar 'age' in MID position
-- SHAPE testMultipleTablesInQualifiedPropertiesInGraphFetchTree [lineage/scanRelations]: scanRelations: scanRelations: scalar 'age' in MID position
 - SHAPE testTableToTdsWithJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoinAndUnion [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoinToSameTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification

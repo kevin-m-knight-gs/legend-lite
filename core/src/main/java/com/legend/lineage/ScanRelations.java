@@ -1014,12 +1014,16 @@ public final class ScanRelations {
                     ClassMapping.Relational target = targetCm(ctx, md, j,
                             node.table, propertyTargetClass(ctx, cm,
                                     prop.name()));
+                    // EVERY subtype set's join edge emits (the engine
+                    // fetches all sets' keys — testSelectOnLeftSide pins
+                    // Bicycle(PersonBicycle) [b_PersonID] though only Car
+                    // is navigated); subType narrows the CONTINUATION.
+                    Node child = joinChain(ctx, md, node, j.database(),
+                            j.joins());
                     if (st != null && !typeMatches(target.className(),
                             st.classFqn())) {
                         continue;
                     }
-                    Node child = joinChain(ctx, md, node, j.database(),
-                            j.joins());
                     walk(ctx, md, target, child, path, next, tdgMode);
                     if (tdgMode) {
                         unionSiblings(ctx, md, node, child, target, st,
@@ -1331,8 +1335,16 @@ public final class ScanRelations {
             Node child = at.children.computeIfAbsent(
                     other + "(" + el.joinName() + ")" + keySuffix,
                     k -> new Node(otherDb, otherSchema, other, el.joinName()));
+            boolean selfJoin = at.table.equals(child.table);
             for (RelationalOperation.ColumnRef r : refs) {
-                if (bare(r.table()).equals(at.table)) {
+                if (selfJoin) {
+                    // SELF-join: both operand columns exist on both sides
+                    // — the engine assigns them to both nodes
+                    // (testMultipleTablesInQualifiedPropertiesInGraphFetch
+                    // Tree pins parent ID + child MANAGERID)
+                    at.cols.add(r.column());
+                    child.cols.add(r.column());
+                } else if (bare(r.table()).equals(at.table)) {
                     at.cols.add(r.column());
                 } else if (bare(r.table()).equals(child.table)) {
                     child.cols.add(r.column());
@@ -1343,6 +1355,11 @@ public final class ScanRelations {
                 }
             }
             child.cols.addAll(targetCols);
+            if (selfJoin) {
+                // {target}-side columns of a SELF-join exist on the parent
+                // too (same table — the engine assigns both sides both)
+                at.cols.addAll(targetCols);
+            }
             cur = child;
         }
         return cur;
@@ -1727,6 +1744,15 @@ public final class ScanRelations {
 
     /** The segment list when {@code n} IS a var-rooted chain (possibly
      * with subType/toOne links); null when it is not a chain. */
+    /** Comparison/boolean/arithmetic OPERATORS terminate a chain — they
+     * are never qualified-property hops (equal($p.name, 'ok') was read as
+     * a 'equal' hop, putting the scalar leaf in MID position); their
+     * operand chains collect separately. */
+    private static final Set<String> OPERATORS = Set.of(
+            "equal", "lessThan", "lessThanEqual", "greaterThan",
+            "greaterThanEqual", "plus", "minus", "times", "divide",
+            "and", "or", "in", "startsWith", "endsWith");
+
     private static List<Seg> chainOf(ValueSpecification n) {
         if (n instanceof Variable) {
             return new ArrayList<>();
@@ -1755,6 +1781,7 @@ public final class ScanRelations {
             return chainOf(af.parameters().get(0));
         }
         if (n instanceof AppliedFunction af && af.parameters().size() >= 2
+                && !OPERATORS.contains(simple(af.function()))
                 && af.parameters().stream().skip(1)
                         .noneMatch(a -> a instanceof LambdaFunction)
                 && af.parameters().stream().skip(1)
