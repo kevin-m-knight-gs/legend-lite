@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
-| milestoning/tests | 224 | 199 | 9 | 6 | 10 |
+| milestoning/tests | 224 | 200 | 10 | 4 | 10 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2061** | 96 | 182 | 199 |
+| **total** | 2538 | **2062** | 97 | 180 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8641,8 +8641,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension]
 - FAIL testBiTemporalDateInjectionFromVarReference [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [<null>, <null>], our pipeline gave 2 row(s) [<null>, STOCK]
 - ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: unknown function 'tdsRows'
-- ERROR testConstraintUsageOfThisMilestoningContext2 [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProductWithConstraint2' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
-- ERROR testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: property 'classification' of class 'meta::relational::tests::milestoning::ProductWithConstraint3' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap'
+- FAIL testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [CST|Error|Ensure that milestoning qualified properties passed function arguments which reference $this.temporalDate are processed correctly|2|ProductName2, CST|Error|Ensure that milestoning qualified properties passed function arguments which r
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", "productdescriptiontable_0".description as "stockProductName", "productclassificationtable_0".type as "classificationType", '2015-10-15' as "k_businessDate" from Pro

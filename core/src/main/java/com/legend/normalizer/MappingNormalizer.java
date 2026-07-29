@@ -245,6 +245,7 @@ public final class MappingNormalizer {
         // property-name conflict; multi-level resolves recursively). See
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.2.3.
         md = resolveExtends(md, model);
+        md = ImplicitInheritance.apply(md, model);
 
         // Pre-pass: IMPORT-SCOPE store-ref qualification (see
         // StoreSubstitutionRewrite.qualifyStoreRefs).
@@ -1729,7 +1730,7 @@ public final class MappingNormalizer {
     }
 
     /** {@link #inferMainTable} as a PROBE: null on ambiguity instead of loud. */
-    private static LegacyMappingDefinition.TableReference inferMainTableQuiet(
+    static LegacyMappingDefinition.TableReference inferMainTableQuiet(
             ClassMapping.Relational rcm) {
         try {
             return inferMainTable(rcm);
