@@ -852,7 +852,10 @@ public final class StoreResolver {
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joined = new TypedJoin(left, aj.targetPipeline(),
                 rowPreserving ? leftKind() : innerKind(), aj.condition(),
-                Optional.of(aj.prefix()), null, rowInfo);
+                Optional.of(aj.prefix()),
+                // a VIEW-backed target joins as a frame NAMED BY THE VIEW
+                // (legalentity_view_0, never the physical table's group)
+                ViewFrames.frameNameOf(ctx, aj.target()), rowInfo);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
             // scalar-through-slot bindings flatten onto the MATERIALIZED
