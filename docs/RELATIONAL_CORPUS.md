@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 50 | 14 | 11 | 35 |
+| executionPlan/tests | 110 | 50 | 17 | 12 | 31 |
 | functions/tests | 258 | 222 | 9 | 18 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2087** | 85 | 172 | 194 |
+| **total** | 2538 | **2087** | 88 | 173 | 190 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8339,8 +8339,8 @@ in-process Alloy-shaped path).
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
+- 4x null
 - 4x in call to 'meta::relational::tests::postProcessor::runtimeWithTableReplace', argument 1: expected meta::external::query::sql::metamodel::Table, got meta::relational::metamodel::relation::Table
-- 3x null
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -8394,9 +8394,9 @@ in-process Alloy-shaped path).
 - SHAPE twoDBRenameColumns [executionPlan/tests]: no verifying assertions
 - ERROR tdsJoinTwoDBExtend [executionPlan/tests]: null
 - ERROR tdsTwoJoinThreeDB [executionPlan/tests]: null
-- SHAPE testTwoMappingsOneRuntime [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testCrossDbPlanGenerationWithFromWithoutExternalMapping [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- FAIL testTwoMappingsOneRuntime [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]\n  resultColumns = [("legalName", VARCHAR(200)), ("legalNameSimple", VARCHAR(200)), ("legalNameALT", VARCHAR(200))]\n  sql 
+- FAIL testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]\n  resultColumns = [("legalName", VARCHAR(200)), ("legalNameSimple", VARCHAR(200)), ("legalNameALT", VARCHAR(200))]\n  sql 
+- ERROR testCrossDbPlanGenerationWithFromWithoutExternalMapping [executionPlan/tests]: null
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testCrossDbPlanGenerationWithRelationUsesCorrectColumnTypes [executionPlan/tests]: no execute(|...) call [calls meta::relational::extension]
 - FAIL testTemporalDateVariableInFunctionExpression [executionPlan/tests]: assertEquals: expected select "productclassificationtable_0".type as "classificationType" from ProductTable as "root" left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".from_z <= datead
@@ -8406,7 +8406,7 @@ in-process Alloy-shaped path).
 - SHAPE testModelConnectionJoin [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testModelConnectionAgg [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testModelConnectionMultipleAgg [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
+- FAIL testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: assertEquals: expected Allocation\n(\n  type = Class[impls=(meta::pure::mapping::modelToModel::test::shared::src::_Firm | relationalMapping.meta_pure_mapping_modelToModel_test_shared_src__Firm)]\n         as meta::pure::mapping::modelToModel::test::shared::src::_Firm\n  resultSizeRange = *\n  name =
 - FAIL testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Allocation(type=Stringname=inFilterClause_namevalue=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instan
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet

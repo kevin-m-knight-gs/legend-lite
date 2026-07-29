@@ -458,11 +458,11 @@ final class StatementExecutor {
             mappingFqn = pr.fullPath();
             hasRuntimeArg = ep.args().size() > 2;
         } else {
-            TypedSpec t0 = lam.body().get(lam.body().size() - 1);
-            mappingFqn = t0 instanceof com.legend.compiler.spec.typed
-                    .TypedFrom fr
-                    ? fr.mapping().map(m -> m.fullPath()).orElse(null)
-                    : null;
+            // a DUMMY ^Mapping(name='') argument (or the 2-arg overload)
+            // defers to the query's own ->from calls — cross-mapping
+            // queries carry one per branch; the FIRST one names the plan
+            mappingFqn = firstFromMapping(
+                    lam.body().get(lam.body().size() - 1));
             hasRuntimeArg = false;
             if (mappingFqn == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -500,6 +500,23 @@ final class StatementExecutor {
                         // (post-H everything is a relation)
                         lam.body(), connName),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** Pre-order search for the first {@code ->from(mapping, …)} in the
+     * query tree — the branch-level context of cross-mapping queries. */
+    private static String firstFromMapping(
+            com.legend.compiler.spec.typed.TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
+                && fr.mapping().isPresent()) {
+            return fr.mapping().get().fullPath();
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : t.children()) {
+            String m = firstFromMapping(c);
+            if (m != null) {
+                return m;
+            }
+        }
+        return null;
     }
 
     /** The SEQUENCE envelope: parameterized lambdas open with a
