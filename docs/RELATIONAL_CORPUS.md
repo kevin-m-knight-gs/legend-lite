@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
-| lineage/scanRelations | 49 | 36 | 0 | 0 | 13 |
+| lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
 | milestoning/tests | 224 | 196 | 11 | 6 | 11 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
@@ -38,7 +38,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
 | tds/tests | 266 | 238 | 9 | 9 | 10 |
-| testDataGeneration/tests | 68 | 60 | 1 | 1 | 6 |
+| testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 |
 | tests | 39 | 17 | 1 | 0 | 21 |
 | tests/advanced | 68 | 47 | 2 | 6 | 13 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2023** | 103 | 186 | 226 |
+| **total** | 2538 | **2027** | 104 | 187 | 220 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8452,10 +8452,10 @@ in-process Alloy-shaped path).
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
 - 2x cannot access 'name' on String
+- 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
-- 2x unknown function 'genericType'
 
 ### per-test outcomes (non-passing)
 
@@ -8644,12 +8644,8 @@ in-process Alloy-shaped path).
 - FAIL testAssociationMapping [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, firmTable.LEGALNAME <TableAliasColumn>, personTable.FIRMID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, firmTable.LEGALNAME <TableAliasColumn>, personTable.FIRMID <JoinTreeNode>, personTable.FIRMID <TableAliasColumn>]
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - FAIL testView [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <RelationalOperationElementWithJoin>, personTable.ID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <Joi
-- SHAPE testTableTree_Inheritance_1 [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
-- SHAPE testTableTreeTwoFilters [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testUnionToUnion [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testUnionToSameTableWithDiffKeys [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testViewEmbeddedInChainedJoin [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testSameRelationsAtSameLevel [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoinAndUnion [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -8791,9 +8787,9 @@ in-process Alloy-shaped path).
 - ERROR testExtendDigest_Relational [tds/tests]: cannot access 'name' on String
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call [calls meta::relational::functions::database]
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
-- SHAPE testUnionToUnion [testDataGeneration/tests]: scanRelations: Embedded property mapping is not supported yet
+- ERROR testUnionToUnion [testDataGeneration/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - FAIL testUnionViewOnView [testDataGeneration/tests]: assertSize(sqls): expected 14, got 12
-- SHAPE testViewEmbeddedInChainedJoin [testDataGeneration/tests]: scanRelations: Embedded property mapping is not supported yet
+- FAIL testViewEmbeddedInChainedJoin [testDataGeneration/tests]: assertSize(sqls): expected 5, got 4
 - SHAPE testTableToTdsWithJoinAndUnion [testDataGeneration/tests]: scanRelations: tableToTDS join side is not a single table source
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions

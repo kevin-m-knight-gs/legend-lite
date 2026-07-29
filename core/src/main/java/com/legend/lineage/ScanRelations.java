@@ -904,11 +904,20 @@ public final class ScanRelations {
      * wrong one. */
     private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
             String dbName, String schema, String name) {
+        return findView(ctx, dbName, schema, name,
+                new java.util.LinkedHashSet<>());
+    }
+
+    private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
+            String dbName, String schema, String name, Set<String> seen) {
+        if (!seen.add(dbName)) {
+            return null;
+        }
         DatabaseDefinition db = ctx.findDatabase(dbName).orElse(null);
         if (db == null) {
             return null;
         }
-        if (schema == null) {
+        if (schema == null || "default".equals(schema)) {
             for (DatabaseDefinition.ViewDefinition v : db.views()) {
                 if (v.name().equals(name)) {
                     return v;
@@ -925,7 +934,16 @@ public final class ScanRelations {
                 }
             }
         }
-        return schema != null ? null : null;
+        // a view may live in an INCLUDED database (engine include
+        // resolution — PersonFirmView sits in dbInc, reached via db)
+        for (String inc : db.includes()) {
+            DatabaseDefinition.ViewDefinition v =
+                    findView(ctx, inc, schema, name, seen);
+            if (v != null) {
+                return v;
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------
@@ -982,6 +1000,15 @@ public final class ScanRelations {
                     + prop.name() + "' has no property mapping in set '"
                     + cm.className() + "'");
         }
+        dispatchPms(ctx, md, cm, node, prop, st, pms, path, next, tdgMode);
+    }
+
+    /** One property hop's mappings dispatch — shared by class-mapping hops
+     * and EMBEDDED sub-hops (which continue on the SAME node). */
+    private static void dispatchPms(ModelContext ctx,
+            LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
+            Seg.Prop prop, Seg.SubType st, List<PropertyMapping> pms,
+            List<Seg> path, int next, boolean tdgMode) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.Column c -> {
@@ -1040,6 +1067,39 @@ public final class ScanRelations {
                         throw new NotImplementedException("scanRelations:"
                                 + " non-column join terminal");
                     }
+                }
+                case PropertyMapping.Embedded emb -> {
+                    // EMBEDDED = same-table sub-columns: no join, the
+                    // nested class's property mappings resolve against
+                    // the SAME node (engine embedded semantics)
+                    if (next >= path.size()) {
+                        throw new NotImplementedException("scanRelations:"
+                                + " embedded '" + prop.name()
+                                + "' as a LEAF is not supported yet");
+                    }
+                    if (!(path.get(next) instanceof Seg.Prop nprop)) {
+                        throw new NotImplementedException("scanRelations:"
+                                + " subType directly on embedded '"
+                                + prop.name() + "'");
+                    }
+                    Seg.SubType nst = next + 1 < path.size()
+                            && path.get(next + 1) instanceof Seg.SubType s2
+                            ? s2 : null;
+                    int nnext = nst == null ? next + 1 : next + 2;
+                    List<PropertyMapping> sub = new ArrayList<>();
+                    for (PropertyMapping p2 : emb.propertyMappings()) {
+                        if (p2.propertyName().equals(nprop.name())) {
+                            sub.add(p2);
+                        }
+                    }
+                    if (sub.isEmpty()) {
+                        throw new NotImplementedException("scanRelations:"
+                                + " property '" + nprop.name()
+                                + "' has no mapping in embedded '"
+                                + prop.name() + "'");
+                    }
+                    dispatchPms(ctx, md, cm, node, nprop, nst, sub, path,
+                            nnext, tdgMode);
                 }
                 default -> throw new NotImplementedException("scanRelations: "
                         + pm.getClass().getSimpleName()
