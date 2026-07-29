@@ -1127,9 +1127,10 @@ public final class MappingNormalizer {
             Variable thisRow = thatRow == srcRow ? tgtRow : srcRow;
             ClassMapping.RelationFunction thatRf = isProp1 ? rfA : rfB;
             ClassMapping.RelationFunction thisRf = isProp1 ? rfB : rfA;
-            conds.add(rewriteXStoreReads(
+            conds.add(RelationReads.xstore(
                     cand.expression(),
-                    thisRow, thisRf, thatRow, thatRf, xs.associationName(), md));
+                    thisRow, thisRf, thatRow, thatRf, xs.associationName(),
+                    md, model));
         }
         // the two directions must AGREE (audit S6) — canonicalization
         // serves ONLY that comparison; the EMITTED cond keeps the FIRST
@@ -1217,9 +1218,10 @@ public final class MappingNormalizer {
         ValueSpecification pipeB = nh.pipeB();
         Map<String, Map<String, Map<String, String>>> nestedCols =
                 nh.nestedCols();
-        ValueSpecification cond = rewriteRelationReads(
+        ValueSpecification cond = RelationReads.rewrite(
                 mj.lambda().body().get(mj.lambda().body().size() - 1),
-                rowByVar, rfByVar, mj.associationName(), md, nestedCols);
+                rowByVar, rfByVar, mj.associationName(), md, nestedCols,
+                model);
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
@@ -1267,83 +1269,6 @@ public final class MappingNormalizer {
         return hits.get(0);
     }
 
-    /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
-    private static ValueSpecification rewriteXStoreReads(ValueSpecification v,
-            Variable thisRow, ClassMapping.RelationFunction thisRf,
-            Variable thatRow, ClassMapping.RelationFunction thatRf,
-            String assocName, LegacyMappingDefinition md) {
-        return rewriteRelationReads(v,
-                Map.of("this", thisRow, "that", thatRow),
-                Map.of("this", thisRf, "that", thatRf), assocName, md);
-    }
-
-    /** {@code $var.prop} → the var's Relation mapping's COLUMN read. */
-    private static ValueSpecification rewriteRelationReads(ValueSpecification v,
-            Map<String, Variable> rowByVar,
-            Map<String, ClassMapping.RelationFunction> rfByVar,
-            String assocName, LegacyMappingDefinition md) {
-        return rewriteRelationReads(v, rowByVar, rfByVar, assocName, md,
-                Map.of());
-    }
-
-    static ValueSpecification rewriteRelationReads(ValueSpecification v,
-            Map<String, Variable> rowByVar,
-            Map<String, ClassMapping.RelationFunction> rfByVar,
-            String assocName, LegacyMappingDefinition md,
-            Map<String, Map<String, Map<String, String>>> nestedCols) {
-        // NESTED hop read: $end.assocProp.leaf resolves to the nested
-        // target's column on the END's composite row
-        if (v instanceof AppliedProperty ap0
-                && ap0.receiver() instanceof AppliedProperty mid0
-                && mid0.receiver() instanceof Variable var0
-                && nestedCols.getOrDefault(var0.name(), Map.of())
-                        .containsKey(mid0.property())) {
-            Map<String, String> leafCols = nestedCols.get(var0.name())
-                    .get(mid0.property());
-            String col = leafCols.get(ap0.property());
-            if (col == null) {
-                throw new NotImplementedException(
-                        "association '" + assocName + "': $" + var0.name()
-                        + "." + mid0.property() + "." + ap0.property()
-                        + " has no column binding on the nested Relation"
-                        + " mapping (mapping=" + md.qualifiedName() + ")");
-            }
-            // the SLOT-READ spelling ($row.<navSlot>.<COL>) — typed and
-            // demanded by the stock navigate-step machinery
-            return new AppliedProperty(new AppliedProperty(
-                    rowByVar.get(var0.name()), mid0.property()), col);
-        }
-        if (v instanceof AppliedProperty ap
-                && ap.receiver() instanceof Variable var
-                && rowByVar.containsKey(var.name())) {
-            ClassMapping.RelationFunction rf = rfByVar.get(var.name());
-            for (ClassMapping.RelationFunction.Col c : rf.columns()) {
-                if (c.property().equals(ap.property()) && c.column() != null) {
-                    return new AppliedProperty(rowByVar.get(var.name()), c.column());
-                }
-            }
-            throw new NotImplementedException(
-                    "association '" + assocName + "': $" + var.name() + "."
-                    + ap.property() + " has no column binding on the Relation"
-                    + " mapping of '" + rf.className() + "' (mapping="
-                    + md.qualifiedName() + ")");
-        }
-        return switch (v) {
-            case AppliedFunction af -> new AppliedFunction(af.function(),
-                    af.parameters().stream().map(x -> rewriteRelationReads(x,
-                            rowByVar, rfByVar, assocName, md, nestedCols)).toList());
-            case AppliedProperty ap2 -> new AppliedProperty(
-                    rewriteRelationReads(ap2.receiver(), rowByVar, rfByVar,
-                            assocName, md, nestedCols), ap2.property());
-            case PureCollection pc -> new PureCollection(
-                    pc.values().stream().map(x -> rewriteRelationReads(x,
-                            rowByVar, rfByVar, assocName, md, nestedCols)).toList());
-            case LambdaFunction lf2 -> new LambdaFunction(lf2.parameters(),
-                    lf2.body().stream().map(x -> rewriteRelationReads(x,
-                            rowByVar, rfByVar, assocName, md, nestedCols)).toList());
-            default -> v;
-        };
-    }
 
     // ====================================================================
     // M2M (ClassMapping.Pure)  —  doc §5.5
@@ -1616,27 +1541,6 @@ public final class MappingNormalizer {
     }
 
     /** The declared multiplicity of {@code prop} on {@code owner} (chain walk). */
-    private static Multiplicity findPropertyDeclared(
-            ClassDefinition owner, String prop, ModelBuilder model) {
-        for (ClassDefinition.PropertyDefinition pd
-                : owner.properties()) {
-            if (pd.name().equals(prop)) {
-                return pd.multiplicity();
-            }
-        }
-        for (TypeExpression sup : owner.superClasses()) {
-            if (sup instanceof TypeExpression.NameRef nr) {
-                ClassDefinition sc = model.findClass(nr.name()).orElse(null);
-                if (sc != null) {
-                    Multiplicity m = findPropertyDeclared(sc, prop, model);
-                    if (m != null) {
-                        return m;
-                    }
-                }
-            }
-        }
-        return null;
-    }
 
     static ValueSpecification synthRelational(LegacyMappingDefinition md,
                                                      ClassMapping.Relational rcm,

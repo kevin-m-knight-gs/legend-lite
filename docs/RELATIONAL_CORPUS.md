@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | lineage/scanColumns | 6 | 3 | 1 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
 | milestoning/tests | 224 | 202 | 9 | 3 | 10 |
-| modelJoins | 7 | 3 | 1 | 0 | 3 |
+| modelJoins | 7 | 4 | 0 | 0 | 3 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2077** | 94 | 172 | 195 |
+| **total** | 2538 | **2078** | 93 | 172 | 195 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8559,7 +8559,6 @@ in-process Alloy-shaped path).
 - FAIL testProcessingTemporalPropertyQuery [milestoning/tests]: sql-text: expected select "root".kerberos as "pk_0", "root".kerberos as "kerberos", '2015-10-16' as "k_processingDate" from TraderTable as "root" where exists (select 1 from CertificationTable as "certificationtable_0" where "certificationtable_0".name = 'SRCE' and "root".kerberos = "certificationta
 - FAIL testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-text: expected select "root".kerberos as "pk_0", "root".kerberos as "kerberos", '2015-10-16' as "k_processingDate" from TraderTable as "root" where exists (select 1 from CertificationTable as "certificationtable_0" where "certificationtable_0".name = 'SRCE' and "root".kerberos = "certificationta
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
-- FAIL testJoinWithInequalities [modelJoins]: assertEquals: expected select "root".value as "Value", "legalentity_view_0".name as "Client/Name" from Trades.Trade as "root" left outer join (select "root".ENTITY_ID as ENTITY_ID, "root".name as name, "root".value as value from Entity.LegalEntity as "root" group by "root".ENTITY_ID) as "legalentity
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testProp1 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet

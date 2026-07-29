@@ -115,7 +115,7 @@ final class ModelJoinNesting {
                     endCls, nestedCls, np0, np1, nt0, nt1);
             Variable j0 = new Variable("_mj0");
             Variable j1 = new Variable("_mj1");
-            ValueSpecification nCond = MappingNormalizer.rewriteRelationReads(
+            ValueSpecification nCond = RelationReads.rewrite(
                     nmj.lambda().body().get(nmj.lambda().body().size() - 1),
                     Map.of(nPair[0], j0, nPair[1], j1),
                     Map.of(nPair[0], rf0, nPair[1], nRf),
