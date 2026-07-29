@@ -14,9 +14,9 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 46 | 15 | 11 | 38 |
-| functions/tests | 258 | 219 | 10 | 20 | 9 |
+| functions/tests | 258 | 220 | 9 | 20 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 130 | 7 | 14 | 4 |
+| functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 107 | 9 | 23 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
@@ -30,7 +30,7 @@ in-process Alloy-shaped path).
 | postprocessor | 7 | 7 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 21 | 0 | 5 | 4 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
-| router/tests | 26 | 4 | 0 | 3 | 19 |
+| router/tests | 26 | 13 | 2 | 8 | 3 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 |
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2027** | 104 | 187 | 220 |
+| **total** | 2538 | **2038** | 105 | 192 | 203 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8450,12 +8450,12 @@ in-process Alloy-shaped path).
 - 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
 - 2x unknown function 'tdsRows'
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
+- 2x in call to 'meta::pure::functions::relation::filter', argument 2: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
 - 2x cannot access 'name' on String
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
-- 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 
 ### per-test outcomes (non-passing)
 
@@ -8552,7 +8552,6 @@ in-process Alloy-shaped path).
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collecti
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
-- FAIL testGroupByWithJoinH2 [functions/tests]: assertSize: expected 1, got 6
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTabl
 - ERROR testUniqueValueOnly2 [functions/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - ERROR testUniqueValueOnly4 [functions/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
@@ -8593,7 +8592,6 @@ in-process Alloy-shaped path).
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
-- SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - SHAPE testGraphFetch [graphFetch/domain]: assert form 'assertEquals/2' is not supported yet
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
@@ -8725,23 +8723,14 @@ in-process Alloy-shaped path).
 - ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
-- SHAPE testCompositionInProject [router/tests]: no execute(|...) call
-- SHAPE testSimpleEval [router/tests]: no execute(|...) call
-- SHAPE testEvalFunctionOutputFromFunctionCall [router/tests]: no execute(|...) call
-- SHAPE testEvalFunctionAsVariable [router/tests]: no execute(|...) call
-- SHAPE testEvalWithMultipleExpressions [router/tests]: no execute(|...) call
-- SHAPE testEvalWithMultipleExpressionsWithFunctionAsVariable [router/tests]: no execute(|...) call
-- SHAPE testCompositionInGetAll [router/tests]: no execute(|...) call
-- SHAPE testCompositionInGetAllAndColSpecs [router/tests]: no execute(|...) call
-- SHAPE testCompositionInProjectAndNestedFilter [router/tests]: no execute(|...) call
-- SHAPE testCompositionInUnion [router/tests]: no execute(|...) call
-- SHAPE testCompositionInGroupBy [router/tests]: no execute(|...) call
-- SHAPE testCompositionInInClause [router/tests]: no execute(|...) call
-- SHAPE testCompositionInJoin [router/tests]: no execute(|...) call
-- SHAPE testCompositionInFilterCondition [router/tests]: no execute(|...) call
+- ERROR testEvalFunctionOutputFromFunctionCall [router/tests]: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{ -> meta::pure::tds::TabularDataSet[1]}>
+- FAIL testEvalWithMultipleExpressions [router/tests]: assertEquals: expected 11, got 12
+- FAIL testEvalWithMultipleExpressionsWithFunctionAsVariable [router/tests]: assertEquals: expected 11, got 12
+- ERROR testCompositionInProjectAndNestedFilter [router/tests]: in call to 'meta::pure::functions::relation::filter', argument 2: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
+- ERROR testCompositionInUnion [router/tests]: in call to 'meta::pure::functions::relation::filter', argument 2: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
+- ERROR testCompositionInGroupBy [router/tests]: legacy groupBy aggregate 0 must be agg(mapFn, aggFn)
+- ERROR testCompositionInJoin [router/tests]: in call to 'meta::pure::functions::relation::join', argument 4: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
 - SHAPE testCompositionInMultiStatementPureExpressions [router/tests]: no execute(|...) call
-- SHAPE testCompositionInMultiStatementRelationalQuery [router/tests]: no execute(|...) call
-- SHAPE testCompositionInExtend [router/tests]: no execute(|...) call
 - SHAPE testProcessIdentifierWithQuoteChar [sqlQueryToString]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::h2::v2_1_214]
 - SHAPE testSetupDataSqlGeneration [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
 - SHAPE testSetupDataSqlGenerationWithDataAsString [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
@@ -8843,7 +8832,7 @@ in-process Alloy-shaped path).
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: auto-map mapper body node TypedFilter is not inlinable yet
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
-- FAIL testQuery [tests/mapping]: assertSize: expected 1, got 2
+- FAIL testQuery [tests/mapping]: assertSize(result.values): expected 1, got 2 (TDS = one carrier; collections splat)
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
 - ERROR testPersonToOrganisations [tests/mapping/association]: multi-hop navigation firm.organizations.name through an embedded/slot head is not supported yet [assocs=[]; head subNavs=-; head binding=TypedNewInstance]
 - ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: multi-hop navigation firm.address.location.place through an embedded/slot head is not supported yet [assocs=[]; head subNavs=-; head binding=TypedNewInstance]

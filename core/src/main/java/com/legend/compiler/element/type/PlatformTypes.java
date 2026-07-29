@@ -52,6 +52,15 @@ public final class PlatformTypes {
      * conversion). */
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
+    /** Whether {@code t} is the TDS carrier type (exact FQN, never a
+     * suffix match). */
+    public static boolean isTdsType(Type t) {
+        return t instanceof Type.ClassType ct
+                        && TABULAR_DATA_SET.equals(ct.fqn())
+                || t instanceof Type.GenericType gt
+                        && TABULAR_DATA_SET.equals(gt.rawFqn());
+    }
+
     /**
      * The K-native JDBC boundary: raw-SQL execution over the ambient
      * connection ({@code Compiler}'s executeInDb dispatch). A FUNCTION

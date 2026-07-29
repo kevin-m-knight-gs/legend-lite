@@ -481,10 +481,22 @@ public final class Runner {
                 com.legend.model.spec.ValueSpecification last2 =
                         fd2 == null || fd2.body().isEmpty() ? null
                                 : fd2.body().get(fd2.body().size() - 1);
-                if (fd2 != null
+                boolean pairIdiom = fd2 != null
                         && last2 instanceof com.legend.model.spec.AppliedFunction pl2
                         && pl2.function().endsWith("pair")
-                        && containsExecuteShapeDeep(fd2.body(), t, 0)) {
+                        && containsExecuteShapeDeep(fd2.body(), t, 0);
+                // ...and the SINGLE-EXPRESSION execute wrapper
+                // (executeInternal(f) = execute(f, mapping, runtime, ext)):
+                // nothing to dismember — the body IS the execute call, so
+                // the let rebinds to it directly (router composition tests)
+                boolean singleExecute = fd2 != null
+                        && fd2.body().size() == 1
+                        && fd2.body().get(0)
+                                instanceof com.legend.model.spec.AppliedFunction ef2
+                        && ef2.function()
+                                .substring(ef2.function().lastIndexOf(':') + 1)
+                                .equals("execute");
+                if (pairIdiom || singleExecute) {
                     callee = fd2;
                     call = af2;
                     letName = ln0.value();
