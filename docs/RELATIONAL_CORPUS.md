@@ -20,7 +20,7 @@ in-process Alloy-shaped path).
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 124 | 2 | 13 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
-| helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
+| helperFunctions/tests | 7 | 1 | 0 | 0 | 6 |
 | lineage/scanColumns | 6 | 3 | 1 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
 | milestoning/tests | 224 | 202 | 9 | 3 | 10 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2091** | 88 | 173 | 186 |
+| **total** | 2538 | **2092** | 88 | 173 | 185 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8516,7 +8516,6 @@ in-process Alloy-shaped path).
 - SHAPE createDropTableStatement [helperFunctions/tests]: no execute(|...) call
 - SHAPE createCreateTableStatement [helperFunctions/tests]: no execute(|...) call
 - SHAPE createCreateTableStatementWithReservedWorks [helperFunctions/tests]: no execute(|...) call
-- SHAPE dropAndCreateTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - ERROR testSubType [lineage/scanColumns]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:

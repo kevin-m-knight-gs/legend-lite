@@ -52,18 +52,78 @@ public final class HostEval {
         }
     }
 
-    /** Does this expression tree read a fetchDb* metadata native? */
+    /** Does this expression READ a fetchDb/executeInDb grid? fetchDb
+     * anywhere in the tree routes (its only corpus shapes are grid
+     * reads); executeInDb routes ONLY when the expression's PRIMARY
+     * SOURCE CHAIN bottoms out at the call — ordinary setups carry
+     * executeInDb deep inside spliced trees that the SQL pipeline owns
+     * (routing on containment collapsed modelJoin/testDataGeneration:
+     * this predicate is the fix's pin). The ROOT-position executeInDb
+     * SETUP arm dispatches first in executeTyped. */
     public static boolean wantsHostEval(TypedSpec root) {
+        if (chainBottom(root) instanceof TypedNativeCall b
+                && PlatformTypes.EXECUTE_IN_DB
+                        .equals(b.callee().qualifiedName())) {
+            return true;
+        }
+        return containsFetchDb(root);
+    }
+
+    private static boolean containsFetchDb(TypedSpec root) {
         if (root instanceof TypedNativeCall nc
                 && PlatformTypes.isFetchDbFn(nc.callee().qualifiedName())) {
             return true;
         }
         for (TypedSpec c : root.children()) {
-            if (wantsHostEval(c)) {
+            if (containsFetchDb(c)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static final java.util.Set<String> READ_CHAIN_FNS =
+            java.util.Set.of(
+                    "meta::pure::functions::collection::fold",
+                    "meta::pure::functions::collection::map",
+                    "meta::pure::functions::collection::concatenate",
+                    "meta::pure::functions::collection::at",
+                    "meta::pure::functions::collection::first",
+                    "meta::pure::functions::collection::size",
+                    "meta::pure::functions::collection::indexOf",
+                    "meta::pure::functions::multiplicity::toOne",
+                    "meta::pure::functions::string::toString");
+
+    /** Walk the primary source chain (property access sources, fold/map
+     * sources, READ-shaped collection-native first args) to the
+     * expression's root. */
+    private static TypedSpec chainBottom(TypedSpec n) {
+        while (true) {
+            switch (n) {
+                case TypedPropertyAccess pa -> n = pa.source();
+                case TypedFold f -> n = f.source();
+                case TypedMap m -> n = m.source();
+                case TypedNativeCall nc -> {
+                    String fqn = nc.callee().qualifiedName();
+                    if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)
+                            || PlatformTypes.isFetchDbFn(fqn)) {
+                        return nc;
+                    }
+                    // walk ONLY through the READ-shaped natives this
+                    // evaluator implements — an arbitrary call's first
+                    // argument is not a source chain (println(executeInDb)
+                    // is a SETUP statement the print arm owns; stealing
+                    // it rerouted the effect off the ambient connection)
+                    if (nc.args().isEmpty() || !READ_CHAIN_FNS.contains(fqn)) {
+                        return nc;
+                    }
+                    n = nc.args().get(0);
+                }
+                default -> {
+                    return n;
+                }
+            }
+        }
     }
 
     /** Whole-expression entry: host value wrapped as an ExecutionResult. */
@@ -84,6 +144,13 @@ public final class HostEval {
                 String fqn = nc.callee().qualifiedName();
                 if (PlatformTypes.isFetchDbFn(fqn)) {
                     return fetch(nc, scope);
+                }
+                if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)) {
+                    // the READ path: run the query over the replayed H2
+                    // second target (engine-parity column naming)
+                    Object sqlv = eval(nc.args().get(0), scope);
+                    return DbMetaData.query(String.valueOf(
+                            asList(sqlv).get(0)), replayStream());
                 }
                 switch (fqn) {
                     case "meta::pure::functions::collection::fold" -> {
@@ -265,6 +332,19 @@ public final class HostEval {
         // replay order: schema creates (prerequisites for the main
         // stream's schema-qualified DDL), then the corpus's own
         // statements, then constraint post-fixes (PK alters)
+        List<String> replay = replayStream();
+        return switch (PlatformTypes.fetchDbKind(fqn)) {
+            case SCHEMAS -> DbMetaData.fetch(fqn, a1, null, null, replay);
+            case TABLES, PRIMARY_KEYS -> DbMetaData.fetch(fqn, a1, a2, null,
+                    replay);
+            case COLUMNS -> DbMetaData.fetch(fqn, a1, a2, a3, replay);
+        };
+    }
+
+    /** The H2 second target's replay stream — schema creates
+     * (prerequisites for the main stream's schema-qualified DDL), then
+     * the corpus's own statements, then constraint post-fixes. */
+    private static List<String> replayStream() {
         List<String> replay = new ArrayList<>();
         List<String> meta = RawSqlBoundary.metaRecording() == null
                 ? List.of() : RawSqlBoundary.metaRecording();
@@ -281,12 +361,7 @@ public final class HostEval {
                 replay.add(m);
             }
         }
-        return switch (PlatformTypes.fetchDbKind(fqn)) {
-            case SCHEMAS -> DbMetaData.fetch(fqn, a1, null, null, replay);
-            case TABLES, PRIMARY_KEYS -> DbMetaData.fetch(fqn, a1, a2, null,
-                    replay);
-            case COLUMNS -> DbMetaData.fetch(fqn, a1, a2, a3, replay);
-        };
+        return replay;
     }
 
     /** A String[0..1] pattern argument: literal, empty collection (null =

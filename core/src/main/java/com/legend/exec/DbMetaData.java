@@ -37,6 +37,13 @@ public final class DbMetaData {
     private static final java.util.concurrent.atomic.AtomicInteger COUNTER =
             new java.util.concurrent.atomic.AtomicInteger();
 
+    /** Default-upper H2 (unquoted DDL identifiers uppercase — the
+     * fetchDb casing asserts) + case-insensitive MATCHING (the model DDL
+     * quotes column names lowercase, corpus inserts reference them
+     * unquoted — both targets must accept both spellings). */
+    private static final String SETTINGS =
+            ";MODE=LEGACY;CASE_INSENSITIVE_IDENTIFIERS=TRUE";
+
     /** java.sql.Types int -> field name (the engine's JavaSqlTypeNames). */
     private static final Map<Integer, String> SQL_TYPE_NAMES = sqlTypeNames();
 
@@ -57,7 +64,7 @@ public final class DbMetaData {
             throws SQLException {
         int id = COUNTER.getAndIncrement();
         try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:fetchmeta" + id + ";MODE=LEGACY", "sa", "")) {
+                "jdbc:h2:mem:fetchmeta" + id + SETTINGS, "sa", "")) {
             replay(h2, recorded);
             DatabaseMetaData md = h2.getMetaData();
             return switch (com.legend.compiler.element.type.PlatformTypes
@@ -72,6 +79,20 @@ public final class DbMetaData {
                 case PRIMARY_KEYS -> grid(md.getPrimaryKeys(null,
                         schemaPattern, tablePattern), false);
             };
+        }
+    }
+
+    /** A raw QUERY over the replayed H2 second target — the executeInDb
+     * READ path (engine-parity column naming: COUNT(*) etc.). */
+    public static HostResultSet query(String sql, List<String> recorded)
+            throws SQLException {
+        int id = COUNTER.getAndIncrement();
+        try (Connection h2 = DriverManager.getConnection(
+                "jdbc:h2:mem:execquery" + id + SETTINGS, "sa", "")) {
+            replay(h2, recorded);
+            try (Statement st = h2.createStatement()) {
+                return grid(st.executeQuery(sql), false);
+            }
         }
     }
 
