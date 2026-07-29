@@ -8,6 +8,7 @@ import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedFold;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -127,6 +128,16 @@ public final class HostEval {
                     case "meta::pure::functions::collection::size" -> {
                         return (long) asList(eval(nc.args().get(0), scope)).size();
                     }
+                    case "meta::pure::functions::collection::indexOf" -> {
+                        List<Object> src = asList(eval(nc.args().get(0), scope));
+                        Object v = eval(nc.args().get(1), scope);
+                        for (int i = 0; i < src.size(); i++) {
+                            if (java.util.Objects.equals(src.get(i), v)) {
+                                return (long) i;
+                            }
+                        }
+                        return -1L;
+                    }
                     case "meta::pure::functions::string::toString" -> {
                         Object v = eval(nc.args().get(0), scope);
                         return String.valueOf(v);
@@ -143,6 +154,18 @@ public final class HostEval {
                     default -> throw new NotImplementedException(
                             "host-eval: native '" + fqn + "' has no host arm");
                 }
+            }
+            case TypedMap m -> {
+                List<Object> src = asList(eval(m.source(), scope));
+                TypedLambda fn = m.mapper();
+                List<Object> out = new ArrayList<>(src.size());
+                for (Object x : src) {
+                    Map<String, Object> s2 = new LinkedHashMap<>(scope);
+                    s2.put(fn.parameters().get(0), x);
+                    out.addAll(asList(
+                            eval(fn.body().get(fn.body().size() - 1), s2)));
+                }
+                return out;
             }
             case TypedFold f -> {
                 List<Object> src = asList(eval(f.source(), scope));

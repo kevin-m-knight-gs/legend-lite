@@ -45,6 +45,18 @@ final class FunctionCompiler {
                 all.addAll(model.findFunction(pkg + "::" + fqn));
             }
         }
+        // NATIVE-CATALOG classes' derived properties lift ON DEMAND —
+        // parsed classes lift in ModelNormalizer E.2; catalog classes
+        // never see a normalizer pass (Row.value(name) etc.)
+        String[] propRef = com.legend.compiler.DerivedProps.splitPropFqn(fqn);
+        if (propRef != null) {
+            com.legend.builtin.Pure.findNativeClass(propRef[0])
+                    .ifPresent(cd -> cd.derivedProperties().stream()
+                            .filter(dp -> dp.name().equals(propRef[1]))
+                            .forEach(dp -> all.add(
+                                    com.legend.compiler.DerivedProps
+                                            .lift(cd, dp))));
+        }
         // platform-owned FQNs: the native IS the definition; the corpus's
         // own M3-reflective bodies (toDDL.pure) never join the overload set.
         // The suppression is NOT silent — stderr once per FQN (audit 17;

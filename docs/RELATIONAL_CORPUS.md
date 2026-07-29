@@ -14,7 +14,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 50 | 17 | 12 | 31 |
-| functions/tests | 258 | 225 | 9 | 18 | 6 |
+| functions/tests | 258 | 226 | 9 | 18 | 5 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2090** | 88 | 173 | 187 |
+| **total** | 2538 | **2091** | 88 | 173 | 186 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8443,7 +8443,6 @@ in-process Alloy-shaped path).
 - ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOpe
 - ERROR testAssociationWithProjectionHandlingDups [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: exists/forAll predicate references column 'firm_employees', unresolvable even after isolation [param=t_n; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::exists, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=value, type=Type
-- SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 4 candidates); class-query dispatch needs exactly one
 - FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
 - SHAPE testFromWithMapping [functions/tests]: no execute(|...) call [calls meta::external::store::relational::tests]

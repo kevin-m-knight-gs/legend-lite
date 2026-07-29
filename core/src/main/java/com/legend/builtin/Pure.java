@@ -436,7 +436,7 @@ public final class Pure {
     // Row's value(name) qualified property omitted until demanded) — setup
     // functions INTROSPECT results (println(executeInDb(...).rows.values))
     public static final ClassDefinition RESULT_SET = nativeClass("native Class meta::relational::metamodel::execute::ResultSet extends meta::pure::metamodel::type::Any { executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; columnNames: meta::pure::metamodel::type::String[*]; rows: meta::relational::metamodel::execute::Row[*]; }");
-    public static final ClassDefinition RESULT_SET_ROW = nativeClass("native Class meta::relational::metamodel::execute::Row extends meta::pure::metamodel::type::Any { values: meta::pure::metamodel::type::Any[*]; parent: meta::relational::metamodel::execute::ResultSet[1]; }");
+    public static final ClassDefinition RESULT_SET_ROW = nativeClass("native Class meta::relational::metamodel::execute::Row extends meta::pure::metamodel::type::Any { values: meta::pure::metamodel::type::Any[*]; parent: meta::relational::metamodel::execute::ResultSet[1]; value(name:meta::pure::metamodel::type::String[1]){$this.values->at($this.parent.columnNames->indexOf($name));}: meta::pure::metamodel::type::Any[1]; }");
     // real executionPlan.pure:60-73 (func/mapping/runtime/rootExecutionNode
     // omitted until demanded — each declared property matches the REAL
     // class member-for-member)

@@ -842,9 +842,20 @@ class NativeFunctionTest {
                                 + "' must have empty properties for now (got "
                                 + c.properties() + ")");
             }
-            assertTrue(c.derivedProperties().isEmpty(),
-                    () -> "native class '" + c.qualifiedName()
-                            + "' must have empty derived properties");
+            if (c.qualifiedName().equals(
+                    "meta::relational::metamodel::execute::Row")) {
+                // real platform_store_relational/functions.pure:65 —
+                // value(name) lifts on demand (FunctionCompiler's
+                // native-catalog derived-property arm)
+                assertEquals(List.of("value"),
+                        c.derivedProperties().stream()
+                                .map(dp -> dp.name()).toList(),
+                        "Row declares exactly value(name) (real pure)");
+            } else {
+                assertTrue(c.derivedProperties().isEmpty(),
+                        () -> "native class '" + c.qualifiedName()
+                                + "' must have empty derived properties");
+            }
             assertTrue(c.constraints().isEmpty(),
                     () -> "native class '" + c.qualifiedName()
                             + "' must have empty constraints");

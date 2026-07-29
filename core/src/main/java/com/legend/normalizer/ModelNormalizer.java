@@ -235,12 +235,11 @@ public final class ModelNormalizer {
             ParsedModel parsed, List<FunctionDefinition> lifted) {
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof ClassDefinition cd && !cd.derivedProperties().isEmpty()) {
-                TypeExpression thisType = receiverType(cd);
                 for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
                     // Only the sugar (inline) form lifts; a Door-4 function-ref
                     // binding is already realized by the user's function.
                     if (dp.realization() instanceof Realization.Inline) {
-                        lifted.add(synthDerivedFunction(cd, dp, thisType));
+                        lifted.add(com.legend.compiler.DerivedProps.lift(cd, dp));
                     }
                 }
             }
@@ -255,29 +254,6 @@ public final class ModelNormalizer {
      * {@code $} sigil and MUST match {@code PureModelContext}'s
      * {@code <owner>$prop$<name>} reference.
      */
-    private static FunctionDefinition synthDerivedFunction(
-            ClassDefinition cd, DerivedPropertyDefinition dp, TypeExpression thisType) {
-        List<FunctionDefinition.ParameterDefinition> params =
-                new ArrayList<>(dp.parameters().size() + 1);
-        params.add(new FunctionDefinition.ParameterDefinition(
-                "this", thisType, Multiplicity.Concrete.PURE_ONE));
-        for (ClassDefinition.ParameterDefinition p : dp.parameters()) {
-            params.add(new FunctionDefinition.ParameterDefinition(
-                    p.name(), p.type(), p.multiplicity()));
-        }
-        return new FunctionDefinition(
-                SynthFqn.prop(cd.qualifiedName(), dp.name()),
-                cd.typeParams(),
-                List.of(),
-                params,
-                dp.type(),
-                dp.multiplicity(),
-                dp.expression(),
-                List.of(), List.of())
-                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
-                        SynthHat.PROP, cd.qualifiedName(), dp.name()));
-    }
-
     /**
      * The {@code this} receiver type: the bare class FQN, or
      * {@code Owner<T, ...>} when the owner is generic (so the body's
