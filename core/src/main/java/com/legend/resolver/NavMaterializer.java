@@ -554,9 +554,16 @@ final class NavMaterializer {
                 cols.add(new com.legend.compiler.element.type.Type.Column(
                         aj.prefix() + c.name(), c.type(), c.multiplicity()));
             }
+            // ENGINE ON-FORM opt-in (plain LEFT-join emitter): the
+            // temporal window spells in the join condition, pipe raw
+            TypedSpec ajPipe = aj.onForm() != null
+                    ? aj.onForm().pipeline() : aj.targetPipeline();
+            com.legend.compiler.spec.typed.TypedLambda ajCond =
+                    aj.onForm() != null
+                    ? aj.onForm().condition() : aj.condition();
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
-                    aj.targetPipeline(), StoreResolver.leftKind(),
-                    aj.condition(), java.util.Optional.of(aj.prefix()), null,
+                    ajPipe, StoreResolver.leftKind(),
+                    ajCond, java.util.Optional.of(aj.prefix()), null,
                     new com.legend.compiler.element.type.ExprType(
                             new com.legend.compiler.element.type.Type
                                     .RelationType(cols),

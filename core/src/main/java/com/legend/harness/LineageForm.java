@@ -101,6 +101,10 @@ final class LineageForm {
             com.legend.sql.SqlQuery plan = Compiler.lowerResolved(
                     resolved, ctx, runtimeFqn, false);
             List<String> got = ScanColumns.strings(plan);
+            if (System.getenv("LL_LINEAGE_DEBUG") != null) {
+                System.err.println("[scanColumns-sql] "
+                        + new com.legend.sql.dialect.DuckDb().render(plan));
+            }
             List<String> want = new ArrayList<>(expected);
             want.sort(String::compareTo);
             if (want.equals(got)) {

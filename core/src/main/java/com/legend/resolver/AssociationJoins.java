@@ -186,11 +186,67 @@ final class AssociationJoins {
         tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
                 CorrelatedSubselects.predFilteredPipe(p, t, tMat.slotPrefixes(),
                         tSubNavs, pred, cs.mappingFqn()));
+        TypedLambda cond0 = withOuterDatedWindow(temporal, cs, t, head,
+                nav.predicate(), tPipe0);
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
-                (Type.RelationType) tPipe0.info().type(),
-                withOuterDatedWindow(temporal, cs, t, head, nav.predicate(),
-                        tPipe0),
-                tMat.slotPrefixes(), tSubNavs);
+                (Type.RelationType) tPipe0.info().type(), cond0,
+                tMat.slotPrefixes(), tSubNavs, null,
+                onFormOf(tPipe0, cond0));
+    }
+
+    /** The ON form when the stamped pipe is exactly FILTER layers over a
+     * filter-free scan pipe (only temporalTargetPipe's own layers move —
+     * scanColumns testQualifier pins that ordinary filters never do);
+     * null otherwise (hybrid replaceScan stamps, pre-filtered pipes,
+     * views keep the in-pipe form for every consumer). */
+    private OnForm onFormOf(TypedSpec stamped, TypedLambda cond) {
+        java.util.List<TypedLambda> stamps = new java.util.ArrayList<>();
+        TypedSpec cur = stamped;
+        while (cur instanceof com.legend.compiler.spec.typed.TypedFilter tf0) {
+            stamps.add(tf0.predicate());
+            cur = tf0.source();
+        }
+        if (stamps.isEmpty() || !filterFree(cur)
+                || Pipelines.containsConcatenate(cur)) {
+            return null;
+        }
+        var boolT = ExprType.one(Type.Primitive.BOOLEAN);
+        var tRowInfo = new ExprType(cur.info().type(),
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        String tv = cond.parameters().get(1);
+        TypedSpec merged = cond.body().get(0);
+        // outside-in: the OUTER stamp's conds append last (bitemp keeps
+        // processing-then-business, the engine's spelling order)
+        for (int i = stamps.size() - 1; i >= 0; i--) {
+            var st = stamps.get(i);
+            TypedSpec pb = renameCondVar(st.body().get(0),
+                    st.parameters().get(0), tv, tRowInfo);
+            merged = boolCall("and", merged, pb, boolT);
+        }
+        return new OnForm(cur, new TypedLambda(cond.parameters(),
+                List.of(merged), cond.info()));
+    }
+
+    private static boolean filterFree(TypedSpec p) {
+        if (p instanceof com.legend.compiler.spec.typed.TypedFilter) {
+            return false;
+        }
+        for (TypedSpec c : p.children()) {
+            if (!filterFree(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static TypedSpec renameCondVar(TypedSpec n, String from,
+            String to, ExprType rowInfo) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(from)) {
+            return new com.legend.compiler.spec.typed.TypedVariable(to, rowInfo);
+        }
+        return SyntheticHeads.rebuildChildren(n,
+                c -> renameCondVar(c, from, to, rowInfo));
     }
 
     /** UNION-to-union chained hop: rewrite a raw equality condition into
@@ -487,19 +543,29 @@ final class AssociationJoins {
      * join. {@code targetSubNavs}: the target's OWN demanded class-typed
      * nav steps (#69 — the correlated pred / computed mapper read through
      * them inside the aggregated subselect). */
+    /** The ENGINE ON-FORM of a temporal hop (memory milestoning-onclause-
+     * seam): the SAME window predicates temporalTargetPipe stamped onto the
+     * pipe, relocated onto the join condition — pipe raw, cond ∧ window.
+     * CONSUMER-SIDE choice: plain LEFT-join emitters opt in for engine
+     * parity; grouped/materialize routes (which ignore the condition
+     * channel) keep the stamped form. */
+    record OnForm(TypedSpec pipeline, TypedLambda condition) {
+    }
+
     record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
                              Type.RelationType targetRow,
                              TypedLambda condition,
                              Map<String, String> targetSlotPrefixes,
                              Map<String, Substitution.SubNav> targetSubNavs,
-                             TypedLambda corrSubPred) {
+                             TypedLambda corrSubPred,
+                             OnForm onForm) {
 
         AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
                   Type.RelationType targetRow, TypedLambda condition,
                   Map<String, String> targetSlotPrefixes) {
             this(prefix, target, targetPipeline, targetRow, condition,
-                    targetSlotPrefixes, Map.of(), null);
+                    targetSlotPrefixes, Map.of(), null, null);
         }
 
         AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
@@ -507,18 +573,20 @@ final class AssociationJoins {
                   Map<String, String> targetSlotPrefixes,
                   Map<String, Substitution.SubNav> targetSubNavs) {
             this(prefix, target, targetPipeline, targetRow, condition,
-                    targetSlotPrefixes, targetSubNavs, null);
+                    targetSlotPrefixes, targetSubNavs, null, null);
         }
 
         AssocJoin withCondition(TypedLambda cond) {
+            // a rewritten condition invalidates the ON form (its window
+            // was composed against the ORIGINAL condition body)
             return new AssocJoin(prefix, target, targetPipeline, targetRow,
-                    cond, targetSlotPrefixes, targetSubNavs, corrSubPred);
+                    cond, targetSlotPrefixes, targetSubNavs, corrSubPred, null);
         }
 
         AssocJoin withTargetPipeline(TypedSpec pipe) {
             return new AssocJoin(prefix, target, pipe,
                     (Type.RelationType) pipe.info().type(), condition,
-                    targetSlotPrefixes, targetSubNavs, corrSubPred);
+                    targetSlotPrefixes, targetSubNavs, corrSubPred, null);
         }
     }
 
@@ -893,7 +961,7 @@ final class AssociationJoins {
                 (Type.RelationType)
                         tPipe.info().type(),
                 withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
-                tMat.slotPrefixes(), tailSubNavs, corrSub);
+                tMat.slotPrefixes(), tailSubNavs, corrSub, null);
     }
 
     /** The compiled association predicate's material: the raw condition,
@@ -1550,7 +1618,7 @@ final class AssociationJoins {
                 prefixByProp, new Type.RelationType(lookupCols));
         return new AssocJoin(aj.prefix(), aj.target(), aj.targetPipeline(),
                 aj.targetRow(), cond2, aj.targetSlotPrefixes(),
-                aj.targetSubNavs(), aj.corrSubPred());
+                aj.targetSubNavs(), aj.corrSubPred(), null);
     }
 
     /** Nested-association reads in an association condition:

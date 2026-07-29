@@ -1802,6 +1802,14 @@ public final class StoreResolver {
             TypedSpec joinTarget = aj.targetPipeline();
             Type.RelationType joinTargetRow = aj.targetRow();
             TypedLambda joinCond = aj.condition();
+            // ENGINE ON-FORM opt-in (the plain nav-join emitter): the
+            // temporal window spells in the join condition, pipe raw
+            // (memory milestoning-onclause-seam; exploding subs rebuild
+            // their own cond and keep the stamped form)
+            if (aj.corrSubPred() == null && aj.onForm() != null) {
+                joinTarget = aj.onForm().pipeline();
+                joinCond = aj.onForm().condition();
+            }
             if (aj.corrSubPred() != null) {
                 CorrelatedSubselects.ExplodingSub ex =
                         corrSubs.explodingSubselect(cs, aj,
@@ -2285,7 +2293,7 @@ public final class StoreResolver {
                             cond.info());
                     aj = new AssociationJoins.AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
                             aj.targetRow(), cond, aj.targetSlotPrefixes(),
-                            aj.targetSubNavs(), aj.corrSubPred());
+                            aj.targetSubNavs(), aj.corrSubPred(), null);
                 }
                 assocJoins.add(aj);
                 joinsByChain.put(chainKey, aj);
@@ -2376,7 +2384,7 @@ public final class StoreResolver {
                     AssociationJoins.withOuterDatedWindow(temporal, cs, target,
                             headKey, nav.predicate(), tPipe),
                     mat.slotPrefixes(), mat.subNavs(),
-                    synthetics.correlatedPred(headKey));
+                    synthetics.correlatedPred(headKey), null);
             assocJoins.add(aj);
             joinsByChain.put(headKey, aj);
             assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
