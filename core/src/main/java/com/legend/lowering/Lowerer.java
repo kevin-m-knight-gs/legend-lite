@@ -940,7 +940,16 @@ public final class Lowerer {
             } else if (argSpec instanceof TypedCString
                     || argSpec instanceof TypedCInteger
                     || argSpec instanceof TypedCFloat
-                    || argSpec instanceof TypedCDecimal) {
+                    || argSpec instanceof TypedCDecimal
+                    // NEGATED numeric literal (uniqueValueOnly(-1)): pure
+                    // spells -1 as minus(1) — same literal channel
+                    || argSpec instanceof TypedNativeCall neg
+                            && neg.args().size() == 1
+                            && com.legend.builtin.Pure.nativeNamed("minus",
+                                    neg.callee().signatureKey())
+                            && (neg.args().get(0) instanceof TypedCInteger
+                                    || neg.args().get(0) instanceof TypedCFloat
+                                    || neg.args().get(0) instanceof TypedCDecimal)) {
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
             } else if (argSpec instanceof TypedCast vc
                     && vc.source() instanceof TypedVariable) {

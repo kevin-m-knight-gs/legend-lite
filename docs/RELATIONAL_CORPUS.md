@@ -14,7 +14,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 49 | 15 | 11 | 35 |
-| functions/tests | 258 | 220 | 9 | 20 | 9 |
+| functions/tests | 258 | 222 | 9 | 18 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2072** | 93 | 174 | 199 |
+| **total** | 2538 | **2074** | 93 | 172 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8440,7 +8440,6 @@ in-process Alloy-shaped path).
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
 - 2x Binder Error: subqueries in lambda expressions are not supported
-- 2x aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - 2x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x unknown function 'alloyConfig'
@@ -8456,6 +8455,7 @@ in-process Alloy-shaped path).
 - 2x unknown function 'genericType'
 - 2x association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
+- 1x Conversion Error: Could not convert string 'settlementDateTime = TIMESTAMP'${GMTtoTZ( "[US/Arizona]" dt)}'' to INT32 |  | LINE 45: ...Time = ''${GMTtoTZ( "[US/Arizona]" dt)}''') - 1 IS NULL OR 'settlementDateTime = TIMESTAMP''${GMTtoTZ( "[US/Arizona... |                                                                        ^
 
 ### per-test outcomes (non-passing)
 
@@ -8550,8 +8550,6 @@ in-process Alloy-shaped path).
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTabl
-- ERROR testUniqueValueOnly2 [functions/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
-- ERROR testUniqueValueOnly4 [functions/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - ERROR testObjectReferenceInSimple [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInEmbeddedMapping [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferneceInWithMilestonedRootClass [functions/tests]: unknown function 'generateObjectReferences'
