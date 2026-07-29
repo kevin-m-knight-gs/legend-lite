@@ -458,7 +458,11 @@ class NativeFunctionTest {
         //     CommonTableExpression(+Reference)/JoinStrings/Union/
         //     UnionAll/RelationalOperationElementWithJoin (the
         //     query-level dialect-conversion surface, bridge batch 5).
-        assertEquals(172, Pure.allNativeClasses().size(),
+        // 177: +RelationalDatabaseConnection + DatasourceSpecification/
+        //     LocalH2DatasourceSpecification + AuthenticationStrategy/
+        //     DefaultH2AuthenticationStrategy (the alloy connection form
+        //     corpus getConnection() helpers construct — connection.pure:29)
+        assertEquals(177, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -466,6 +470,17 @@ class NativeFunctionTest {
             java.util.Map.ofEntries(
                     java.util.Map.entry(
                     "meta::core::runtime::ConnectionStore", List.of("connection", "element")),
+                    java.util.Map.entry(
+                    "meta::external::store::relational::runtime::RelationalDatabaseConnection",
+                    // real connection.pure:29-34 (the alloy connection form
+                    // corpus getConnection() helpers construct)
+                    List.of("datasourceSpecification", "authenticationStrategy",
+                            "postProcessors")),
+                    java.util.Map.entry(
+                    "meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification",
+                    // real datasourceSpecification.pure:34-39
+                    List.of("testDataSetupCsv", "testDataSetupSqls",
+                            "disableDatabaseToUpper")),
                     java.util.Map.entry(
                     "meta::pure::graphFetch::execution::AlloySerializationConfig",
                     // real graphFetch.pure:89-111 (serialize config carrier)

@@ -62,7 +62,17 @@ final class XStorePureEnds {
 
     static XEnd xstoreEndOf(LegacyMappingDefinition md,
             String classFqn, String setId, ModelBuilder model) {
-        for (ClassMapping cm : md.classMappings()) {
+        // the end sets may live in INCLUDED mappings (modelJoins:
+        // XStore lines over include LegalEntityMapping/TradesMapping) —
+        // the engine compiles the include closure as one mapping
+        List<LegacyMappingDefinition> closure = new ArrayList<>();
+        MappingNormalizer.collectMappingClosure(md, model, closure,
+                new LinkedHashSet<>());
+        List<ClassMapping> cms = new ArrayList<>();
+        for (LegacyMappingDefinition m : closure) {
+            cms.addAll(m.classMappings());
+        }
+        for (ClassMapping cm : cms) {
             if (cm instanceof ClassMapping.RelationFunction rf
                     && rf.className().equals(classFqn)
                     && (setId == null
@@ -78,7 +88,7 @@ final class XStorePureEnds {
                         rf, MappingNormalizer.setIdOf(rf), false, locals);
             }
         }
-        for (ClassMapping cm : md.classMappings()) {
+        for (ClassMapping cm : cms) {
             if (cm instanceof ClassMapping.Relational rcm
                     && rcm.className().equals(classFqn)
                     && (setId == null
@@ -108,7 +118,7 @@ final class XStorePureEnds {
                         MappingNormalizer.setIdOf(rcm), false, locals);
             }
         }
-        for (ClassMapping cm : md.classMappings()) {
+        for (ClassMapping cm : cms) {
             if (cm instanceof ClassMapping.Pure pcm
                     && pcm.className().equals(classFqn)
                     && (setId == null
