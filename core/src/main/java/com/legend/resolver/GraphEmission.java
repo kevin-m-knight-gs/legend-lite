@@ -191,7 +191,8 @@ final class GraphEmission {
             if (!node.children().isEmpty()
                     || (!cs.bindings().containsKey(node.property())
                             && ctx.findAssociationOf(cs.classFqn(), node.property())
-                                    .isPresent())) {
+                                    .isPresent())
+                    || isDerivedClassProp(cs, node)) {
                 children.add(graphChild(cs, node, context, rowVar, rowType, pipeline));
                 continue;
             }
@@ -715,6 +716,13 @@ final class GraphEmission {
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType, TypedSpec parentPipeline) {
         if (node.children().isEmpty()) {
+            // a childless DERIVED class node still serializes (its filter
+            // may make it empty — synonymsByTypes([]) yields [] per root)
+            TypedSerializeGraph.Child dch0 = derivedChild(cs, node, context,
+                    parentRowVar, parentRowType);
+            if (dch0 != null) {
+                return dch0;
+            }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
                     + " class-typed leaf serializes nothing; list its properties");
@@ -818,6 +826,12 @@ final class GraphEmission {
                     + "' of class '" + cs.classFqn() + "' is mapped as an"
                     + " embedded/join-slot/otherwise/M2M binding — only"
                     + " association children are supported yet (H4b/H5c)");
+        }
+        // DERIVED (qualified) child: the inline body's nav head + filter
+        TypedSerializeGraph.Child dch = derivedChild(cs, node, context,
+                parentRowVar, parentRowType);
+        if (dch != null) {
+            return dch;
         }
         // MIXED-UNION extent: class-typed children dispatch PER MEMBER ARM —
         // ONE correlated subquery over the keyed child union with the
@@ -1037,11 +1051,25 @@ final class GraphEmission {
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec childRel = new TypedFilter(targetPipeline, corr,
                 targetPipeline.info());
+        return childFromRel(target, childRel,
+                new LinkedHashSet<>(cond.parameters()), toMany, node,
+                context, slotPrefixes);
+    }
+
+    /** The child-node tail shared by the correlated and DERIVED routes:
+     * fresh child row var (capture-proof against {@code extraParams} and
+     * the target's own lambda params), nested temporal frame (ONE CONTEXT
+     * PER CURSOR — engine getMilestoningContextFor QualifiedProperty),
+     * recursive node build over the corr-filtered relation. */
+    private TypedSerializeGraph.Child childFromRel(ClassSource target,
+            TypedSpec childRel, Set<String> extraParams, boolean toMany,
+            TypedGraphTree node, StoreResolver.Context context,
+            Map<String, String> slotPrefixes) {
         Set<String> childParams = new LinkedHashSet<>();
         for (TypedSpec b : target.bindings().values()) {
             StoreResolver.collectLambdaParams(b, childParams);
         }
-        childParams.addAll(cond.parameters());
+        childParams.addAll(extraParams);
         String childVar;
         do {
             childVar = "_r" + freshVar.getAsInt();
@@ -1050,12 +1078,6 @@ final class GraphEmission {
                 new Type.ClassType(target.classFqn()),
                 toMany ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY
                         : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE);
-        // ONE CONTEXT PER CURSOR (engine getMilestoningContextFor
-        // QualifiedProperty): a DATED hop's spec becomes the CHILD scope's
-        // ROOT context — its leaves and filters substitute businessDate/
-        // processingDate against the HOP date, not the (possibly absent)
-        // outer root's ('filter predicate references businessDate' with a
-        // non-temporal root and a dated tree node).
         TemporalFrame childFrame = temporal.nestedFrame(target.classFqn(),
                 node.property());
         GraphEmission em = childFrame == null ? this
@@ -1069,6 +1091,86 @@ final class GraphEmission {
                 node.children(), context, toMany, childInfo);
         return new TypedSerializeGraph.Child(
                 childKey(node, target.classFqn()), child);
+    }
+
+    /** A DERIVED (qualified) property as a graph CHILD
+     * ({@code synonymByType(CUSIP) { name }}): the lifted body's
+     * navigation head resolves like any association hop
+     * ({@link #navHeadRelation}); the body's own filter predicate rides
+     * the child relation, substituted through the TARGET's bindings; tree
+     * args bind positionally after {@code $this}. Null when the property
+     * is not derived or the body is not a [filtered] nav head — the
+     * association walls stay downstream. */
+    /** A DERIVED class-typed tree node with matching call arity — routes
+     * through {@link #graphChild} even childless. */
+    private boolean isDerivedClassProp(ClassSource cs, TypedGraphTree node) {
+        return ctx.findProperty(cs.classFqn(), node.property()).orElse(null)
+                instanceof com.legend.compiler.element.Property.Derived d
+                && d.type() instanceof Type.ClassType
+                && d.parameters().size() == node.args().size();
+    }
+
+    private TypedSerializeGraph.Child derivedChild(ClassSource cs,
+            TypedGraphTree node, StoreResolver.Context context,
+            String parentRowVar, Type.RelationType parentRowType) {
+        var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
+        if (!(p instanceof com.legend.compiler.element.Property.Derived d)
+                || d.parameters().size() != node.args().size()) {
+            return null;
+        }
+        var cf = sources.compileSynthFn(d.bodyFunctionFqn());
+        if (cf.body().size() != 1) {
+            return null;
+        }
+        String thisVar = cf.signature().parameters().get(0).name();
+        Map<String, TypedSpec> argBinds = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < node.args().size(); i++) {
+            argBinds.put(cf.signature().parameters().get(i + 1).name(),
+                    node.args().get(i));
+        }
+        TypedSpec hop = unwrapToOneFirst(substVars(cf.body().get(0), argBinds));
+        TypedLambda extraPred = null;
+        if (hop instanceof TypedFilter hf
+                && hf.predicate().parameters().size() == 1
+                && hf.predicate().body().size() == 1) {
+            extraPred = hf.predicate();
+            hop = unwrapToOneFirst(hf.source());
+        }
+        SubqueryEnv env = new SubqueryEnv(cs, context, parentRowVar,
+                parentRowType);
+        HeadRel hr = navHeadRelation(env, hop, thisVar);
+        if (hr == null) {
+            return null;
+        }
+        ClassSource target = hr.target();
+        TypedSpec childRel = hr.rel();
+        Set<String> extraParams = new LinkedHashSet<>();
+        extraParams.add(target.rowVar());
+        if (extraPred != null) {
+            TypedSpec pb = inlineThis(extraPred.body().get(0),
+                    extraPred.parameters().get(0), Map.of(),
+                    target.bindings(), target.classFqn(), node.property());
+            var predFn = new Type.FunctionType(
+                    List.of(new Type.Param(hr.targetRow(),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE)),
+                    new Type.Param(Type.Primitive.BOOLEAN,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE));
+            childRel = new TypedFilter(childRel,
+                    new TypedLambda(List.of(target.rowVar()), List.of(pb),
+                            new ExprType(predFn,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE)),
+                    childRel.info());
+            extraParams.add(extraPred.parameters().get(0));
+        }
+        boolean toMany = !(d.multiplicity()
+                instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded bm
+                && Integer.valueOf(1).equals(bm.upper()));
+        return childFromRel(target, childRel, extraParams, toMany, node,
+                context, Map.of());
     }
 
     /** The serialized key for a CLASS child: a QUALIFIED spelling with
@@ -1506,15 +1608,93 @@ final class GraphEmission {
                 binds.put(cf.signature().parameters().get(i + 1).name(),
                         node.args().get(i));
             }
-            TypedSpec nav = navLeafSubquery(cs,
-                    substVars(cf.body().get(0), binds), thisVar,
+            TypedSpec inlined = substVars(cf.body().get(0), binds);
+            TypedSpec nav = navLeafSubquery(cs, inlined, thisVar,
                     context, rowVar, rowType);
             if (nav != null) {
                 return nav;
             }
+            TypedSpec aggN = navAggSubquery(cs, inlined, thisVar,
+                    context, rowVar, rowType);
+            if (aggN != null) {
+                return aggN;
+            }
+            // aggregates NESTED under arithmetic (average(...)*2.0):
+            // rewrite each agg-over-nav subnode; when the rewrite consumed
+            // every $this read, the remaining expression is plain scalar
+            boolean[] hit = {false};
+            TypedSpec rew = rewriteNavAggs(inlined, cs, thisVar, context,
+                    rowVar, rowType, hit);
+            if (hit[0]) {
+                Set<String> residual = new LinkedHashSet<>();
+                Pipelines.collectVarReads(rew, thisVar, residual);
+                if (residual.isEmpty()) {
+                    return rew;
+                }
+            }
         }
         return derivedLeaf(cs.bindings(), cs.classFqn(), node,
                 new SubqueryEnv(cs, context, rowVar, rowType));
+    }
+
+    /** A derived body that AGGREGATES a depth-1 navigation chain —
+     * {@code $this.employees.age->average()}: the corr-filtered target
+     * projects the leaf and the aggregate native wraps the RELATION — the
+     * lowering renders a correlated scalar aggregate subquery (the T1.7
+     * reducer catalog is the one membership test). Null when the shape
+     * does not match (the inline route's louder walls take over). */
+    private TypedSpec navAggSubquery(ClassSource cs, TypedSpec body,
+            String thisVar, StoreResolver.Context context,
+            String parentRowVar, Type.RelationType parentRowType) {
+        if (!(body instanceof TypedNativeCall agg && agg.args().size() == 1
+                && com.legend.lowering.Aggregates.isReducer(agg.callee()))) {
+            return null;
+        }
+        TypedSpec chain = unwrapToOneFirst(agg.args().get(0));
+        if (!(chain instanceof TypedPropertyAccess leaf)) {
+            return null;
+        }
+        SubqueryEnv env = new SubqueryEnv(cs, context, parentRowVar,
+                parentRowType);
+        HeadRel hr = navHeadRelation(env, leaf.source(), thisVar);
+        if (hr == null) {
+            return null;
+        }
+        TypedSpec leafBind = hr.target().bindings().get(leaf.property());
+        if (leafBind == null
+                || leafBind.info().type() instanceof Type.ClassType) {
+            return null;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var leafFn = new Type.FunctionType(
+                List.of(new Type.Param(hr.targetRow(), one)),
+                new Type.Param(leafBind.info().type(),
+                        leafBind.info().multiplicity()));
+        Type.RelationType oneCol = new Type.RelationType(List.of(
+                new Type.Column(leaf.property(), leafBind.info().type(),
+                        leafBind.info().multiplicity())));
+        TypedSpec proj = new com.legend.compiler.spec.typed.TypedProject(
+                hr.rel(),
+                List.of(new TypedFuncCol(leaf.property(),
+                        new TypedLambda(List.of(hr.target().rowVar()),
+                                List.of(leafBind),
+                                new ExprType(leafFn, one)))),
+                new ExprType(oneCol,
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ZERO_MANY));
+        return new TypedNativeCall(agg.callee(), List.of(proj), agg.info());
+    }
+
+    private TypedSpec rewriteNavAggs(TypedSpec n, ClassSource cs,
+            String thisVar, StoreResolver.Context context, String rowVar,
+            Type.RelationType rowType, boolean[] hit) {
+        TypedSpec r = navAggSubquery(cs, n, thisVar, context, rowVar, rowType);
+        if (r != null) {
+            hit[0] = true;
+            return r;
+        }
+        return n.mapChildren(c -> rewriteNavAggs(c, cs, thisVar, context,
+                rowVar, rowType, hit));
     }
 
     /** The enclosing-frame material the inline route needs to fall back

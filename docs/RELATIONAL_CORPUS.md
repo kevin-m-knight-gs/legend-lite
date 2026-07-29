@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 112 | 4 | 23 | 4 |
+| graphFetch/tests | 143 | 117 | 4 | 18 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2050** | 98 | 187 | 203 |
+| **total** | 2538 | **2055** | 98 | 182 | 203 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8433,7 +8433,6 @@ in-process Alloy-shaped path).
 - 4x LIST_AGG reached a dialect without a list encoding
 - 4x in call to 'meta::relational::tests::postProcessor::runtimeWithTableReplace', argument 1: expected meta::external::query::sql::metamodel::Table, got meta::relational::metamodel::relation::Table
 - 3x null
-- 3x unknown enumeration 'ProductSynonymType'
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -8456,6 +8455,7 @@ in-process Alloy-shaped path).
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
+- 2x unknown function 'genericType'
 
 ### per-test outcomes (non-passing)
 
@@ -8613,12 +8613,7 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 7 element(s), got 10 | expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=Peter,
 - ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: property 'postProcessors' of 'meta::external::store::relational::runtime::RelationalDatabaseConnection': expected meta::pure::alloy::connections::PostProcessor, got meta::pure::alloy::connections::MapperPostProcessor (value: AppliedFunction[function=new, parameters=[PackageableElementPtr[fullPath=me
-- ERROR testEnumParameter [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
-- ERROR testSubAggregationInQualifier [graphFetch/tests]: derived graph leaf 'averageEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testQualifierWithManyMultiplicityParameter_EmptyInput [graphFetch/tests]: derived graph leaf 'synonymsByTypes' body node TypedFilter referencing $this is not inlinable yet
-- ERROR testQualifierWithManyMultiplicityParameter_OneInput [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
-- ERROR testQualifierWithManyMultiplicityParameter_MultiInputs [graphFetch/tests]: unknown enumeration 'ProductSynonymType'
 - FAIL testCheckedWithCircularConstraints [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0 | expected [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[{path=[{propertyNam..., got [{defects=[], value={firstName=Peter, firm=
 - ERROR testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: unknown function 'parseJSON'
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'

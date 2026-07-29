@@ -56,6 +56,32 @@ final class RelationPredicates {
                                 counter, null)), List.of()));
             };
         }
+        // GENERAL reducer over a single-scalar-column RELATION argument
+        // (the graph derived-leaf sub-aggregation: average($this.employees
+        // .age) — engine renders a correlated scalar aggregate subquery)
+        String fam = Aggregates.reducerOrNull(n.callee());
+        if (fam != null && !"COUNT".equals(fam) && n.args().size() == 1
+                && n.args().get(0).info().type() instanceof Type.RelationType rt2
+                && rt2.columns().size() == 1
+                && !(rt2.columns().get(0).type() instanceof Type.ClassType)) {
+            return (lw, call) -> {
+                SqlSelect src = lw.relation(call.args().get(0));
+                SqlSelect base = Fold.groupByFolds(src)
+                        && !Fold.unnestInProjections(src)
+                        ? src : lw.isolate(src);
+                SqlExpr col = base.projections().size() == 1
+                        && !(base.projections().get(0).expr()
+                                instanceof SqlExpr.Star)
+                        ? base.projections().get(0).expr()
+                        : Fold.sourceColumn(base.from(),
+                                rt2.columns().get(0).name());
+                return new SqlExpr.ScalarSubquery(base.withProjections(
+                        List.of(new SqlSelect.Projection(
+                                new SqlAgg.Reducer(fam, List.of(col), false,
+                                        List.of()), null)),
+                        List.of()));
+            };
+        }
         if ((Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))
                 && n.args().size() == 1 && n.args().get(0).info().type()
                         instanceof Type.RelationType rt0) {

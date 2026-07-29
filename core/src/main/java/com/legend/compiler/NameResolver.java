@@ -1352,8 +1352,12 @@ public final class NameResolver {
         LambdaFunction fn2 = cs.function2();
         LambdaFunction r1 = fn1 == null ? null : resolveLambda(fn1, scope);
         LambdaFunction r2 = fn2 == null ? null : resolveLambda(fn2, scope);
-        return (r1 == fn1 && r2 == fn2) ? cs
-                : new ColSpec(cs.name(), r1, r2, cs.alias(), cs.args(),
+        // qualifier CALL args (graph-tree synonymByType(ProductSynonymType
+        // .CUSIP)) carry names too — un-resolved they reach the checker bare
+        List<ValueSpecification> ra = resolveList(cs.args(),
+                NameResolver::resolveVs, scope);
+        return (r1 == fn1 && r2 == fn2 && ra == cs.args()) ? cs
+                : new ColSpec(cs.name(), r1, r2, cs.alias(), ra,
                         cs.qualified());
     }
 
