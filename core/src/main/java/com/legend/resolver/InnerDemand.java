@@ -4,8 +4,10 @@
 package com.legend.resolver;
 
 import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 
@@ -359,6 +361,18 @@ final class InnerDemand {
 
     private static void collect(TypedSpec n, String userVar,
             List<String> path, List<TypedLambda> out) {
+        // project OVER THE INSTANCE ($x.<head>->toOne()->project(cols)):
+        // the col lambdas read the head's target rows — inner lambdas
+        // like exists predicates (nestedScope registries, leaf demand)
+        if (n instanceof TypedProject tp) {
+            List<String> pp = Substitution.pathOf(
+                    instanceProjectSource(tp), userVar);
+            if (pp != null && pp.equals(path)) {
+                for (TypedFuncCol c : tp.columns()) {
+                    out.add(c.fn());
+                }
+            }
+        }
         if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
             // unwrap ->filter(f) chains on the receiver: their lambdas
             // demand target leaves too (filter-wrapped emptiness)
@@ -407,6 +421,23 @@ final class InnerDemand {
         for (TypedSpec ch : n.children()) {
             collect(ch, userVar, path, out);
         }
+    }
+
+    /** The source of a project OVER AN INSTANCE, multiplicity wrappers
+     * unwrapped — ONE recognizer for the demand scan and the
+     * substitution arm (they must not drift). */
+    static TypedSpec instanceProjectSource(TypedProject tp) {
+        TypedSpec src = tp.source();
+        while (src instanceof TypedNativeCall w && w.args().size() == 1
+                && (w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                    || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first")
+                    || w.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::head"))) {
+            src = w.args().get(0);
+        }
+        return src;
     }
 
     /** task #78 scalar-subquery IN: find in/contains calls whose

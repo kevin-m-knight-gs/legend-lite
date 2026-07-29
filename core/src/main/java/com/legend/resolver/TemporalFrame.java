@@ -140,13 +140,23 @@ final class TemporalFrame {
     TemporalFrame nestedFrame(String hopClassFqn, String chainPrefix) {
         TemporalSpec hopSpec = specs.get(chainPrefix);
         MilestoningStrategy strat = temporalStrategy(hopClassFqn);
-        if (hopSpec == null || hopSpec.sweep()
-                || hopSpec.dates().size() != 1 || strat == null) {
+        TemporalFrame nf;
+        if (hopSpec != null && !hopSpec.sweep()
+                && hopSpec.dates().size() == 1 && strat != null) {
+            nf = new TemporalFrame(ctx, sources,
+                    TemporalContext.single(strat, hopSpec.dates().get(0)),
+                    Map.of(), letEnv);
+        } else if (specs.keySet().stream()
+                .anyMatch(k -> k.startsWith(chainPrefix + "."))) {
+            // UNDATED (or non-temporal-target) hop whose INNER hops carry
+            // dates (constraint 1c: $this.referenceSystem->toOne()->
+            // project(r|$r.systemDescription($d)...)): the cursor's own
+            // context is unchanged — re-key the composed specs locally so
+            // the nested registrations find their dates
+            nf = new TemporalFrame(ctx, sources, root, Map.of(), letEnv);
+        } else {
             return null;
         }
-        TemporalFrame nf = new TemporalFrame(ctx, sources,
-                TemporalContext.single(strat, hopSpec.dates().get(0)),
-                Map.of(), letEnv);
         Map<String, TemporalSpec> local = new java.util.LinkedHashMap<>();
         for (var e : specs.entrySet()) {
             if (e.getKey().startsWith(chainPrefix + ".")) {
@@ -1970,7 +1980,8 @@ final class TemporalFrame {
         // ...)): each column lambda is an INNER cursor over the projected
         // nav — same composition as filter/map.
         if (n instanceof com.legend.compiler.spec.typed.TypedProject tp) {
-            List<String> pp = Substitution.pathOf(tp.source(), userVar);
+            List<String> pp = Substitution.pathOf(
+                    InnerDemand.instanceProjectSource(tp), userVar);
             if (pp != null) {
                 for (var col : tp.columns()) {
                     TypedLambda fl = col.fn();

@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
-| milestoning/tests | 224 | 201 | 9 | 4 | 10 |
+| milestoning/tests | 224 | 202 | 9 | 3 | 10 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2064** | 95 | 180 | 199 |
+| **total** | 2538 | **2065** | 95 | 179 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8639,7 +8639,6 @@ in-process Alloy-shaped path).
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension]
 - FAIL testBiTemporalDateInjectionFromVarReference [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [<null>, <null>], our pipeline gave 2 row(s) [<null>, STOCK]
-- ERROR testConstraintUsageOfThisMilestoningContext1c [milestoning/tests]: lowering not yet implemented for TypedPropertyAccess
 - FAIL testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [CST|Error|Ensure that milestoning qualified properties passed function arguments which reference $this.temporalDate are processed correctly|2|ProductName2, CST|Error|Ensure that milestoning qualified properties passed function arguments which r
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

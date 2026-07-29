@@ -1290,6 +1290,20 @@ final class Substitution {
         if (callArm != null) {
             return callArm;
         }
+        // project OVER THE INSTANCE ($p.<head>->toOne()->project(cols)):
+        // the mini-relation becomes the correlated target set with the
+        // cols substituted over the target's bindings (engine: the
+        // constraint's project processes fully inside the emptiness
+        // EXISTS — the col-demanded joins ride in the FROM tree).
+        if (n instanceof TypedProject tp) {
+            List<String> pp = pathOf(
+                    InnerDemand.instanceProjectSource(tp), target.userVar());
+            if (pp != null && pp.size() == 1
+                    && target.existsSubs().containsKey(pp.get(0))) {
+                return rewriteInstanceProject(tp,
+                        target.existsSubs().get(pp.get(0)));
+            }
+        }
         List<String> path = pathOf(n, target.userVar());
         if (path != null && path.size() == 2) {
             return rewritePath(path.get(0), path.get(1), n);
@@ -2239,8 +2253,13 @@ final class Substitution {
         return assocLeaf(SUBTYPE_KEY + ct.fqn(), pa.property());
     }
 
-    private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,
-            List<TypedLambda> chainPreds) {
+    /** The correlated target set for an {@link ExistsSub}: the target
+     * pipeline filtered by the oriented condition, target-side reads
+     * bound to a fresh binder, parent-side reads re-pointed at the
+     * OUTER row var (the lowerer's enclosing-scope channel). */
+    private record CorrTarget(TypedSpec rel, String binder) {}
+
+    private CorrTarget correlateTarget(ExistsSub ex) {
         TypedLambda cond = ex.orientedCond();   // params (parentRow, targetRow)
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
@@ -2269,8 +2288,15 @@ final class Substitution {
                         List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
-        TypedSpec rel = new TypedFilter(
-                ex.targetPipeline(), corr, ex.targetPipeline().info());
+        return new CorrTarget(new TypedFilter(
+                ex.targetPipeline(), corr, ex.targetPipeline().info()), tRenamed);
+    }
+
+    private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,
+            List<TypedLambda> chainPreds) {
+        CorrTarget ct = correlateTarget(ex);
+        final String tRenamed = ct.binder();
+        TypedSpec rel = ct.rel();
         // chain filters ($p.head->filter(f)->...) merge into the correlated
         // set: each substitutes over the target's bindings like the exists
         // predicate, then wraps rel (outer reads re-correlate via the
@@ -2324,6 +2350,35 @@ final class Substitution {
                     inner.info()));
         }
         return new TypedNativeCall(call.callee(), newArgs, call.info());
+    }
+
+    /** The project-over-instance rewrite (constraint 1c): each col fn
+     * substitutes over the target's bindings like an exists predicate,
+     * then a second pass through THIS substitution correlates its OUTER
+     * reads ({@code $this.businessDate} date args). The project's own
+     * relation type survives unchanged. */
+    private TypedSpec rewriteInstanceProject(TypedProject tp, ExistsSub ex) {
+        CorrTarget ct = correlateTarget(ex);
+        Set<String> unconvertedSlots =
+                new LinkedHashSet<>(ex.targetSlotAliases());
+        unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
+        List<TypedFuncCol> cols = new ArrayList<>();
+        for (TypedFuncCol c : tp.columns()) {
+            Substitution colSub = new Substitution(new Target(
+                    new RowScope(c.fn().parameters().get(0), ct.binder(),
+                            ex.targetClassFqn(), target.mappingFqn(),
+                            ex.targetRowVar(), ex.targetBindings(),
+                            ex.targetRow(), unconvertedSlots,
+                            ex.targetSlotPrefixes(), Map.of()),
+                    ex.innerRegs(), TemporalView.NONE, true, true));
+            TypedLambda inner = colSub.rewriteLambda(c.fn());
+            cols.add(new TypedFuncCol(c.name(),
+                    new TypedLambda(inner.parameters(),
+                            inner.body().stream().map(this::rewrite).toList(),
+                            inner.info()),
+                    c.documentation()));
+        }
+        return new TypedProject(ct.rel(), cols, tp.info());
     }
 
     /**
