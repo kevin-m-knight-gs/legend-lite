@@ -683,7 +683,7 @@ public final class TestBody {
 
     // ===== assert dispatch =====
 
-    private static final String UNSUPPORTED_MARKER = new String("unsupported");
+    static final String UNSUPPORTED_MARKER = new String("unsupported");
     private static final String ADVISORY_MARKER = new String("advisory");
     private static final String NOT_TDG_MARKER = new String("not-tdg");
 
@@ -1058,14 +1058,8 @@ public final class TestBody {
         return ok ? null : "pkOfFunc: expected " + expected + ", got " + got;
     }
 
-    /** A plan-handle WALK chain: reads rootExecutionNode over an
-     * executionPlan call — its terminal value (sqlQuery text) compares
-     * LITERALLY like plan text. */
-    private static boolean containsPlanWalk(ValueSpecification v) {
-        return walkHasProp(v, "rootExecutionNode") && walkHasCall(v);
-    }
 
-    private static boolean walkHasProp(ValueSpecification v, String name) {
+    static boolean walkHasProp(ValueSpecification v, String name) {
         if (v instanceof AppliedProperty ap) {
             return name.equals(ap.property())
                     || walkHasProp(ap.receiver(), name);
@@ -1077,7 +1071,7 @@ public final class TestBody {
         return false;
     }
 
-    private static boolean walkHasCall(ValueSpecification v) {
+    static boolean walkHasCall(ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
             return simpleName(af.function()).equals("executionPlan")
                     || af.parameters().stream()
@@ -1089,77 +1083,8 @@ public final class TestBody {
         return false;
     }
 
-    private static boolean containsPlanToString(ValueSpecification v) {
-        if (v instanceof AppliedFunction af) {
-            if (simpleName(af.function()).equals("planToString")
-                    || simpleName(af.function())
-                            .equals("planToStringWithoutFormatting")) {
-                return true;
-            }
-            for (ValueSpecification x : af.parameters()) {
-                if (containsPlanToString(x)) {
-                    return true;
-                }
-            }
-        } else if (v instanceof AppliedProperty ap) {
-            return containsPlanToString(ap.receiver());
-        }
-        return false;
-    }
 
-    /** A predicate over PLAN TEXT (indexOf/contains chains): the
-     * plan-channel text inlines as a literal, the rest evaluates
-     * ordinarily (host-string semantics); walls stay SHAPE. */
-    private static String planPredicateAssert(AppliedFunction af,
-            List<ValueSpecification> args,
-            Map<String, ValueSpecification> lets,
-            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
-            Map<String, ValueSpecification> execChains, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn)
-            throws java.sql.SQLException {
-        try {
-            ValueSpecification inlined = inlinePlanText(
-                    substitute(args.get(0), lets), lets, execStmts,
-                    execVars, execChains, ctx, imports, runtimeFqn, conn);
-            Object pv = evalScalar(inlined, lets, execStmts, execVars,
-                    execChains, ctx, imports, runtimeFqn, conn);
-            boolean pexp = af.function().equals("assert");
-            return Boolean.valueOf(pexp).equals(pv) ? null
-                    : "assert" + (pexp ? "" : "False")
-                            + " did not hold (" + pv + ")";
-        } catch (com.legend.error.NotImplementedException
-                | com.legend.error.LegendCompileException
-                | UnsupportedOperationException pw) {
-            return UNSUPPORTED_MARKER;
-        }
-    }
 
-    /** Replace each planToString-family SUBTREE with the literal text
-     * the plan channel produces — the surrounding host-string predicate
-     * then evaluates ordinarily. */
-    private static ValueSpecification inlinePlanText(ValueSpecification v,
-            Map<String, ValueSpecification> lets,
-            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
-            Map<String, ValueSpecification> execChains, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn)
-            throws java.sql.SQLException {
-        if (v instanceof AppliedFunction af) {
-            String fn = simpleName(af.function());
-            if (fn.equals("planToString")
-                    || fn.equals("planToStringWithoutFormatting")) {
-                Eval e = eval(v, lets, execStmts, execVars, execChains,
-                        ctx, imports, runtimeFqn, conn);
-                return new CString(String.valueOf(e.values().get(0)));
-            }
-            List<ValueSpecification> ps = new ArrayList<>();
-            for (ValueSpecification x : af.parameters()) {
-                ps.add(inlinePlanText(x, lets, execStmts, execVars,
-                        execChains, ctx, imports, runtimeFqn, conn));
-            }
-            return new AppliedFunction(af.function(), ps);
-        }
-        return v;
-    }
 
     /** The exec-frame variable an expression reads through (receiver /
      * first-arg chains), or null. */
@@ -1482,57 +1407,7 @@ public final class TestBody {
      * staying SHAPE. 3-arg H2Compatible = (legacy, h2New, actual): the
      * ACTUAL is always LAST, and EITHER golden may match (h2New is our
      * own dialect generation). */
-    private static String planTextAssert(List<ValueSpecification> args,
-            Map<String, ValueSpecification> lets,
-            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
-            Map<String, ValueSpecification> execChains, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn)
-            throws java.sql.SQLException {
-        try {
-            Eval pa = eval(args.get(args.size() - 1), lets, execStmts,
-                    execVars, execChains, ctx, imports, runtimeFqn, conn);
-            Eval pe = eval(args.get(0), lets, execStmts, execVars,
-                    execChains, ctx, imports, runtimeFqn, conn);
-            if (compare(pe, pa, true)) {
-                return null;
-            }
-            if (args.size() == 3) {
-                Eval p2 = eval(args.get(1), lets, execStmts, execVars,
-                        execChains, ctx, imports, runtimeFqn, conn);
-                if (compare(p2, pa, true)) {
-                    return null;
-                }
-                if (System.getenv("LL_TMP_DEBUG") != null) {
-                    String a2 = p2.render();
-                    String b2 = pa.render();
-                    int i2 = 0;
-                    while (i2 < a2.length() && i2 < b2.length()
-                            && a2.charAt(i2) == b2.charAt(i2)) {
-                        i2++;
-                    }
-                    System.err.println("[plan-2golden] lens " + a2.length()
-                            + "/" + b2.length() + " firstDiff@" + i2 + " E<"
-                            + a2.substring(Math.max(0, i2 - 30),
-                                    Math.min(a2.length(), i2 + 40))
-                            + "> G<" + b2.substring(Math.max(0, i2 - 30),
-                                    Math.min(b2.length(), i2 + 40)) + ">");
-                }
-            }
-            return "assertEquals: expected " + pe.render() + ", got "
-                    + pa.render();
-        } catch (com.legend.error.NotImplementedException
-                | com.legend.error.LegendCompileException
-                | UnsupportedOperationException pw) {
-            // the PLAN surface is a pending vocabulary — its typing/
-            // resolution walls are SHAPE, scoped to plan asserts only
-            // (UnsupportedOperation = the sql layer's standalone wall
-            // type; com.legend.sql cannot reference com.legend.error)
-            if (System.getenv("LL_TMP_DEBUG") != null) {
-                System.err.println("[plan-wall] " + pw);
-            }
-            return UNSUPPORTED_MARKER;
-        }
-    }
+
 
     /** testDataGen assert arms (#46): assertTestData is the ROW contract
      * (typed set compare in the database), .sqls text is engine H2 SQL —
@@ -1822,8 +1697,8 @@ public final class TestBody {
                 if (args.isEmpty()) {
                     return UNSUPPORTED_MARKER;
                 }
-                if (containsPlanToString(substitute(args.get(0), lets))) {
-                    return planPredicateAssert(af, args, lets, execStmts,
+                if (PlanAsserts.containsPlanToString(substitute(args.get(0), lets))) {
+                    return PlanAsserts.planPredicateAssert(af, args, lets, execStmts,
                             execVars, execChains, ctx, imports,
                             runtimeFqn, conn);
                 }
@@ -1859,10 +1734,10 @@ public final class TestBody {
                 // skip the golden-SQL advisory routing entirely
                 ValueSpecification lastSub =
                         substitute(args.get(args.size() - 1), lets);
-                if (containsPlanToString(substitute(args.get(0), lets))
-                        || containsPlanToString(lastSub)
-                        || containsPlanWalk(lastSub)) {
-                    return planTextAssert(args, lets, execStmts, execVars,
+                if (PlanAsserts.containsPlanToString(substitute(args.get(0), lets))
+                        || PlanAsserts.containsPlanToString(lastSub)
+                        || PlanAsserts.containsPlanWalk(lastSub)) {
+                    return PlanAsserts.planTextAssert(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
                 } else {
                 // legacy 3-arg H2-compat: (legacySql, h2NewSql, actual) —
@@ -2413,7 +2288,7 @@ public final class TestBody {
         return java.util.Objects.equals(e, a);
     }
 
-    private static String simpleName(String fn) {
+    static String simpleName(String fn) {
         int cut = fn.lastIndexOf("::");
         return cut < 0 ? fn : fn.substring(cut + 2);
     }
@@ -2472,7 +2347,7 @@ public final class TestBody {
     // ===== evaluation: compile one side through the pipeline =====
 
     /** One evaluated side: the execution result + how it compares. */
-    private record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
+    record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
             boolean csvTail, String joinSep, boolean flatCells) {
 
         Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
@@ -2542,7 +2417,7 @@ public final class TestBody {
         }
     }
 
-    private static Eval eval(ValueSpecification expr,
+    static Eval eval(ValueSpecification expr,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
@@ -2628,7 +2503,7 @@ public final class TestBody {
                 && "rows".equals(rp.property());
     }
 
-    private static Object evalScalar(ValueSpecification expr,
+    static Object evalScalar(ValueSpecification expr,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
@@ -2752,7 +2627,7 @@ public final class TestBody {
 
     // ===== comparison (both sides share ONE wire convention — strict) =====
 
-    private static boolean compare(Eval expected, Eval actual, boolean ordered) {
+    static boolean compare(Eval expected, Eval actual, boolean ordered) {
         // toCSV(..)->replace('\n', SEP) actual vs a string-literal expected:
         // header EXACT, rows as an (un)ordered multiset, CELLS via the
         // tolerant wire comparison (numeric ULP policy included)
@@ -3362,7 +3237,7 @@ public final class TestBody {
      * substituted here — those statements forward to the platform's result
      * frame, which owns the envelope splice (audit 19d B2).
      */
-    private static ValueSpecification substitute(ValueSpecification v,
+    static ValueSpecification substitute(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
         if (v == null) {
             return null;
