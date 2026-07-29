@@ -441,22 +441,39 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "executionPlan whose query argument is not a lambda");
         }
-        if (!(ep.args().get(1) instanceof
-                com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
-            throw new com.legend.error.NotImplementedException(
-                    "executionPlan mapping argument must be a reference");
+        // the 2-arg overload executionPlan(func, extensions) carries its
+        // context IN the query — ->from(mapping, runtime) on the terminal
+        String mappingFqn;
+        boolean hasRuntimeArg;
+        if (ep.args().get(1) instanceof
+                com.legend.compiler.spec.typed.TypedPackageableRef pr) {
+            mappingFqn = pr.fullPath();
+            hasRuntimeArg = ep.args().size() > 2;
+        } else {
+            TypedSpec t0 = lam.body().get(lam.body().size() - 1);
+            mappingFqn = t0 instanceof com.legend.compiler.spec.typed
+                    .TypedFrom fr
+                    ? fr.mapping().map(m -> m.fullPath()).orElse(null)
+                    : null;
+            hasRuntimeArg = false;
+            if (mappingFqn == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "executionPlan mapping argument must be a reference"
+                        + " (or the query must carry ->from), got "
+                        + ep.args().get(1).getClass().getSimpleName());
+            }
         }
-        boolean quote = ep.args().size() > 2
+        boolean quote = hasRuntimeArg
                 && quoteIdentifiersOf(ep.args().get(2));
-        String tz = ep.args().size() > 2
+        String tz = hasRuntimeArg
                 ? timeZoneOf(ep.args().get(2)) : null;
-        String connName = ep.args().size() > 2
+        String connName = hasRuntimeArg
                 ? connectionNameOf(ep.args().get(2))
                 : "TestDatabaseConnection(type = \"H2\")";
-        String dbType = ep.args().size() > 2
+        String dbType = hasRuntimeArg
                 ? databaseTypeOf(ep.args().get(2)) : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
-            return sequencePlan(lam, pr.fullPath(), specs, env, quote, tz,
+            return sequencePlan(lam, mappingFqn, specs, env, quote, tz,
                     connName, dbType);
         }
         String rootClass = rootGetAllClass(lam.body());
@@ -465,11 +482,11 @@ final class StatementExecutor {
                     "planToString: no getAll root (multi-node plans"
                     + " pending)");
         }
-        EngineSql es = engineSql(lam.body(), pr.fullPath(), specs, env,
+        EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
                 planDialect(dbType, quote, tz), java.util.Map.of());
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
-                        pr.fullPath(), es.plan(), es.sql(),
+                        mappingFqn, es.plan(), es.sql(),
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)

@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 46 | 15 | 11 | 38 |
+| executionPlan/tests | 110 | 48 | 16 | 11 | 35 |
 | functions/tests | 258 | 220 | 9 | 20 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2055** | 98 | 182 | 203 |
+| **total** | 2538 | **2057** | 99 | 182 | 200 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8500,9 +8500,7 @@ in-process Alloy-shaped path).
 - SHAPE testModelConnectionJoin [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testModelConnectionAgg [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testModelConnectionMultipleAgg [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testExecutionPLanGenerationForFrom [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testExecutionPLanGenerationForFromWithMultiClusters [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - FAIL testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Allocation(type=Stringname=inFilterClause_namevalue=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instan
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
@@ -8521,7 +8519,7 @@ in-process Alloy-shaped path).
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet
 - FAIL testTypedTDSWithEnum [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type", "root"."NAME" as "name" from "productSchema"."synonymTable" as "root", got select "root".TYPE as "type", "root".NAME as "name" from productSchema.synonymTable as "root"
 - FAIL testTypedTDSWithEnumFilter [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root" where "root"."TYPE" = 'CUSIP', got select * from (select case when "root".TYPE = 'CUSIP' then 'CUSIP' else case when "root".TYPE = 'ISIN' then 'ISIN' else NULL end end as "type" from productSchema.syn
-- SHAPE testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert form 'assert/2' is not supported yet
+- FAIL testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert did not hold (false)
 - SHAPE planProjectWithDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planProjectWithDerivedProperty1 [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: no execute(|...) call [calls meta::pure::graphFetch::execution]
