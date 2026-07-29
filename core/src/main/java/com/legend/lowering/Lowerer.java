@@ -1054,24 +1054,8 @@ public final class Lowerer {
                     new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
                     new SqlAgg.Reducer("COUNT", List.of(value), false, java.util.List.of()));
         }
-        // uniqueValueOnly over a group (collectionExtension.pure): the
-        // single distinct value, else empty — CASE WHEN COUNT(DISTINCT x)
-        // = 1 THEN MAX(x) END (max of one value IS the value).
         if ("__UNIQUE_VALUE_ONLY__".equals(fn)) {
-            // the 2-arg form's DEFAULT rides as the CASE else
-            SqlExpr uvDefault = extra.isEmpty() ? new SqlExpr.NullLit()
-                    : extra.get(0);
-            if (extra.size() > 1) {
-                throw new IllegalStateException(
-                        "uniqueValueOnly aggregate with " + extra.size()
-                                + " extra arguments");
-            }
-            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.EQUAL,
-                            new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
-                            new SqlExpr.IntLit(1)),
-                    new SqlAgg.Reducer("MAX", List.of(value), false, java.util.List.of()))),
-                    uvDefault);
+            return uniqueValueOnlyAgg(extra, value);
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL
         // reducer. DuckDB hash() is UBIGINT; result is pure Integer —
@@ -1092,6 +1076,17 @@ public final class Lowerer {
         // Extension.pure:253) — bare STRING_AGG defaults to COMMA.
         if ("STRING_AGG".equals(fn) && extra.isEmpty()) {
             extra.add(new SqlExpr.StringLit(""));
+        }
+        // ORDER DETERMINISM: an un-ordered group concat follows SCAN
+        // order on the engine's H2 (insertion order — Johnson*Hill,
+        // S1*S2 goldens); DuckDB's hash joins scramble it. The faithful
+        // key is the VALUE table's physical row order — rowid, valid
+        // only when the value reads a BASE TABLE alias.
+        if ("STRING_AGG".equals(fn) && aggOrder.isEmpty()
+                && value instanceof SqlExpr.Column vc
+                && aliasIsBaseTable(base.from(), vc.table())) {
+            aggOrder = List.of(new SqlSelect.SortKey(
+                    new SqlExpr.Column(vc.table(), "rowid"), true, null, null));
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate.
@@ -1259,6 +1254,38 @@ public final class Lowerer {
             }
         }
         throw new UnfoldableRef(column);
+    }
+
+    /** uniqueValueOnly over a group (collectionExtension.pure): the
+     * single distinct value, else empty — CASE WHEN COUNT(DISTINCT x)
+     * = 1 THEN MAX(x) END (max of one value IS the value); the 2-arg
+     * form's DEFAULT rides as the CASE else. */
+    private static SqlExpr uniqueValueOnlyAgg(List<SqlExpr> extra,
+            SqlExpr value) {
+        SqlExpr uvDefault = extra.isEmpty() ? new SqlExpr.NullLit()
+                : extra.get(0);
+        if (extra.size() > 1) {
+            throw new IllegalStateException(
+                    "uniqueValueOnly aggregate with " + extra.size()
+                            + " extra arguments");
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL,
+                        new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
+                        new SqlExpr.IntLit(1)),
+                new SqlAgg.Reducer("MAX", List.of(value), false, java.util.List.of()))),
+                uvDefault);
+    }
+
+    /** Whether {@code alias} names a BASE TABLE scan in the from tree —
+     * the rowid pseudo-column is only valid there. */
+    private static boolean aliasIsBaseTable(SqlSource src, String alias) {
+        return switch (src) {
+            case SqlSource.Table t -> t.alias().equals(alias);
+            case SqlSource.Join j -> aliasIsBaseTable(j.left(), alias)
+                    || aliasIsBaseTable(j.right(), alias);
+            default -> false;
+        };
     }
 
     private SqlExpr resolveOrThrow(SqlSelect select, String column) {
