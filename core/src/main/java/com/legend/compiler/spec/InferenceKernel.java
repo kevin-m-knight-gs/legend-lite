@@ -93,6 +93,12 @@ public final class InferenceKernel {
             case Type.ClassType c
                     when c.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
                     && relationRow(actual) != null -> { }
+            // TDSRow is the ERASED row nominal of the legacy TDS API: any
+            // bare row-struct conforms — the callee is then monomorphized
+            // at its call site (TDSRow params are schema-erased, Typer).
+            case Type.ClassType c
+                    when c.fqn().equals(PlatformTypes.TDS_ROW)
+                    && actual instanceof Type.RelationType -> { }
             case Type.ClassType c -> {
                 // SUBTYPE conformance (a Person flows into an Employee-typed
                 // param's superclass) — matching what overload SCORING already

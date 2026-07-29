@@ -64,7 +64,11 @@ final class GroupByChecker {
         List<ValueSpecification> ps = af.parameters();
         // scalar spellings wrap: groupBy([keys], agg(...), ['a','b'])
         PureCollection keyFns = asCollection(ps.get(1));
-        PureCollection aggs = asCollection(ps.get(2));
+        // an aggregate-spec HELPER CALL (getAggValues():AggregateValue<..>[*])
+        // expands raw so its agg(mapFn, aggFn) literals reach the shape check
+        ValueSpecification aggsRaw = ps.get(2);
+        ValueSpecification aggsEx = t.rawSchemaErasedExpansion(aggsRaw);
+        PureCollection aggs = asCollection(aggsEx != null ? aggsEx : aggsRaw);
         PureCollection aliases = asCollection(ps.get(3));
         int expected = keyFns.values().size() + aggs.values().size();
         if (aliases.values().size() != expected) {

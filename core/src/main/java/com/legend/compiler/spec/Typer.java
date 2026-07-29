@@ -1111,12 +1111,21 @@ final class Typer {
     }
 
     private static boolean isSchemaErased(com.legend.compiler.element.type.Type t) {
+        // a FUNCTION over the erased nominals is itself erased — a helper
+        // returning Function<{TDSRow[1]->Boolean[1]}> exists only inlined
+        // (bare or Function<{...}>-wrapped alike)
+        com.legend.compiler.element.type.Type.FunctionType ft = asFunctionType(t);
+        if (ft != null) {
+            return ft.params().stream().anyMatch(p -> isSchemaErased(p.type()))
+                    || isSchemaErased(ft.result().type());
+        }
         String raw = switch (t) {
             case com.legend.compiler.element.type.Type.ClassType c -> c.fqn();
             case com.legend.compiler.element.type.Type.GenericType g -> g.rawFqn();
             default -> null;
         };
         return com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET.equals(raw)
+                || com.legend.compiler.element.type.PlatformTypes.TDS_ROW.equals(raw)
                 || "meta::pure::tds::TDSColumn".equals(raw)
                 // column specs are PLAN vocabulary — a spec-building helper
                 // (getCols():ColumnSpecification<T>[*]) exists only inlined.
@@ -1127,7 +1136,11 @@ final class Typer {
                 || "meta::pure::tds::ColumnSpecification".equals(raw)
                 || "meta::pure::tds::BasicColumnSpecification".equals(raw)
                 || "ColumnSpecification".equals(raw)
-                || "BasicColumnSpecification".equals(raw);
+                || "BasicColumnSpecification".equals(raw)
+                // aggregate specs are the same plan vocabulary (legacy
+                // groupBy's agg(mapFn, aggFn) literals)
+                || "meta::pure::functions::collection::AggregateValue".equals(raw)
+                || "AggregateValue".equals(raw);
     }
 
     private final java.util.ArrayDeque<String> normalizing = new java.util.ArrayDeque<>();
@@ -1164,6 +1177,38 @@ final class Typer {
         }
     }
 
+    /** A helper CALL returning a function value over the schema-erasing TDS
+     * nominals ({@code getFilterLambda():Function<{TDSRow[1]->Boolean[1]}>})
+     * expands to its lambda literal IN ARGUMENT POSITION — the literal then
+     * types against the surrounding signature like any inline lambda (a
+     * {@code TDSRow} annotation refines nothing; the concrete row wins).
+     * A function VALUE over TDSRow can never unify with a row-bound type
+     * variable, so un-expanded it is a guaranteed loud failure. */
+    private AppliedFunction expandFunctionValuedHelperArgs(AppliedFunction af) {
+        List<ValueSpecification> np = null;
+        for (int i = 0; i < af.parameters().size(); i++) {
+            if (!(af.parameters().get(i) instanceof AppliedFunction call)) {
+                continue;
+            }
+            boolean erasedFn = functionCandidates(call).stream()
+                    .filter(c -> c.parameters().size() == call.parameters().size())
+                    .anyMatch(c -> asFunctionType(c.returnType()) != null
+                            && isSchemaErased(asFunctionType(c.returnType())));
+            if (!erasedFn) {
+                continue;
+            }
+            ValueSpecification ex = rawSchemaErasedExpansion(call);
+            if (ex == null) {
+                continue;
+            }
+            if (np == null) {
+                np = new ArrayList<>(af.parameters());
+            }
+            np.set(i, ex);
+        }
+        return np == null ? af : new AppliedFunction(af.function(), np);
+    }
+
     /**
      * RAW β-expansion of a schema-erased helper call in a SPEC position
      * ({@code project(getCols())} — the col() literals must reach the
@@ -1175,8 +1220,16 @@ final class Typer {
         if (!(v instanceof AppliedFunction af)) {
             return null;
         }
-        List<TypedFunction> cands = functionCandidates(af).stream()
+        List<TypedFunction> arityCands = functionCandidates(af).stream()
                 .filter(c -> c.parameters().size() == af.parameters().size())
+                .toList();
+        // a NATIVE overload owns the call (concatenateTemporalTdsQueries:
+        // the corpus re-definition is M3-reflective plan surgery; the
+        // registered native is the platform's semantics) — never expand
+        if (arityCands.stream().anyMatch(TypedFunction::isNative)) {
+            return null;
+        }
+        List<TypedFunction> cands = arityCands.stream()
                 .filter(this::requiresNormalization)
                 .toList();
         if (System.getenv("LEGEND_LITE_RAW_EXPAND_TRACE") != null) {
@@ -1249,6 +1302,7 @@ final class Typer {
      * <em>deferred</em> arguments take {@link #checkWithDeferred}.
      */
     Application checkGeneric(AppliedFunction af, Env env) {
+        af = expandFunctionValuedHelperArgs(af);
         if (af.parameters().stream().anyMatch(Typer::deferredArg)) {
             return checkWithDeferred(af, env);
         }
@@ -1708,6 +1762,19 @@ final class Typer {
     }
 
     /** Unwrap a {@code Function<{…}>} (or a bare {@code FunctionType}) parameter to its function type. */
+    /** The function type a declared type carries — bare or Function<{...}>
+     * wrapped — or null when it is not function-typed at all. */
+    private static Type.FunctionType asFunctionType(Type t) {
+        if (t instanceof Type.FunctionType ft) {
+            return ft;
+        }
+        if (t instanceof Type.GenericType g && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof Type.FunctionType ft) {
+            return ft;
+        }
+        return null;
+    }
+
     static Type.FunctionType extractFunctionType(Type t) {
         if (t instanceof Type.FunctionType ft) {
             return ft;

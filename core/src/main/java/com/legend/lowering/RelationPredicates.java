@@ -42,9 +42,18 @@ final class RelationPredicates {
                 SqlSelect src = lw.relation(call.args().get(0));
                 SqlSelect base = Fold.groupByFolds(src) && !Fold.unnestInProjections(src)
                         ? src : lw.isolate(src);
+                // engine processRowCount (pureToSQLQuery.pure:8985): a
+                // SINGLE projected column counts NULL-SKIPPING — count(col);
+                // anything else is the bare row count.
+                List<SqlSelect.Projection> ps = base.projections();
+                SqlAgg.Reducer counter = ps.size() == 1
+                        && !(ps.get(0).expr() instanceof SqlExpr.Star)
+                        ? new SqlAgg.Reducer("COUNT", List.of(ps.get(0).expr()),
+                                false, java.util.List.of())
+                        : SqlAgg.Reducer.of("COUNT");
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
-                                SqlAgg.Reducer.of("COUNT"), null)), List.of()));
+                                counter, null)), List.of()));
             };
         }
         if ((Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))

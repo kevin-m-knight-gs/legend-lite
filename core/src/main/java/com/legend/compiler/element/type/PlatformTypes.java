@@ -52,6 +52,8 @@ public final class PlatformTypes {
      * conversion). */
     public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
+    public static final String TDS_ROW = "meta::pure::tds::TDSRow";
+
     /** Whether {@code t} is the TDS carrier type (exact FQN, never a
      * suffix match). */
     public static boolean isTdsType(Type t) {

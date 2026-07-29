@@ -44,6 +44,17 @@ final class EvalChecker {
         if (params.isEmpty()) {
             throw new TypeInferenceException("eval expects a function value as its first argument");
         }
+        // a helper CALL producing the function value (evalWrapper():
+        // Function<{->TabularDataSet[1]}>) expands raw so its lambda
+        // literal rides the β-reduction arm below
+        if (params.get(0) instanceof AppliedFunction call) {
+            ValueSpecification ex = t.rawSchemaErasedExpansion(call);
+            if (ex != null) {
+                List<ValueSpecification> np = new ArrayList<>(params);
+                np.set(0, ex);
+                params = np;
+            }
+        }
         return switch (params.get(0)) {
             // ~col->eval($row)  ==>  $row.col
             case ColSpec cs -> {

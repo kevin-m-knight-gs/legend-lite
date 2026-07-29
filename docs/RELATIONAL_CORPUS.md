@@ -30,7 +30,7 @@ in-process Alloy-shaped path).
 | postprocessor | 7 | 7 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 21 | 0 | 5 | 4 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
-| router/tests | 26 | 13 | 2 | 8 | 3 |
+| router/tests | 26 | 20 | 0 | 3 | 3 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 |
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2038** | 105 | 192 | 203 |
+| **total** | 2538 | **2045** | 103 | 187 | 203 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8450,12 +8450,12 @@ in-process Alloy-shaped path).
 - 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
 - 2x unknown function 'tdsRows'
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
-- 2x in call to 'meta::pure::functions::relation::filter', argument 2: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
 - 2x cannot access 'name' on String
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x auto-map mapper body node TypedFilter is not inlinable yet
+- 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 
 ### per-test outcomes (non-passing)
 
@@ -8723,13 +8723,6 @@ in-process Alloy-shaped path).
 - ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
-- ERROR testEvalFunctionOutputFromFunctionCall [router/tests]: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{ -> meta::pure::tds::TabularDataSet[1]}>
-- FAIL testEvalWithMultipleExpressions [router/tests]: assertEquals: expected 11, got 12
-- FAIL testEvalWithMultipleExpressionsWithFunctionAsVariable [router/tests]: assertEquals: expected 11, got 12
-- ERROR testCompositionInProjectAndNestedFilter [router/tests]: in call to 'meta::pure::functions::relation::filter', argument 2: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
-- ERROR testCompositionInUnion [router/tests]: in call to 'meta::pure::functions::relation::filter', argument 2: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
-- ERROR testCompositionInGroupBy [router/tests]: legacy groupBy aggregate 0 must be agg(mapFn, aggFn)
-- ERROR testCompositionInJoin [router/tests]: in call to 'meta::pure::functions::relation::join', argument 4: type variable T bound to (firstName:String[0..1]) cannot also bind meta::pure::tds::TDSRow
 - SHAPE testCompositionInMultiStatementPureExpressions [router/tests]: no execute(|...) call
 - SHAPE testProcessIdentifierWithQuoteChar [sqlQueryToString]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::h2::v2_1_214]
 - SHAPE testSetupDataSqlGeneration [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
