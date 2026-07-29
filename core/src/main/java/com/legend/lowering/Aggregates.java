@@ -38,6 +38,12 @@ public final class Aggregates {
         family("AVG", "avg");
         family("MIN", "min");
         family("MAX", "max");
+        // H2-LENIENT per-group witness (view ~groupBy per-row columns —
+        // the engine's H2 1.x golden spells the BARE column; our DB-side
+        // form is ANY_VALUE): REAL pure first() — order-sensitive
+        // first()-over-relation consumers keep their limit-1 route by
+        // excluding ANY_VALUE at THEIR arms, never a synthetic native
+        family("ANY_VALUE", "first");
         family("STDDEV_SAMP", "stdDevSample");
         family("STDDEV_SAMP", "stdDev");
         family("COUNT", "size");
@@ -113,6 +119,16 @@ public final class Aggregates {
      * catalog addition is a wall addition by construction. */
     public static boolean isReducer(TypedFunction callee) {
         return REDUCERS.containsKey(callee.signatureKey());
+    }
+
+    /** DEMAND-scan membership: reducers that make an expression an
+     * AGGREGATE-over-navigation. ANY_VALUE (pure first()) is a
+     * reduce-lambda-ONLY entry — first() over a projected nav collection
+     * keeps its join-row route (engine ParentVarReferenceWithProject
+     * golden: plain LEFT JOINs, no grouped subselect). */
+    public static boolean isDemandReducer(TypedFunction callee) {
+        return isReducer(callee)
+                && !"ANY_VALUE".equals(REDUCERS.get(callee.signatureKey()));
     }
 
     static boolean isReducerKey(String signatureKey) {

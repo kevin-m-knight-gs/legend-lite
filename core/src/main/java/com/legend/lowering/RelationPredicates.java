@@ -60,7 +60,8 @@ final class RelationPredicates {
         // (the graph derived-leaf sub-aggregation: average($this.employees
         // .age) — engine renders a correlated scalar aggregate subquery)
         String fam = Aggregates.reducerOrNull(n.callee());
-        if (fam != null && !"COUNT".equals(fam) && n.args().size() == 1
+        if (fam != null && !"COUNT".equals(fam) && !"ANY_VALUE".equals(fam)
+                && n.args().size() == 1
                 && n.args().get(0).info().type() instanceof Type.RelationType rt2
                 && rt2.columns().size() == 1
                 && !(rt2.columns().get(0).type() instanceof Type.ClassType)) {

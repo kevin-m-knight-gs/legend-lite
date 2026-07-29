@@ -1388,7 +1388,7 @@ private static boolean readsVarOutsideSlot(TypedSpec n, String var,
      * mode, corr, ... — 15 gaps) is DELETED; membership is the reducer
      * catalog itself ({@link com.legend.lowering.Aggregates#isReducer}). */
     static boolean isAggregate(TypedFunction callee) {
-        return com.legend.lowering.Aggregates.isReducer(callee);
+        return com.legend.lowering.Aggregates.isDemandReducer(callee);
     }
 
 

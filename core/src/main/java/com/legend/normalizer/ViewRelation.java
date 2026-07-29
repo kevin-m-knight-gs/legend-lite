@@ -189,11 +189,21 @@ final class ViewRelation {
                     }
                 }
                 if (match < 0) {
-                    throw new NotImplementedException(
-                            "view '" + viewName + "' column '" + vc.name()
-                          + "' is a per-row expression that is neither an"
-                          + " aggregate nor a declared ~groupBy key."
-                          + " mapping=" + md.qualifiedName());
+                    // H2-LENIENT per-row column under view ~groupBy
+                    // (modelJoins LegalEntity_View: name/value bare over
+                    // group by ENTITY_ID — H2 1.x returns a per-group
+                    // witness): an implicit first()-reduced aggregate —
+                    // DB-side (ANY_VALUE), the engine-style text spells
+                    // the bare column exactly like the golden
+                    ValueSpecification wSel = RelOpTranslator.translate(
+                            expr, scope, null, r, vp.view());
+                    Variable wVals = new Variable("vals");
+                    aggCols.add(new ColSpec(vc.name(),
+                            new LambdaFunction(List.of(r), List.of(wSel)),
+                            new LambdaFunction(List.of(wVals),
+                                    List.of(new AppliedFunction("first",
+                                            List.of(wVals))))));
+                    continue;
                 }
                 claimed[match] = true;
                 ValueSpecification keyValue = RelOpTranslator.translate(expr, scope,
