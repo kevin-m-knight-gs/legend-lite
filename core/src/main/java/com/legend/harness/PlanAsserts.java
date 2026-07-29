@@ -31,7 +31,30 @@ final class PlanAsserts {
      * executionPlan call — its terminal value (sqlQuery text) compares
      * LITERALLY like plan text. */
     static boolean containsPlanWalk(ValueSpecification v) {
-        return TestBody.walkHasProp(v, "rootExecutionNode") && TestBody.walkHasCall(v);
+        return (TestBody.walkHasProp(v, "rootExecutionNode")
+                && TestBody.walkHasCall(v))
+                // ->sqlRemoveFormatting() over an executionPlan binding is
+                // the literal plan-text read by another spelling — there
+                // are no rows to verify (execute()-based reads never carry
+                // an executionPlan call and keep the rows-first policy)
+                || (hasCallNamed(v, "sqlRemoveFormatting")
+                        && hasCallNamed(v, "executionPlan"));
+    }
+
+    private static boolean hasCallNamed(ValueSpecification v, String simple) {
+        if (v instanceof AppliedFunction af) {
+            if (TestBody.simpleName(af.function()).equals(simple)) {
+                return true;
+            }
+            for (ValueSpecification x : af.parameters()) {
+                if (hasCallNamed(x, simple)) {
+                    return true;
+                }
+            }
+        } else if (v instanceof AppliedProperty ap) {
+            return hasCallNamed(ap.receiver(), simple);
+        }
+        return false;
     }
 
     static boolean containsPlanToString(ValueSpecification v) {

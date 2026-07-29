@@ -799,6 +799,36 @@ public final class TestBody {
      * divergent golden text records into {@code sqlDiffs} — rows stay
      * the contract for tests that verify anything else; a test with NO
      * other verification fails on the diff (runner scoring). */
+    /** assertContains(collection, value[, message…]) — real pure
+     * membership (assertContains.pure:20); message args ignored. */
+    private static String assertContainsCheck(List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            boolean emptinessUnverifiable) throws java.sql.SQLException {
+        if (args.size() < 2) {
+            return UNSUPPORTED_MARKER;
+        }
+        Eval col = eval(args.get(0), lets, execStmts, execVars, execChains,
+                ctx, imports, runtimeFqn, conn);
+        if (emptinessUnverifiable && col.size() == 0) {
+            return UNSUPPORTED_MARKER;   // see the assertEquals guard
+        }
+        Eval val = eval(args.get(1), lets, execStmts, execVars, execChains,
+                ctx, imports, runtimeFqn, conn);
+        if (val.values().size() != 1) {
+            return UNSUPPORTED_MARKER;
+        }
+        for (Object x : col.values()) {
+            if (wireEquals(x, val.values().get(0))) {
+                return null;
+            }
+        }
+        return "assertContains: " + col.render()
+                + " does not contain " + val.render();
+    }
+
     private static Outcome scoreAssert(AppliedFunction af, String failure,
             int[] counters, List<String> sqlDiffs, int executed) {
         if (failure == UNSUPPORTED_MARKER) {
@@ -1743,7 +1773,8 @@ public final class TestBody {
                 // legacy 3-arg H2-compat: (legacySql, h2NewSql, actual) —
                 // the NEW golden is H2 2.1.214, exactly the advisory
                 // second target's dialect: verify by ROWS through it
-                if (args.size() == 3 && af.function().equals("assertEqualsH2Compatible")) {
+                if (args.size() == 3 && simpleName(af.function())
+                        .equals("assertEqualsH2Compatible")) {
                     return sqlTextVerify(List.of(args.get(1), args.get(2)),
                             lets, execStmts, execVars, execChains, ctx,
                             imports, runtimeFqn, conn);
@@ -1799,6 +1830,10 @@ public final class TestBody {
                 Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return compare(e, a, /* ordered */ false) ? null
                         : "assertSameElements: expected " + e.render() + ", got " + a.render();
+            }
+            case "assertContains" -> {
+                return assertContainsCheck(args, lets, execStmts, execVars, execChains,
+                        ctx, imports, runtimeFqn, conn, emptinessUnverifiable);
             }
             case "assertEqWithinTolerance" -> {
                 if (args.size() != 3) {

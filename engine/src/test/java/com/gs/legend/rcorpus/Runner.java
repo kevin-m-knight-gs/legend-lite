@@ -442,7 +442,15 @@ public final class Runner {
             com.legend.model.spec.AppliedFunction call = null;
             String letName = null;
             if (stmt instanceof com.legend.model.spec.AppliedFunction af
-                    && !af.function().equals("letFunction")) {
+                    && !af.function().equals("letFunction")
+                    // assertEqualsH2Compatible is HARNESS vocabulary
+                    // (TestBody's /3 arm verifies by rows through the H2
+                    // second target) — expanding its corpus body would
+                    // splice in getH2Versions()/executeInDb plumbing the
+                    // module never pulls (forced-milestoning walls)
+                    && !af.function()
+                            .substring(af.function().lastIndexOf(':') + 1)
+                            .equals("assertEqualsH2Compatible")) {
                 String fqn = af.function().contains("::")
                         ? af.function() : qualify(af.function(), t);
                 FnDef fd = fnIndex.get(fqn + "/" + af.parameters().size());

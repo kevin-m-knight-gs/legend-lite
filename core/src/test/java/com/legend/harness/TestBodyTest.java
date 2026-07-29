@@ -369,9 +369,32 @@ class TestBodyTest {
         TestBody.Outcome o = run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
-                assertContains($result.values, 'Bob');
+                assertContainsExactly($result.values, 'Bob');
                 """);
         assertInstanceOf(TestBody.Outcome.Unsupported.class, o);
+    }
+
+    @Test
+    void assertContainsIsMembership() throws Exception {
+        // real pure assertContains(collection, value)
+        // (assertContains.pure:20) — membership over the evaled sides
+        assertHeld(run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['name']),
+                        test::M, r(), e());
+                assertContains($result.values.rows.values, 'Alice');
+                """), 1);
+    }
+
+    @Test
+    void assertContainsMissReportsBothSides() throws Exception {
+        TestBody.Outcome o = run("""
+                let result = execute(|Person.all()->project([p|$p.name], ['name']),
+                        test::M, r(), e());
+                assertContains($result.values.rows.values, 'Zed');
+                """);
+        assertInstanceOf(TestBody.Outcome.Ran.class, o);
+        org.junit.jupiter.api.Assertions.assertFalse(
+                ((TestBody.Outcome.Ran) o).failures().isEmpty());
     }
 
     @Test
