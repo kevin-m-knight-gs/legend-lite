@@ -819,10 +819,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // UNMATCHED formats THROW — falling back to strftime() would
             // leak a DuckDB spelling into engine-H2 golden text (audit 19)
             case STRFTIME -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit fmt) {
-                    String java = switch (fmt.value()) {
-                        case "%B" -> "MMMM";
-                        case "%A" -> "EEEE";
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl
+                        && fl.parts().size() == 1
+                        && fl.parts().get(0) instanceof com.legend.sql.DateFmt.Part p) {
+                    String java = switch (p) {
+                        case MONTH_NAME -> "MMMM";
+                        case WEEKDAY_NAME -> "EEEE";
                         default -> null;
                     };
                     if (java != null) {
@@ -857,10 +859,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // formats; datetime formats parse the whole string. UNMATCHED
             // formats THROW rather than leak DuckDB strptime() text.
             case STRPTIME -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit f) {
-                    String java = javaDatePattern(f.value());
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
+                    String java = h2Pattern(fl);
                     if (java != null) {
-                        boolean dateOnly = !f.value().contains("%H");
+                        boolean dateOnly = !fl.parts()
+                                .contains(com.legend.sql.DateFmt.Part.HOUR2);
                         yield dateOnly
                                 ? "parsedatetime(substring(" + expr(a.get(0), 0)
                                         + ", 1, 10), '" + java + "')"
@@ -875,33 +878,30 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         };
     }
 
-    /** C-style strptime directives → the Java pattern the engine's
-     * parsedatetime takes; null when any directive has no mapping (the
-     * caller throws — never a silent DuckDB fallback). */
-    private static String javaDatePattern(String cFormat) {
+    /** TYPED format parts → the Java pattern the engine's parsedatetime
+     * takes; null when a part has no mapping (the caller throws — never a
+     * silent DuckDB fallback). No format string is ever re-parsed here. */
+    private static String h2Pattern(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
-        for (int i = 0; i < cFormat.length(); i++) {
-            char ch = cFormat.charAt(i);
-            if (ch != '%') {
-                out.append(ch);
-                continue;
+        for (com.legend.sql.DateFmt d : fl.parts()) {
+            switch (d) {
+                case com.legend.sql.DateFmt.Text t -> out.append(t.s());
+                case com.legend.sql.DateFmt.Part p -> {
+                    String java = switch (p) {
+                        case YEAR4 -> "yyyy";
+                        case MONTH2 -> "MM";
+                        case DAY2 -> "dd";
+                        case HOUR2 -> "HH";
+                        case MIN2 -> "mm";
+                        case SEC2 -> "ss";
+                        default -> null;
+                    };
+                    if (java == null) {
+                        return null;
+                    }
+                    out.append(java);
+                }
             }
-            if (++i >= cFormat.length()) {
-                return null;
-            }
-            String java = switch (cFormat.charAt(i)) {
-                case 'Y' -> "yyyy";
-                case 'm' -> "MM";
-                case 'd' -> "dd";
-                case 'H' -> "HH";
-                case 'M' -> "mm";
-                case 'S' -> "ss";
-                default -> null;
-            };
-            if (java == null) {
-                return null;
-            }
-            out.append(java);
         }
         return out.toString();
     }

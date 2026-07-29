@@ -414,7 +414,7 @@ final class Scalars {
             // relic the corpus no longer pins).
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
                     dateArg(n.args().get(0), args.get(0)),
-                    new SqlExpr.StringLit("%A")));
+                    new SqlExpr.FormatLit(java.util.List.of(com.legend.sql.DateFmt.Part.WEEKDAY_NAME))));
         }
         // month(): real pure returns the Month ENUM — the NAME ('January'),
         // same enum-by-name convention as dayOfWeek above (the engine's H2
@@ -423,7 +423,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("month")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
                     dateArg(n.args().get(0), args.get(0)),
-                    new SqlExpr.StringLit("%B")));
+                    new SqlExpr.FormatLit(java.util.List.of(com.legend.sql.DateFmt.Part.MONTH_NAME))));
         }
         // quarter(): real pure returns the Quarter ENUM (Q1..Q4, with an
         // upstream TODO to make them numbers); the engine surface is the
@@ -507,14 +507,18 @@ final class Scalars {
                     // 2017; a day-or-finer unit yields the full-precision
                     // carrier — the audit's truncate-everything write-back
                     // silently erased finer adjustments).
-                    String fmt = switch (enumName(n.args().get(2))) {
-                        case "YEARS" -> pp == 1 ? "%Y" : "%Y-%m";
-                        case "MONTHS" -> "%Y-%m";
+                    java.util.List<com.legend.sql.DateFmt> fmt =
+                            switch (enumName(n.args().get(2))) {
+                        case "YEARS" -> pp == 1
+                                ? java.util.List.of((com.legend.sql.DateFmt)
+                                        com.legend.sql.DateFmt.Part.YEAR4)
+                                : com.legend.sql.DateFmt.YEAR_MONTH;
+                        case "MONTHS" -> com.legend.sql.DateFmt.YEAR_MONTH;
                         default -> null;
                     };
                     return fmt == null ? added
                             : SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.StringLit(fmt));
+                                    new SqlExpr.FormatLit(fmt));
                 }
                 // A source written with MORE subsecond digits than the
                 // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
@@ -529,7 +533,7 @@ final class Scalars {
                         && sub.subsecond().length() > 6) {
                     return SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
                             new SqlExpr.StringLit(sub.subsecond().substring(6)));
                 }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
@@ -585,7 +589,7 @@ final class Scalars {
                                 PureDateLiteral.DateWithSubsecond sub) {
                     return SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, bucketed,
-                                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S")),
+                                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
                             new SqlExpr.StringLit(
                                     "." + "0".repeat(sub.subsecond().length())));
                 }
@@ -1514,7 +1518,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("formatDate")) {
             RULES.put(f, (n, args) -> switch (enumName(n.args().get(1))) {
                 case "ISO8601" -> SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                        new SqlExpr.StringLit("%Y-%m-%d"));
+                        new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
                 // 9-digit nanos. A LITERAL prints its own WRITTEN subsecond
                 // digits right-padded to 9 (static text — digits beyond the
                 // TIMESTAMP carrier's 6 exist only in literals). A runtime
@@ -1530,12 +1534,12 @@ final class Scalars {
                         String nanos = (sub.subsecond() + "000000000").substring(0, 9);
                         yield SqlExpr.Call.of(SqlFn.CONCAT,
                                 SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                                        new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.")),
+                                        new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_DOT)),
                                 new SqlExpr.StringLit(nanos));
                     }
                     yield SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
                             new SqlExpr.StringLit("000"));
                 }
                 default -> throw new IllegalStateException(
@@ -1914,7 +1918,7 @@ final class Scalars {
                 }
                 if (t == Type.Primitive.DATE_TIME) {
                     return SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
-                            new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"));
+                            new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_PURE_UTC));
                 }
                 if (t == Type.Primitive.FLOAT) {
                     return floatRepr(args.get(0));
@@ -2032,7 +2036,7 @@ final class Scalars {
                 SqlExpr shifted = new SqlExpr.Call(SqlFn.TIMEZONE,
                         List.of(args.get(1), asUtc));
                 return new SqlExpr.Call(SqlFn.STRFTIME, List.of(shifted,
-                        new SqlExpr.StringLit(translateFormat(fmt.value()))));
+                        new SqlExpr.FormatLit(DateFormats.pureToParts(fmt.value()))));
             });
         }
         // sqlNull() — the relational store's NULL literal dynafunction
@@ -2104,7 +2108,7 @@ final class Scalars {
                                 // %f = MICROseconds — %g's milliseconds
                                 // silently truncated 59.999999 (audit); the
                                 // zero-trim below reduces to minimal digits.
-                                new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f"));
+                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO));
                         SqlExpr trimmed = SqlExpr.Call.of(SqlFn.RTRIM, iso,
                                 new SqlExpr.StringLit("0"));
                         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
@@ -2221,42 +2225,7 @@ final class Scalars {
     }
 
     /** The engine's format tokens, longest-first, to DuckDB strptime tokens. */
-    /**
-     * Longest-first token map: engine format spellings (SimpleDateFormat +
-     * the Oracle-style TO_CHAR tokens the corpus mixes in) to DuckDB
-     * strptime. Case is load-bearing (MM month vs mm minutes). Two entries
-     * are pinned by ENGINE-PRODUCED expected values rather than a spec:
-     * '.mmm' and '.FF' both read as fractional seconds — the sqlFunction
-     * corpus asserts %2016-06-23T15:03:00.000 for 'yyyy-MM-dd hh:mm:ss.mmm'
-     * over '2016-06-23 15:03:00.000000000', i.e. the engine result treats
-     * the tail as millis, not minutes (SimpleDateFormat's reading would
-     * shift the minute field). SSS is SimpleDateFormat millis proper.
-     */
-    private static final String[][] FORMAT_TOKENS = {
-            {"HH24", "%H"}, {"SSS", "%g"}, {"MMM", "%b"}, {"MON", "%b"},
-            {"mmm", "%g"},
-            {"yyyy", "%Y"}, {"YYYY", "%Y"}, {"MM", "%m"}, {"dd", "%d"},
-            {"DD", "%d"}, {"MI", "%M"}, {"mm", "%M"}, {"hh", "%H"},
-            {"HH", "%H"}, {"ss", "%S"}, {"SS", "%S"}, {"FF", "%g"},
-    };
 
-    private static String translateFormat(String src) {
-        StringBuilder out = new StringBuilder();
-        int i = 0;
-        outer:
-        while (i < src.length()) {
-            for (String[] tok : FORMAT_TOKENS) {
-                if (src.startsWith(tok[0], i)) {
-                    out.append(tok[1]);
-                    i += tok[0].length();
-                    continue outer;
-                }
-            }
-            out.append(src.charAt(i));
-            i++;
-        }
-        return out.toString();
-    }
 
     private static Iterable<String> concat(Iterable<String> a, Iterable<String> b) {
         List<String> out = new ArrayList<>();
@@ -2271,7 +2240,7 @@ final class Scalars {
                     "format dynafunctions need a LITERAL format string");
         }
         SqlExpr parsed = new SqlExpr.Call(SqlFn.STRPTIME,
-                List.of(args.get(0), new SqlExpr.StringLit(translateFormat(fmt.value()))));
+                List.of(args.get(0), new SqlExpr.FormatLit(DateFormats.pureToParts(fmt.value()))));
         return toDate
                 ? new SqlExpr.Cast(parsed, PureSql.type(
                         Type.Primitive.STRICT_DATE))
@@ -2492,14 +2461,14 @@ final class Scalars {
         }
         if (t == Type.Primitive.STRICT_DATE) {
             ids.add(SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                    new SqlExpr.StringLit("%Y-%m-%d")));
+                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE)));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
             return true;
         }
         if (t == Type.Primitive.DATE_TIME) {
             ids.add(SqlExpr.Call.of(SqlFn.CONCAT,
                     SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                            new SqlExpr.StringLit(dateTimeFormatOf(e))),
+                            new SqlExpr.FormatLit(dateTimeFormatOf(e))),
                     new SqlExpr.StringLit("+0000")));
             vals.add(x);
             return true;
@@ -2537,12 +2506,12 @@ final class Scalars {
     }
 
     /** DateTime print format — subsecond DIGIT COUNT is a static attribute of the literal. */
-    private static String dateTimeFormatOf(TypedSpec e) {
+    private static List<com.legend.sql.DateFmt> dateTimeFormatOf(TypedSpec e) {
         if (e instanceof TypedCDate cd
                 && cd.value() instanceof PureDateLiteral.DateWithSubsecond) {
-            return "%Y-%m-%dT%H:%M:%S.%f";
+            return com.legend.sql.DateFmt.ISO_MICRO;
         }
-        return "%Y-%m-%dT%H:%M:%S";
+        return com.legend.sql.DateFmt.ISO_LOCAL;
     }
 
     /**
@@ -3289,7 +3258,7 @@ final class Scalars {
     private static SqlExpr dateWithPattern(String pattern, SqlExpr arg) {
         if (!pattern.startsWith("[") || pattern.indexOf(']') < 0) {
             return SqlExpr.Call.of(SqlFn.STRFTIME, arg,
-                    new SqlExpr.StringLit(DateFormats.javaDateToStrftime(pattern)));
+                    new SqlExpr.FormatLit(DateFormats.javaDateToParts(pattern)));
         }
         int zb = pattern.indexOf(']');
         String zone = pattern.substring(1, zb);
@@ -3305,7 +3274,7 @@ final class Scalars {
         SqlExpr wall = SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit(zone),
                 SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit("UTC"), arg));
         SqlExpr shifted = SqlExpr.Call.of(SqlFn.STRFTIME, wall,
-                new SqlExpr.StringLit(DateFormats.javaDateToStrftime(pat)));
+                new SqlExpr.FormatLit(DateFormats.javaDateToParts(pat)));
         if (!offsetSuffix) {
             return shifted;
         }
@@ -3344,7 +3313,7 @@ final class Scalars {
         }
         if (t == Type.Primitive.DATE_TIME) {
             return SqlExpr.Call.of(SqlFn.STRFTIME, e,
-                    new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%g+0000"));
+                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_PURE_UTC));
         }
         return null;
     }

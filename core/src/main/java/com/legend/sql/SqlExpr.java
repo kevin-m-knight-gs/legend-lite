@@ -11,7 +11,8 @@ import java.util.List;
 public sealed interface SqlExpr
         permits SqlExpr.Column, SqlExpr.Star, SqlExpr.StarExcept, SqlExpr.StringLit, SqlExpr.IntLit,
                 SqlExpr.FloatLit, SqlExpr.DecimalLit, SqlExpr.BoolLit, SqlExpr.NullLit,
-                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.ArrayLit, SqlExpr.OrderedListAgg,
+                SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.FormatLit, SqlExpr.ArrayLit,
+                SqlExpr.OrderedListAgg,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
@@ -85,6 +86,15 @@ public sealed interface SqlExpr
 
         public PlanParam(String name, boolean stringTyped) {
             this(name, stringTyped ? Kind.STRING : Kind.OTHER, false);
+        }
+    }
+
+    /** A TYPED date format — a list of {@link DateFmt} parts, never a
+     * C-format string a renderer must re-parse (remediation T3.2). Rides
+     * as the format argument of STRFTIME/STRPTIME. */
+    record FormatLit(List<DateFmt> parts) implements SqlExpr {
+        public FormatLit {
+            parts = List.copyOf(parts);
         }
     }
 

@@ -285,6 +285,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                             .map(n -> quoteChar() + n + quoteChar())
                             .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case SqlExpr.StringLit s -> stringLit(s.value());
+            case SqlExpr.FormatLit fl -> stringLit(formatText(fl));
             case SqlExpr.IntLit i -> String.valueOf(i.value());
             // pure Float IS float8 — a BARE decimal literal types as
             // DECIMAL(p,s) in DuckDB and infects every aggregate over it
@@ -693,6 +694,36 @@ public class AnsiSqlRenderer implements SqlDialect {
                         .collect(Collectors.joining(", ")) + ")";
             }
         };
+    }
+
+    /** The DATE-FORMAT spelling — this renderer family's voice is DuckDB
+     * strftime codes; a dialect with its own vocabulary overrides (or
+     * consumes {@link SqlExpr.FormatLit} parts in its call arms and never
+     * lets one reach here). EXHAUSTIVE: a new part is a compile error. */
+    protected String formatText(SqlExpr.FormatLit fl) {
+        StringBuilder out = new StringBuilder();
+        for (com.legend.sql.DateFmt p : fl.parts()) {
+            out.append(switch (p) {
+                case com.legend.sql.DateFmt.Text t -> t.s();
+                case com.legend.sql.DateFmt.Part part -> switch (part) {
+                    case YEAR4 -> "%Y";
+                    case MONTH2 -> "%m";
+                    case DAY2 -> "%d";
+                    case HOUR2 -> "%H";
+                    case MIN2 -> "%M";
+                    case SEC2 -> "%S";
+                    case SUBSEC_MICRO -> "%f";
+                    case SUBSEC_MIN -> "%g";
+                    case MONTH_ABBREV -> "%b";
+                    case MONTH_NAME -> "%B";
+                    case WEEKDAY_NAME -> "%A";
+                    case HOUR12 -> "%I";
+                    case HOUR12_NOPAD -> "%-I";
+                    case AMPM -> "%p";
+                };
+            });
+        }
+        return out.toString();
     }
 
     protected String fn(String spelling, List<SqlExpr> args) {

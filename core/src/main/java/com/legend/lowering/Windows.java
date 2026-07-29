@@ -156,6 +156,7 @@ final class Windows {
             case SqlExpr.NullLit ignored -> e;
             case SqlExpr.DateLit ignored -> e;
             case SqlExpr.TimestampLit ignored -> e;
+            case SqlExpr.FormatLit ignored -> e;
         };
     }
 

@@ -121,10 +121,11 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // whole string with the Java-style pattern (no substring, no
             // space after the comma — the goldens' exact text)
             case STRPTIME -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit f) {
-                    String java = db2DatePattern(f.value());
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
+                    String java = db2Pattern(fl);
                     if (java != null) {
-                        boolean dateOnly = !f.value().contains("%H");
+                        boolean dateOnly = !fl.parts()
+                                .contains(com.legend.sql.DateFmt.Part.HOUR2);
                         yield (dateOnly ? "to_date(" : "timestamp_format(")
                                 + expr(a.get(0), 0) + ",'" + java + "')";
                     }
@@ -136,34 +137,30 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         };
     }
 
-    /** C-style strptime directives → DB2's pattern spelling; null when a
-     * directive has no mapping (the caller throws — never a silent
-     * fallback). DB2 spells hours {@code hh} and millis {@code mmm}. */
-    private static String db2DatePattern(String cFormat) {
+    /** TYPED format parts → DB2's pattern spelling; null when a part has
+     * no mapping (the caller throws — never a silent fallback). */
+    private static String db2Pattern(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
-        for (int i = 0; i < cFormat.length(); i++) {
-            char ch = cFormat.charAt(i);
-            if (ch != '%') {
-                out.append(ch);
-                continue;
+        for (com.legend.sql.DateFmt d : fl.parts()) {
+            switch (d) {
+                case com.legend.sql.DateFmt.Text t -> out.append(t.s());
+                case com.legend.sql.DateFmt.Part p -> {
+                    String java = switch (p) {
+                        case YEAR4 -> "yyyy";
+                        case MONTH2 -> "MM";
+                        case DAY2 -> "dd";
+                        case HOUR2 -> "hh";
+                        case MIN2 -> "mm";
+                        case SEC2 -> "ss";
+                        case SUBSEC_MIN -> "mmm";
+                        default -> null;
+                    };
+                    if (java == null) {
+                        return null;
+                    }
+                    out.append(java);
+                }
             }
-            if (++i >= cFormat.length()) {
-                return null;
-            }
-            String java = switch (cFormat.charAt(i)) {
-                case 'Y' -> "yyyy";
-                case 'm' -> "MM";
-                case 'd' -> "dd";
-                case 'H' -> "hh";
-                case 'M' -> "mm";
-                case 'S' -> "ss";
-                case 'g' -> "mmm";
-                default -> null;
-            };
-            if (java == null) {
-                return null;
-            }
-            out.append(java);
         }
         return out.toString();
     }

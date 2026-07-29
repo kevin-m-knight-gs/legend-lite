@@ -182,6 +182,8 @@ final class SubselectPrune {
             }
             case SqlExpr.TimestampLit v -> {
             }
+            case SqlExpr.FormatLit v -> {
+            }
             case SqlExpr.OrderedListAgg o -> {
                 collectExpr(o.value(), r);
                 collectExpr(o.orderBy(), r);

@@ -498,7 +498,7 @@ final class Fold {
         }
         SqlExpr iso = SqlExpr.Call.of(SqlFn.CONCAT,
                 SqlExpr.Call.of(SqlFn.STRFTIME, e,
-                        new SqlExpr.StringLit("%Y-%m-%dT%H:%M:%S.%f")),
+                        new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
                 new SqlExpr.StringLit("000"));
         List<SqlExpr.Case.When> arms = new java.util.ArrayList<>();
         arms.add(new SqlExpr.Case.When(
@@ -509,7 +509,7 @@ final class Fold {
                             SqlExpr.Call.of(SqlFn.TYPEOF, e),
                             new SqlExpr.StringLit("DATE")),
                     SqlExpr.Call.of(SqlFn.STRFTIME, e,
-                            new SqlExpr.StringLit("%Y-%m-%d"))));
+                            new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE))));
         }
         return new SqlExpr.Case(arms, iso);
     }
