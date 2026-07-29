@@ -8,6 +8,7 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlUnion;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -62,6 +63,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     public String render(SqlQuery query) {
         renames.clear();
         subselects.clear();
+        rootConsumed.clear();
         planQuery(query, new LinkedHashMap<>());
         StringBuilder sb = new StringBuilder();
         query(sb, query, 0);
@@ -92,28 +94,42 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         switch (src) {
             case SqlSource.Table t -> {
                 if (t.alias() != null) {
-                    String named = nextInGroup(
-                            t.name().toLowerCase(Locale.ROOT), groups);
-                    renames.put(t.alias(), leftmost ? "root" : named);
+                    String group = t.name().toLowerCase(Locale.ROOT);
+                    if (leftmost) {
+                        // reAliasQuery: every 'root' pair in a group
+                        // DEDUPES to one — the group spends ONE index on
+                        // root no matter how many nested roots it has
+                        consumeRootSlot(group, groups);
+                        renames.put(t.alias(), "root");
+                    } else {
+                        renames.put(t.alias(), nextInGroup(group, groups));
+                    }
                 }
             }
             case SqlSource.Subselect sub -> {
-                planQuery(sub.inner(), groups);
-                subselects.put(sub.alias(), sub);
-                // a NAMED frame (view-backed target) groups by its own
-                // model identity — orderpnlview_0, never the underlying
-                // physical table's group
+                // a NAMED frame (view-backed target, union frame) groups
+                // by its own model identity — orderpnlview_0,
+                // unionalias_0 — never the underlying table's group
                 String group = sub.frameName() != null
                         ? sub.frameName().toLowerCase(Locale.ROOT)
                         : firstInnerTable(sub.inner());
-                String named = nextInGroup(group, groups);
                 // only the DISTINCT materialization keeps the root name
                 // (its frame REPLACES the root table); every other frame
                 // is group-named — persontable_0, unionalias_0
                 boolean rootFrame = leftmost
                         && sub.inner() instanceof SqlSelect ds
                         && ds.distinct();
-                renames.put(sub.alias(), rootFrame ? "root" : named);
+                if (rootFrame) {
+                    consumeRootSlot(group, groups);
+                    renames.put(sub.alias(), "root");
+                } else {
+                    // PRE-ORDER: the alias numbers before its interior
+                    // (reAliasQuery traverse pairs the select before its
+                    // children — nested union frames count outermost-first)
+                    renames.put(sub.alias(), nextInGroup(group, groups));
+                }
+                planQuery(sub.inner(), groups);
+                subselects.put(sub.alias(), sub);
             }
             case SqlSource.Join j -> {
                 planSource(j.left(), leftmost, groups);
@@ -126,6 +142,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     private static String nextInGroup(String group, Map<String, Integer> groups) {
         int i = groups.merge(group, 1, Integer::sum) - 1;
         return group + "_" + i;
+    }
+
+    /** One index per group for ALL its root-named members (reAliasQuery
+     * dedupes ('group','root') pairs before numbering). */
+    private final Set<String> rootConsumed = new HashSet<>();
+
+    private void consumeRootSlot(String group, Map<String, Integer> groups) {
+        if (rootConsumed.add(group)) {
+            nextInGroup(group, groups);
+        }
     }
 
     /** The group a subselect alias renames into: its leftmost inner
@@ -228,15 +254,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (sub == null) {
             return false;
         }
-        // the UNION frame reads its QUOTED output aliases (tds union
+        // a UNION frame reads its QUOTED output aliases (tds union
         // goldens: "unionalias_0"."lastName") — unlike view frames,
-        // whose interiors render bare
-        if (sub.inner() instanceof com.legend.sql.SqlUnion iu) {
-            return "unionAlias".equals(sub.frameName())
-                    && !iu.branches().isEmpty()
-                    && iu.branches().get(0) instanceof SqlSelect b0
-                    && b0.projections().stream()
-                            .anyMatch(p -> c.name().equals(p.alias()));
+        // whose interiors render bare; holds for the raw union, the
+        // re-projection wrapper and the join-isolation select* alike
+        if ("unionAlias".equals(sub.frameName())) {
+            return sub.inner().outputs() != null && sub.inner().outputs()
+                    .stream().anyMatch(o -> c.name().equals(o.name()));
+        }
+        if (sub.inner() instanceof com.legend.sql.SqlUnion) {
+            return false;
         }
         if (sub.frameName() != null
                 || !(sub.inner() instanceof SqlSelect is)

@@ -1481,8 +1481,16 @@ public final class Lowerer {
             if (e == null) {
                 return null;
             }
+            // self-aliased reads drop the alias — EXCEPT reads of a
+            // union frame's outputs, which keep it (tds union goldens:
+            // "unionalias_0"."lhs_lastName" as "lhs_lastName")
+            boolean unionRead = base.from() instanceof SqlSource.Subselect sub
+                    && "unionAlias".equals(sub.frameName())
+                    && e instanceof SqlExpr.Column uc
+                    && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
-                    e instanceof SqlExpr.Column col && col.name().equals(c) ? null : c));
+                    !unionRead && e instanceof SqlExpr.Column col
+                            && col.name().equals(c) ? null : c));
         }
         return ps;
     }
@@ -1716,9 +1724,17 @@ public final class Lowerer {
                                 .map(SqlSelect.Projection::alias).toList());
             }
         } else {
-            left = asLeftJoinSide(leftSel);
+            // a UNION-FRAMED operand keeps its frame identity through
+            // join isolation (engine: joins against a union wrap it as
+            // another unionAlias frame)
+            left = unionFramed(leftSel)
+                    ? new SqlSource.Subselect(leftSel, nextAlias(),
+                            "unionAlias")
+                    : asLeftJoinSide(leftSel);
         }
-        SqlSource right = asRightSide(relation(j.right()), j.frameName());
+        SqlSelect rightSel = relation(j.right());
+        SqlSource right = asRightSide(rightSel,
+                unionFramed(rightSel) ? "unionAlias" : j.frameName());
         SqlExpr on = sideCondition(j.condition(), left, right, leftCarry);
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
             case "INNER" -> SqlSource.Join.Kind.INNER;
@@ -1727,8 +1743,27 @@ public final class Lowerer {
             case "FULL" -> SqlSource.Join.Kind.FULL;
             default -> throw new IllegalStateException("unknown join kind " + j.kind().value());
         };
-        return joined(new SqlSource.Join(left, right, kind, on), j.prefix(),
-                j.right(), j.info(), leftCarry);
+        SqlSelect out = joined(new SqlSource.Join(left, right, kind, on),
+                j.prefix(), j.right(), j.info(), leftCarry);
+        // a join CONTAINING a union frame isolates as one more union
+        // frame: select * from (lhs join rhs on ...) as "unionalias_N"
+        // — downstream ops read the wrapper's outputs (engine model)
+        if (unionSide(left) || unionSide(right)) {
+            return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
+                    "unionAlias")).withProjections(List.of(),
+                            outputsOf(j.info()));
+        }
+        return out;
+    }
+
+    private static boolean unionFramed(SqlSelect s) {
+        return s.from() instanceof SqlSource.Subselect sub
+                && "unionAlias".equals(sub.frameName());
+    }
+
+    private static boolean unionSide(SqlSource s) {
+        return s instanceof SqlSource.Subselect sub
+                && "unionAlias".equals(sub.frameName());
     }
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */

@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 49 | 15 | 11 | 35 |
+| executionPlan/tests | 110 | 50 | 14 | 11 | 35 |
 | functions/tests | 258 | 222 | 9 | 18 | 9 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
@@ -37,7 +37,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 243 | 4 | 9 | 10 |
+| tds/tests | 266 | 244 | 3 | 9 | 10 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 |
 | tests | 39 | 17 | 1 | 0 | 21 |
 | tests/advanced | 68 | 47 | 2 | 6 | 13 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2083** | 88 | 172 | 195 |
+| **total** | 2538 | **2085** | 86 | 172 | 195 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8389,7 +8389,6 @@ in-process Alloy-shaped path).
 - SHAPE testPreprocessFunctionOnRuntime [executionPlan/tests]: no execute(|...) call [calls meta::pure::executionPlan]
 - ERROR testDatabaseConnectionSQLPopulationLegacy [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - ERROR testDatabaseConnectionSQLPopulation [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
-- FAIL testTDSRenameExpression [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(first_name, String, VARCHAR(200), ""), (employer_id, Integer, INT, "")]\n  resultColumns = [("first_name", VARCHAR(200)), ("employer_id", INT)]\n  sql = select "persontable_0"."firstName" as "first_name", "persontable_0"."eID" as "employer_id" from
 - ERROR tdsJoinOneDBOneExpression [executionPlan/tests]: Index 0 out of bounds for length 0
 - ERROR tdsJoinTwoDBWithColumnMappedViaJoins [executionPlan/tests]: null
 - SHAPE twoDBRenameColumns [executionPlan/tests]: no verifying assertions
@@ -8628,7 +8627,6 @@ in-process Alloy-shaped path).
 - ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOpe
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable
 - SHAPE testMultiUnion [tds/tests]: assert form 'assertEquals/2' is not supported yet
-- FAIL testUnionWithJoin [tds/tests]: assertEquals: expected select "unionalias_0"."lhs_lastName" as "lhs_lastName", "unionalias_0"."rhs_firstName" as "rhs_firstName" from (select * from (select "unionalias_2"."lhs_lastName" as "lhs_lastName" from (select "root".LASTNAME as "lhs_lastName" from personTable as "root" union select "root".L
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call
 - ERROR columnValueDifferenceTest [tds/tests]: store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcate
