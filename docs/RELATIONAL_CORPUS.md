@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
-| lineage/scanRelations | 49 | 32 | 1 | 0 | 16 |
+| lineage/scanRelations | 49 | 33 | 0 | 0 | 16 |
 | milestoning/tests | 224 | 196 | 11 | 6 | 11 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2019** | 104 | 186 | 229 |
+| **total** | 2538 | **2020** | 103 | 186 | 229 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8644,7 +8644,6 @@ in-process Alloy-shaped path).
 - FAIL testAssociationMapping [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, firmTable.LEGALNAME <TableAliasColumn>, personTable.FIRMID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, firmTable.LEGALNAME <TableAliasColumn>, personTable.FIRMID <JoinTreeNode>, personTable.FIRMID <TableAliasColumn>]
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - FAIL testView [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <RelationalOperationElementWithJoin>, personTable.ID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <Joi
-- FAIL testRelationalTreeCalculationWithViewInAnotherSchema [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) Entity [entityID]\n    ------> (v) AltID_View(Entity_ViewSchema_AltId_View) [entityID]\n      root\n        ------> (t) AltIDToEntityMapping [alternativeID, entityID]\ngot\nroot\n  ------> (t) Entity [entityID]\n    ------> (v) AltID_View(Entity_ViewSchem
 - SHAPE testTableTree_Inheritance_1 [lineage/scanRelations]: scanRelations: scanRelations: Embedded property mapping is not supported yet
 - SHAPE testSelectOnLeftSide [lineage/scanRelations]: scanRelations: scanRelations: scalar 'name' in MID position
 - SHAPE testTableTreeTwoFilters [lineage/scanRelations]: scanRelations: scanRelations: scalar 'name' in MID position

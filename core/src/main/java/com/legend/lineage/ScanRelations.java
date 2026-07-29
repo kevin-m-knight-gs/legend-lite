@@ -63,6 +63,7 @@ public final class ScanRelations {
 
     private static final class Node {
         final String db;          // defining database (view detection)
+        final String schema;      // qualifying schema, null = unqualified
         final String table;
         final String joinName;    // null on the root table node
         final Set<String> cols = new TreeSet<>();
@@ -75,7 +76,12 @@ public final class ScanRelations {
         boolean keepAll;
 
         Node(String db, String table, String joinName) {
+            this(db, null, table, joinName);
+        }
+
+        Node(String db, String schema, String table, String joinName) {
             this.db = db;
+            this.schema = schema;
             this.table = table;
             this.joinName = joinName;
         }
@@ -714,7 +720,7 @@ public final class ScanRelations {
     private static void print(StringBuilder sb, Node n, int depth,
             ModelContext ctx) {
         DatabaseDefinition.ViewDefinition vd = n.db == null ? null
-                : findView(ctx, n.db, n.table);
+                : findView(ctx, n.db, n.schema, n.table);
         sb.append("  ".repeat(depth)).append("------> (")
                 .append(vd != null ? 'v' : 't').append(") ").append(n.table);
         if (n.joinName != null) {
@@ -889,23 +895,37 @@ public final class ScanRelations {
 
     private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
             String dbName, String name) {
+        return findView(ctx, dbName, null, name);
+    }
+
+    /** {@code schema} non-null pins the lookup: two views may share a
+     * name across schemas with DIFFERENT bodies (the ViewSchema
+     * AltID_View corpus model) — a schema-blind first-match expanded the
+     * wrong one. */
+    private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
+            String dbName, String schema, String name) {
         DatabaseDefinition db = ctx.findDatabase(dbName).orElse(null);
         if (db == null) {
             return null;
         }
-        for (DatabaseDefinition.ViewDefinition v : db.views()) {
-            if (v.name().equals(name)) {
-                return v;
+        if (schema == null) {
+            for (DatabaseDefinition.ViewDefinition v : db.views()) {
+                if (v.name().equals(name)) {
+                    return v;
+                }
             }
         }
         for (var sc : db.schemas()) {
+            if (schema != null && !schema.equals(sc.name())) {
+                continue;
+            }
             for (DatabaseDefinition.ViewDefinition v : sc.views()) {
                 if (v.name().equals(name)) {
                     return v;
                 }
             }
         }
-        return null;
+        return schema != null ? null : null;
     }
 
     // ------------------------------------------------------------------
@@ -1304,9 +1324,13 @@ public final class ScanRelations {
                     .filter(r -> bare(r.table()).equals(other))
                     .map(RelationalOperation.ColumnRef::databaseName)
                     .filter(Objects::nonNull).findFirst().orElse(dbName);
+            String otherSchema = refs.stream()
+                    .filter(r -> bare(r.table()).equals(other))
+                    .map(r -> schemaOf(r.table()))
+                    .filter(Objects::nonNull).findFirst().orElse(null);
             Node child = at.children.computeIfAbsent(
                     other + "(" + el.joinName() + ")" + keySuffix,
-                    k -> new Node(otherDb, other, el.joinName()));
+                    k -> new Node(otherDb, otherSchema, other, el.joinName()));
             for (RelationalOperation.ColumnRef r : refs) {
                 if (bare(r.table()).equals(at.table)) {
                     at.cols.add(r.column());
@@ -1595,6 +1619,12 @@ public final class ScanRelations {
     private static String bare(String table) {
         return table != null && table.contains(".")
                 ? table.substring(table.lastIndexOf('.') + 1) : table;
+    }
+
+    /** The qualifying schema of {@code Schema.Table}, null when bare. */
+    private static String schemaOf(String table) {
+        return table != null && table.contains(".")
+                ? table.substring(0, table.lastIndexOf('.')) : null;
     }
 
     // ------------------------------------------------------------------
