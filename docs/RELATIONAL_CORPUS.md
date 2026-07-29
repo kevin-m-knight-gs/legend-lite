@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
-| milestoning/tests | 224 | 197 | 11 | 6 | 10 |
+| milestoning/tests | 224 | 199 | 9 | 6 | 10 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2059** | 98 | 182 | 199 |
+| **total** | 2538 | **2061** | 96 | 182 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8661,8 +8661,6 @@ in-process Alloy-shaped path).
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: multi-hop navigation product.stc_meta__relational__tests__milestoning__Product___classification.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
-- FAIL testInThruInclusiveUnionInThruInclusive [milestoning/tests]: assertSameElements: expected 2, got [2, 2]
-- FAIL testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: assertSameElements: expected 2, got [2, 2]
 - FAIL testProcessingTemporalPropertyQuery [milestoning/tests]: sql-text: expected select "root".kerberos as "pk_0", "root".kerberos as "kerberos", '2015-10-16' as "k_processingDate" from TraderTable as "root" where exists (select 1 from CertificationTable as "certificationtable_0" where "certificationtable_0".name = 'SRCE' and "root".kerberos = "certificationta
 - FAIL testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: sql-text: expected select "root".kerberos as "pk_0", "root".kerberos as "kerberos", '2015-10-16' as "k_processingDate" from TraderTable as "root" where exists (select 1 from CertificationTable as "certificationtable_0" where "certificationtable_0".name = 'SRCE' and "root".kerberos = "certificationta
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions

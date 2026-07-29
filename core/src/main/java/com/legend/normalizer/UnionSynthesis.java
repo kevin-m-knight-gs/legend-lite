@@ -1424,6 +1424,42 @@ final class UnionSynthesis {
                 && colsProjectedByTarget(tgtColSets, targetClassFqn, model);
     }
 
+    /** ENGINE SINGLE-SET TARGET ROUTING (memory inclusive-union-dupes-
+     * analysis): when the TARGET class is NOT union-mapped, every member's
+     * SINGLE-hop PM cites the SAME (db, join), and each member
+     * set-qualifies its OWN private target set, the engine routes the
+     * navigation to ONE implementation — the LAST member's binding;
+     * earlier members contribute NULL through the crossing (inclusive
+     * golden: 'null as prodFk_1' in member 0, rows [2] not [2,2]). A
+     * UNION-mapped target OR a shared/unqualified target set keeps the
+     * per-member OR dispatch (snapshot golden: the engine's own OR form;
+     * VarReferenceWithUnion golden: both members' rows live). */
+    private static boolean singleSetTargetCollapse(
+            ClassMapping.Union targetUnion, List<PropertyMapping.Join> js) {
+        if (targetUnion != null || js.size() < 2) {
+            return false;
+        }
+        boolean distinctTargetSets = js.stream()
+                .map(PropertyMapping.Join::targetSetId)
+                .filter(java.util.Objects::nonNull)
+                .distinct().count() == js.size();
+        if (!distinctTargetSets) {
+            return false;
+        }
+        return js.stream().allMatch(x -> {
+            if (x.joins().size() != 1 || js.get(0).joins().size() != 1) {
+                return false;
+            }
+            JoinChainElement hx = x.joins().get(0);
+            JoinChainElement h0 = js.get(0).joins().get(0);
+            String dbx = hx.databaseName() != null ? hx.databaseName()
+                    : x.database();
+            String db0 = h0.databaseName() != null ? h0.databaseName()
+                    : js.get(0).database();
+            return hx.joinName().equals(h0.joinName()) && dbx.equals(db0);
+        });
+    }
+
     static List<LiftMidStep> liftMidSteps(PropertyMapping.Join j,
             String prop, String srcTable, LegacyMappingDefinition md,
             ModelBuilder model) {
@@ -1664,7 +1700,11 @@ final class UnionSynthesis {
             Map<Integer, List<LiftChain>> chains = new LinkedHashMap<>();
             List<int[]> ords = found.get(prop);
             List<PropertyMapping.Join> js = joins.get(prop);
+            boolean sameJoin = singleSetTargetCollapse(targetUnion, js);
             for (int k = 0; k < js.size(); k++) {
+                if (sameJoin && k < js.size() - 1) {
+                    continue;
+                }
                 int memberOrd = ords.get(k)[0];
                 PropertyMapping.Join j = js.get(k);
                 String srcTable = ((ClassMapping.Relational)
