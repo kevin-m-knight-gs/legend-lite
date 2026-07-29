@@ -275,35 +275,11 @@ final class GraphEmission {
                     && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
-            // A TO-MANY PRIMITIVE leaf ($row.<slot>.COL through a to-many
-            // navigate slot): reading it as a joined scalar EXPLODES the
-            // parent rows — the engine serializes ["abc","def"] per parent.
-            // Emit a bare-value child: the slot target correlated on the
-            // parent row, aggregating the raw column values.
-            if (inner instanceof TypedPropertyAccess colPa
-                    && colPa.source() instanceof TypedPropertyAccess slotPa
-                    && slotPa.source() instanceof TypedVariable slotV
-                    && slotV.name().equals(cs.rowVar())
-                    // multiplicity of the RAW read (a toOne conformance
-                    // wrapper on the binding would mask the [*])
-                    && !(colPa.info().multiplicity()
-                            instanceof com.legend.compiler.element.type
-                                    .Multiplicity.Bounded b1
-                            && Integer.valueOf(1).equals(b1.upper()))) {
-                var navPrim = Pipelines.outerNavSteps(cs.pipeline()).get(slotPa.property());
-                if (navPrim != null) {
-                    children.add(primitiveArrayChild(keyOf(node),
-                            navPrim.target(), navPrim.predicate(),
-                            colPa, rowVar, rowType));
-                    continue;
-                }
-                var slotPrim = Pipelines.joinSlots(cs.pipeline()).get(slotPa.property());
-                if (slotPrim != null) {
-                    children.add(primitiveArrayChild(keyOf(node),
-                            slotPrim.target(), slotPrim.condition(),
-                            colPa, rowVar, rowType));
-                    continue;
-                }
+            TypedSerializeGraph.Child arrChild = primitiveArrayLeaf(
+                    cs, node, inner, rowVar, rowType);
+            if (arrChild != null) {
+                children.add(arrChild);
+                continue;
             }
             // audit 23: any OTHER to-many read through a slot (wrapped in
             // a computed expression, deeper chain) would fall to the
@@ -648,6 +624,48 @@ final class GraphEmission {
         return primitiveArrayChild(property, targetPipeline, cond, colRead,
                 parentRowVar, parentRowType,
                 java.util.function.UnaryOperator.identity());
+    }
+
+    /** A TO-MANY PRIMITIVE leaf ($row.<slot>.COL through a to-many
+     * navigate/join slot): reading it as a joined scalar EXPLODES the
+     * parent rows — the engine serializes ["abc","def"] per parent. The
+     * DECLARED property multiplicity is the guard (the raw read types
+     * per COLUMN [0..1], masking the property's [*] — same rule as the
+     * whole-source path). Null when the shape does not match. */
+    private TypedSerializeGraph.Child primitiveArrayLeaf(ClassSource cs,
+            com.legend.compiler.spec.typed.TypedGraphTree node,
+            TypedSpec inner, String rowVar, Type.RelationType rowType) {
+        var declLeaf = ctx.findProperty(cs.classFqn(), node.property())
+                .orElse(null);
+        boolean declaredMany = declLeaf != null
+                && !(declLeaf.multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded db1
+                        && Integer.valueOf(1).equals(db1.upper()));
+        if (!(inner instanceof TypedPropertyAccess colPa
+                && colPa.source() instanceof TypedPropertyAccess slotPa
+                && slotPa.source() instanceof TypedVariable slotV
+                && slotV.name().equals(cs.rowVar())
+                && (declaredMany
+                        || !(colPa.info().multiplicity()
+                                instanceof com.legend.compiler.element.type
+                                        .Multiplicity.Bounded b1
+                                && Integer.valueOf(1).equals(b1.upper()))))) {
+            return null;
+        }
+        var navPrim = Pipelines.outerNavSteps(cs.pipeline())
+                .get(slotPa.property());
+        if (navPrim != null) {
+            return primitiveArrayChild(keyOf(node), navPrim.target(),
+                    navPrim.predicate(), colPa, rowVar, rowType);
+        }
+        var slotPrim = Pipelines.joinSlots(cs.pipeline())
+                .get(slotPa.property());
+        if (slotPrim != null) {
+            return primitiveArrayChild(keyOf(node), slotPrim.target(),
+                    slotPrim.condition(), colPa, rowVar, rowType);
+        }
+        return null;
     }
 
     /** {@code valueWrap} rebuilds any per-element wrapper calls

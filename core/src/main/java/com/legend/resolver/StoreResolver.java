@@ -2746,7 +2746,7 @@ public final class StoreResolver {
         if (tree != null) {
             // GRAPH terminal: LEAF paths feed slot demand; class-typed
             // children correlate — buildGraphNode materializes them
-            InnerDemand.treeDemandPaths(tree, cs, projectionPaths);
+            InnerDemand.treeDemandPaths(tree, cs, ctx, projectionPaths);
         } else {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {

@@ -51,10 +51,13 @@ final class InnerDemand {
     static void treeDemandPaths(
             java.util.List<com.legend.compiler.spec.typed.TypedGraphTree> tree,
             ClassSource cs,
+            com.legend.compiler.element.ModelContext ctx,
             java.util.Set<java.util.List<String>> projectionPaths) {
         for (com.legend.compiler.spec.typed.TypedGraphTree node : tree) {
             if (node.children().isEmpty()) {
-                projectionPaths.add(java.util.List.of(node.property()));
+                if (!manyPrimSlotLeaf(cs, ctx, node.property())) {
+                    projectionPaths.add(java.util.List.of(node.property()));
+                }
             } else if (Substitution.embeddedPartialOf(cs.bindings()
                     .get(node.property())) != null) {
                 for (com.legend.compiler.spec.typed.TypedGraphTree sub
@@ -64,6 +67,40 @@ final class InnerDemand {
                 }
             }
         }
+    }
+
+    /** A TO-MANY PRIMITIVE leaf reading a column THROUGH a join slot
+     * ({@code $row.<slot>.OTHER_NAME}, declared {@code String[*]}): it
+     * takes the CORRELATED per-root aggregation arm — demanding the slot
+     * would FAN the base out one row per value (engine: otherNames
+     * serializes {@code ["abc","def"]} per person). */
+    private static boolean manyPrimSlotLeaf(ClassSource cs,
+            com.legend.compiler.element.ModelContext ctx, String prop) {
+        TypedSpec b0 = cs.bindings().get(prop);
+        var dp0 = ctx.findProperty(cs.classFqn(), prop).orElse(null);
+        if (b0 == null || dp0 == null
+                || dp0.type() instanceof com.legend.compiler.element.type
+                        .Type.ClassType
+                || (dp0.multiplicity() instanceof com.legend.compiler.element
+                        .type.Multiplicity.Bounded mb0
+                        && Integer.valueOf(1).equals(mb0.upper()))) {
+            return false;
+        }
+        TypedSpec bb = b0;
+        if (bb instanceof TypedNativeCall w && w.args().size() == 1
+                && w.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            bb = w.args().get(0);
+        }
+        return bb instanceof TypedPropertyAccess pa1
+                && pa1.source() instanceof TypedPropertyAccess mid
+                && mid.source()
+                        instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(cs.rowVar())
+                && (Pipelines.navSteps(cs.pipeline())
+                                .containsKey(mid.property())
+                        || Pipelines.slotAliases(cs.pipeline())
+                                .contains(mid.property()));
     }
 
     private InnerDemand() {
