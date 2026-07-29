@@ -436,8 +436,16 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "planToString over a non-executionPlan value");
         }
-        if (!(ep.args().get(0)
-                instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
+        // preval(lambda, ext) pre-folds constants at plan time — the
+        // wrapped lambda IS the query (our lowering folds literals
+        // anyway, so the unwrap is semantically inert here)
+        com.legend.compiler.spec.typed.TypedSpec q = ep.args().get(0);
+        if (q instanceof com.legend.compiler.spec.typed.TypedNativeCall pv
+                && com.legend.compiler.element.type.PlatformTypes.PREVAL
+                        .equals(pv.callee().qualifiedName())) {
+            q = pv.args().get(0);
+        }
+        if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
                     "executionPlan whose query argument is not a lambda");
         }

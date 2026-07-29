@@ -119,6 +119,10 @@ public final class PlatformTypes {
      * literal plan-text rendering (toSQLString doctrine). */
     public static final String EXECUTION_PLAN =
             "meta::pure::executionPlan::executionPlan";
+    /** Plan-time constant pre-evaluation — a FUNCTION-VALUED identity
+     * for plan construction (the wrapped lambda IS the query). */
+    public static final String PREVAL =
+            "meta::pure::router::preeval::preval";
     public static final String PLAN_TO_STRING =
             "meta::pure::executionPlan::toString::planToString";
     /** {@code planToString} minus newlines and spaces (real

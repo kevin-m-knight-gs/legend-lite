@@ -2235,6 +2235,23 @@ public final class Lowerer {
                             .map(e -> (SqlExpr) SqlExpr.Call.of(
                                     SqlFn.TO_VARIANT, scalar(e, columns)))
                             .toList());
+            // A NUMBER-LUB LITERAL mix ([25.0, 1]): a raw SQL array would
+            // coerce every element to one numeric type (1 -> 1.0) — the
+            // variant carrier keeps each element's own kind (pure
+            // Number[*] semantics: the Integer stays an Integer).
+            // LITERALS ONLY: computed elements keep the plain array so
+            // downstream aggregates still type (testDivideFunctionPrecision)
+            case TypedCollection c when c.info().type() == Type.Primitive.NUMBER
+                    && c.elements().stream()
+                            .map(e -> e.info().type()).distinct().count() > 1
+                    && c.elements().stream().allMatch(e ->
+                            e instanceof com.legend.compiler.spec.typed.TypedCInteger
+                            || e instanceof com.legend.compiler.spec.typed.TypedCFloat
+                            || e instanceof com.legend.compiler.spec.typed.TypedCDecimal) ->
+                    new SqlExpr.ArrayLit(c.elements().stream()
+                            .map(e -> (SqlExpr) SqlExpr.Call.of(
+                                    SqlFn.TO_VARIANT, scalar(e, columns)))
+                            .toList());
             case TypedCollection c -> {
                 // HETEROGENEOUS Pair elements (Pair<String,String> with
                 // Pair<String,Integer>: LUB Pair<String,Any>): every element

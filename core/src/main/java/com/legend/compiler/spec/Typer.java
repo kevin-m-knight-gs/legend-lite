@@ -553,9 +553,16 @@ final class Typer {
         // same shape is pure's collection set-union, so both spellings
         // mean exactly this)
         if (tdsVocab(af.function(), "union") && af.parameters().size() == 2) {
-            return synth(new AppliedFunction("distinct", List.of(
-                    new AppliedFunction("concatenate", List.of(
-                            af.parameters().get(0), af.parameters().get(1))))), env);
+            // union(a, [b,c,d]) — the collection overload chains the
+            // concatenation member by member
+            ValueSpecification acc = af.parameters().get(0);
+            List<ValueSpecification> members =
+                    af.parameters().get(1) instanceof PureCollection pc
+                            ? pc.values() : List.of(af.parameters().get(1));
+            for (ValueSpecification m : members) {
+                acc = new AppliedFunction("concatenate", List.of(acc, m));
+            }
+            return synth(new AppliedFunction("distinct", List.of(acc)), env);
         }
         // columnValues(tds,'c') — the rows-mapped cell read
         if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
