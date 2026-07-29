@@ -71,6 +71,42 @@ public final class PlatformTypes {
      */
     public static final String EXECUTE_IN_DB = "meta::relational::metamodel::execute::executeInDb";
 
+    /** JDBC DatabaseMetaData reads — HOST-evaluated against the H2
+     * second target (engine-parity metadata casing), never lowered. */
+    public static final String FETCH_DB_TABLES_META_DATA =
+            "meta::relational::metamodel::execute::fetchDbTablesMetaData";
+    public static final String FETCH_DB_COLUMNS_META_DATA =
+            "meta::relational::metamodel::execute::fetchDbColumnsMetaData";
+    public static final String FETCH_DB_SCHEMAS_META_DATA =
+            "meta::relational::metamodel::execute::fetchDbSchemasMetaData";
+    public static final String FETCH_DB_PRIMARY_KEYS_META_DATA =
+            "meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData";
+
+    public static boolean isFetchDbFn(String fqn) {
+        return FETCH_DB_TABLES_META_DATA.equals(fqn)
+                || FETCH_DB_COLUMNS_META_DATA.equals(fqn)
+                || FETCH_DB_SCHEMAS_META_DATA.equals(fqn)
+                || FETCH_DB_PRIMARY_KEYS_META_DATA.equals(fqn);
+    }
+
+    public enum FetchDbKind { SCHEMAS, TABLES, COLUMNS, PRIMARY_KEYS }
+
+    public static FetchDbKind fetchDbKind(String fqn) {
+        if (FETCH_DB_SCHEMAS_META_DATA.equals(fqn)) {
+            return FetchDbKind.SCHEMAS;
+        }
+        if (FETCH_DB_TABLES_META_DATA.equals(fqn)) {
+            return FetchDbKind.TABLES;
+        }
+        if (FETCH_DB_COLUMNS_META_DATA.equals(fqn)) {
+            return FetchDbKind.COLUMNS;
+        }
+        if (FETCH_DB_PRIMARY_KEYS_META_DATA.equals(fqn)) {
+            return FetchDbKind.PRIMARY_KEYS;
+        }
+        throw new IllegalArgumentException("not a fetchDb native: " + fqn);
+    }
+
     /** K-native sibling of {@link #EXECUTE_IN_DB}: model-derived drop+create DDL. */
     public static final String DROP_AND_CREATE_TABLE_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateTableInDb";

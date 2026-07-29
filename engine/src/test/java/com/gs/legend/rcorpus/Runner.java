@@ -871,10 +871,16 @@ public final class Runner {
                     st.execute("SET TimeZone='UTC'");
                     st.execute("SET threads=1");
                 }
+                List<String> ledger = new ArrayList<>();
                 com.legend.harness.TestBody.Outcome o =
                         com.legend.harness.TestBody.run(ctx, body,
                                 importScopeOf(t), "rcorpus::Rt", conn,
-                                false, new ArrayList<>());
+                                false, ledger);
+                if (System.getenv("LL_TMP_DEBUG") != null
+                        && !ledger.isEmpty()) {
+                    System.err.println("[try-run-ledger] " + t.fqn() + ": "
+                            + ledger);
+                }
                 Outcome scored = score(t.fqn(), o);
                 if (System.getenv("LL_TMP_DEBUG") != null) {
                     System.err.println("[try-run] " + t.fqn() + " -> "

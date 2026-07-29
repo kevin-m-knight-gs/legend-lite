@@ -2324,6 +2324,11 @@ final class StatementExecutor {
                         .equals(nc.callee().qualifiedName())) {
             return executeInDb(body, nc, env);
         }
+        // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
+        // HOST-SIDE against the H2 second target (task #43 slice B2)
+        if (com.legend.exec.HostEval.wantsHostEval(root)) {
+            return com.legend.exec.HostEval.evalToResult(root);
+        }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
                         .equals(dc.callee().qualifiedName())) {
@@ -2493,13 +2498,7 @@ final class StatementExecutor {
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_SCHEMA_IN_DB
                         .equals(sc.callee().qualifiedName())) {
-            // the engine DROPS + creates; here create-if-missing — the DDL
-            // seeds already own tables in the schema, and the setup's own
-            // dropAndCreateTableInDb calls recreate what it manages
-            Executor.executeRaw(connection,
-                    "Create schema if not exists "
-                            + evalStringArg(body, sc.args().get(0), env));
-            return new ExecutionResult.Scalar(true, sc.info().type());
+            return dropAndCreateSchemaInDb(body, sc, env);
         }
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
             System.err.println("[resolved] " + body);
@@ -2588,6 +2587,23 @@ final class StatementExecutor {
         return new ExecutionResult.Scalar(null, call.info().type());
     }
 
+    /** The K-native {@code dropAndCreateSchemaInDb}: the engine DROPS +
+     * creates; here create-if-missing — the DDL seeds already own tables
+     * in the schema, and the setup's own dropAndCreateTableInDb calls
+     * recreate what it manages. Recorded on the METADATA channel only —
+     * the H2Verify row-replay stream stays exactly the corpus's own
+     * statements. */
+    static ExecutionResult dropAndCreateSchemaInDb(
+            java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env)
+            throws java.sql.SQLException {
+        String schemaDdl = "Create schema if not exists "
+                + evalStringArg(body, sc.args().get(0), env);
+        Executor.executeRaw(env.connection(), schemaDdl);
+        com.legend.exec.RawSqlBoundary.recordMeta(schemaDdl);
+        return new ExecutionResult.Scalar(true, sc.info().type());
+    }
+
     /**
      * The K-native {@code dropAndCreateTableInDb}
      * (PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB): the real engine spells
@@ -2622,6 +2638,27 @@ final class StatementExecutor {
                 com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.dropTable(schema, table)));
         Executor.executeRaw(connection,
                 com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.createTable(def, schema)));
+        // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
+        // constraints; our DuckDB DDL deliberately omits them (milestoned
+        // re-seeds) — the H2 second target's stream keeps the engine
+        // semantics via a record-only ALTER (fetchDbPrimaryKeysMetaData)
+        java.util.List<String> pks = def.columns().stream()
+                .filter(com.legend.model.DatabaseDefinition
+                        .ColumnDefinition::primaryKey)
+                .map(com.legend.model.DatabaseDefinition
+                        .ColumnDefinition::name)
+                .toList();
+        if (!pks.isEmpty()) {
+            String qn = "default".equals(schema) ? table
+                    : schema + "." + table;
+            for (String pk : pks) {
+                // H2 2.x requires PK columns NOT NULL before the ALTER
+                com.legend.exec.RawSqlBoundary.recordMeta("Alter table "
+                        + qn + " alter column " + pk + " set not null");
+            }
+            com.legend.exec.RawSqlBoundary.recordMeta("Alter table " + qn
+                    + " add primary key (" + String.join(", ", pks) + ")");
+        }
         return new ExecutionResult.Scalar(true, call.info().type());
     }
 

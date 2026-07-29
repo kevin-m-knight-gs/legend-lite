@@ -40,13 +40,35 @@ public final class RawSqlBoundary {
     public static void record(List<String> sink) {
         if (sink == null) {
             RECORDER.remove();
+            META_RECORDER.remove();
         } else {
             RECORDER.set(sink);
+            META_RECORDER.set(new java.util.ArrayList<>());
         }
     }
 
     public static List<String> recording() {
         return RECORDER.get();
+    }
+
+    /** METADATA-ONLY side channel: engine DDL semantics DuckDB
+     * deliberately skips (PRIMARY KEY constraints, schema creates) that
+     * ONLY the fetchDb* metadata replay consumes. Kept OUT of the main
+     * recording — the H2Verify row-replay stream must stay exactly the
+     * corpus's own statements (a synthetic ALTER failing there would
+     * downgrade row-verified tests to advisory). */
+    private static final ThreadLocal<List<String>> META_RECORDER =
+            new ThreadLocal<>();
+
+    public static void recordMeta(String sql) {
+        List<String> sink = META_RECORDER.get();
+        if (sink != null) {
+            sink.add(sql);
+        }
+    }
+
+    public static List<String> metaRecording() {
+        return META_RECORDER.get();
     }
 
     private static final Pattern CREATE_HEAD = Pattern.compile(
@@ -157,7 +179,8 @@ public final class RawSqlBoundary {
                 out.append(col, 0, endq + 1)
                         .append(col.substring(endq + 1)
                                 .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE")
-                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN"));
+                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN")
+                                .replaceAll("(?i)\\bCLOB\\b", "TEXT"));
             } else if (head.matches("(?i)primary|constraint|foreign|unique|check")) {
                 out.append(col);
             } else {
@@ -165,7 +188,8 @@ public final class RawSqlBoundary {
                 // double; BIT is a boolean (DuckDB's BIT is a bitstring)
                 out.append('\"').append(head).append('\"').append(
                         col.substring(sp).replaceAll("(?i)\\bFLOAT\\b", "DOUBLE")
-                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN"));
+                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN")
+                                .replaceAll("(?i)\\bCLOB\\b", "TEXT"));
             }
         }
         return sql.substring(0, bodyStart) + out + sql.substring(end - 1);
