@@ -460,9 +460,10 @@ class NativeFunctionTest {
         //     query-level dialect-conversion surface, bridge batch 5).
         // 177: +RelationalDatabaseConnection + DatasourceSpecification/
         //     LocalH2DatasourceSpecification + AuthenticationStrategy/
-        //     DefaultH2AuthenticationStrategy (the alloy connection form
-        //     corpus getConnection() helpers construct — connection.pure:29)
-        assertEquals(177, Pure.allNativeClasses().size(),
+        //     DefaultH2AuthenticationStrategy + TestDatabaseAuthentication-
+        //     Strategy (the alloy connection forms corpus getConnection()/
+        //     m2m2r runtime() helpers construct — connection.pure:29)
+        assertEquals(178, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
