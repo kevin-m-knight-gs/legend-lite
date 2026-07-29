@@ -1127,17 +1127,18 @@ public final class MappingNormalizer {
             Variable thisRow = thatRow == srcRow ? tgtRow : srcRow;
             ClassMapping.RelationFunction thatRf = isProp1 ? rfA : rfB;
             ClassMapping.RelationFunction thisRf = isProp1 ? rfB : rfA;
-            conds.add(canonicalizeEqualOperands(rewriteXStoreReads(
+            conds.add(rewriteXStoreReads(
                     cand.expression(),
-                    thisRow, thisRf, thatRow, thatRf, xs.associationName(), md),
-                    srcRow.name()));
+                    thisRow, thisRf, thatRow, thatRf, xs.associationName(), md));
         }
-        // the engine compiles each direction's expression independently;
-        // our single-predicate emission requires them to AGREE — loud when
-        // a model gives the two directions different conditions (audit S6)
+        // the two directions must AGREE (audit S6) — canonicalization
+        // serves ONLY that comparison; the EMITTED cond keeps the FIRST
+        // line's AUTHORED operand order (engine golden spells
+        // $this.entityIdFk == $that.entityId verbatim, never re-ordered)
         ValueSpecification cond = conds.get(0);
+        ValueSpecification canon0 = canonicalizeEqualOperands(cond, srcRow.name());
         for (ValueSpecification c : conds) {
-            if (!c.equals(cond)) {
+            if (!canonicalizeEqualOperands(c, srcRow.name()).equals(canon0)) {
                 throw new NotImplementedException(
                         "XStore association '" + xs.associationName()
                         + "' has direction-specific conditions; a single"

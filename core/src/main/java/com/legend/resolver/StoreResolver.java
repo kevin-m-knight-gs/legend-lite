@@ -440,7 +440,8 @@ public final class StoreResolver {
                             instanceof Type.RelationType ->
                     new TypedNavigate(
                             resolveNode(nav.source(), context), nav.alias(),
-                            nav.target(), nav.predicate(), nav.form(), nav.info());
+                            nav.target(), nav.predicate(), nav.pairedPredicate(),
+                            nav.frameName(), nav.form(), nav.info());
             case TypedJoin j -> structural(j, context);
             // map over RELATION rows above a class chain (the object-space
             // map arms matched earlier; this is the relation-space wrapper)
@@ -558,11 +559,13 @@ public final class StoreResolver {
                         mat != null ? mat.subNavs() : Map.of());
                 composed.add(nav.alias().get());
                 return new TypedNavigate(src, nav.alias(), nav.target(),
-                        aug, nav.form(), nav.info());
+                        aug, nav.pairedPredicate(), nav.frameName(),
+                        nav.form(), nav.info());
             }
             return src == nav.source() ? pipe
                     : new TypedNavigate(src, nav.alias(), nav.target(),
-                            nav.predicate(), nav.form(), nav.info());
+                            nav.predicate(), nav.pairedPredicate(),
+                            nav.frameName(), nav.form(), nav.info());
         }
         if (pipe instanceof TypedFilter f) {
             TypedSpec src = augmentNavPredicates(f.source(), cs,
@@ -1871,7 +1874,8 @@ public final class StoreResolver {
             }
             withJoins = new TypedJoin(withJoins,
                     joinTarget, leftKind(), joinCond,
-                    Optional.of(aj.prefix()), null,
+                    Optional.of(aj.prefix()),
+                    ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
                             new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));

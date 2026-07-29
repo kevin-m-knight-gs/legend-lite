@@ -89,8 +89,10 @@ final class NavigateChecker {
                 : Optional.empty();
 
         ExprType out = t.kernel().resolveOutput(sig.returnType(), sig.returnMultiplicity(), b);
+        // the ColSpec ALIAS metadata is the FRAME channel (a VIEW-backed
+        // navigate names its derived table — the TypedJoinSlot precedent)
         return new TypedNavigate(source, Optional.of(cs.name()), thunk.body().get(0),
-                pred, paired, TypedNavigate.Form.PRE_MAP, out);
+                pred, paired, cs.alias(), TypedNavigate.Form.PRE_MAP, out);
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {

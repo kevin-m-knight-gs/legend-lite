@@ -351,10 +351,25 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * the IR keys stay real expressions for the execution dialects. */
     private String groupKey(SqlSelect s, SqlExpr e) {
         if (e instanceof SqlExpr.Column c && c.table() == null) {
+            // a SELF-ALIASED key (ENTITY_ID as ENTITY_ID — the view
+            // ~groupBy form) spells the PHYSICAL expression (golden:
+            // group by "root".ENTITY_ID); only a RENAMING alias keeps
+            // the quoted output name (group by "prodName")
+            for (SqlSelect.Projection p : s.projections()) {
+                if (c.name().equals(p.outputName())
+                        && p.expr() instanceof SqlExpr.Column pc
+                        && pc.name().equals(c.name())) {
+                    return expr(p.expr(), 0);
+                }
+            }
             return '"' + c.name() + '"';
         }
         for (SqlSelect.Projection p : s.projections()) {
             if (p.outputName() != null && e.equals(p.expr())) {
+                if (p.expr() instanceof SqlExpr.Column pc
+                        && pc.name().equals(p.outputName())) {
+                    return expr(e, 0);
+                }
                 return '"' + p.outputName().replace("\"", "") + '"';
             }
         }

@@ -46,12 +46,22 @@ import java.util.Optional;
  */
 public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
                             TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
-                            Form form, ExprType info) implements TypedSpec {
+                            String frameName, Form form, ExprType info) implements TypedSpec {
+
+    /** frameName: the target's derived-table identity (a VIEW-backed
+     * navigate's view name; the ColSpec alias-metadata channel, exactly
+     * the TypedJoinSlot precedent) — null for physical-table targets.
+     * The nav-step materialization threads it onto its TypedJoin. */
+    public TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
+                         TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
+                         Form form, ExprType info) {
+        this(source, alias, target, predicate, pairedPredicate, null, form, info);
+    }
 
     /** The common form: no paired variant. */
     public TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
                          TypedLambda predicate, Form form, ExprType info) {
-        this(source, alias, target, predicate, Optional.empty(), form, info);
+        this(source, alias, target, predicate, Optional.empty(), null, form, info);
     }
 
     /** The three syntactic positions of §3 — one conceptual primitive. */
@@ -82,6 +92,7 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
         java.util.Optional<TypedLambda> paired = pairedPredicate.isPresent()
                 ? java.util.Optional.of((TypedLambda) kids.get(base))
                 : java.util.Optional.empty();
-        return new TypedNavigate(kids.get(0), alias, tgt, pred, paired, form, info);
+        return new TypedNavigate(kids.get(0), alias, tgt, pred, paired,
+                frameName, form, info);
     }
 }
