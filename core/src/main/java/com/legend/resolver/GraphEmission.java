@@ -432,8 +432,16 @@ final class GraphEmission {
             ClassSource cs, Map<String, String> slotPrefixes,
             Set<String> stripped, String rowVar, Type.RelationType rowType,
             StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+        // CHECKED + ->subType patches: the engine's checked value carries
+        // ONLY the subtype projection — base leaves/children drop
+        // (RootSubType...Checked golden: {"value":{"coordinate":…,
+        // "street":…}}, no Id/landmark; the unchecked run keeps them)
+        List<TypedFuncCol> cLeaves = node.subTypePatches().isEmpty()
+                ? node.leaves() : List.of();
+        List<TypedSerializeGraph.Child> cNested =
+                node.subTypePatches().isEmpty() ? node.nested() : List.of();
         return new TypedSerializeGraph(node.source(), node.rowVar(),
-                node.leaves(), node.nested(), node.arrayWrap(),
+                cLeaves, cNested, node.arrayWrap(),
                 node.bareValue(), node.classFqn(), node.info(),
                 node.inlineChild(), node.subTypePatches(), node.orderKeys(),
                 node.typeKeyName(), node.fqTypePath(),
@@ -1682,8 +1690,20 @@ final class GraphEmission {
     private TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String rowVar,
             Type.RelationType rowType) {
+        return derivedLeaf(cs, cs.classFqn(), node, context, rowVar, rowType);
+    }
+
+    /** {@code ownerClassFqn}: the class DECLARING the derived property —
+     * the source class, or the SUBTYPE inside a {@code ->subType(@X)}
+     * patch (the body's {@code $this} reads still resolve through the
+     * SOURCE's bindings: inherited navs live there; subtype-only stored
+     * reads fall to the louder walls). */
+    private TypedSpec derivedLeaf(ClassSource cs, String ownerClassFqn,
+            TypedGraphTree node,
+            StoreResolver.Context context, String rowVar,
+            Type.RelationType rowType) {
         String prop = node.property();
-        var p = ctx.findProperty(cs.classFqn(), prop).orElse(null);
+        var p = ctx.findProperty(ownerClassFqn, prop).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
                 || d.parameters().size() != node.args().size()) {
             return null;
@@ -2436,6 +2456,28 @@ final class GraphEmission {
                     .filter(c -> c.name().equals(col))
                     .findFirst().orElse(null);
             if (rc == null) {
+                // DERIVED property of the SUBTYPE (landmarkName(){$this
+                // .landmark.lmName}): no carrier exists — inline the
+                // lifted body against the SOURCE's bindings (inherited
+                // navs); the member witness gates the branch
+                TypedSpec dv = derivedLeaf(cs, node.subTypeFqn(), sub,
+                        context, rowVar, rowType);
+                if (dv != null) {
+                    var dFn = new Type.FunctionType(
+                            List.of(new Type.Param(rowType,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE)),
+                            new Type.Param(dv.info().type(),
+                                    dv.info().multiplicity()));
+                    patch.add(new TypedFuncCol(sub.alias() != null
+                            ? sub.alias() : callKey(sub),
+                            new TypedLambda(List.of(rowVar), List.of(dv),
+                                    new ExprType(dFn,
+                                            com.legend.compiler.element.type
+                                                    .Multiplicity.Bounded
+                                                    .ONE))));
+                    continue;
+                }
                 throw new NotImplementedException("graph ->subType(@"
                         + node.subTypeFqn() + "): carrier column '"
                         + col + "' is not on the row (non-union"

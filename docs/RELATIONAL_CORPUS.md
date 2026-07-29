@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 131 | 7 | 14 | 3 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 122 | 3 | 14 | 4 |
+| graphFetch/tests | 143 | 124 | 2 | 13 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2069** | 95 | 175 | 199 |
+| **total** | 2538 | **2071** | 94 | 174 | 199 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8609,8 +8609,6 @@ in-process Alloy-shaped path).
 - FAIL testCheckedWithCircularConstraints [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0 | expected [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[{path=[{propertyNam..., got [{defects=[], value={firstName=Peter, firm=
 - ERROR testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: unknown function 'parseJSON'
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'
-- FAIL RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].value unexpected key 'Id' | expected [{defects=[], value={coordinate={latitude=31.8951, longitude= -77.0364}, street=str1}}, {defects=[], value={coordinate={latitude=33.8951, longitude= -75.0364..., got [{defects=[], value={Id=1, landmark={lmName=lm1}, stre
-- ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: graph ->subType(@meta::relational::graphFetch::tests::subType::Street): carrier column 'stc_meta__relational__graphFetch__tests__subType__Street___landmarkName' is not on the row (non-union subtype mapping) — not built yet
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=S
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
