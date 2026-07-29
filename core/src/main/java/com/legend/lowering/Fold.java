@@ -419,6 +419,40 @@ final class Fold {
      * disjoint by Phase-G typing (duplicate columns are a type error; prefix
      * joins rename). Null when no side claims the column.
      */
+    /** {@link #sourceColumn} pinned to the DRIVING table (the join tree's
+     * leftmost leaf — where the serialized class's own columns live): pk
+     * spellings collide across joined tables, and the graph determinism
+     * keys must never bind a navigation target's same-named column. */
+    /** Whether a resolved column reference is PHYSICALLY renderable from
+     * this source tree: its alias exists, and a VALUES source actually
+     * carries the column (stamped outputs can be wider than the rendered
+     * list — the pruned-demand seed shape). Best-effort consumers (the
+     * graph pk determinism keys) drop references that fail this. */
+    static boolean physicallyRenderable(SqlSource src, SqlExpr.Column c) {
+        return switch (src) {
+            case SqlSource.Join j -> physicallyRenderable(j.left(), c)
+                    || physicallyRenderable(j.right(), c);
+            case SqlSource.Values v -> v.alias().equals(c.table())
+                    && v.columns().contains(c.name());
+            case SqlSource.Table t -> t.alias().equals(c.table());
+            case SqlSource.Subselect sub -> sub.alias().equals(c.table());
+            case SqlSource.SourceUrl u -> u.alias().equals(c.table());
+            case SqlSource.Pivot p -> p.alias().equals(c.table());
+        };
+    }
+
+    static SqlExpr.Column sourceColumnDriving(SqlSource src, String column) {
+        if (src instanceof SqlSource.Join j) {
+            return sourceColumnDriving(j.left(), column);
+        }
+        // a VALUES source renders exactly its column list — outputs can be
+        // stamped wider (the pruned-demand seed shape); trust the physical
+        if (src instanceof SqlSource.Values v && !v.columns().contains(column)) {
+            return null;
+        }
+        return sourceColumn(src, column);
+    }
+
     static SqlExpr.Column sourceColumn(SqlSource src, String column) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —

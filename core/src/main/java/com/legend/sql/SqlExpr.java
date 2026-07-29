@@ -161,7 +161,7 @@ public sealed interface SqlExpr
      * aggregation of an envelope: all rows into one JSON-array value; an
      * empty rowset is the EMPTY ARRAY, never SQL NULL.
      */
-    record JsonArrayAgg(SqlExpr value, List<SqlExpr> orderKeys) implements SqlExpr {
+    record JsonArrayAgg(SqlExpr value, List<Key> orderKeys) implements SqlExpr {
         public JsonArrayAgg {
             orderKeys = orderKeys == null ? List.of() : List.copyOf(orderKeys);
         }
@@ -171,6 +171,10 @@ public sealed interface SqlExpr
             this(value, List.of());
         }
 
+        /** One ordered-agg key: union WITNESS keys render DESC (the
+         * TRUE-first contract), pk determinism keys ASC. */
+        public record Key(SqlExpr expr, boolean desc) {
+        }
     }
 
     /**

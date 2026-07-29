@@ -205,7 +205,12 @@ final class SubselectPrune {
             case SqlExpr.Exists ex -> collectQuery(ex.subquery(), r);
             case SqlExpr.ScalarSubquery sq -> collectQuery(sq.subquery(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));
-            case SqlExpr.JsonArrayAgg ja -> collectExpr(ja.value(), r);
+            case SqlExpr.JsonArrayAgg ja -> {
+                collectExpr(ja.value(), r);
+                // order keys are LIVE column refs — invisible keys let the
+                // prune drop/re-alias their sources (dangling ORDER BY)
+                ja.orderKeys().forEach(k -> collectExpr(k.expr(), r));
+            }
             case SqlExpr.WindowCall w -> {
                 w.fn().args().forEach(x -> collectExpr(x, r));
                 if (w.fn() instanceof SqlAgg.Reducer red) {

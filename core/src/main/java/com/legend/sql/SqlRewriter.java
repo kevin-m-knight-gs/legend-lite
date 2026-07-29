@@ -183,7 +183,11 @@ public abstract class SqlRewriter {
             }
             case SqlExpr.JsonArrayAgg ja -> {
                 SqlExpr v = rewriteExpr(ja.value());
-                List<SqlExpr> ks = mapList(ja.orderKeys(), this::rewriteExpr);
+                List<SqlExpr.JsonArrayAgg.Key> ks = mapList(ja.orderKeys(), k -> {
+                    SqlExpr e2 = rewriteExpr(k.expr());
+                    return e2 == k.expr() ? k
+                            : new SqlExpr.JsonArrayAgg.Key(e2, k.desc());
+                });
                 yield v == ja.value() && ks == ja.orderKeys() ? ja
                         : new SqlExpr.JsonArrayAgg(v, ks);
             }

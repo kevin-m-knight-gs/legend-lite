@@ -406,12 +406,49 @@ final class GraphEmission {
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE))));
             }
+            orderKeys.addAll(pkOrderKeys(cs, pipeline, rowType, rowVar, toRow));
         }
         TypedSerializeGraph node = new TypedSerializeGraph(pipeline, rowVar,
                 leaves, children, arrayWrap, false, cs.classFqn(), info,
                 false, subTypePatches, orderKeys);
         return checked ? withChecked(node, cs, slotPrefixes, stripped,
                 rowVar, rowType, context, toRow) : node;
+    }
+
+    /** ROW-ORDER determinism keys (engine graph contract: rows serialize
+     * in the driving table's scan order — H2 preserves it, DuckDB's hash
+     * joins do not): the mapped class's PRIMARY-KEY columns, when present
+     * on the row, become TRAILING order keys (witness keys stay first —
+     * union branch order dominates), marked {@code PK_ORDER_PREFIX} so the
+     * lowering treats them ASC and best-effort. */
+    private List<TypedFuncCol> pkOrderKeys(ClassSource cs, TypedSpec pipeline,
+            Type.RelationType rowType, String rowVar,
+            UnaryOperator<TypedSpec> toRow) {
+        List<TypedFuncCol> keys = new ArrayList<>();
+        for (String pk : RelationalRootForm.primaryKeyColumns(
+                cs.classFqn(), pipeline, cs.mappingFqn(), ctx)) {
+            Type.Column col = rowType.columns().stream()
+                    .filter(c -> c.name().equals(pk)
+                            || RelationalRootForm.stripQ(c.name()).equals(pk))
+                    .findFirst().orElse(null);
+            if (col == null) {
+                continue;
+            }
+            TypedSpec pkRead = new TypedPropertyAccess(toRow.apply(null),
+                    col.name(), new ExprType(col.type(), col.multiplicity()));
+            var pkFn = new Type.FunctionType(
+                    List.of(new Type.Param(rowType,
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE)),
+                    new Type.Param(col.type(), col.multiplicity()));
+            keys.add(new TypedFuncCol(
+                    TypedSerializeGraph.PK_ORDER_PREFIX + col.name(),
+                    new TypedLambda(List.of(rowVar), List.of(pkRead),
+                            new ExprType(pkFn,
+                                    com.legend.compiler.element.type
+                                            .Multiplicity.Bounded.ONE))));
+        }
+        return keys;
     }
 
     private TypedSerializeGraph withChecked(TypedSerializeGraph node,

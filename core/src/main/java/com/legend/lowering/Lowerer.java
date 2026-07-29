@@ -690,9 +690,44 @@ public final class Lowerer {
         }
         SqlExpr result;
         if (g.arrayWrap()) {
-            List<SqlExpr> okeys = new ArrayList<>(g.orderKeys().size());
+            List<SqlExpr.JsonArrayAgg.Key> okeys =
+                    new ArrayList<>(g.orderKeys().size());
             for (TypedFuncCol k : g.orderKeys()) {
-                okeys.add(envelopeScalar(k, base, "envelope order key"));
+                if (!k.name().startsWith(TypedSerializeGraph.PK_ORDER_PREFIX)) {
+                    // union WITNESS key: DESC (TRUE-first), load-bearing
+                    okeys.add(new SqlExpr.JsonArrayAgg.Key(
+                            envelopeScalar(k, base, "envelope order key"), true));
+                    continue;
+                }
+                // PK determinism key: ASC and BEST-EFFORT — an explicit
+                // base projection resolves normally; a star pass-through
+                // resolves against the DRIVING (leftmost) source only (pk
+                // spellings collide across tables — never bind a guessed
+                // join side). Pruned or ambiguous columns skip, scan order
+                // stands.
+                String col = k.name().substring(
+                        TypedSerializeGraph.PK_ORDER_PREFIX.length());
+                boolean explicit = base.projections().stream()
+                        .anyMatch(p -> col.equals(p.outputName()));
+                SqlExpr pkE = null;
+                if (explicit) {
+                    if (attempt(() -> scalar(last(k.fn()),
+                            (v, name) -> resolveOrThrow(base, name)))
+                            instanceof Resolution.Resolved r) {
+                        pkE = r.expr();
+                    }
+                } else if (base.projections().isEmpty()
+                        || base.projections().stream().anyMatch(
+                                p -> p.expr() instanceof SqlExpr.Star)) {
+                    pkE = Fold.sourceColumnDriving(base.from(), col);
+                }
+                if (pkE instanceof SqlExpr.Column pc
+                        && !Fold.physicallyRenderable(base.from(), pc)) {
+                    pkE = null;   // stale stamping — skip, scan order stands
+                }
+                if (pkE != null) {
+                    okeys.add(new SqlExpr.JsonArrayAgg.Key(pkE, false));
+                }
             }
             // UNION-MEMBER serial order (engine contract: union members
             // serialize in BRANCH DECLARATION order — the engine's stitch
@@ -704,7 +739,8 @@ public final class Lowerer {
             SqlSelect withOrd = UnionSerialOrder.inject(base);
             if (withOrd != null) {
                 envelope = withOrd;
-                okeys.add(0, resolveOrThrow(envelope, UnionSerialOrder.COLUMN));
+                okeys.add(0, new SqlExpr.JsonArrayAgg.Key(
+                        resolveOrThrow(envelope, UnionSerialOrder.COLUMN), true));
             }
             result = new SqlExpr.JsonArrayAgg(obj, okeys);
         } else {

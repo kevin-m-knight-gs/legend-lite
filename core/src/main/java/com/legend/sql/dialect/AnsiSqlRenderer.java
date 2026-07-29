@@ -319,7 +319,9 @@ public class AnsiSqlRenderer implements SqlDialect {
                     ? "coalesce(json_group_array(" + expr(j.value(), 0) + "), '[]')"
                     : "coalesce(to_json(list(" + expr(j.value(), 0)
                             + " ORDER BY " + j.orderKeys().stream()
-                                    .map(k -> expr(k, 0) + " DESC NULLS LAST")
+                                    .map(k -> expr(k.expr(), 0)
+                                            + (k.desc() ? " DESC" : " ASC")
+                                            + " NULLS LAST")
                                     .collect(java.util.stream.Collectors
                                             .joining(", "))
                             + ")), '[]')";

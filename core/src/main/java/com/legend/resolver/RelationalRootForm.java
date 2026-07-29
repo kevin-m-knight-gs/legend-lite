@@ -190,18 +190,24 @@ public final class RelationalRootForm {
      */
     private static List<String> primaryKeyColumns(TypedSerializeGraph g,
             String mappingFqn, ModelContext ctx) {
-        if (mappingFqn != null && g.classFqn() != null) {
+        return primaryKeyColumns(g.classFqn(), g.source(), mappingFqn, ctx);
+    }
+
+    /** The GraphEmission order-key entry (same rule, pre-node). */
+    static List<String> primaryKeyColumns(String classFqn, TypedSpec source,
+            String mappingFqn, ModelContext ctx) {
+        if (mappingFqn != null && classFqn != null) {
             var mapping = ctx.findMapping(mappingFqn).orElse(null);
             if (mapping != null) {
                 for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-                    if (cb.classFqn().equals(g.classFqn())
+                    if (cb.classFqn().equals(classFqn)
                             && !cb.primaryKeyColumns().isEmpty()) {
                         return dedup(cb.primaryKeyColumns());
                     }
                 }
             }
         }
-        TypedSpec cur = g.source();
+        TypedSpec cur = source;
         TypedTableReference tref = null;
         while (tref == null) {
             if (cur instanceof TypedTableReference tr) {
@@ -227,7 +233,7 @@ public final class RelationalRootForm {
     }
 
     /** Quote-bearing row columns match their bare store pk spelling. */
-    private static String stripQ(String n) {
+    static String stripQ(String n) {
         return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
                 ? n.substring(1, n.length() - 1) : n;
     }

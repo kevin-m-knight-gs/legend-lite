@@ -54,7 +54,9 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.JsonArrayAgg ja ->
                     new SqlExpr.JsonArrayAgg(unqualify(ja.value()),
                             ja.orderKeys().stream()
-                                    .map(UnqualifyPivotArgs::unqualify).toList());
+                                    .map(k -> new SqlExpr.JsonArrayAgg.Key(
+                                            unqualify(k.expr()), k.desc()))
+                                    .toList());
             case SqlAgg.Reducer r -> new SqlAgg.Reducer(r.fn(),
                     r.args().stream().map(UnqualifyPivotArgs::unqualify).toList(),
                     r.distinct(),

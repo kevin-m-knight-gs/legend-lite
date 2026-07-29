@@ -54,6 +54,12 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<CheckedConstraint> checkedConstraints)
         implements TypedSpec {
 
+    /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
+     * lowering) — everything unprefixed in {@code orderKeys} is a union
+     * WITNESS key (DESC, load-bearing). The prefix keeps the distinction in
+     * typed HIR: the lowering layer must not consult the mapping model. */
+    public static final String PK_ORDER_PREFIX = "pk_ord__";
+
     /** One class constraint riding a CHECKED envelope: the per-row defect
      * gate. Predicate/message are row lambdas (bindings already inlined);
      * the remaining fields are the defect object's constants. */
