@@ -125,12 +125,27 @@ public final class PlatformTypes {
             "meta::relational::functions::toDDL::createSchemaStatement";
     public static final String CREATE_TABLE_STATEMENT =
             "meta::relational::functions::toDDL::createTableStatement";
+    public static final String DROP_TABLE_STATEMENT =
+            "meta::relational::functions::toDDL::dropTableStatement";
+
+    /** Store-metamodel NAVIGATION natives (platform_store_relational/
+     * functions.pure:227/:249) — HOST-evaluated over the compiled store
+     * model (the reflection leg's store domain). */
+    public static final String STORE_SCHEMA_NAV =
+            "meta::relational::metamodel::schema";
+    public static final String STORE_TABLE_NAV =
+            "meta::relational::metamodel::table";
+
+    public static boolean isStoreNavFn(String fqn) {
+        return STORE_SCHEMA_NAV.equals(fqn) || STORE_TABLE_NAV.equals(fqn);
+    }
 
     /** One of the DDL string-generator natives. */
     public static boolean isDdlStatementFn(String fqn) {
         return DROP_SCHEMA_STATEMENT.equals(fqn)
                 || CREATE_SCHEMA_STATEMENT.equals(fqn)
-                || CREATE_TABLE_STATEMENT.equals(fqn);
+                || CREATE_TABLE_STATEMENT.equals(fqn)
+                || DROP_TABLE_STATEMENT.equals(fqn);
     }
 
     /** The engine's SQL-text surface — K-dispatched: the query lambda

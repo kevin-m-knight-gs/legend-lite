@@ -2327,7 +2327,7 @@ final class StatementExecutor {
         // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
         // HOST-SIDE against the H2 second target (task #43 slice B2)
         if (com.legend.exec.HostEval.wantsHostEval(root)) {
-            return com.legend.exec.HostEval.evalToResult(root);
+            return com.legend.exec.HostEval.evalToResult(root, env.ctx());
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
@@ -2683,23 +2683,35 @@ final class StatementExecutor {
                     ? "Drop schema if exists " + sc.value() + " cascade;"
                     : "Create Schema if not exists " + sc.value() + ";";
         }
+        // 2-arg forms default the schema (toDDL.pure:34-42)
+        boolean twoArg = ds.args().size() == 2;
         if (!(ds.args().get(0)
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef db)
-                || !(ds.args().get(1)
-                        instanceof com.legend.compiler.spec.typed.TypedCString sch)
-                || !(ds.args().get(2)
-                        instanceof com.legend.compiler.spec.typed.TypedCString tbl)) {
-            throw new IllegalStateException("createTableStatement: literal"
-                    + " (database, 'schema', 'table') arguments required");
+                || !(ds.args().get(twoArg ? 1 : 1)
+                        instanceof com.legend.compiler.spec.typed.TypedCString a1)
+                || (!twoArg && !(ds.args().get(2)
+                        instanceof com.legend.compiler.spec.typed.TypedCString))) {
+            throw new IllegalStateException(fqn + ": literal"
+                    + " (database, ['schema',] 'table') arguments required");
         }
-        String lookup = "default".equals(sch.value()) ? tbl.value()
-                : sch.value() + "." + tbl.value();
+        String sch = twoArg ? "default" : a1.value();
+        String tbl = twoArg ? a1.value()
+                : ((com.legend.compiler.spec.typed.TypedCString)
+                        ds.args().get(2)).value();
+        if (com.legend.compiler.element.type.PlatformTypes
+                .DROP_TABLE_STATEMENT.equals(fqn)) {
+            return Ddl.dropTableStatementText(sch, tbl);
+        }
+        String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
         com.legend.model.DatabaseDefinition.TableDefinition def =
                 env.ctx().findTableDefinition(db.fullPath(), lookup)
                         .orElseThrow(() -> new IllegalStateException(
                                 "createTableStatement: no table '" + lookup
                                         + "' in store " + db.fullPath()));
-        return Ddl.createTable(def, sch.value());
+        // the ENGINE TEXT (NOT NULL / PRIMARY KEY constraints) — the
+        // EXECUTION form (dropAndCreateTableInDb -> Ddl.createTable)
+        // stays constraint-free for DuckDB re-seeds
+        return Ddl.createTableStatementText(def, sch);
     }
 
     /**

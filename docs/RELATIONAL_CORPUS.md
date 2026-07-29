@@ -20,7 +20,7 @@ in-process Alloy-shaped path).
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 124 | 2 | 13 | 4 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
-| helperFunctions/tests | 7 | 1 | 0 | 0 | 6 |
+| helperFunctions/tests | 7 | 5 | 0 | 0 | 2 |
 | lineage/scanColumns | 6 | 3 | 1 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
 | milestoning/tests | 224 | 202 | 9 | 3 | 10 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2092** | 88 | 173 | 185 |
+| **total** | 2538 | **2096** | 88 | 173 | 181 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8512,10 +8512,6 @@ in-process Alloy-shaped path).
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: unknown function 'parseJSON'
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=S
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
-- SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
-- SHAPE createDropTableStatement [helperFunctions/tests]: no execute(|...) call
-- SHAPE createCreateTableStatement [helperFunctions/tests]: no execute(|...) call
-- SHAPE createCreateTableStatementWithReservedWorks [helperFunctions/tests]: no execute(|...) call
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - ERROR testSubType [lineage/scanColumns]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:

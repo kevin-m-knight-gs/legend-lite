@@ -14,6 +14,7 @@ import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.NotImplementedException;
+import com.legend.model.DatabaseDefinition;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,8 +63,10 @@ public final class HostEval {
      * SETUP arm dispatches first in executeTyped. */
     public static boolean wantsHostEval(TypedSpec root) {
         if (chainBottom(root) instanceof TypedNativeCall b
-                && PlatformTypes.EXECUTE_IN_DB
-                        .equals(b.callee().qualifiedName())) {
+                && (PlatformTypes.EXECUTE_IN_DB
+                        .equals(b.callee().qualifiedName())
+                        || PlatformTypes.isStoreNavFn(
+                                b.callee().qualifiedName()))) {
             return true;
         }
         return containsFetchDb(root);
@@ -106,7 +109,8 @@ public final class HostEval {
                 case TypedNativeCall nc -> {
                     String fqn = nc.callee().qualifiedName();
                     if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)
-                            || PlatformTypes.isFetchDbFn(fqn)) {
+                            || PlatformTypes.isFetchDbFn(fqn)
+                            || PlatformTypes.isStoreNavFn(fqn)) {
                         return nc;
                     }
                     // walk ONLY through the READ-shaped natives this
@@ -123,6 +127,30 @@ public final class HostEval {
                     return n;
                 }
             }
+        }
+    }
+
+    /** One metamodel schema in the host channel: the include-closure
+     * MERGED table set (functions.pure:227-235). */
+    public record HostSchema(String name, List<DatabaseDefinition.TableDefinition> tables) {
+    }
+
+    /** One metamodel table in the host channel. */
+    public record HostTable(DatabaseDefinition.TableDefinition def) {
+    }
+
+    private static final ThreadLocal<com.legend.compiler.element.ModelContext>
+            CTX = new ThreadLocal<>();
+
+    /** Whole-expression entry: host value wrapped as an ExecutionResult. */
+    public static ExecutionResult evalToResult(TypedSpec root,
+            com.legend.compiler.element.ModelContext ctx)
+            throws java.sql.SQLException {
+        CTX.set(ctx);
+        try {
+            return evalToResult(root);
+        } finally {
+            CTX.remove();
         }
     }
 
@@ -144,6 +172,27 @@ public final class HostEval {
                 String fqn = nc.callee().qualifiedName();
                 if (PlatformTypes.isFetchDbFn(fqn)) {
                     return fetch(nc, scope);
+                }
+                if (PlatformTypes.STORE_SCHEMA_NAV.equals(fqn)) {
+                    return schemaNav(nc, scope);
+                }
+                if (PlatformTypes.STORE_TABLE_NAV.equals(fqn)) {
+                    List<Object> sv = asList(eval(nc.args().get(0), scope));
+                    Object nm = asList(eval(nc.args().get(1), scope)).get(0);
+                    if (sv.isEmpty()) {
+                        return List.of();
+                    }
+                    if (!(sv.get(0) instanceof HostSchema hs)) {
+                        throw new NotImplementedException(
+                                "host-eval: table() over "
+                                        + sv.get(0).getClass().getSimpleName());
+                    }
+                    for (DatabaseDefinition.TableDefinition t : hs.tables()) {
+                        if (t.name().equals(nm)) {
+                            return new HostTable(t);
+                        }
+                    }
+                    return List.of();
                 }
                 if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)) {
                     // the READ path: run the query over the replayed H2
@@ -339,6 +388,59 @@ public final class HostEval {
                     replay);
             case COLUMNS -> DbMetaData.fetch(fqn, a1, a2, a3, replay);
         };
+    }
+
+    /** schema(db, name): the include-closure schema lookup with MERGED
+     * tables (functions.pure:227-235) over the compiled store model;
+     * top-level tables are the 'default' schema. */
+    private static Object schemaNav(TypedNativeCall nc,
+            Map<String, Object> scope) throws java.sql.SQLException {
+        if (!(nc.args().get(0) instanceof
+                com.legend.compiler.spec.typed.TypedPackageableRef db)) {
+            throw new NotImplementedException(
+                    "host-eval: schema() requires a database reference, got "
+                            + nc.args().get(0).getClass().getSimpleName());
+        }
+        Object nm = eval(nc.args().get(1), scope);
+        String name = String.valueOf(asList(nm).get(0));
+        com.legend.compiler.element.ModelContext ctx = CTX.get();
+        if (ctx == null) {
+            throw new IllegalStateException(
+                    "host-eval: no ModelContext bound for store navigation");
+        }
+        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>();
+        boolean[] found = {false};
+        collectSchema(ctx, db.fullPath(), name, tables, found,
+                new java.util.LinkedHashSet<>());
+        return found[0] ? new HostSchema(name, tables) : List.of();
+    }
+
+    private static void collectSchema(
+            com.legend.compiler.element.ModelContext ctx, String dbFqn,
+            String schemaName, List<DatabaseDefinition.TableDefinition> out,
+            boolean[] found, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return;
+        }
+        var dbo = ctx.findDatabase(dbFqn);
+        if (dbo.isEmpty()) {
+            return;
+        }
+        DatabaseDefinition db = dbo.get();
+        for (String inc : db.includes()) {
+            collectSchema(ctx, inc, schemaName, out, found, seen);
+        }
+        if ("default".equals(schemaName)) {
+            found[0] = true;
+            out.addAll(db.tables());
+            return;
+        }
+        for (DatabaseDefinition.SchemaDefinition sd : db.schemas()) {
+            if (sd.name().equals(schemaName)) {
+                found[0] = true;
+                out.addAll(sd.tables());
+            }
+        }
     }
 
     /** The H2 second target's replay stream — schema creates

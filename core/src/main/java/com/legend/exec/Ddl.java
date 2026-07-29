@@ -53,6 +53,69 @@ public final class Ddl {
         return sb.append(");").toString();
     }
 
+    /** H2 2.1.214 reserved words (h2Extension2_1_214.pure:180-192) — the
+     * engine's DDL-TEXT column quoting set (the second target's dialect,
+     * same golden surface as the plan channel). */
+    private static final java.util.Set<String> H2_RESERVED = java.util.Set.of(
+            "all", "and", "array", "as", "between", "case", "check",
+            "constraint", "cross", "current_catalog", "current_date",
+            "current_schema", "current_time", "current_timestamp",
+            "current_user", "distinct", "except", "exists", "false", "fetch",
+            "for", "foreign", "from", "full", "group", "having", "if", "in",
+            "inner", "intersect", "interval", "is", "join", "left", "like",
+            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
+            "null", "offset", "on", "or", "order", "primary", "qualify",
+            "row", "rownum", "select", "table", "true", "union", "unique",
+            "unknown", "using", "values", "where", "window", "with",
+            "_rowid_", "both", "groups", "ilike", "leading", "over",
+            "partition", "range", "regexp", "rows", "top", "trailing");
+
+    /** The ENGINE's createTableStatement TEXT (translateCreateTable-
+     * StatementDefault, extensionDefaults.pure:609-620): reserved-word
+     * column quoting, engine type spellings (INT), NULL / NOT NULL
+     * nullability, trailing {@code , PRIMARY KEY(...)}. TEXT ONLY — the
+     * EXECUTION form ({@link #createTable}) stays constraint-free (the
+     * deliberate DuckDB re-seed divergence in this file's header). */
+    public static String createTableStatementText(
+            DatabaseDefinition.TableDefinition def, String schema) {
+        StringBuilder sb = new StringBuilder("Create Table ")
+                .append(qualify(schema, def.name())).append("(");
+        boolean first = true;
+        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
+            if (!first) {
+                sb.append(",");
+            }
+            first = false;
+            sb.append(H2_RESERVED.contains(
+                    col.name().toLowerCase(java.util.Locale.ROOT))
+                    ? '"' + col.name() + '"' : col.name())
+                    .append(' ').append(engineSpell(col.dataType()))
+                    .append(col.primaryKey() || col.notNull()
+                            ? " NOT NULL" : " NULL");
+        }
+        java.util.List<String> pks = def.columns().stream()
+                .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                .map(DatabaseDefinition.ColumnDefinition::name).toList();
+        if (!pks.isEmpty()) {
+            sb.append(", PRIMARY KEY(").append(String.join(",", pks))
+                    .append(')');
+        }
+        return sb.append(");").toString();
+    }
+
+    /** The ENGINE's dropTableStatement TEXT (translateDropTable-
+     * StatementDefault): {@code Drop table if exists <schema.>table;}. */
+    public static String dropTableStatementText(String schema, String table) {
+        return "Drop table if exists " + qualify(schema, table) + ";";
+    }
+
+    /** dataTypeToSqlText parity (platform_store_relational/functions.pure
+     * :68-96) — differs from the EXECUTION spelling only where the engine
+     * text does (Integer spells INT). */
+    private static String engineSpell(RelationalDataType t) {
+        return t instanceof RelationalDataType.Integer_ ? "INT" : spell(t);
+    }
+
     private static String qualify(String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
                 ? table : schema + "." + table;

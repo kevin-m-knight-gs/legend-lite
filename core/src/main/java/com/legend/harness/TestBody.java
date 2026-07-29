@@ -1880,8 +1880,8 @@ public final class TestBody {
                         : "assertSize: expected " + n + ", got " + actual;
             }
             case "assertEmpty" -> {
-                if (args.size() != 1) {
-                    return UNSUPPORTED_MARKER;
+                if (args.isEmpty() || args.size() > 2) {
+                    return UNSUPPORTED_MARKER;   // optional message arg
                 }
                 if (emptinessUnverifiable) {
                     return UNSUPPORTED_MARKER;
@@ -1890,8 +1890,8 @@ public final class TestBody {
                 return a.size() == 0 ? null : "assertEmpty: got " + a.size() + " values";
             }
             case "assertNotEmpty" -> {
-                if (args.size() != 1) {
-                    return UNSUPPORTED_MARKER;
+                if (args.isEmpty() || args.size() > 2) {
+                    return UNSUPPORTED_MARKER;   // optional message arg
                 }
                 Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
