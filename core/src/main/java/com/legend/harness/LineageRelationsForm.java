@@ -27,10 +27,10 @@ import java.util.Map;
  * assertEquals(expected, $tree->relationTreeAsString())}. The STATIC
  * (3-arg) variant's tree is mapping semantics — it VERIFIES against
  * {@link ScanRelations}. The RUNTIME (4-arg) variant's node labels are
- * the engine's INTERNAL alias mangling ({@code equal_rootID_..._d#7_...})
- * — generated-plan metadata, not semantics — so its asserts count
- * ADVISORY, exactly the golden-SQL doctrine (row/tree semantics are the
- * contract, plan text is advisory).
+ * derivable from the query (tables, demanded columns, tds-join
+ * condition labels) — those VERIFY too; only a tree the scanner cannot
+ * reproduce falls back to ADVISORY, the golden-SQL doctrine (semantics
+ * are the contract, irreproducible plan text is advisory).
  */
 final class LineageRelationsForm {
 
@@ -56,7 +56,8 @@ final class LineageRelationsForm {
                         "scanRelations");
                 if (scan != null) {
                     isScan.put(ln.value(), Boolean.TRUE);
-                    if (scan.parameters().size() == 3) {
+                    if (scan.parameters().size() == 3
+                            || scan.parameters().size() == 4) {
                         staticCalls.put(ln.value(), scan);
                     }
                 }
@@ -92,9 +93,10 @@ final class LineageRelationsForm {
             }
             AppliedFunction scan = staticCalls.get(a[0]);
             if (scan == null) {
-                advisory++;    // runtime variant: engine plan metadata
+                advisory++;    // unrecognized scan shape
                 continue;
             }
+            boolean runtimeVariant = scan.parameters().size() == 4;
             ValueSpecification q = deref(scan.parameters().get(0), lets);
             ValueSpecification m = deref(scan.parameters().get(1), lets);
             if (!(q instanceof LambdaFunction ql)
@@ -104,6 +106,17 @@ final class LineageRelationsForm {
             try {
                 ValueSpecification resolved = NameResolver.resolveQuery(
                         ql, imports, ctx.elementFqns());
+                if (runtimeVariant
+                        && (!ScanRelations.tdsRooted(ctx,
+                                (LambdaFunction) resolved)
+                            || a[1].contains("joinleft_"))) {
+                    // class-rooted runtime scans (and tds-join trees with
+                    // the engine's condition mangle) carry generated-plan
+                    // vocabulary, not semantics — the advisory doctrine
+                    // holds for exactly these.
+                    advisory++;
+                    continue;
+                }
                 String got = ScanRelations.treeString(ctx,
                         (LambdaFunction) resolved,
                         qualifyMapping(mp.fullPath(), ctx, imports));
@@ -113,6 +126,15 @@ final class LineageRelationsForm {
                             + "got\n" + got);
                 }
             } catch (com.legend.error.NotImplementedException e) {
+                if (runtimeVariant) {
+                    // The RUNTIME variant VERIFIES when the scan can
+                    // reproduce the tree (most runtime-variant trees are
+                    // plain table/column semantics); a shape the scanner
+                    // cannot produce falls back to the advisory doctrine
+                    // instead of walling the whole test.
+                    advisory++;
+                    continue;
+                }
                 return new TestBody.Outcome.Unsupported("scanRelations: "
                         + String.valueOf(e.getMessage()).split("\\n")[0]);
             }

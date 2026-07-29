@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 2 | 2 | 1 | 1 |
-| lineage/scanRelations | 49 | 18 | 1 | 0 | 30 |
+| lineage/scanRelations | 49 | 32 | 1 | 0 | 16 |
 | milestoning/tests | 224 | 196 | 11 | 6 | 11 |
 | modelJoins | 7 | 0 | 0 | 0 | 7 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2005** | 104 | 186 | 243 |
+| **total** | 2538 | **2019** | 104 | 186 | 229 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8655,22 +8655,8 @@ in-process Alloy-shaped path).
 - SHAPE testSameRelationsAtSameLevel [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableInQualifiedPropertiesInGraphFetchTree [lineage/scanRelations]: scanRelations: scanRelations: scalar 'age' in MID position
 - SHAPE testMultipleTablesInQualifiedPropertiesInGraphFetchTree [lineage/scanRelations]: scanRelations: scanRelations: scalar 'age' in MID position
-- SHAPE testTableToTdsSimple [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithProject [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithDuplicateProjectColumns [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithRestrict [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithFilter [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithFilterAndProject [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithFilterAndProjectOperatingOnSameColumns [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithExtend [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithDistinctAndTake [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithSort [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithGroupBy [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithConcatenate [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithConcatenateUsingDifferentTables [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoinAndUnion [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testTableToTdsWithMultipleJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithJoinToSameTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithOLAPGroupBy [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification

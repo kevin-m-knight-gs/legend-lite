@@ -81,13 +81,59 @@ public final class ScanRelations {
         }
     }
 
+    /** Whether the query roots at {@code tableToTDS(tableReference(...))}
+     * — the runtime-variant lineage shape whose tree is pure table/column
+     * semantics (the harness verifies exactly these; class-rooted runtime
+     * scans keep the engine's plan vocabulary and stay advisory). A MIXED
+     * concatenate counts as tds-rooted when ANY branch is. */
+    public static boolean tdsRooted(ModelContext ctx, LambdaFunction query) {
+        return containsCall(query, "tableToTDS");
+    }
+
     public static String treeString(ModelContext ctx, LambdaFunction query,
             String mappingFqn) {
         StringBuilder sb = new StringBuilder("root\n");
-        for (Node r : buildRoots(ctx, query, mappingFqn)) {
+        for (Node r : scanRoots(ctx, query, mappingFqn)) {
             print(sb, r, 1, ctx);
         }
         return sb.toString();
+    }
+
+    /** BRANCH-AWARE roots: concatenate splits (engine: each branch scans
+     * independently, in order — demand never bleeds across branches; a
+     * mixed tds/class concatenate scans each branch by its own kind). */
+    private static List<Node> scanRoots(ModelContext ctx,
+            LambdaFunction query, String mappingFqn) {
+        ValueSpecification body = query.body().isEmpty() ? query
+                : query.body().get(query.body().size() - 1);
+        List<ValueSpecification> branches = new ArrayList<>();
+        splitConcatenate(body, branches);
+        List<Node> out = new ArrayList<>();
+        for (ValueSpecification b : branches) {
+            LambdaFunction bl = new LambdaFunction(List.of(), List.of(b));
+            List<Node> tds = tableToTdsRoots(ctx, bl);
+            out.addAll(tds.isEmpty() ? buildRoots(ctx, bl, mappingFqn) : tds);
+        }
+        if (branches.size() > 1) {
+            // engine root order across concatenate branches: by TABLE name,
+            // stable for ties (both concat goldens pin exactly this)
+            out.sort(java.util.Comparator.comparing(nd -> nd.table));
+        }
+        return out;
+    }
+
+    /** Flatten {@code concatenate(a, b)} spines in document order. */
+    private static void splitConcatenate(ValueSpecification v,
+            List<ValueSpecification> out) {
+        if (v instanceof AppliedFunction af
+                && "concatenate".equals(af.function()
+                        .substring(af.function().lastIndexOf(':') + 1))
+                && af.parameters().size() == 2) {
+            splitConcatenate(af.parameters().get(0), out);
+            splitConcatenate(af.parameters().get(1), out);
+            return;
+        }
+        out.add(v);
     }
 
     /**
@@ -177,6 +223,19 @@ public final class ScanRelations {
         }
         collectTableToTds(ctx, n, out);
         if (out.isEmpty()) {
+            return out;
+        }
+        // RESULT-PRESERVING ops (filter/take) keep the whole-table column
+        // set — the engine narrows demand only when the query SHAPES its
+        // result (project/restrict/groupBy/distinct/olap). A sort ANYWHERE
+        // keeps the whole table too (engine: sort materializes the full
+        // row stream — testTableToTdsWithSort pins all columns despite a
+        // later project).
+        if (containsCall(n, "sort")
+                || (!containsCall(n, "project") && !containsCall(n, "restrict")
+                        && !containsCall(n, "groupBy")
+                        && !containsCall(n, "olapGroupBy")
+                        && !containsCall(n, "distinct"))) {
             return out;
         }
         Set<String> strings = new LinkedHashSet<>();
