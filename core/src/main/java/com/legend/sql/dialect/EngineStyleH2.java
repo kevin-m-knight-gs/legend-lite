@@ -654,7 +654,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             return;
         }
-        out.add(expr(e, 3));
+        // or-under-and parenthesizes (the opposite-operator group,
+        // symmetric with the OR arm; engine golden: 'a and (x or y) and
+        // b' — the flat join silently REBOUND the chain: '... and x or
+        // y and ...' parsed as (… and x) or (y and …)). An explicit
+        // Group child wraps ITSELF — no double parens.
+        boolean orLike = e instanceof SqlExpr.Call oc
+                && oc.fn() == com.legend.sql.SqlFn.OR;
+        out.add(orLike ? "(" + expr(e, 0) + ")" : expr(e, 3));
     }
 
     /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
