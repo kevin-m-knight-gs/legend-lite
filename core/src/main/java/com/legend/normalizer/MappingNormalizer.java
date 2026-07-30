@@ -2309,7 +2309,7 @@ public final class MappingNormalizer {
                     collectExprColumns(g.inner(), sink);
             case RelationalOperation.ArrayLiteral a ->
                     a.elements().forEach(e -> collectExprColumns(e, sink));
-            default -> { }
+            default -> op.children().forEach(x -> collectExprColumns(x, sink));
         }
     }
 
@@ -3196,7 +3196,9 @@ public final class MappingNormalizer {
                     f.name(), f.args().stream()
                             .map(a -> resolveViewRefsInJoin(a, db, sourceTable, model, md, backingView, onlyView, keepTargetView, anySide))
                             .toList());
-            default -> op;
+            default -> op.mapChildren(x -> resolveViewRefsInJoin(x, db,
+                    sourceTable, model, md, backingView, onlyView,
+                    keepTargetView, anySide));
         };
     }
 

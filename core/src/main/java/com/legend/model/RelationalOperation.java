@@ -42,6 +42,72 @@ public sealed interface RelationalOperation
                 RelationalOperation.JoinNavigation {
 
     /**
+     * The DIRECT {@link RelationalOperation} children, in rebuild order —
+     * the shared structural-recursion contract (see the SqlExpr/
+     * ValueSpecification twins). Exhaustive, no default arm: a new
+     * variant fails compilation here until it declares its children.
+     * {@link JoinNavigation} children are its TERMINAL only — the hop
+     * chain is join metadata, not an operation subtree.
+     */
+    default java.util.List<RelationalOperation> children() {
+        return switch (this) {
+            case ColumnRef ignored -> java.util.List.of();
+            case TargetColumnRef ignored -> java.util.List.of();
+            case Literal ignored -> java.util.List.of();
+            case TypeRef ignored -> java.util.List.of();
+            case FunctionCall f -> f.args();
+            case Comparison c -> java.util.List.of(c.left(), c.right());
+            case BooleanOp b -> java.util.List.of(b.left(), b.right());
+            case IsNull n -> java.util.List.of(n.operand());
+            case IsNotNull n -> java.util.List.of(n.operand());
+            case Group g -> java.util.List.of(g.inner());
+            case ArrayLiteral a -> a.elements();
+            case JoinNavigation j -> j.terminal() == null
+                    ? java.util.List.of() : java.util.List.of(j.terminal());
+        };
+    }
+
+    /** This node with its direct children replaced — see {@link #children()}. */
+    default RelationalOperation withChildren(
+            java.util.List<RelationalOperation> cs) {
+        return switch (this) {
+            case ColumnRef ignored -> this;
+            case TargetColumnRef ignored -> this;
+            case Literal ignored -> this;
+            case TypeRef ignored -> this;
+            case FunctionCall f -> new FunctionCall(f.name(), cs);
+            case Comparison c -> new Comparison(cs.get(0), c.op(), cs.get(1));
+            case BooleanOp b -> new BooleanOp(cs.get(0), b.op(), cs.get(1));
+            case IsNull ignored -> new IsNull(cs.get(0));
+            case IsNotNull ignored -> new IsNotNull(cs.get(0));
+            case Group ignored -> new Group(cs.get(0));
+            case ArrayLiteral ignored -> new ArrayLiteral(cs);
+            case JoinNavigation j -> j.terminal() == null ? j
+                    : new JoinNavigation(j.databaseName(), j.chain(),
+                            cs.get(0));
+        };
+    }
+
+    /** Identity-preserving one-level rewrite through {@link #withChildren}. */
+    default RelationalOperation mapChildren(
+            java.util.function.UnaryOperator<RelationalOperation> f) {
+        java.util.List<RelationalOperation> cs = children();
+        if (cs.isEmpty()) {
+            return this;
+        }
+        java.util.List<RelationalOperation> rw =
+                new java.util.ArrayList<>(cs.size());
+        boolean same = true;
+        for (RelationalOperation c : cs) {
+            RelationalOperation r = f.apply(c);
+            same = same && r == c;
+            rw.add(r);
+        }
+        return same ? this : withChildren(rw);
+    }
+
+
+    /**
      * A column reference.
      *
      * <p>Two shapes are valid, both fully-qualified:

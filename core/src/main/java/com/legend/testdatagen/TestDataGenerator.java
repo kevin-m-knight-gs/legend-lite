@@ -646,7 +646,8 @@ public final class TestDataGenerator {
             case RelationalOperation.IsNotNull n ->
                     new RelationalOperation.IsNotNull(substituteViewRefs(
                             n.operand(), viewName, mainTable, colToBase));
-            default -> op;
+            default -> op.mapChildren(x -> substituteViewRefs(x, viewName,
+                    mainTable, colToBase));
         };
     }
 
