@@ -73,6 +73,21 @@ public class RelationalCorpusRunner {
                 }
                 """);
         Runner runner = new Runner(shared, shared);
+        // the platform m2m TEST LIBRARY (Corpus.M2M_TESTS): elements only
+        // — qualified refs (testModelConnection*'s M2M mappings) pull the
+        // defining files into modules; never setups/expansion
+        if (Files.isDirectory(Corpus.M2M_TESTS)) {
+            try (Stream<Path> m2m = Files.walk(Corpus.M2M_TESTS)) {
+                for (Path f : m2m.filter(x -> x.toString().endsWith(".pure"))
+                        .sorted().toList()) {
+                    try {
+                        runner.registerLibrarySource(Files.readString(f));
+                    } catch (Exception ignore) {
+                        // unreadable library file: its elements stay dark
+                    }
+                }
+            }
+        }
         runner.classLookup = fqn -> {
             try {
                 return classIndex().get(fqn);

@@ -124,6 +124,24 @@ public final class Runner {
         addBeforePackages(source, null);
     }
 
+    /** A LIBRARY source (the platform m2m test tree): its elements join
+     * {@code elementSource} so qualified references pull the defining
+     * file into a module (executionPlan(..., simpleModelMapping..., ...)
+     * — the testModelConnection* quintet), but its functions are NOT
+     * corpus setups and never join the expansion index (library helpers
+     * are not statement-position test helpers). */
+    public void registerLibrarySource(String source) {
+        com.legend.model.ParsedModel unit;
+        try {
+            unit = com.legend.parser.ElementParser.parse(source);
+        } catch (RuntimeException e) {
+            return;   // unparseable library file: its elements stay dark
+        }
+        for (com.legend.model.PackageableElement el : unit.elements()) {
+            elementSource.putIfAbsent(el.qualifiedName(), source);
+        }
+    }
+
     /** {@code familyKey}: the corpus family this source belongs to — the
      * cross-family module pull unit (a family's files close over each
      * other's models; one file alone does not). */
