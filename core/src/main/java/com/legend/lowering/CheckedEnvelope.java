@@ -30,7 +30,8 @@ final class CheckedEnvelope {
     static SqlExpr wrap(TypedSerializeGraph g, SqlExpr obj,
             Function<TypedFuncCol, SqlExpr> render) {
         List<SqlExpr> cases = new ArrayList<>();
-        for (var cc : g.checkedConstraints()) {
+        for (var cc : java.util.Objects.requireNonNull(
+                g.checkedConstraints(), "wrap() requires checked constraints")) {
             SqlExpr pred = render.apply(cc.predicate());
             SqlExpr msg = render.apply(cc.message());
             cases.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(

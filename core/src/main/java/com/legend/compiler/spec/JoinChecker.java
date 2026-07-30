@@ -208,7 +208,7 @@ final class JoinChecker {
      * SELECT the synthetic copies away — the whole dedup is visible in the
      * typed tree, no schema-algebra bypass.
      */
-    private static TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
+    private static @com.legend.Nullable TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
         if ((ps.size() != 4 && ps.size() != 5)
                 || !(ps.get(2) instanceof EnumValue kind)
@@ -308,7 +308,8 @@ final class JoinChecker {
     }
 
     /** String or [strings] column-name argument of the legacy TDS join, else null. */
-    private static List<String> columnNames(ValueSpecification v) {
+    private static @com.legend.Nullable List<String> columnNames(
+            @com.legend.Nullable ValueSpecification v) {
         if (v instanceof CString c) {
             return List.of(c.value());
         }

@@ -158,7 +158,7 @@ final class IfChecker {
      * call — emitted with the FINAL expression's static type (bottom
      * spirit: the value is unreachable, the throw effect exact). Null =
      * not this shape. */
-    private static TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
+    private static @com.legend.Nullable TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
         List<ValueSpecification> stmts = lam.body();
         if (stmts.size() < 2) {
             return null;
@@ -176,7 +176,8 @@ final class IfChecker {
             }
         }
         TypedSpec last = t.synth(stmts.get(stmts.size() - 1), env);
-        var fail = (com.legend.compiler.spec.typed.TypedNativeCall) first;
+        var fail = (com.legend.compiler.spec.typed.TypedNativeCall)
+                java.util.Objects.requireNonNull(first);
         return new com.legend.compiler.spec.typed.TypedNativeCall(
                 fail.callee(), fail.args(), last.info());
     }

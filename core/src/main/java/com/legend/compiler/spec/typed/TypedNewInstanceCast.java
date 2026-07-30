@@ -19,7 +19,8 @@ import java.util.Objects;
  * @param info     {@code classFqn} at the source's multiplicity
  */
 public record TypedNewInstanceCast(String classFqn, TypedSpec source,
-                                   ExprType info, String targetSetId)
+                                   ExprType info,
+                                   @com.legend.Nullable String targetSetId)
         implements TypedSpec {
 
     public TypedNewInstanceCast {

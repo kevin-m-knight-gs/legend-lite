@@ -14,7 +14,7 @@ import java.util.Objects;
  * @param reduce the checked reduction over the grouped values ({@code {K[*]->V[0..1]}})
  */
 public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce,
-        TypedLambda orderKey, boolean orderAsc) {
+        @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
 
     // NO short overload: a defaulted orderKey silently turned an ordered
     // aggregate into an unordered one at rebuild sites (remediation T2.2 —

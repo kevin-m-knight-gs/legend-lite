@@ -456,9 +456,10 @@ final class Typer {
                     for (int i = 1; i < af.parameters().size(); i++) {
                         dates.add(synth(af.parameters().get(i), env));
                     }
+                    var mprop = java.util.Objects.requireNonNull(prop);
                     return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                             recv, base, dates, sweep,
-                            new ExprType(prop.type(), prop.multiplicity()));
+                            new ExprType(mprop.type(), mprop.multiplicity()));
                 }
             }
         }
@@ -475,7 +476,7 @@ final class Typer {
      * bodies), desugared to modern natives or folded to literals; null when
      * none applies — the caller continues down the ordinary dispatch.
      */
-    private TypedSpec tdsSchemaDesugars(AppliedFunction af, Env env) {
+    private @com.legend.Nullable TypedSpec tdsSchemaDesugars(AppliedFunction af, Env env) {
         // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
         // — desugar to the modern rename native (STATIC pair literals only)
         if (tdsVocab(af.function(), "renameColumn") && af.parameters().size() == 3
@@ -586,7 +587,7 @@ final class Typer {
      * modern window-function call ({@code {p,w,r|$p->rank($w,$r)}}). Null on
      * any other shape — the unknown-function wall stays loud.
      */
-    private static AppliedFunction olapGroupByDesugar(AppliedFunction af) {
+    private static @com.legend.Nullable AppliedFunction olapGroupByDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() < 3 || !(ps.get(ps.size() - 1) instanceof CString outName)) {
             return null;
@@ -668,7 +669,7 @@ final class Typer {
 
     /** The modern window-function name behind a legacy rank lambda
      * ({@code x|$x->rank()}); null for anything unrecognized. */
-    private static String legacyRankName(LambdaFunction lam) {
+    private static @com.legend.Nullable String legacyRankName(LambdaFunction lam) {
         if (lam.parameters().size() != 1 || lam.body().size() != 1
                 || !(lam.body().get(0) instanceof AppliedFunction call)
                 || call.parameters().size() != 1
@@ -705,7 +706,7 @@ final class Typer {
      * returns exactly the declared names in declaration order (hidden
      * inputs drop there). Null when no window col is present; the
      * sortInfo/rank overload variants keep the loud project wall. */
-    private static AppliedFunction windowColsProjectDesugar(AppliedFunction af) {
+    private static @com.legend.Nullable AppliedFunction windowColsProjectDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() != 2 || !(ps.get(1) instanceof PureCollection cols)) {
             return null;
@@ -789,7 +790,7 @@ final class Typer {
     /** {@code projectWithColumnSubset} as plain {@code project} over the
      * subset-named columns (subset-list order, engine parity); null when the
      * shape is not the static legacy spelling — the generic path stays loud. */
-    private static AppliedFunction projectWithColumnSubsetDesugar(AppliedFunction af) {
+    private static @com.legend.Nullable AppliedFunction projectWithColumnSubsetDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         java.util.LinkedHashMap<String, LambdaFunction> byName = new java.util.LinkedHashMap<>();
         List<String> subset;
@@ -841,7 +842,7 @@ final class Typer {
                 new PureCollection(outLams), new PureCollection(outNames)));
     }
 
-    private static List<String> literalStrings(PureCollection c) {
+    private static @com.legend.Nullable List<String> literalStrings(PureCollection c) {
         List<String> out = new ArrayList<>(c.values().size());
         for (ValueSpecification v : c.values()) {
             if (!(v instanceof CString s)) {
@@ -858,7 +859,7 @@ final class Typer {
      * the qualified property filters columns by name, so a literal
      * argument IS the name; non-literal column expressions stay null and
      * the caller's arm passes). */
-    private static String literalColName(ValueSpecification v) {
+    private static @com.legend.Nullable String literalColName(ValueSpecification v) {
         if (v instanceof CString cs) {
             return cs.value();
         }
@@ -935,7 +936,8 @@ final class Typer {
                 }
                 acc = new AppliedFunction("rename", List.of(acc,
                         new ColSpec(stripQuotes(po), null, null),
-                        new ColSpec(stripQuotes(pn), null, null)));
+                        new ColSpec(stripQuotes(java.util.Objects
+                                .requireNonNull(pn)), null, null)));
             }
             return synth(acc, env);
     }
@@ -945,7 +947,7 @@ final class Typer {
      * name constant-folds to the enum VALUE so downstream enum-literal
      * consumers (adjust's DurationUnit arm) see it; a non-literal name is
      * loud, never a silent string. Null = arg0 not Enumeration-shaped. */
-    private TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
+    private @com.legend.Nullable TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
         TypedSpec e0 = synth(af.parameters().get(0), env);
         if (!(e0.info().type() instanceof Type.GenericType gt)
                 || !gt.rawFqn().equals(Pure.ENUMERATION.qualifiedName())
@@ -1208,8 +1210,10 @@ final class Typer {
             }
             boolean erasedFn = functionCandidates(call).stream()
                     .filter(c -> c.parameters().size() == call.parameters().size())
-                    .anyMatch(c -> asFunctionType(c.returnType()) != null
-                            && isSchemaErased(asFunctionType(c.returnType())));
+                    .anyMatch(c -> {
+                        Type.FunctionType ft = asFunctionType(c.returnType());
+                        return ft != null && isSchemaErased(ft);
+                    });
             if (!erasedFn) {
                 continue;
             }
@@ -1232,7 +1236,7 @@ final class Typer {
      * Exactly one arity-matching NormalizeRequired candidate with a body
      * expands; anything else returns null and the checker's wall stands.
      */
-    ValueSpecification rawSchemaErasedExpansion(ValueSpecification v) {
+    @com.legend.Nullable ValueSpecification rawSchemaErasedExpansion(ValueSpecification v) {
         if (!(v instanceof AppliedFunction af)) {
             return null;
         }
@@ -1597,6 +1601,7 @@ final class Typer {
     /** Pick the best-scoring overload by its already-typed arguments (deferred slots are skipped). */
     private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed) {
         return selectByPresentArgs(name, arity, typed, null);
+
     }
 
     /** With {@code raw} supplied, a candidate whose function-typed
@@ -1606,7 +1611,7 @@ final class Typer {
      * families, and declaration-order first-max would otherwise pin the
      * wrong one (the executionPlan P1/P2 family). */
     private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed,
-            List<ValueSpecification> raw) {
+            @com.legend.Nullable List<ValueSpecification> raw) {
         List<ExprType> argTypes = new ArrayList<>(typed.length);
         for (TypedSpec t : typed) {
             argTypes.add(t == null ? null : t.info());   // null = deferred slot, not yet typed
@@ -1786,7 +1791,7 @@ final class Typer {
     /** Unwrap a {@code Function<{…}>} (or a bare {@code FunctionType}) parameter to its function type. */
     /** The function type a declared type carries — bare or Function<{...}>
      * wrapped — or null when it is not function-typed at all. */
-    private static Type.FunctionType asFunctionType(Type t) {
+    private static Type.@com.legend.Nullable FunctionType asFunctionType(Type t) {
         if (t instanceof Type.FunctionType ft) {
             return ft;
         }
@@ -2277,9 +2282,10 @@ final class Typer {
                     ? bct.fqn() : null;
             if (tFqn != null && com.legend.compiler.element.Temporal
                     .strategyOf(ctx, tFqn) != null) {
+                var mbp = java.util.Objects.requireNonNull(bp);
                 return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                         source, base, List.of(), true,
-                        new ExprType(bp.type(),
+                        new ExprType(mbp.type(),
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ZERO_MANY));
             }

@@ -117,7 +117,7 @@ final class MatchChecker {
 
     /** Build the runtime-dispatch node when static selection is unsound
      * (see caller comment); null when the static rule applies. */
-    private static TypedSpec runtimeMatch(Typer t, TypedSpec input,
+    private static @com.legend.Nullable TypedSpec runtimeMatch(Typer t, TypedSpec input,
             Optional<TypedSpec> extra, List<LambdaFunction> branches, Env env) {
         Type inputType = input.info().type();
         boolean narrows = false;
@@ -202,7 +202,7 @@ final class MatchChecker {
     /** The runtime-count dispatch emission for a {@code [0..1]} input over
      * multiplicity-discriminating branches; null when the static rule
      * applies (single accepting branch / not optional / mixed shapes). */
-    private static TypedSpec optionalRuntimeDispatch(Typer t, TypedSpec input,
+    private static @com.legend.Nullable TypedSpec optionalRuntimeDispatch(Typer t, TypedSpec input,
             Optional<TypedSpec> extra, List<LambdaFunction> branchList, Env env) {
         if (extra.isPresent()) {
             return null;
@@ -273,7 +273,8 @@ final class MatchChecker {
     /** One branch typed as its own TypedMatch over the input ({@code
      * boundOverride} pins the param's multiplicity for the presence arm). */
     private static TypedSpec branchMatch(Typer t, TypedSpec input,
-            LambdaFunction branch, Env env, Multiplicity boundOverride) {
+            LambdaFunction branch, Env env,
+            @com.legend.Nullable Multiplicity boundOverride) {
         Variable param = branch.parameters().get(0);
         Type branchType = t.namedType(param.type());
         Multiplicity bound = boundOverride != null ? boundOverride

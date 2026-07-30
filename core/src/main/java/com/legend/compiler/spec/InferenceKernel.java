@@ -1169,7 +1169,7 @@ public final class InferenceKernel {
     }
 
     /** The lattice FQN of a nominal type ({@code PrecisionDecimal -> Decimal}); {@code null} for non-nominal. */
-    private static String nominalFqn(Type t) {
+    private static @com.legend.Nullable String nominalFqn(Type t) {
         return switch (t) {
             case Type.Primitive p -> p.qualifiedName();
             case Type.PrecisionDecimal pd -> pd.basePrimitive().qualifiedName();
@@ -1224,7 +1224,7 @@ public final class InferenceKernel {
     // =====================================================================
 
     /** The bare row-struct of a relation value, whether wrapped {@code Relation<row>} or already bare. */
-    private static Type relationRow(Type actual) {
+    private static @com.legend.Nullable Type relationRow(Type actual) {
         if (actual instanceof Type.GenericType g
                 && g.rawFqn().equals(RELATION_FQN)
                 && g.arguments().size() == 1) {
@@ -1247,7 +1247,7 @@ public final class InferenceKernel {
     }
 
     /** The lattice FQN a primitive-ish type collapses to ({@code PrecisionDecimal -> Decimal}). */
-    private static String primitiveFqn(Type t) {
+    private static @com.legend.Nullable String primitiveFqn(Type t) {
         if (t instanceof Type.Primitive p) {
             return p.qualifiedName();
         }

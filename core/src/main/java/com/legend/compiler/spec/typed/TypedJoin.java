@@ -20,7 +20,7 @@ import java.util.List;
  */
 public record TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
                         TypedLambda condition, java.util.Optional<String> prefix,
-                        String frameName, ExprType info) implements TypedSpec {
+                        @com.legend.Nullable String frameName, ExprType info) implements TypedSpec {
 
     // frameName: the RIGHT side's derived-table identity (a view-backed
     // target's view name) — null for anonymous targets. NO short overload:

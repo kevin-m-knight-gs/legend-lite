@@ -118,7 +118,7 @@ final class GroupByChecker {
     }
 
     /** The named-agg calls of the TDS legacy aggs argument, or null if not that shape. */
-    private static List<AppliedFunction> aggList(ValueSpecification v) {
+    private static @com.legend.Nullable List<AppliedFunction> aggList(ValueSpecification v) {
         List<ValueSpecification> items = v instanceof PureCollection c ? c.values() : List.of(v);
         List<AppliedFunction> out = new ArrayList<>(items.size());
         for (ValueSpecification item : items) {
@@ -142,7 +142,9 @@ final class GroupByChecker {
         List<ColSpec> keyCols = keys.stream()
                 .map(k -> new ColSpec(((CString) k).value())).toList();
         List<ColSpec> aggCols = new ArrayList<>();
-        for (AppliedFunction aggCall : aggList(ps.get(2))) {
+        List<AppliedFunction> aggCalls = java.util.Objects
+                .requireNonNull(aggList(ps.get(2)), "groupBy agg list");
+        for (AppliedFunction aggCall : aggCalls) {
             String name = ((CString) aggCall.parameters().get(0)).value();
             LambdaFunction mapFn = (LambdaFunction) aggCall.parameters().get(1);
             LambdaFunction aggFn = (LambdaFunction) aggCall.parameters().get(2);

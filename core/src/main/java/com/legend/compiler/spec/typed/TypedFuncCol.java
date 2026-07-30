@@ -11,7 +11,8 @@ import java.util.Objects;
  * @param name the output column name (the colspec alias)
  * @param fn   the type-checked mapping lambda; its body type is the column's type
  */
-public record TypedFuncCol(String name, TypedLambda fn, String documentation) {
+public record TypedFuncCol(String name, TypedLambda fn,
+        @com.legend.Nullable String documentation) {
     public TypedFuncCol {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(fn, "fn");

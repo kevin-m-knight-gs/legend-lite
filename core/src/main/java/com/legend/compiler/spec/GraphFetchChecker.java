@@ -248,7 +248,7 @@ final class GraphFetchChecker {
 
     /** Fold a literal string-concatenation chain ('a' + 'b' + ...) to its
      * value, or null when any operand is not a literal string. */
-    private static String foldStringConcat(ValueSpecification v) {
+    private static @com.legend.Nullable String foldStringConcat(ValueSpecification v) {
         if (v instanceof com.legend.model.spec.CString cs) {
             return cs.value();
         }
@@ -279,7 +279,7 @@ final class GraphFetchChecker {
     }
 
     /** The nested sub-tree a colspec's {@code function2} wraps, or {@code null} for a leaf. */
-    private static ColSpecArray nestedTree(ColSpec cs) {
+    private static @com.legend.Nullable ColSpecArray nestedTree(ColSpec cs) {
         if (cs.function2() == null || cs.function2().body().isEmpty()) {
             return null;
         }

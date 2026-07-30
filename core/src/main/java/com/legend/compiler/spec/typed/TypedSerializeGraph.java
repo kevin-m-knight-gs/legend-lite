@@ -44,14 +44,14 @@ import java.util.List;
 public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
                                   boolean arrayWrap, boolean bareValue,
-                                  String classFqn,
+                                  @com.legend.Nullable String classFqn,
                                   ExprType info,
                                   boolean inlineChild,
                                   List<SubTypePatch> subTypePatches,
                                   List<TypedFuncCol> orderKeys,
-                                  String typeKeyName,
+                                  @com.legend.Nullable String typeKeyName,
                                   boolean fqTypePath,
-                                  List<CheckedConstraint> checkedConstraints)
+                                  @com.legend.Nullable List<CheckedConstraint> checkedConstraints)
         implements TypedSpec {
 
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
@@ -70,9 +70,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Unchecked compat (the common envelope). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, String classFqn, ExprType info,
+            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches,
-            List<TypedFuncCol> orderKeys, String typeKeyName,
+            List<TypedFuncCol> orderKeys,
+            @com.legend.Nullable String typeKeyName,
             boolean fqTypePath) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, subTypePatches, orderKeys, typeKeyName,
@@ -90,7 +91,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Type-key-free compat (includeType off — the common shape). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, String classFqn, ExprType info,
+            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches,
             List<TypedFuncCol> orderKeys) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
@@ -100,7 +101,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Order-free compat: envelope row order = scan order. */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, String classFqn, ExprType info,
+            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, subTypePatches, List.of());
@@ -119,7 +120,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Patch-free compat (every pre-subType construction). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, String classFqn, ExprType info,
+            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
             boolean inlineChild) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, List.of());
@@ -129,7 +130,8 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
      * PARENT row directly: embedded ctor bindings, no join/subquery). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested,
-            boolean arrayWrap, boolean bareValue, String classFqn,
+            boolean arrayWrap, boolean bareValue,
+            @com.legend.Nullable String classFqn,
             ExprType info) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue,
                 classFqn, info, false);
@@ -203,9 +205,9 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         for (TypedFuncCol k : orderKeys) {
             oks.add(new TypedFuncCol(k.name(), (TypedLambda) kids.get(i++), k.documentation()));
         }
-        java.util.List<CheckedConstraint> ccs = checkedConstraints == null ? null
-                : new java.util.ArrayList<>(checkedConstraints.size());
+        java.util.List<CheckedConstraint> ccs = null;
         if (checkedConstraints != null) {
+            ccs = new java.util.ArrayList<>(checkedConstraints.size());
             for (CheckedConstraint c : checkedConstraints) {
                 TypedFuncCol pr = new TypedFuncCol(c.predicate().name(),
                         (TypedLambda) kids.get(i++), c.predicate().documentation());

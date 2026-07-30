@@ -57,7 +57,7 @@ import java.util.Optional;
 public final class UserCallInliner {
 
     private final SpecCompiler specs;
-    private final java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
+    private final java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
     private final ArrayDeque<String> stack = new ArrayDeque<>();
     private final ArrayDeque<String> names = new ArrayDeque<>();
     /** Lambda binders in scope at the CURRENT walk position (name → nesting
@@ -91,7 +91,7 @@ public final class UserCallInliner {
      * the argument itself (same reference) when it does not apply.
      */
     public UserCallInliner(SpecCompiler specs,
-            java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.hook = hook;
     }

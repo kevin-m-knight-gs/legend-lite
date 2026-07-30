@@ -87,7 +87,7 @@ final class StaticFold {
     /** The expression as a fully static LITERAL, or null — the Typer's
      * TDSColumn-metadata fold ({@code X.columns->map(c|$c.name...)} asserts)
      * only rewrites when the whole computation is schema facts. */
-    ValueSpecification foldToLiteral(ValueSpecification v) {
+    @com.legend.Nullable ValueSpecification foldToLiteral(ValueSpecification v) {
         return reify(eval(v, Map.of()));
     }
 
@@ -157,7 +157,7 @@ final class StaticFold {
     // eval — the static interpreter (null = not static)
     // =====================================================================
 
-    private Object eval(ValueSpecification v, Map<String, Object> scope) {
+    private @com.legend.Nullable Object eval(ValueSpecification v, Map<String, Object> scope) {
         return switch (v) {
             case CString s -> s.value();
             case CInteger i -> i.value().longValue();
@@ -182,7 +182,7 @@ final class StaticFold {
         };
     }
 
-    private Object evalProperty(AppliedProperty ap, Map<String, Object> scope) {
+    private @com.legend.Nullable Object evalProperty(AppliedProperty ap, Map<String, Object> scope) {
         if (ap.property().equals("columns")) {
             Object recv = eval(ap.receiver(), scope);
             if (recv == null) {
@@ -225,7 +225,7 @@ final class StaticFold {
     /** The TDSColumn facts of a relation-typed receiver — TYPED speculatively
      * (the receiver re-types when the folded body synths; the Typer is
      * effect-free on failure). Null when it does not type to a relation. */
-    private List<Object> relationColumns(ValueSpecification receiver) {
+    private @com.legend.Nullable List<Object> relationColumns(ValueSpecification receiver) {
         try {
             var typed = typer.synth(receiver, env);
             if (typed.info().type() instanceof Type.RelationType rt) {
@@ -241,7 +241,7 @@ final class StaticFold {
         return null;
     }
 
-    private Object evalCall(AppliedFunction af, Map<String, Object> scope) {
+    private @com.legend.Nullable Object evalCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
         switch (af.function()) {
             case "plus" -> {
@@ -453,7 +453,7 @@ final class StaticFold {
         return folded.body().get(0);
     }
 
-    private Object evalWith(LambdaFunction lam, Object arg, Map<String, Object> scope) {
+    private @com.legend.Nullable Object evalWith(LambdaFunction lam, Object arg, Map<String, Object> scope) {
         if (lam.body().size() != 1) {
             return null;
         }
@@ -462,7 +462,7 @@ final class StaticFold {
         return eval(lam.body().get(0), inner);
     }
 
-    private List<Object> evalAll(List<ValueSpecification> ps, Map<String, Object> scope) {
+    private @com.legend.Nullable List<Object> evalAll(List<ValueSpecification> ps, Map<String, Object> scope) {
         List<Object> out = new ArrayList<>(ps.size());
         for (ValueSpecification p : ps) {
             Object e = eval(p, scope);
@@ -474,7 +474,7 @@ final class StaticFold {
         return out;
     }
 
-    private List<Object> evalList(ValueSpecification v, Map<String, Object> scope) {
+    private @com.legend.Nullable List<Object> evalList(ValueSpecification v, Map<String, Object> scope) {
         Object e = eval(v, scope);
         return switch (e) {
             case List<?> l -> new ArrayList<>(l);
@@ -487,7 +487,7 @@ final class StaticFold {
         };
     }
 
-    private static String stringify(Object v) {
+    private static @com.legend.Nullable String stringify(@com.legend.Nullable Object v) {
         return switch (v) {
             case String s -> s;
             case Long l -> String.valueOf(l);
@@ -519,7 +519,7 @@ final class StaticFold {
     // reify — static value back to a literal AST (null = keep the AST)
     // =====================================================================
 
-    private static ValueSpecification reify(Object v) {
+    private static @com.legend.Nullable ValueSpecification reify(@com.legend.Nullable Object v) {
         return switch (v) {
             case String s -> new CString(s);
             case Long l -> new CInteger(l);

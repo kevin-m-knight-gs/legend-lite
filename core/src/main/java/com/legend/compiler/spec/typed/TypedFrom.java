@@ -65,7 +65,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
     }
 
     /** A '+'-folded string literal, null when any part is non-literal. */
-    private static String foldLiteral(TypedSpec n) {
+    private static @com.legend.Nullable String foldLiteral(@com.legend.Nullable TypedSpec n) {
         if (n instanceof TypedCString cs) {
             return cs.value();
         }

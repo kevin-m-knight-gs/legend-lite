@@ -38,7 +38,7 @@ final class SourceSubst {
      * it. Null when any non-terminal statement is not a let — the caller
      * keeps its loud wall (never a silently dropped statement).
      */
-    static LambdaFunction inlineLets(LambdaFunction lam) {
+    static @com.legend.Nullable LambdaFunction inlineLets(LambdaFunction lam) {
         Map<String, ValueSpecification> env = new LinkedHashMap<>();
         for (int i = 0; i < lam.body().size() - 1; i++) {
             if (!(lam.body().get(i) instanceof AppliedFunction lf

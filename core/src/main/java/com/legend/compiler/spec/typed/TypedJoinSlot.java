@@ -24,7 +24,8 @@ import java.util.List;
  * @param info      {@code Relation<S + (alias:TargetRow[1])>[1]}
  */
 public record TypedJoinSlot(TypedSpec source, String alias, TypedSpec target,
-                            TypedLambda condition, String frameName,
+                            TypedLambda condition,
+                            @com.legend.Nullable String frameName,
                             ExprType info) implements TypedSpec {
 
     /** frameName: the target's derived-table identity (a VIEW hop's view

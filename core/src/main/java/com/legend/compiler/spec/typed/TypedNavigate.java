@@ -46,7 +46,7 @@ import java.util.Optional;
  */
 public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
                             TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
-                            String frameName, Form form, ExprType info) implements TypedSpec {
+                            @com.legend.Nullable String frameName, Form form, ExprType info) implements TypedSpec {
 
     /** frameName: the target's derived-table identity (a VIEW-backed
      * navigate's view name; the ColSpec alias-metadata channel, exactly

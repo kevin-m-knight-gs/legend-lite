@@ -79,7 +79,8 @@ final class Frames {
         if (arg instanceof TypedNativeCall neg
                 && Pure.nativeNamed("minus", neg.callee().signatureKey())
                 && neg.args().size() == 1 && numericBound(neg.args().get(0)) != null) {
-            return new WindowFrame.Bound.Preceding(numericBound(neg.args().get(0)));
+            return new WindowFrame.Bound.Preceding(java.util.Objects
+                    .requireNonNull(numericBound(neg.args().get(0))));
         }
         Number n = numericBound(arg);
         if (n != null) {
@@ -126,7 +127,7 @@ final class Frames {
     }
 
     /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
-    private static Number numericBound(TypedSpec arg) {
+    private static @com.legend.Nullable Number numericBound(TypedSpec arg) {
         // A negative literal arrives as unary minus AROUND the number.
         if (arg instanceof TypedNativeCall neg
                 && Pure.nativeNamed("minus", neg.callee().signatureKey())
