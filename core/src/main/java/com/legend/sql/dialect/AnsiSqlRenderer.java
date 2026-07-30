@@ -134,7 +134,7 @@ public class AnsiSqlRenderer implements SqlDialect {
         sb.append(s.projections().isEmpty()
                 ? "*"
                 : s.projections().stream().map(this::projection).collect(Collectors.joining(", ")));
-        if (s.from() != null) {
+        if (!(s.from() instanceof SqlSource.Dual)) {
             nl(sb, depth).append("FROM ");
             source(sb, s.from(), depth);
         }
@@ -202,6 +202,8 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     protected void source(StringBuilder sb, SqlSource src, int depth) {
         switch (src) {
+            case SqlSource.Dual d -> throw new IllegalStateException(
+                    "Dual renders as FROM-clause omission — caller bug");
             case SqlSource.Table t -> {
                 sb.append(tableName(t.name()));
                 if (t.alias() != null) {

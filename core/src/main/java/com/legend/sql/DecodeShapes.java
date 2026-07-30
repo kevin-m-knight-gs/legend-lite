@@ -3,10 +3,9 @@
 
 package com.legend.sql;
 
-import com.legend.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Structural analysis of literal-DECODE case chains (the mapping's enum
@@ -20,58 +19,65 @@ public final class DecodeShapes {
     private DecodeShapes() {
     }
 
-    /** The chain's (condition, literal) branches, or null when {@code e}
-     * is not a literal-decode case (nested via otherwise). */
-    public static @Nullable List<SqlExpr.Case.When> flattenDecode(SqlExpr e) {
+    /** The chain's (condition, literal) branches; empty when {@code e}
+     * is not a literal-decode case (nested via otherwise). Optional, not
+     * a null sentinel: the consumers live in packages the null gate does
+     * not check yet — the type forces handling there TODAY. */
+    public static Optional<List<SqlExpr.Case.When>> flattenDecode(SqlExpr e) {
         List<SqlExpr.Case.When> out = new ArrayList<>();
-        @Nullable SqlExpr cur = e;
+        SqlExpr cur = e;
         while (cur instanceof SqlExpr.Case c) {
             for (var w : c.whens()) {
                 if (!(w.then() instanceof SqlExpr.StringLit)) {
-                    return null;
+                    return Optional.empty();
                 }
                 out.add(w);
             }
+            if (c.otherwise() == null) {
+                return out.isEmpty() ? Optional.empty() : Optional.of(out);
+            }
             cur = c.otherwise();
         }
-        return cur == null || cur instanceof SqlExpr.NullLit
-                ? (out.isEmpty() ? null : out) : null;
+        return cur instanceof SqlExpr.NullLit && !out.isEmpty()
+                ? Optional.of(out) : Optional.empty();
     }
 
     /** The ONE source expression every branch condition compares
-     * ({@code src = literal}), or null. */
-    public static @Nullable SqlExpr sourceExpr(SqlExpr e) {
-        List<SqlExpr.Case.When> flat = flattenDecode(e);
-        if (flat == null) {
-            return null;
+     * ({@code src = literal}); empty otherwise. */
+    public static Optional<SqlExpr> sourceExpr(SqlExpr e) {
+        Optional<List<SqlExpr.Case.When>> flat = flattenDecode(e);
+        if (flat.isEmpty()) {
+            return Optional.empty();
         }
         SqlExpr src = null;
-        for (var w : flat) {
+        for (var w : flat.get()) {
             if (!(w.condition() instanceof SqlExpr.Call cc)
                     || cc.fn() != SqlFn.EQUAL || cc.args().size() != 2) {
-                return null;
+                return Optional.empty();
             }
             SqlExpr left = cc.args().get(0);
             if (src == null) {
                 src = left;
             } else if (!src.equals(left)) {
-                return null;
+                return Optional.empty();
             }
         }
-        return src;
+        return Optional.ofNullable(src);
     }
 
-    /** {@link #sourceExpr} narrowed to a raw store COLUMN, or null. */
-    public static SqlExpr.@Nullable Column sourceColumn(SqlExpr e) {
-        return sourceExpr(e) instanceof SqlExpr.Column c ? c : null;
+    /** {@link #sourceExpr} narrowed to a raw store COLUMN. */
+    public static Optional<SqlExpr.Column> sourceColumn(SqlExpr e) {
+        return sourceExpr(e)
+                .filter(SqlExpr.Column.class::isInstance)
+                .map(SqlExpr.Column.class::cast);
     }
 
     /** {@code e} with every interior literal-decode chain replaced by
      * its source column; {@code e} itself when nothing rewrites. */
     public static SqlExpr stripDecodes(SqlExpr e) {
-        SqlExpr.Column src = sourceColumn(e);
-        if (src != null) {
-            return src;
+        Optional<SqlExpr.Column> src = sourceColumn(e);
+        if (src.isPresent()) {
+            return src.get();
         }
         switch (e) {
             case SqlExpr.Call c -> {

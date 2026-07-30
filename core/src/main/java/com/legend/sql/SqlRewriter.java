@@ -44,7 +44,7 @@ public abstract class SqlRewriter {
                     SqlExpr e2 = rewriteExpr(p.expr());
                     return e2 == p.expr() ? p : new SqlSelect.Projection(e2, p.alias());
                 });
-                SqlSource f = s.from() == null ? null : rewriteSource(s.from());
+                SqlSource f = rewriteSource(s.from());
                 SqlExpr w = s.where() == null ? null : rewriteExpr(s.where());
                 List<SqlExpr> g = mapList(s.groupBy(), this::rewriteExpr);
                 SqlExpr h = s.having() == null ? null : rewriteExpr(s.having());
@@ -72,6 +72,7 @@ public abstract class SqlRewriter {
 
     protected final SqlSource rewriteSource(SqlSource s) {
         SqlSource out = switch (s) {
+            case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
             case SqlSource.SourceUrl u -> u;
             case SqlSource.Subselect sub -> {

@@ -33,7 +33,7 @@ final class EnumSourceValues {
         }
         SqlExpr chain = lit == b ? a : b;
         List<SqlExpr.Case.When> flat =
-                com.legend.sql.DecodeShapes.flattenDecode(chain);
+                com.legend.sql.DecodeShapes.flattenDecode(chain).orElse(null);
         if (flat == null) {
             return null;
         }

@@ -173,7 +173,7 @@ public final class SqlPostProcessors {
                 s.projections().stream().map(p -> new SqlSelect.Projection(
                         expr(p.expr(), m), p.outputName())).toList(),
                 s.distinct(),
-                s.from() == null ? null : source(s.from(), m),
+                source(s.from(), m),
                 s.where() == null ? null : expr(s.where(), m),
                 s.groupBy().stream().map(g -> expr(g, m)).toList(),
                 s.having() == null ? null : expr(s.having(), m),

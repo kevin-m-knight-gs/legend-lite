@@ -81,7 +81,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     private void planQuery(SqlQuery q, Map<String, Integer> groups) {
         switch (q) {
             case SqlSelect s -> {
-                if (s.from() != null) {
+                if (!(s.from() instanceof SqlSource.Dual)) {
                     planSource(s.from(), true, groups);
                 }
             }
@@ -227,7 +227,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The ONE source expression a literal-decode case chain reads
      * ({@link com.legend.sql.DecodeShapes#sourceExpr}), or null. */
     private static @com.legend.Nullable SqlExpr decodeSourceColumn(SqlExpr e) {
-        return com.legend.sql.DecodeShapes.sourceExpr(e);
+        return com.legend.sql.DecodeShapes.sourceExpr(e).orElse(null);
     }
 
     private String holder(SqlExpr.PlanParam p) {
@@ -376,7 +376,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         sb.append(s.projections().isEmpty() ? "*"
                 : s.projections().stream().map(this::projection)
                         .collect(Collectors.joining(", ")));
-        if (s.from() != null) {
+        if (!(s.from() instanceof SqlSource.Dual)) {
             sb.append(" from ");
             source(sb, s.from(), depth);
         }

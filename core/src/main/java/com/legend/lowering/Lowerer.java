@@ -250,7 +250,8 @@ public final class Lowerer {
             e = SqlExpr.Call.of(SqlFn.UNNEST, e);
         }
         return new SqlSelect(
-                List.of(new SqlSelect.Projection(e, "value")), false, null,
+                List.of(new SqlSelect.Projection(e, "value")), false,
+                new SqlSource.Dual(),
                 null, List.of(), null, null, List.of(), null, null,
                 List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
@@ -379,7 +380,8 @@ public final class Lowerer {
                         new SqlSelect(List.of(new SqlSelect.Projection(
                                         SqlExpr.Call.of(SqlFn.UNNEST, list),
                                         cr.column())),
-                                false, null, null, List.of(), null, null, List.of(),
+                                false, new SqlSource.Dual(), null, List.of(),
+                                null, null, List.of(),
                                 null, null, outputsOf(cr.info())),
                         nextAlias(), null));
             }
@@ -2920,7 +2922,8 @@ public final class Lowerer {
                                 List.of(new SqlSelect.Projection(
                                         SqlExpr.Call.of(SqlFn.UNNEST, array),
                                         "elem")),
-                                false, null, null, List.of(), null, null, List.of(), null, null,
+                                false, new SqlSource.Dual(), null, List.of(),
+                                null, null, List.of(), null, null,
                                 List.of(new OutputCol("elem",
                                         SqlType.Scalar.VARCHAR, true)));
                         SqlSource right = new SqlSource.Subselect(unnest, alias, null);

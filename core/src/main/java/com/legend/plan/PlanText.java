@@ -512,7 +512,7 @@ public final class PlanText {
             // an enum-decode leaf resolves to its SOURCE column (the
             // engine plans keep enum columns RAW)
             SqlExpr.Column c = l instanceof SqlExpr.Column lc ? lc
-                    : com.legend.sql.DecodeShapes.sourceColumn(l);
+                    : com.legend.sql.DecodeShapes.sourceColumn(l).orElse(null);
             if (c == null) {
                 return null;
             }
@@ -528,7 +528,7 @@ public final class PlanText {
     private static void collectCaseLeaves(SqlExpr e,
             java.util.List<SqlExpr> out) {
         if (e instanceof SqlExpr.Case c
-                && com.legend.sql.DecodeShapes.flattenDecode(e) == null) {
+                && com.legend.sql.DecodeShapes.flattenDecode(e).isEmpty()) {
             c.whens().forEach(w -> collectCaseLeaves(w.then(), out));
             if (c.otherwise() != null) {
                 collectCaseLeaves(c.otherwise(), out);

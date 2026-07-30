@@ -119,6 +119,9 @@ public final class ScanColumns {
     private static void collectEnv(SqlSource src, Map<String, Resolver> outer,
             Map<String, Resolver> env, Set<String> out) {
         switch (src) {
+            case SqlSource.Dual d -> {
+                // FROM-less: no bindings
+            }
             case SqlSource.Table t -> {
                 String bare = t.name().contains(".")
                         ? t.name().substring(t.name().lastIndexOf('.') + 1)

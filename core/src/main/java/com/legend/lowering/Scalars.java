@@ -853,7 +853,8 @@ final class Scalars {
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.idList()), "i"),
                                 new SqlSelect.Projection(
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v")),
-                                false, null, null, List.of(), null, null, List.of(),
+                                false, new com.legend.sql.SqlSource.Dual(), null,
+                                List.of(), null, null, List.of(),
                                 null, null, List.of());
                         var src = new SqlSource.Subselect(inner, "_mx", null);
                         var outer = new SqlSelect(List.of(
@@ -1719,7 +1720,8 @@ final class Scalars {
                                     SqlExpr.Call.of(SqlFn.UNNEST, xs), "a"),
                             new SqlSelect.Projection(
                                     SqlExpr.Call.of(SqlFn.UNNEST, ys), "b")),
-                            false, null, null, List.of(), null, null, List.of(), null, null,
+                            false, new com.legend.sql.SqlSource.Dual(), null,
+                            List.of(), null, null, List.of(), null, null,
                             List.of());
                     var outer = new SqlSelect(List.of(
                             new SqlSelect.Projection(
@@ -2827,7 +2829,8 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.PLUS,
                                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
                                         new SqlExpr.IntLit(1)))), "i")),
-                false, null, null, List.of(), null, null, List.of(), null, null, List.of());
+                false, new com.legend.sql.SqlSource.Dual(), null,
+                            List.of(), null, null, List.of(), null, null, List.of());
         var src = new SqlSource.Subselect(inner, "_cx", null);
         var outer = new SqlSelect(List.of(
                 new SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),

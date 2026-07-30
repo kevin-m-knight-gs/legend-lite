@@ -45,6 +45,25 @@ public sealed interface SqlSource {
     record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 
+    /** The FROM-less scalar select's source ({@code SELECT <expr>} — the
+     * executeInDb value channel). A REAL variant rather than a null
+     * {@code from}: an absent source is a different KIND of source, and
+     * dialects that need a dummy table (DB2 {@code SYSIBM.SYSDUMMY1},
+     * Oracle {@code DUAL}) get a render hook instead of an omission
+     * convention. Current dialects all render it as clause omission. */
+    record Dual() implements SqlSource {
+        @Override
+        public String alias() {
+            throw new IllegalStateException(
+                    "a Dual (FROM-less) source has no alias — caller bug");
+        }
+
+        @Override
+        public List<OutputCol> outputs() {
+            return List.of();
+        }
+    }
+
     /** {@code frameName}: the derived table's MODEL identity (a view's
      * own name) — null for anonymous isolation subselects. Dialects that
      * re-alias by table group name view frames by it. */
@@ -67,9 +86,25 @@ public sealed interface SqlSource {
                   List<OutputCol> outputs) implements SqlSource {
     }
 
-    /** {@code on} null = CROSS/NATURAL forms (renderer decides). */
+    /** {@code on} is KIND-COUPLED, enforced at construction: the CROSS
+     * family takes no ON clause; every other kind REQUIRES one — a null
+     * {@code on} on an INNER/LEFT join would render {@code JOIN t}
+     * (invalid SQL, or an accidental natural join). LEFT_LATERAL spells
+     * its always-true condition explicitly ({@code ON true}). */
     record Join(SqlSource left, SqlSource right, Kind kind,
             @com.legend.Nullable SqlExpr on) implements SqlSource {
+
+        public Join {
+            boolean onless = kind == Kind.CROSS || kind == Kind.CROSS_LATERAL;
+            if (onless && on != null) {
+                throw new IllegalArgumentException(
+                        kind + " takes no ON clause");
+            }
+            if (!onless && on == null) {
+                throw new IllegalArgumentException(
+                        kind + " requires an ON condition");
+            }
+        }
         @Override
         public String alias() {
             throw new IllegalStateException(

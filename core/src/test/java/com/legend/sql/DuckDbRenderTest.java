@@ -271,7 +271,8 @@ class DuckDbRenderTest {
         for (var k : SqlSource.Join.Kind.values()) {
             SqlSource j = new SqlSource.Join(T_PERSON,
                     new SqlSource.Table("T_FIRM", "t1", List.of()), k,
-                    k == SqlSource.Join.Kind.CROSS ? null
+                    k == SqlSource.Join.Kind.CROSS
+                            || k == SqlSource.Join.Kind.CROSS_LATERAL ? null
                             : SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("ID"),
                                     new SqlExpr.Column("t1", "ID")));
             String sql = duck.render(SqlSelect.starOf(j));

@@ -430,6 +430,7 @@ final class Fold {
      * graph pk determinism keys) drop references that fail this. */
     static boolean physicallyRenderable(SqlSource src, SqlExpr.Column c) {
         return switch (src) {
+            case SqlSource.Dual d -> false;
             case SqlSource.Join j -> physicallyRenderable(j.left(), c)
                     || physicallyRenderable(j.right(), c);
             case SqlSource.Values v -> v.alias().equals(c.table())
@@ -461,6 +462,7 @@ final class Fold {
             column = pivotIdentity(column);
         }
         return switch (src) {
+            case SqlSource.Dual d -> null;
             case SqlSource.Table t -> claims(t.outputs(), column)
                     ? new SqlExpr.Column(t.alias(), column) : null;
             case SqlSource.Subselect sub -> claims(sub.outputs(), column)

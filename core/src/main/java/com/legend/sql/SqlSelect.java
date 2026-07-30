@@ -12,12 +12,17 @@ import java.util.List;
  * {@link SqlSource.Subselect}. Empty {@link #projections} means {@code SELECT *}.
  */
 public record SqlSelect(List<Projection> projections, boolean distinct,
-                        @Nullable SqlSource from,
+                        SqlSource from,
                         @Nullable SqlExpr where, List<SqlExpr> groupBy,
                         @Nullable SqlExpr having, @Nullable SqlExpr qualify,
                         List<SortKey> orderBy, @Nullable Long limit,
                         @Nullable Long offset, List<OutputCol> outputs)
         implements SqlQuery {
+
+    public SqlSelect {
+        java.util.Objects.requireNonNull(from,
+                "a FROM-less select spells SqlSource.Dual, never null");
+    }
 
     /** {@code SELECT * FROM source} with every other clause empty. */
     public static SqlSelect starOf(SqlSource from) {
@@ -64,7 +69,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
 
     // ----- clause copiers: the fold policy's fingers -----
 
-    public SqlSelect withFrom(@Nullable SqlSource f) {
+    public SqlSelect withFrom(SqlSource f) {
         return new SqlSelect(projections, distinct, f, where, groupBy, having,
                 qualify, orderBy, limit, offset, outputs);
     }

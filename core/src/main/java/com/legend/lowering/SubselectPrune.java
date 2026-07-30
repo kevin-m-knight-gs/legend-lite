@@ -88,7 +88,7 @@ final class SubselectPrune {
             collectExpr(s.qualify(), r);
         }
         s.orderBy().forEach(k -> collectExpr(k.expr(), r));
-        if (s.from() != null) {   // scalar SELECT without FROM
+        if (!(s.from() instanceof SqlSource.Dual)) {   // scalar SELECT without FROM
             if (s.projections().isEmpty()) {
                 // EMPTY projections render as SELECT * — the whole FROM is
                 // implicitly consumed (gate catch: a starOf root over a
@@ -102,6 +102,8 @@ final class SubselectPrune {
     /** Every alias in the FROM tree marked star-consumed. */
     private static void starFromAliases(SqlSource src, Refs r) {
         switch (src) {
+            case SqlSource.Dual d -> {
+            }
             case SqlSource.Table t -> r.starred().add(t.alias());
             case SqlSource.SourceUrl u -> r.starred().add(u.alias());
             case SqlSource.Subselect sub -> r.starred().add(sub.alias());
@@ -116,6 +118,8 @@ final class SubselectPrune {
 
     private static void collectSource(SqlSource src, Refs r) {
         switch (src) {
+            case SqlSource.Dual d -> {
+            }
             case SqlSource.Table t -> {
             }
             case SqlSource.SourceUrl u -> {
@@ -245,7 +249,7 @@ final class SubselectPrune {
     }
 
     private static SqlSelect rewriteSelect(SqlSelect s, Refs r) {
-        if (s.from() == null) {
+        if (s.from() instanceof SqlSource.Dual) {
             return s;
         }
         SqlSource from = rewriteSource(s.from(), r);
@@ -254,6 +258,7 @@ final class SubselectPrune {
 
     private static SqlSource rewriteSource(SqlSource src, Refs r) {
         return switch (src) {
+            case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
             case SqlSource.SourceUrl u -> u;
             case SqlSource.Subselect sub -> {
