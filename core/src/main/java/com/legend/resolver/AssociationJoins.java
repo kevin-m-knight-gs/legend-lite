@@ -99,6 +99,22 @@ final class AssociationJoins {
                     head, tgtNavPaths);
         }
         var navSteps = Pipelines.navSteps(cs.pipeline());
+        // EMBEDDED head whose leaves ride ONE join slot (employeesExt
+        // (birthdate: @J | col) — engine testDateAggregationWithMax): the
+        // embedded hop is a NAMESPACE; the slot's target is the aggregated
+        // relation and the ctor leaves REBASE onto its row
+        if (binding instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ctor) {
+            AssocJoin ea = embeddedAggJoin(temporal, cs, head, ctor, navSteps);
+            if (ea != null) {
+                return ea;
+            }
+            throw new NotImplementedException("aggregate over embedded"
+                    + " property '" + head + "' of class '" + cs.classFqn()
+                    + "': the embedded leaves do not ride exactly one"
+                    + " navigate slot — only single-slot embedded"
+                    + " aggregation is built");
+        }
         String alias = InnerDemand.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
         var nav = navSteps.get(alias);
         String targetClass = ((TypedGetAll)
@@ -192,6 +208,150 @@ final class AssociationJoins {
                 (Type.RelationType) tPipe0.info().type(), cond0,
                 tMat.slotPrefixes(), tSubNavs, null,
                 onFormOf(tPipe0, cond0));
+    }
+
+    /** The ONE navigate-slot alias an embedded ctor's leaves read through,
+     * or null (no alias read / more than one — those heads keep their
+     * plain routes). Shared by the head recognizer (StoreResolver) and the
+     * material builder so routing and building cannot drift. */
+    /** {@code head} navigates: an unbound association end or a
+     * navigate-slot binding, ANY multiplicity — the bare-count route
+     * (count(rows) is row-correct regardless of the declared bound; the
+     * modelJoin corpus declares [1] ends whose join conditions fan out,
+     * and the engine counts ROWS). */
+    boolean isAssocOrNavHead(ClassSource cs, String head) {
+        String real = SyntheticHeads.realHead(head);
+        TypedSpec binding = cs.bindings().get(real);
+        if (binding != null) {
+            var navSteps = Pipelines.navSteps(cs.pipeline());
+            // single-join-slot EMBEDDED heads aggregate (embeddedAggJoin;
+            // unrouted, the explode+reduce pair silently drops the reducer)
+            if (binding instanceof com.legend.compiler.spec.typed
+                    .TypedNewInstance ctor) {
+                return embeddedAggAlias(cs, ctor) != null;
+            }
+            String alias = InnerDemand.navSlotAlias(binding, cs.rowVar(),
+                    navSteps.keySet());
+            if (alias == null) {
+                return false;   // otherwise heads keep their routes
+            }
+            var nav = navSteps.get(alias);
+            return nav.target() instanceof com.legend.compiler.spec.typed
+                    .TypedGetAll tg
+                    && sources.binds(cs.mappingFqn(), tg.classFqn());
+        }
+        return ctx.findAssociationOf(cs.classFqn(), real).isPresent();
+    }
+
+    static String embeddedAggAlias(ClassSource cs,
+            com.legend.compiler.spec.typed.TypedNewInstance ctor) {
+        Set<String> aliases = new LinkedHashSet<>(
+                Pipelines.navSteps(cs.pipeline()).keySet());
+        aliases.addAll(Pipelines.slotAliases(cs.pipeline()));
+        return embeddedAggAlias(cs, ctor, aliases);
+    }
+
+    private static String embeddedAggAlias(ClassSource cs,
+            com.legend.compiler.spec.typed.TypedNewInstance ctor,
+            java.util.Set<String> navAliases) {
+        Set<String> reads = new LinkedHashSet<>();
+        for (TypedSpec v : ctor.properties().values()) {
+            CorrelatedSubselects.collectAliasReads(v, cs.rowVar(),
+                    navAliases, reads);
+        }
+        return reads.size() == 1 ? reads.iterator().next() : null;
+    }
+
+    /** Aggregation material for an EMBEDDED head: pseudo target source =
+     * the slot's raw target pipeline; bindings = the ctor leaves REBASED
+     * from {@code $row.alias.col} onto the target row (leaves reading the
+     * parent row directly are omitted — loud at aggColFor if demanded);
+     * condition = the slot predicate, unchanged. */
+    private AssocJoin embeddedAggJoin(TemporalFrame temporal, ClassSource cs,
+            String head, com.legend.compiler.spec.typed.TypedNewInstance ctor,
+            java.util.Map<String, com.legend.compiler.spec.typed
+                    .TypedNavigate> navSteps) {
+        var joinSlots = Pipelines.joinSlots(cs.pipeline());
+        String alias = embeddedAggAlias(cs, ctor);
+        if (alias == null) {
+            return null;
+        }
+        TypedSpec tPipe;
+        TypedLambda stepCond;
+        if (navSteps.containsKey(alias)) {
+            var nav = navSteps.get(alias);
+            tPipe = nav.target();
+            stepCond = (TypedLambda) nav.predicate();
+        } else {
+            var slot = joinSlots.get(alias);
+            tPipe = slot.target();
+            stepCond = slot.condition();
+        }
+        if (!(tPipe.info().type() instanceof Type.RelationType tRow)) {
+            return null;
+        }
+        String tv = "_embt";
+        while (cs.rowVar().equals(tv)) {
+            tv = "_" + tv;
+        }
+        var tVarInfo = new ExprType(tRow,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        Map<String, TypedSpec> bnd = new java.util.LinkedHashMap<>();
+        for (var e : ctor.properties().entrySet()) {
+            TypedSpec r = rebaseAliasReads(e.getValue(), cs.rowVar(), alias,
+                    tv, tVarInfo);
+            if (r != null) {
+                bnd.put(e.getKey(), r);
+            }
+        }
+        if (bnd.isEmpty()) {
+            return null;
+        }
+        ClassSource t = new ClassSource(cs.mappingFqn(), ctor.classFqn(),
+                null, tPipe, tv, bnd, tRow);
+        TypedSpec tPipe0 = temporal.temporalTargetPipe(cs, t, head,
+                temporal.applyJoinTemporalFilters(tPipe, t, Map.of()));
+        tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
+                CorrelatedSubselects.predFilteredPipe(p, t, Map.of(),
+                        Map.of(), pred, cs.mappingFqn()));
+        TypedLambda cond0 = withOuterDatedWindow(temporal, cs, t, head,
+                stepCond, tPipe0);
+        return new AssocJoin(prefixFor(head, cs), t, tPipe0,
+                (Type.RelationType) tPipe0.info().type(), cond0,
+                Map.of(), Map.of(), null, onFormOf(tPipe0, cond0));
+    }
+
+    /** {@code $row.alias.col} reads become {@code $tv.col}; any OTHER
+     * read rooted at {@code rowVar} (a parent column, a different alias)
+     * makes the leaf unrebasable — null. */
+    private static TypedSpec rebaseAliasReads(TypedSpec n, String rowVar,
+            String alias, String tv, ExprType tVarInfo) {
+        boolean[] bad = {false};
+        TypedSpec out = rebaseWalk(n, rowVar, alias, tv, tVarInfo, bad);
+        return bad[0] ? null : out;
+    }
+
+    private static TypedSpec rebaseWalk(TypedSpec n, String rowVar,
+            String alias, String tv, ExprType tVarInfo, boolean[] bad) {
+        if (n instanceof com.legend.compiler.spec.typed
+                .TypedPropertyAccess pa
+                && pa.source() instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess inner
+                && inner.source() instanceof com.legend.compiler.spec.typed
+                        .TypedVariable v
+                && v.name().equals(rowVar)
+                && inner.property().equals(alias)) {
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    new com.legend.compiler.spec.typed.TypedVariable(tv,
+                            tVarInfo), pa.property(), pa.info());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v2
+                && v2.name().equals(rowVar)) {
+            bad[0] = true;
+            return n;
+        }
+        return n.mapChildren(c -> rebaseWalk(c, rowVar, alias, tv,
+                tVarInfo, bad));
     }
 
     /** The ON form when the stamped pipe is exactly FILTER layers over a

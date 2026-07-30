@@ -34,7 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ResolveNavigationTest {
 
     private static final String MODEL = """
-            Class m::Person { name: String[1]; addr: m::Addr[1]; }
+            Class m::Person { name: String[1]; addr: m::Addr[1]; kids: m::Kid[*]; }
+            Class m::Kid { age: Integer[0..1]; }
             Class m::Addr { city: String[1]; }
             Class m::Firm { legal: String[1]; }
             Association m::Emp { employer: m::Firm[1]; staff: m::Person[*]; }
@@ -42,13 +43,16 @@ class ResolveNavigationTest {
             Database s::DB (
               Table P (NAME VARCHAR(50), CITY VARCHAR(50), FID INTEGER, BOSS INTEGER, ID INTEGER)
               Table F (ID INTEGER, LEGAL VARCHAR(50))
+              Table K (PID INTEGER, AGE INTEGER)
+              Join PK (P.ID = K.PID)
               Join PF (P.FID = F.ID)
               Join PB (P.BOSS = {target}.ID)
             )
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] P
                 name: P.NAME,
-                addr ( city: P.CITY ) }
+                addr ( city: P.CITY ),
+                kids ( age: @PK | K.AGE ) }
               *m::Firm: Relational { ~mainTable [s::DB] F legal: F.LEGAL }
               m::Emp: Relational { AssociationMapping ( employer: [s::DB] @PF ) }
               m::Mgr: Relational { AssociationMapping ( boss: [s::DB] @PB ) }
@@ -68,6 +72,8 @@ class ResolveNavigationTest {
                     + " ('Bob', 'SF', NULL, NULL, 2), ('Cat', 'LA', 1, NULL, 3)");
             st.execute("CREATE TABLE F (ID INTEGER, LEGAL VARCHAR)");
             st.execute("INSERT INTO F VALUES (1, 'ACME')");
+            st.execute("CREATE TABLE K (PID INTEGER, AGE INTEGER)");
+            st.execute("INSERT INTO K VALUES (1, 5), (1, 9), (2, 7)");
         }
     }
 
@@ -663,5 +669,22 @@ class ResolveNavigationTest {
         assertEquals(List.of("Ann|null", "Bob|null", "Cat|null"),
                 exec(sql + "\nORDER BY n"),
                 "Ann's boss Bob has no boss — NULL rides the whole chain");
+    }
+
+    @Test
+    @DisplayName("embedded-head aggregation: ctor leaves riding ONE join"
+            + " slot take the grouped-subselect route (engine"
+            + " testDateAggregationWithMax; fails-before: 3 exploded rows"
+            + " per kid and the reducer silently dropped)")
+    void embeddedHeadAggregation() throws SQLException {
+        String sql = sqlOf("m::Person.all()->project(~[name: p|$p.name,"
+                + " m: p|$p.kids.age->max()])->from(m::RT)");
+        assertTrue(sql.contains("MAX("), sql);
+        assertEquals(1, count(sql, "GROUP BY"), sql);
+        List<String> rows = exec(sql);
+        assertEquals(3, rows.size(), sql);
+        assertTrue(rows.contains("Ann|9"), rows.toString());
+        assertTrue(rows.contains("Bob|7"), rows.toString());
+        assertTrue(rows.contains("Cat|null"), rows.toString());
     }
 }

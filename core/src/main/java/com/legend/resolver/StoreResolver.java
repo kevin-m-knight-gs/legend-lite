@@ -3201,25 +3201,10 @@ public final class StoreResolver {
         return toMany && isAssocOrNavHead(cs, real);
     }
 
-    /** {@code head} navigates: an unbound association end or a
-     * navigate-slot binding, ANY multiplicity — the bare-count route
-     * (count(rows) is row-correct regardless of the declared bound; the
-     * modelJoin corpus declares [1] ends whose join conditions fan out,
-     * and the engine counts ROWS). */
+    /** See {@link AssociationJoins#isAssocOrNavHead} (relocated —
+     * file-size seam). */
     boolean isAssocOrNavHead(ClassSource cs, String head) {
-        String real = SyntheticHeads.realHead(head);
-        TypedSpec binding = cs.bindings().get(real);
-        if (binding != null) {
-            var navSteps = Pipelines.navSteps(cs.pipeline());
-            String alias = InnerDemand.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
-            if (alias == null) {
-                return false;   // embedded/otherwise heads keep their routes
-            }
-            var nav = navSteps.get(alias);
-            return nav.target() instanceof TypedGetAll tg
-                    && sources.binds(cs.mappingFqn(), tg.classFqn());
-        }
-        return ctx.findAssociationOf(cs.classFqn(), real).isPresent();
+        return assocMaterial.isAssocOrNavHead(cs, head);
     }
 
     /**
