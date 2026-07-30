@@ -364,7 +364,7 @@ public final class Pure {
     // CONSTRAINTS are never ported — constraint evaluation is a separate
     // feature track, declarations only TYPE):
     /** Real platform_dsl_store/grammar/store.pure:18 (extends PackageableElement — ModelElement is this prelude's analog, see :170). */
-    public static final ClassDefinition STORE = nativeClass("native Class meta::pure::store::Store extends meta::pure::metamodel::ModelElement {}");
+    public static final ClassDefinition STORE = nativeClass("native Class meta::pure::store::Store extends meta::pure::metamodel::ModelElement { includes: meta::pure::store::Store[*]; name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real core/pure/mapping/modelToModel.pure:37 (toString() qualified property omitted until demanded). */
     public static final ClassDefinition MODEL_STORE = nativeClass("native Class meta::external::store::model::ModelStore extends meta::pure::store::Store {}");
     /** Real core/pure/mapping/modelToModel.pure:43 (empty marker; the connection VALUES never evaluate — declarations exist so runtime-construction chains TYPE, XStore leg slice 0). */
@@ -437,6 +437,18 @@ public final class Pure {
     public static final ClassDefinition POST_PROCESSOR_WITH_PARAMETER = nativeClass("native Class meta::relational::runtime::PostProcessorWithParameter extends meta::pure::metamodel::type::Any { postProcessor: meta::pure::metamodel::function::ConcreteFunctionDefinition<{->meta::relational::runtime::PostProcessor[1]}>[1]; parameters: meta::relational::runtime::PostProcessorParameter[*]; }");
     public static final ClassDefinition ALLOY_POST_PROCESSOR = nativeClass("native Class meta::pure::alloy::connections::PostProcessor extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition EXTRACT_CTES_POST_PROCESSOR = nativeClass("native Class meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor extends meta::pure::alloy::connections::PostProcessor {}");
+    // The relationalMapper rename surface (real corpus metamodel.pure
+    // :185-208 + runtime/connection/postprocessor.pure:40-43; the
+    // corpus's own defining files are demand-pull-AMBIGUOUS — protocol
+    // versions share the simple names — so the classes register here
+    // like the rest of the relational metamodel). RelationalMapper's
+    // real parents: PackageableElement (ModelElement analog, see :170)
+    // + PostProcessorParameter.
+    public static final ClassDefinition DATABASE_MAPPER = nativeClass("native Class meta::relational::metamodel::DatabaseMapper extends meta::pure::metamodel::type::Any { database: meta::pure::metamodel::type::String[1]; schemas: meta::relational::metamodel::Schema[*]; }");
+    public static final ClassDefinition SCHEMA_MAPPER = nativeClass("native Class meta::relational::metamodel::SchemaMapper extends meta::pure::metamodel::type::Any { from: meta::relational::metamodel::Schema[1]; to: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition TABLE_MAPPER = nativeClass("native Class meta::relational::metamodel::TableMapper extends meta::pure::metamodel::type::Any { from: meta::relational::metamodel::relation::Table[1]; to: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition RELATIONAL_MAPPER = nativeClass("native Class meta::relational::metamodel::RelationalMapper extends meta::pure::metamodel::ModelElement, meta::relational::runtime::PostProcessorParameter { databaseMappers: meta::relational::metamodel::DatabaseMapper[*]; schemaMappers: meta::relational::metamodel::SchemaMapper[*]; tableMappers: meta::relational::metamodel::TableMapper[*]; }");
+    public static final ClassDefinition RELATIONAL_MAPPER_POST_PROCESSOR = nativeClass("native Class meta::pure::alloy::connections::RelationalMapperPostProcessor extends meta::pure::alloy::connections::PostProcessor { relationalMappers: meta::relational::metamodel::RelationalMapper[*]; }");
     /** Real core/pure/tds/tds.pure:18-23. */
     public static final ClassDefinition TABULAR_DATA_SET = nativeClass("native Class meta::pure::tds::TabularDataSet extends meta::pure::metamodel::type::Any { columns: meta::pure::tds::TDSColumn[*]; rows: meta::pure::tds::TDSRow[*]; }");
     /** Real core/pure/tds/tds.pure:25-45 (offset/name; the type surface omitted until demanded). */
@@ -444,7 +456,7 @@ public final class Pure {
     /** Real core/pure/tds/tds.pure:76-80 (getString/isNull qualified properties omitted until demanded — the ResultSet Row precedent). */
     public static final ClassDefinition TDS_ROW = nativeClass("native Class meta::pure::tds::TDSRow extends meta::pure::metamodel::type::Any { parent: meta::pure::tds::TabularDataSet[0..1]; values: meta::pure::metamodel::type::Any[*]; }");
     /** Real platform_store_relational/grammar/relational.pure (Schema on Database; table lookups land on it). */
-    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; name: meta::pure::metamodel::type::String[0..1]; }");
+    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; name: meta::pure::metamodel::type::String[0..1]; database: meta::relational::metamodel::Database[1]; }");
     /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
     public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
     // real platform_store_relational/functions.pure:50-65 (dataSource and
@@ -1279,6 +1291,10 @@ public final class Pure {
     public static final NativeFunctionDefinition SCHEMA__DB_1__STRING_1 = signature("native function meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::Schema[0..1];");
     public static final NativeFunctionDefinition EXTRACT_CTES = signature("native function meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs(select:meta::relational::metamodel::relation::SelectSQLQuery[1]):meta::relational::metamodel::relation::SelectSQLQuery[1];");
     public static final NativeFunctionDefinition EXTRACT_CTES_PP = signature("native function meta::relational::postProcessor::cteExtraction::extractSubQueriesAsCTEsPostProcessor(s:meta::relational::postProcessor::cteExtraction::ExtractSubQueriesAsCTEsPostProcessor[1]):meta::relational::runtime::PostProcessorWithParameter[1];");
+    // Real runtime/connection/postprocessor.pure:50 — wraps the mapper
+    // config as a PostProcessorWithParameter for the connection's
+    // queryPostProcessorsWithParameter channel
+    public static final NativeFunctionDefinition RELATIONAL_MAPPER_PP = signature("native function meta::pure::alloy::connections::relationalMapperPostProcessor(mapper:meta::pure::alloy::connections::RelationalMapperPostProcessor[1]):meta::relational::runtime::PostProcessorWithParameter[1];");
     public static final NativeFunctionDefinition REPLACE_TABLES = signature("native function meta::relational::postProcessor::replaceTables(selectSQLQuery:meta::relational::metamodel::relation::SelectSQLQuery[1], oldToNewPairs:meta::pure::functions::collection::Pair<meta::relational::metamodel::relation::Table,meta::relational::metamodel::relation::Table>[*]):meta::pure::mapping::Result<meta::relational::metamodel::relation::SelectSQLQuery|1>[1];");
     public static final NativeFunctionDefinition NON_EXECUTABLE_PP = signature("native function meta::relational::postProcessor::nonExecutable(selectSQLQuery:meta::relational::metamodel::relation::SelectSQLQuery[1], extensions:meta::pure::extension::Extension[*]):meta::pure::mapping::Result<meta::relational::metamodel::relation::SelectSQLQuery|1>[1];");
     public static final NativeFunctionDefinition TABLE__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::table(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::Table[0..1];");

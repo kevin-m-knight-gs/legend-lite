@@ -852,23 +852,33 @@ public final class Runner {
         for (com.legend.model.spec.ValueSpecification stmt : body) {
             collectCalledFqns(stmt, called, elements);
         }
-        List<String> moduleRefs = new ArrayList<>();
-        for (String ref : called) {
-            if (ref.contains("::") && elementSource.containsKey(ref)) {
-                moduleRefs.add(ref);
-            }
-        }
-        for (String ref : elements) {
-            if (ref.contains("::") && elementSource.containsKey(ref)) {
-                moduleRefs.add(ref);
-            }
-        }
         // DEMAND-PULL retry (single-FILE vehicle — the transitive-closure
         // probe regressed 1219->1200 and stays reverted): an 'unknown
         // type/class X' typing failure whose simple name has EXACTLY ONE
         // defining element pulls that element's file and retries, max 3
         // hops (metamodel files chain).
         List<String> fileOnly = new ArrayList<>();
+        List<String> moduleRefs = new ArrayList<>();
+        for (java.util.Set<String> refs : java.util.List.of(called,
+                elements)) {
+            for (String ref : refs) {
+                if (ref.contains("::") && elementSource.containsKey(ref)) {
+                    moduleRefs.add(ref);
+                } else if (!ref.contains("::")) {
+                    // BARE refs (called functions AND element values)
+                    // qualify through the test's imports and pull their
+                    // single defining file — the execute path's rule
+                    // (getTable under import meta::relational::functions
+                    // ::toDDL::*, productMappingWithFilter under the
+                    // qualifier wildcard)
+                    String q = qualify(ref, t);
+                    if (q.contains("::") && elementSource.containsKey(q)
+                            && !fileOnly.contains(q)) {
+                        fileOnly.add(q);
+                    }
+                }
+            }
+        }
         for (int attempt = 0; ; attempt++) {
         try {
             com.legend.compiler.element.ModelContext ctx =
@@ -902,7 +912,7 @@ public final class Runner {
                 return null;
             }
         } catch (Exception e) {
-            String pull = attempt < 3 ? unknownTypePull(e) : null;
+            String pull = attempt < 3 ? unknownTypePull(e, t) : null;
             if (pull != null && !fileOnly.contains(pull)) {
                 fileOnly.add(pull);
                 continue;
@@ -917,13 +927,16 @@ public final class Runner {
         }
     }
 
-    /** The FQN to demand-pull for an 'unknown type/class X' failure —
-     * only when X's simple name has EXACTLY ONE defining element (an
-     * ambiguous name would poison resolution; it stays a wall). */
-    private String unknownTypePull(Exception e) {
+    /** The FQN to demand-pull for an 'unknown type/class/function X'
+     * failure — only when X's simple name has EXACTLY ONE defining
+     * element, or exactly one of the candidates sits under the test's
+     * import wildcards (getTable: toDDL vs testDataGeneration — the
+     * file's own imports name the winner). A residual ambiguity would
+     * poison resolution; it stays a wall. */
+    private String unknownTypePull(Exception e, ParsedTest t) {
         String msg = String.valueOf(e.getMessage());
         java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("[Uu]nknown (?:type|class)[:]? '([\\w:]+)'")
+                .compile("[Uu]nknown (?:type|class|function)[:]? '([\\w:]+)'")
                 .matcher(msg);
         if (!m.find()) {
             return null;
@@ -932,17 +945,18 @@ public final class Runner {
         if (name.contains("::")) {
             return elementSource.containsKey(name) ? name : null;
         }
-        String only = null;
+        List<String> candidates = new ArrayList<>();
         for (String fqn : elementSource.keySet()) {
             int cut = fqn.lastIndexOf("::");
             if (cut > 0 && fqn.substring(cut + 2).equals(name)) {
-                if (only != null) {
-                    return null;   // ambiguous simple name — wall stands
-                }
-                only = fqn;
+                candidates.add(fqn);
             }
         }
-        return only;
+        if (candidates.size() == 1) {
+            return candidates.get(0);
+        }
+        String q = qualify(name, t);
+        return candidates.contains(q) ? q : null;
     }
 
     /** The most-called function NAMESPACE of a no-execute body — the

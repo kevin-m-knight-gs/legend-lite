@@ -154,6 +154,29 @@ class NameResolverTest {
     }
 
     @Test
+    void preludeCollisionDisambiguatesThroughFileWildcards() {
+        // 'Table' is claimed by TWO prelude classes (metamodel::relation
+        // vs the sql protocol); the type-import map keeps one arbitrarily
+        // — the FILE's wildcard imports must pick among the colliders
+        // (getTable in the corpus's toDDL.pure returned the sql-protocol
+        // Table before this rule). Prelude still shadows user elements.
+        var cd = simpleClass("model::T1", List.of(),
+                List.of(prop("t", nameRef("Table"))));
+        var rel = (ClassDefinition) NameResolver.resolve(new ParsedModel(
+                List.of(cd), new ImportScope.Builder()
+                .add("meta::relational::metamodel::relation::*").build()))
+                .elements().get(0);
+        assertEquals(nameRef("meta::relational::metamodel::relation::Table"),
+                rel.properties().get(0).type());
+        var sql = (ClassDefinition) NameResolver.resolve(new ParsedModel(
+                List.of(cd), new ImportScope.Builder()
+                .add("meta::external::query::sql::metamodel::*").build()))
+                .elements().get(0);
+        assertEquals(nameRef("meta::external::query::sql::metamodel::Table"),
+                sql.properties().get(0).type());
+    }
+
+    @Test
     void unknownNamePassesThroughForPrimitiveFallback() {
         // "Integer" is not in FQNS \u2014 stays as-is (next layer will recognise
         // it as a primitive).

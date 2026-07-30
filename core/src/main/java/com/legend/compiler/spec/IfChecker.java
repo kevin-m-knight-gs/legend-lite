@@ -135,11 +135,17 @@ final class IfChecker {
         return m instanceof Multiplicity.Bounded b ? new Multiplicity.Bounded(0, b.upper()) : m;
     }
 
-    /** Type the body of a zero-parameter lambda thunk ({@code |expr}) in the current scope. */
+    /** Type the body of a zero-parameter lambda thunk ({@code |expr}) in the current scope.
+     * Multi-statement thunks ({@code |let a = x; expr;}) fold through the shared
+     * {@link SourceSubst#inlineLets} funnel first (the #85 rule for parameterized lambdas). */
     private static TypedSpec thunkBody(Typer t, ValueSpecification vs, Env env) {
-        if (!(vs instanceof LambdaFunction lam) || !lam.parameters().isEmpty() || lam.body().size() != 1) {
+        if (!(vs instanceof LambdaFunction lam) || !lam.parameters().isEmpty()) {
             throw new TypeInferenceException("expected a zero-parameter single-expression thunk");
         }
-        return t.synth(lam.body().get(0), env);
+        LambdaFunction folded = lam.body().size() == 1 ? lam : SourceSubst.inlineLets(lam);
+        if (folded == null || folded.body().size() != 1) {
+            throw new TypeInferenceException("expected a zero-parameter single-expression thunk");
+        }
+        return t.synth(folded.body().get(0), env);
     }
 }

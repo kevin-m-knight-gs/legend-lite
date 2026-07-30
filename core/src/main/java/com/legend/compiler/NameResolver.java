@@ -68,6 +68,7 @@ import com.legend.model.spec.ValueSpecification;
 import com.legend.model.spec.Variable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -241,6 +242,29 @@ public final class NameResolver {
             b.add(fqn);
         }
         return b.build();
+    }
+
+    /** Simple names claimed by MORE THAN ONE prelude class/enum (Table:
+     * metamodel::relation vs the sql protocol) — the type-import map
+     * keeps one arbitrarily, so resolution consults the file's wildcard
+     * imports for these names (see the collision arm in
+     * {@link #resolveNameMulti}). */
+    private static final Map<String, List<String>> PRELUDE_COLLISIONS =
+            preludeCollisions();
+
+    private static Map<String, List<String>> preludeCollisions() {
+        Map<String, List<String>> bySimple = new HashMap<>();
+        List<String> all = new ArrayList<>(Pure.nativeClassFqns());
+        all.addAll(Pure.nativeEnumFqns());
+        for (String fqn : all) {
+            int cut = fqn.lastIndexOf("::");
+            if (cut > 0) {
+                bySimple.computeIfAbsent(fqn.substring(cut + 2),
+                        k -> new ArrayList<>()).add(fqn);
+            }
+        }
+        bySimple.values().removeIf(v -> v.size() < 2);
+        return bySimple;
     }
 
     /** Declared element FQNs + platform FQNs: the wildcard-disambiguation universe. */
@@ -430,7 +454,29 @@ public final class NameResolver {
         if (scope.typeParams().contains(name)) return List.of(name);
         if (name.contains("::")) return List.of(name);
         Map<String, String> typeImports = scope.imports().typeImports();
-        if (typeImports.containsKey(name)) return List.of(typeImports.get(name));
+        if (typeImports.containsKey(name)) {
+            String mapped = typeImports.get(name);
+            List<String> colliding = PRELUDE_COLLISIONS.get(name);
+            if (colliding != null && colliding.contains(mapped)) {
+                // WITHIN-PRELUDE collision (Table: relation vs the sql
+                // protocol) — the type-import map kept one ARBITRARILY
+                // (last registration wins); the file's wildcard imports
+                // choose among the colliding prelude classes. Prelude
+                // still shadows USER elements (load-bearing) — only
+                // prelude-vs-prelude ties consult the wildcards.
+                List<String> byWildcard = new ArrayList<>(1);
+                for (String pkg : scope.imports().wildcards()) {
+                    String candidate = pkg + "::" + name;
+                    if (colliding.contains(candidate)) {
+                        byWildcard.add(candidate);
+                    }
+                }
+                if (byWildcard.size() == 1) {
+                    return byWildcard;
+                }
+            }
+            return List.of(mapped);
+        }
         List<String> matches = new ArrayList<>(0);
         for (String pkg : scope.imports().wildcards()) {
             String candidate = pkg + "::" + name;

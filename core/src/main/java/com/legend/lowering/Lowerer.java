@@ -111,6 +111,10 @@ public final class Lowerer {
     /** Whether a class FQN exists in the driving model (layoutless-LUB detection). */
     private final Predicate<String> classExists;
 
+    /** Layout-typing arm ({@link LayoutTypes}) — carries the
+     * recursive-layout cycle guard. */
+    private final LayoutTypes layoutTypes;
+
     public Lowerer() {
         this(t -> Optional.empty(), f -> false);
     }
@@ -120,42 +124,12 @@ public final class Lowerer {
                    Predicate<String> classExists) {
         this.classLayout = classLayout;
         this.classExists = classExists;
+        this.layoutTypes = new LayoutTypes(classLayout, classExists);
     }
 
     /** SQL type of a value, seeing through class layouts (structs) before {@link PureSql}. */
     private SqlType sqlTypeOf(Type t) {
-        // Platform CARRIER types own their SQL shape (List = bare array,
-        // Pair = struct, Map = MAP) — List's declared `values` property is
-        // its pure-side surface, never a struct layout at the SQL boundary.
-        if (PlatformTypes.isListCarrier(t)
-                || PlatformTypes.isPairCarrier(t)
-                || PlatformTypes.isMapCarrier(t)) {
-            return PureSql.type(t);
-        }
-        return classLayout.apply(t)
-                .<SqlType>map(cols -> new SqlType.Struct(
-                        cols.stream().map(c -> {
-                            SqlType ft = sqlTypeOf(c.type());
-                            boolean many = c.multiplicity() instanceof
-                                    Multiplicity.Bounded b && b.isMany();
-                            return new SqlType.Struct.Field(c.name(),
-                                    many ? new SqlType.Array(ft) : ft);
-                        }).toList()))
-                .orElseGet(() -> {
-                    // A MODEL class with no layoutable properties reaching a
-                    // VALUE boundary is a heterogeneous LUB (mixed instance
-                    // kinds meeting at an abstract ancestor) — it travels as
-                    // variant JSON, like Any. Non-model classes keep
-                    // PureSql's loud wall.
-                    if (t instanceof Type.ClassType ct
-                            && !PlatformTypes.isVariant(ct)
-                            && !PlatformTypes.isNil(ct)
-                            && !PlatformTypes.isAny(ct)
-                            && classExists.test(ct.fqn())) {
-                        return SqlType.Scalar.JSON;
-                    }
-                    return PureSql.type(t);
-                });
+        return layoutTypes.sqlTypeOf(t);
     }
 
     /**

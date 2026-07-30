@@ -425,6 +425,16 @@ class SpecCompilerTest {
     }
 
     @Test
+    void if_multiStatementLetThunkFoldsAndTypes() {
+        // corpus getSchema (testRelationalMapper.pure): a branch thunk
+        // carrying lets — |let x = 1; $x + 1; — folds through the shared
+        // SourceSubst.inlineLets funnel (the #85 rule) and types normally
+        TypedSpec n = infer("if(true, |let x = 1; $x + 1;, |2)");
+        assertInstanceOf(TypedIf.class, n);
+        assertEquals(one(Type.Primitive.INTEGER), n.info());
+    }
+
+    @Test
     void if_nonBooleanConditionThrows() {
         assertThrows(TypeInferenceException.class, () -> infer("if(1, |1, |2)"));
     }

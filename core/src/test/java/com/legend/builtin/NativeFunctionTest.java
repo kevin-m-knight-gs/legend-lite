@@ -468,7 +468,11 @@ class NativeFunctionTest {
         //     RelationalInstanceSetImplementation (relationalMapping
         //     .pure:26) — the extends-chain navigation hierarchy;
         //     RootRelational keeps the real two-parent shape.
-        assertEquals(181, Pure.allNativeClasses().size(),
+        // 186: +DatabaseMapper/SchemaMapper/TableMapper/RelationalMapper/
+        //     RelationalMapperPostProcessor (relationalMapper rename
+        //     surface — corpus metamodel.pure:185-208 + postprocessor
+        //     .pure:40-43).
+        assertEquals(186, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -596,7 +600,26 @@ class NativeFunctionTest {
                     List.of("name", "columns", "schema")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Schema",
-                    List.of("tables", "views", "name")),
+                    List.of("tables", "views", "name", "database")),
+                    java.util.Map.entry(
+                    "meta::pure::store::Store",
+                    List.of("includes", "name")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::DatabaseMapper",
+                    List.of("database", "schemas")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::SchemaMapper",
+                    List.of("from", "to")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::TableMapper",
+                    List.of("from", "to")),
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::RelationalMapper",
+                    List.of("databaseMappers", "schemaMappers",
+                            "tableMappers")),
+                    java.util.Map.entry(
+                    "meta::pure::alloy::connections::RelationalMapperPostProcessor",
+                    List.of("relationalMappers")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Alias",
                     List.of("name", "relationalElement")),
