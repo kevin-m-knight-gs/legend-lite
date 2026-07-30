@@ -82,6 +82,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+
+import com.legend.lowering.Resolvers.ColumnResolver;
+import com.legend.lowering.Resolvers.Resolution;
+import com.legend.lowering.Resolvers.UnfoldableRef;
+import static com.legend.lowering.Resolvers.Resolution.attempt;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -330,7 +335,8 @@ public final class Lowerer {
                         // NOT this scope's variable: the UnfoldableRef SIGNAL
                         // lets scopedResolver continue outward (a hard throw
                         // severed the whole enclosing chain behind lateral).
-                        throw new UnfoldableRef(name);
+                        throw new UnfoldableRef(
+                                name == null ? "<whole variable>" : name);
                     }
                     return r;
                 });
@@ -805,7 +811,7 @@ public final class Lowerer {
     }
 
     private AggCols aggCols(SqlSelect base, List<TypedAggCol> aggs,
-            java.util.Map<TypedAggCol, CalendarAgg.Ctx> cal) {
+            java.util.@com.legend.Nullable Map<TypedAggCol, CalendarAgg.Ctx> cal) {
         List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
         for (TypedAggCol a : aggs) {
             SqlExpr av = aggValue(base, a, cal == null ? null : cal.get(a));
@@ -856,7 +862,7 @@ public final class Lowerer {
     }
 
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a,
-            CalendarAgg.Ctx calendar) {
+            CalendarAgg.@com.legend.Nullable Ctx calendar) {
         TypedSpec reduceBody = last(a.reduce());
         // A cast WRAPPING the reducer (y|$y->plus()->cast(@Integer)) rides
         // AROUND the SQL aggregate: unwrap, lower the inner reducer, re-wrap
@@ -1144,7 +1150,7 @@ public final class Lowerer {
     }
 
     /** One pass; null when any column's refs would not fold against {@code base}. */
-    private SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
+    private @com.legend.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting, String[] miss) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
@@ -1233,7 +1239,7 @@ public final class Lowerer {
     }
 
     /** Resolve refs via projections, noting whether any substituted a window call. */
-    private WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
+    private @com.legend.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
         var saw = new AtomicBoolean();
         return switch (attempt(() -> scalar(last(lambda), (v, name) -> {
             SqlExpr resolved = projectionExprOrThrow(select, name);
@@ -1248,7 +1254,11 @@ public final class Lowerer {
     }
 
     /** A post-aggregation ref: the projection's expression, computed or not. */
-    private SqlExpr projectionExprOrThrow(SqlSelect select, String column) {
+    private SqlExpr projectionExprOrThrow(SqlSelect select, @com.legend.Nullable String column) {
+        if (column == null) {
+            // a bare-variable read has no projection to substitute
+            throw new UnfoldableRef("<whole variable>");
+        }
         for (SqlSelect.Projection p : select.projections()) {
             if (column.equals(p.outputName())) {
                 return p.expr();
@@ -1280,7 +1290,7 @@ public final class Lowerer {
 
     /** Whether {@code alias} names a BASE TABLE scan in the from tree —
      * the rowid pseudo-column is only valid there. */
-    private static boolean aliasIsBaseTable(SqlSource src, String alias) {
+    private static boolean aliasIsBaseTable(SqlSource src, @com.legend.Nullable String alias) {
         return switch (src) {
             case SqlSource.Table t -> t.alias().equals(alias);
             case SqlSource.Join j -> aliasIsBaseTable(j.left(), alias)
@@ -1289,7 +1299,7 @@ public final class Lowerer {
         };
     }
 
-    private SqlExpr resolveOrThrow(SqlSelect select, String column) {
+    private SqlExpr resolveOrThrow(SqlSelect select, @com.legend.Nullable String column) {
         // bare-variable read ($var whole): over a SINGLE-COLUMN select the
         // row IS the cell (the encoding's value semantics); wider rows
         // stay unfoldable (isolate-or-loud), never NPE
@@ -1333,7 +1343,7 @@ public final class Lowerer {
             // against a same-named INNER column (the two regressions in
             // this method's doc-comment). A genuine miss takes the
             // designed UnfoldableRef route (isolate-or-loud).
-            throw new UnfoldableRef(name);
+            throw new UnfoldableRef(name == null ? "<whole variable>" : name);
         };
     }
 
@@ -1343,18 +1353,6 @@ public final class Lowerer {
      * throw {@link UnfoldableRef}; callers at TRY boundaries convert via
      * {@link #attempt} (the ONE catch site).
      */
-    @FunctionalInterface
-    private interface ColumnResolver {
-        SqlExpr resolve(String var, String propOrNull);
-    }
-
-    /** The resolve-or-fold outcome at a try boundary. */
-    private sealed interface Resolution {
-        record Resolved(SqlExpr expr) implements Resolution { }
-
-        record Unfoldable(String column) implements Resolution { }
-    }
-
     /**
      * The RELATION-LEVEL try boundary: build the op over the folded select;
      * a computed-column reference (extend'ed expression, window column) is
@@ -1373,34 +1371,6 @@ public final class Lowerer {
                         + second.getMessage() + "' cannot be resolved even after"
                         + " isolation");
             }
-        }
-    }
-
-    /** The EXPRESSION-LEVEL {@link UnfoldableRef} catch site: run the attempt, name the outcome. */
-    private Resolution attempt(Supplier<SqlExpr> attemptFn) {
-        try {
-            return new Resolution.Resolved(attemptFn.get());
-        } catch (UnfoldableRef e) {
-            return new Resolution.Unfoldable(e.getMessage());
-        }
-    }
-
-    /**
-     * The resolve-or-fold SIGNAL (not an error): thrown per unresolvable
-     * reference and converted to a {@link Resolution} at {@link #attempt}
-     * or retried after isolation at {@link #foldOrIsolate} — never caught
-     * anywhere else. Stack traces are suppressed — this is
-     * control flow in a hot path, pending the sealed-Resolution redesign
-     * (docs/DESIGN_DEBT.md).
-     */
-    private static final class UnfoldableRef extends RuntimeException {
-        UnfoldableRef(String column) {
-            super(column);
-        }
-
-        @Override
-        public synchronized Throwable fillInStackTrace() {
-            return this;
         }
     }
 
@@ -1442,7 +1412,7 @@ public final class Lowerer {
     }
 
     /** All columns resolved against {@code base}, or null if any misses. */
-    private static List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
+    private static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (String c : columns) {
             SqlExpr e = Fold.resolveInto(base, c);
@@ -1774,13 +1744,13 @@ public final class Lowerer {
 
     private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
                              TypedSpec rightNode, ExprType info,
-                             List<SqlSelect.Projection> leftCarry) {
+                             @com.legend.Nullable List<SqlSelect.Projection> leftCarry) {
         return joined(source, prefix, rightNode, info, leftCarry, name -> true);
     }
 
     private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
                              TypedSpec rightNode, ExprType info,
-                             List<SqlSelect.Projection> leftCarry,
+                             @com.legend.Nullable List<SqlSelect.Projection> leftCarry,
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
@@ -1797,7 +1767,9 @@ public final class Lowerer {
             // Phase-G join invariant).
             for (OutputCol c : leftTree.outputs()) {
                 ps.add(new SqlSelect.Projection(
-                        Fold.sourceColumn(leftTree, c.name()), null));
+                        Objects.requireNonNull(
+                                Fold.sourceColumn(leftTree, c.name()),
+                                c.name()), null));
             }
         } else {
             ps.add(new SqlSelect.Projection(new SqlExpr.Star(source.left().alias()), null));
@@ -1854,7 +1826,7 @@ public final class Lowerer {
 
     /** {@code frameName}: the derived table's model identity (a view-
      * backed join target) — rides the Subselect for dialect grouping. */
-    private SqlSource asRightSide(SqlSelect side, String frameName) {
+    private SqlSource asRightSide(SqlSelect side, @com.legend.Nullable String frameName) {
         return isBareSelect(side) && !(side.from() instanceof SqlSource.Join)
                 ? side.from()
                 : new SqlSource.Subselect(side, nextAlias(), frameName);
@@ -1878,10 +1850,16 @@ public final class Lowerer {
     }
 
     private SqlExpr sideCondition(TypedLambda lambda, SqlSource left, SqlSource right,
-                                  List<SqlSelect.Projection> leftCarry) {
+                                  @com.legend.Nullable List<SqlSelect.Projection> leftCarry) {
         String leftVar = lambda.parameters().get(0);
         return scalar(last(lambda), (var, prop) -> {
-            boolean isLeft = var.equals(leftVar);
+            boolean isLeft = leftVar.equals(var);
+            if (prop == null) {
+                // a WHOLE-VARIABLE read in a join condition has no column;
+                // the pre-gate code NPE'd here — loud instead
+                throw new IllegalStateException("join condition reads a whole"
+                        + " variable — only column reads can correlate sides");
+            }
             if (isLeft && leftCarry != null) {
                 // A hosted chain's renamed column substitutes to its
                 // underlying plain column (PF_OID -> t1.OID).
@@ -1955,7 +1933,7 @@ public final class Lowerer {
     }
 
     private record Over(List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
-                        SqlExpr.WindowCall.Frame frame) {
+                        SqlExpr.WindowCall.@com.legend.Nullable Frame frame) {
     }
 
     /** Partition/order/frame of an over(...) — DESC→NULLS FIRST, ASC→NULLS LAST (master's pin). */
@@ -2034,7 +2012,8 @@ public final class Lowerer {
         switch (body) {
             case TypedPropertyAccess p when p.source() instanceof TypedNativeCall call
                     && Windows.lookup(call.callee()) != null -> {
-                Windows.WindowFn fn = Windows.lookup(call.callee());
+                Windows.WindowFn fn = Objects.requireNonNull(
+                        Windows.lookup(call.callee()));
                 List<SqlExpr> args = new ArrayList<>();
                 // Resolve through the select — a folded project's column is
                 // an ALIAS whose defining expression must substitute (a raw
@@ -2087,7 +2066,8 @@ public final class Lowerer {
                             "window aggregate colToAgg must be a ~column colspec");
                 }
                 return new SqlExpr.WindowCall(
-                        new SqlAgg.Reducer(Windows.aggregate(call.callee()),
+                        new SqlAgg.Reducer(Objects.requireNonNull(
+                                Windows.aggregate(call.callee())),
                                 // resolve through the select — a folded
                                 // project's alias substitutes its expression
                                 List.of(resolveOrThrow(base, cs.name())),
@@ -2095,7 +2075,8 @@ public final class Lowerer {
                         over.partitionBy(), over.orderBy(), over.frame());
             }
             case TypedNativeCall call when Windows.lookup(call.callee()) != null -> {
-                Windows.WindowFn fn = Windows.lookup(call.callee());
+                Windows.WindowFn fn = Objects.requireNonNull(
+                        Windows.lookup(call.callee()));
                 if (fn.kind() != Windows.Kind.RANKING) {
                     throw new IllegalStateException("window value function '"
                             + call.callee().qualifiedName()
@@ -2261,23 +2242,30 @@ public final class Lowerer {
             case TypedPropertyAccess p when p.source() instanceof TypedPropertyAccess inner
                     && inner.source() instanceof TypedVariable v
                     && inner.info().type() instanceof Type.RelationType
-                    -> columns.resolve(v.name(),
-                            navFlatColumn(inner.property(), p.property()));
+                    -> {
+                String flat = navFlatColumn(inner.property(), p.property());
+                yield Objects.requireNonNull(columns.resolve(v.name(), flat),
+                        () -> "unresolvable navigate column '" + flat + "'");
+            }
             // A let-bound VALUE's field ($person.firstName after
             // |let person = ^Person(…)): extract from the lowered binding —
             // there is no row scope to resolve against.
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
-                    && letBindings.containsKey(v.name())
-                    -> letBindings.get(v.name())
-                            instanceof SqlExpr.PlanParam pp
-                    // a field read through a plan parameter IS a dotted
-                    // placeholder — its KIND follows the FIELD type
-                    ? new SqlExpr.PlanParam(pp.name() + "." + p.property(),
-                            Fold.planKindOf(p.info().type()))
-                    : new SqlExpr.StructGet(letBindings.get(v.name()),
-                            p.property());
+                    && letBindings.containsKey(v.name()) -> {
+                SqlExpr bound = Objects.requireNonNull(
+                        letBindings.get(v.name()));
+                // a field read through a plan parameter IS a dotted
+                // placeholder — its KIND follows the FIELD type
+                yield bound instanceof SqlExpr.PlanParam pp
+                        ? new SqlExpr.PlanParam(pp.name() + "." + p.property(),
+                                Fold.planKindOf(p.info().type()))
+                        : new SqlExpr.StructGet(bound, p.property());
+            }
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
-                    -> columns.resolve(v.name(), p.property());
+                    -> Objects.requireNonNull(
+                            columns.resolve(v.name(), p.property()),
+                            () -> "unresolvable property '" + p.property()
+                                    + "' on '$" + v.name() + "'");
             // Field access on a CLASS-typed VALUE (an instance literal, a
             // native call's struct result, a nested pair): the visible-literal
             // case inlines the field's own expression (no struct round-trip);
@@ -2407,9 +2395,13 @@ public final class Lowerer {
                         PlatformTypes.PAIR)) {
                     yield new SqlExpr.StructLit(List.of(
                             new SqlExpr.StructLit.Field("first",
-                                    scalar(n.properties().get("first"), columns)),
+                                    scalar(Objects.requireNonNull(
+                                            n.properties().get("first"),
+                                            "Pair carries first"), columns)),
                             new SqlExpr.StructLit.Field("second",
-                                    scalar(n.properties().get("second"), columns))));
+                                    scalar(Objects.requireNonNull(
+                                            n.properties().get("second"),
+                                            "Pair carries second"), columns))));
                 }
                 var layout = classLayout.apply(n.info().type()).orElseThrow(() ->
                         new IllegalStateException("class value ^" + n.classFqn()
@@ -2435,9 +2427,12 @@ public final class Lowerer {
             }
             // A bare variable: a query-level let binding substitutes; else a
             // lambda variable (a list element inside exists/forAll etc.).
-            case TypedVariable v -> letBindings.containsKey(v.name())
-                    ? letBindings.get(v.name())
-                    : columns.resolve(v.name(), null);
+            case TypedVariable v -> {
+                SqlExpr bound = letBindings.get(v.name());
+                yield bound != null ? bound
+                        : Objects.requireNonNull(columns.resolve(v.name(), null),
+                                () -> "unresolvable variable '$" + v.name() + "'");
+            }
             // An inner lambda: ALL its parameters shadow; everything else
             // resolves outward through the enclosing resolver.
             case TypedLambda l -> new SqlExpr.Lambda(l.parameters(),
@@ -2636,7 +2631,8 @@ public final class Lowerer {
             // rules would re-embed the list subquery in a SQL lambda)
             case TypedNativeCall n
                     when ValueCollectionOps.relationSpaceRewrite(n) != null ->
-                    scalar(ValueCollectionOps.relationSpaceRewrite(n), columns);
+                    scalar(Objects.requireNonNull(
+                            ValueCollectionOps.relationSpaceRewrite(n)), columns);
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the
@@ -2740,7 +2736,8 @@ public final class Lowerer {
                 enclosing.push((v, name) -> {
                     SqlExpr r = columns.resolve(v, name);
                     if (r == null) {
-                        throw new UnfoldableRef(name);
+                        throw new UnfoldableRef(
+                                name == null ? "<whole variable>" : name);
                     }
                     return r;
                 });
@@ -2947,8 +2944,9 @@ public final class Lowerer {
             }
             ps.add(new SqlSelect.Projection(Objects.requireNonNull(value), col.name()));
         }
-        return new SqlSelect(ps, false, src, null, List.of(), null, null,
-                List.of(), null, null, outputs);
+        return new SqlSelect(ps, false,
+                src == null ? new SqlSource.Dual() : src, null, List.of(),
+                null, null, List.of(), null, null, outputs);
     }
 
     /** The 1-row anchor a lateral chain hangs off (an empty array must NULL, not kill, the row). */
@@ -2961,7 +2959,7 @@ public final class Lowerer {
     }
 
     /** A colspec body as a bare property path rooted at the lambda parameter; null = computed. */
-    private static List<String> pathOf(TypedFuncCol col) {
+    private static @com.legend.Nullable List<String> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
         ArrayDeque<String> path = new ArrayDeque<>();
         TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
@@ -2980,7 +2978,7 @@ public final class Lowerer {
      * ({@code to(@C).a.b} — every {@code source()} hop a property access),
      * or null when the chain roots elsewhere.
      */
-    private static TypedCast variantCastBase(TypedSpec spec) {
+    private static @com.legend.Nullable TypedCast variantCastBase(TypedSpec spec) {
         TypedSpec cur = spec;
         while (cur instanceof TypedPropertyAccess pa) {
             cur = pa.source();
@@ -3043,7 +3041,8 @@ public final class Lowerer {
             String keyName = nextAlias();
             SqlExpr key = null;
             for (String c : pv.pivotColumns()) {
-                SqlExpr col = new SqlExpr.Cast(Fold.sourceColumn(inner, c),
+                SqlExpr col = new SqlExpr.Cast(
+                        Objects.requireNonNull(Fold.sourceColumn(inner, c), c),
                         SqlType.Scalar.VARCHAR);
                 key = key == null ? col
                         : SqlExpr.Call.of(SqlFn.CONCAT,
@@ -3063,7 +3062,10 @@ public final class Lowerer {
             SqlSelect keyed = SqlSelect.starOf(inner).withProjections(
                     List.of(new SqlSelect.Projection(
                                     new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null),
-                            new SqlSelect.Projection(key, keyName)),
+                            new SqlSelect.Projection(
+                                    Objects.requireNonNull(key,
+                                            "pivot requires a key column"),
+                                    keyName)),
                     keyedOutputs);
             inner = new SqlSource.Subselect(keyed, nextAlias(), null);
             on = List.of(Fold.sourceColumn(inner, keyName));
@@ -3268,14 +3270,23 @@ public final class Lowerer {
     }
 
     /** One pass; null when any target column would not fold against {@code base}. */
-    private SqlSelect tryRelationCast(SqlSelect base, Map<String, Type.Column> src,
+    private @com.legend.Nullable SqlSelect tryRelationCast(SqlSelect base, Map<String, Type.Column> src,
                                       Type.RelationType tgtRow,
                                       TypedCast c) {
         List<SqlSelect.Projection> ps = new ArrayList<>(tgtRow.columns().size());
         for (Type.Column tc : tgtRow.columns()) {
             switch (attempt(() -> resolveOrThrow(base, tc.name()))) {
                 case Resolution.Resolved r -> {
-                    Type from = src.get(tc.name()).type();
+                    Type.Column srcCol = src.get(tc.name());
+                    if (srcCol == null) {
+                        // gate-found NPE: a cast target column ABSENT from
+                        // the source row silently NPE'd here — loud, naming
+                        // the column (never a stack trace as the message)
+                        throw new IllegalStateException("relation cast: target"
+                                + " column '" + tc.name() + "' does not exist"
+                                + " on the source row");
+                    }
+                    Type from = srcCol.type();
                     SqlExpr v = from.equals(tc.type())
                             || !CastPolicy.isSqlPrimitive(tc.type()) || !CastPolicy.isSqlPrimitive(from)
                             ? r.expr()
@@ -3292,9 +3303,13 @@ public final class Lowerer {
 
     private static ColumnResolver lambdaResolver(
             List<String> params, ColumnResolver outer) {
-        return (var, prop) -> params.contains(var)
-                ? (prop == null ? new SqlExpr.Column(null, var) : new SqlExpr.Column(var, prop))
-                : outer.resolve(var, prop);
+        return (var, prop) -> {
+            if (!params.contains(var) || var == null) {
+                return outer.resolve(var, prop);
+            }
+            return prop == null ? new SqlExpr.Column(null, var)
+                    : new SqlExpr.Column(var, prop);
+        };
     }
 
     private static boolean isMany(TypedSpec spec) {
@@ -3394,7 +3409,7 @@ public final class Lowerer {
         return Pure.nativeNamed(pureName, n.callee().signatureKey());
     }
 
-    private static RelationPredicate relationPredicate(TypedNativeCall n) {
+    private static @com.legend.Nullable RelationPredicate relationPredicate(TypedNativeCall n) {
         return RelationPredicates.of(n);
     }
 

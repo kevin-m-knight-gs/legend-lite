@@ -110,7 +110,7 @@ public final class Aggregates {
      * second parameter, audit L7).
      */
     /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
-    static String reducerOrNull(TypedFunction callee) {
+    static @com.legend.Nullable String reducerOrNull(TypedFunction callee) {
         return REDUCERS.get(callee.signatureKey());
     }
 

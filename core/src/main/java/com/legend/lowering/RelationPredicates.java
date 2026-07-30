@@ -23,7 +23,7 @@ final class RelationPredicates {
     private RelationPredicates() {
     }
 
-    static Lowerer.RelationPredicate of(TypedNativeCall n) {
+    static Lowerer.@com.legend.Nullable RelationPredicate of(TypedNativeCall n) {
         // count over a RELATION argument is size (row count) — the graph-
         // leaf sub-aggregation emission rewrites nav-slot reads to their
         // correlated target relation and counts them (H4b)

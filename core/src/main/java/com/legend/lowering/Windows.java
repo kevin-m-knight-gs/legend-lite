@@ -79,12 +79,12 @@ final class Windows {
     }
 
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
-    static String aggregate(TypedFunction callee) {
+    static @com.legend.Nullable String aggregate(TypedFunction callee) {
         return AGGREGATES.get(callee.signatureKey());
     }
 
     /** The window fn for a resolved overload, or null when it is not a window native. */
-    static WindowFn lookup(TypedFunction callee) {
+    static @com.legend.Nullable WindowFn lookup(TypedFunction callee) {
         return FNS.get(callee.signatureKey());
     }
     /**
@@ -93,7 +93,8 @@ final class Windows {
      * expression gets the SAME window spec.
      */
     static SqlExpr windowize(SqlExpr e, List<SqlExpr> partitionBy,
-            List<SqlSelect.SortKey> orderBy, SqlExpr.WindowCall.Frame frame) {
+            List<SqlSelect.SortKey> orderBy,
+            SqlExpr.WindowCall.@com.legend.Nullable Frame frame) {
         return switch (e) {
             case SqlAgg.Reducer r ->
                     new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);

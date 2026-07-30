@@ -1393,6 +1393,14 @@ final class Scalars {
                 String p = args.get(1) instanceof SqlExpr.StringLit lit ? lit.value() : null;
                 String before = "", from = null;
                 if (group > 0) {
+                    // gate-found NPE: a NON-LITERAL pattern with group > 0
+                    // reached capturingParen(null, ...) — the paren split
+                    // needs the literal text; wall instead of NPE
+                    if (p == null) {
+                        throw new com.legend.error.NotImplementedException(
+                                "regexp group extraction over a non-literal"
+                                + " pattern is not supported");
+                    }
                     int idx = RegexpRules.capturingParen(p, group);
                     before = p.substring(0, idx);
                     from = p.substring(idx);
@@ -2149,7 +2157,10 @@ final class Scalars {
                 args.get(0) instanceof SqlExpr.NullLit
                         ? new SqlExpr.BoolLit(false)
                         : SqlExpr.Call.of(SqlFn.COALESCE,
-                                RULES.get(Pure.keyIn()).apply(n, args),
+                                java.util.Objects.requireNonNull(
+                                        RULES.get(Pure.keyIn()),
+                                        "in-rule must be registered")
+                                        .apply(n, args),
                                 new SqlExpr.BoolLit(false)));
         RULES.put(Pure.keyIn(), (n, args) -> {
             // TYPE-aware membership: a kind-mismatched needle is never a
@@ -2399,7 +2410,7 @@ final class Scalars {
         }
     }
 
-    static MixedElems mixedElems(TypedSpec arg,
+    static @com.legend.Nullable MixedElems mixedElems(TypedSpec arg,
                                  SqlExpr lowered) {
         if (!(arg instanceof TypedCollection c)
                 || c.elements().size() < 2
@@ -2415,7 +2426,7 @@ final class Scalars {
     }
 
     /** The n-ary form: max(2D, 1.23) — each ARG one element. */
-    static MixedElems mixedArgs(List<TypedSpec> args,
+    static @com.legend.Nullable MixedElems mixedArgs(List<TypedSpec> args,
                                 List<SqlExpr> lowered) {
         Set<Type> kinds = new HashSet<>();
         for (var a : args) {
@@ -2424,7 +2435,7 @@ final class Scalars {
         return kinds.size() > 1 ? encodeAll(args, lowered) : null;
     }
 
-    private static MixedElems encodeAll(
+    private static @com.legend.Nullable MixedElems encodeAll(
             List<TypedSpec> elems,
             List<SqlExpr> lowered) {
         List<SqlExpr> ids = new ArrayList<>();
@@ -2523,7 +2534,7 @@ final class Scalars {
      * {@code make_timestamp(split_part(x,'-',i)...)} per the STATIC
      * precision; null when the precision is not a known partial form.
      */
-    private static SqlExpr partialComparable(TypedSpec e,
+    private static @com.legend.Nullable SqlExpr partialComparable(TypedSpec e,
                                              SqlExpr x) {
         PureDateLiteral.Precision prec = datePrecision(e);
         if (prec.atLeast(PureDateLiteral.Precision.HOUR)) {
@@ -2667,7 +2678,7 @@ final class Scalars {
     }
 
     /** datePrecision, or null where the abstract Date makes it undecidable. */
-    private static PureDateLiteral.Precision datePrecisionOrUnknown(TypedSpec arg) {
+    private static PureDateLiteral.@com.legend.Nullable Precision datePrecisionOrUnknown(TypedSpec arg) {
         try {
             return datePrecision(arg);
         } catch (IllegalStateException undecidable) {
@@ -2712,7 +2723,7 @@ final class Scalars {
             // a chain like 1.0D - 2 - 3.0 nests the decimal inside the
             // first subtraction — the detector looks through calls/cases
             case SqlExpr.Call c -> c.args().stream().anyMatch(Scalars::decimalKind);
-            case SqlExpr.Case c -> decimalKind(c.otherwise());
+            case SqlExpr.Case c -> c.otherwise() != null && decimalKind(c.otherwise());
             default -> false;
         };
     }
@@ -3067,7 +3078,7 @@ final class Scalars {
      * ascending, {@code {x,y|$y->compare($x)}} descending; anything richer
      * has no relational sort shape (null).
      */
-    private static Boolean comparatorDirection(TypedSpec spec) {
+    private static @com.legend.Nullable Boolean comparatorDirection(TypedSpec spec) {
         if (!(spec instanceof TypedLambda cmp)
                 || cmp.parameters().size() != 2 || cmp.body().size() != 1
                 || !(cmp.body().get(0) instanceof TypedNativeCall cc)
@@ -3310,7 +3321,7 @@ final class Scalars {
     }
 
     /** Pure's default date print for a format slot, or null when not a date. */
-    private static SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
+    private static @com.legend.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
         Type t = typed.info().type();
         SqlExpr lit = dateLiteralPrint(typed, t);
         if (lit != null) {
@@ -3324,7 +3335,7 @@ final class Scalars {
     }
 
     /** %r: strings quote with \-escapes; dates carry their % literal prefix. */
-    private static SqlExpr reprOf(TypedSpec typed, SqlExpr e) {
+    private static SqlExpr reprOf(@com.legend.Nullable TypedSpec typed, SqlExpr e) {
         if (typed != null) {
             SqlExpr dp = datePrintOf(typed, e);
             if (dp != null) {
@@ -3351,7 +3362,7 @@ final class Scalars {
      * normalized to +0000 (the parser already shifted zone-carrying
      * literals to GMT). {@code null} for non-literal args.
      */
-    private static SqlExpr dateLiteralPrint(TypedSpec spec, Type t) {
+    private static @com.legend.Nullable SqlExpr dateLiteralPrint(TypedSpec spec, Type t) {
         if (!(spec instanceof TypedCDate cd)) {
             return null;
         }
@@ -3362,7 +3373,7 @@ final class Scalars {
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
     /** Split-part FIELD COUNT of a partial (year / year-month) literal —
      * derived from the one precision ladder, not a second scale. */
-    private static Integer partialPrecision(TypedSpec t) {
+    private static @com.legend.Nullable Integer partialPrecision(TypedSpec t) {
         if (t instanceof TypedCDate d) {
             return switch (d.value().precision()) {
                 case YEAR -> 1;

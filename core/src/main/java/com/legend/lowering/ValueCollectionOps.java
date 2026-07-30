@@ -27,7 +27,7 @@ final class ValueCollectionOps {
 
     /** The relation-space rewrite of {@code n}, or null when {@code n} is
      * not a 1-arg removeDuplicates/sort over a single-column relation. */
-    static TypedSpec relationSpaceRewrite(TypedNativeCall n) {
+    static @com.legend.Nullable TypedSpec relationSpaceRewrite(TypedNativeCall n) {
         if (n.args().size() != 1
                 || !(n.args().get(0).info().type()
                         instanceof Type.RelationType rt)

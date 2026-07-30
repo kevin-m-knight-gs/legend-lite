@@ -186,8 +186,9 @@ public sealed interface SqlExpr
      * {@link SqlAgg} kind is legal here &mdash; this is the ONLY position that
      * admits the window-only kinds.
      */
+    /** {@code frame} null = no explicit frame clause (dialect default). */
     record WindowCall(SqlAgg fn, List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
-                      Frame frame) implements SqlExpr {
+                      @com.legend.Nullable Frame frame) implements SqlExpr {
 
         /** {@code ROWS|RANGE BETWEEN <from> AND <to>}. */
         public record Frame(Kind kind, Bound from, Bound to) {

@@ -65,7 +65,7 @@ final class Fold {
             com.legend.sql.SqlAgg.Reducer reducer) {
     }
 
-    static OrderedAgg orderUnionAggregate(com.legend.sql.SqlSelect base,
+    static @com.legend.Nullable OrderedAgg orderUnionAggregate(com.legend.sql.SqlSelect base,
             com.legend.sql.SqlAgg.Reducer red) {
         if (!"STRING_AGG".equals(red.fn()) || !red.orderBy().isEmpty()) {
             return null;
@@ -152,7 +152,7 @@ final class Fold {
         }
     }
 
-    private static com.legend.sql.SqlSource.Subselect findUnionSub(
+    private static com.legend.sql.SqlSource.@com.legend.Nullable Subselect findUnionSub(
             com.legend.sql.SqlSource src) {
         return switch (src) {
             case com.legend.sql.SqlSource.Subselect s
@@ -361,7 +361,7 @@ final class Fold {
      * returns null and the caller isolates (recomputing scalars in WHERE is
      * legal but deferred until the corpus pins it).
      */
-    static SqlExpr resolveInto(SqlSelect s, String column) {
+    static @com.legend.Nullable SqlExpr resolveInto(SqlSelect s, String column) {
         if (column == null) {
             // a COLUMN-LESS read reaching fold resolution was an NPE
             // (dishonest wall) — the producing shape failed to name its
@@ -390,7 +390,7 @@ final class Fold {
                 : column;
     }
 
-    private static SqlExpr resolveIntoExact(SqlSelect s, String column) {
+    private static @com.legend.Nullable SqlExpr resolveIntoExact(SqlSelect s, String column) {
         if (s.projections().isEmpty()) {
             return sourceColumn(s.from(), column);
         }
@@ -442,7 +442,7 @@ final class Fold {
         };
     }
 
-    static SqlExpr.Column sourceColumnDriving(SqlSource src, String column) {
+    static SqlExpr.@com.legend.Nullable Column sourceColumnDriving(SqlSource src, String column) {
         if (src instanceof SqlSource.Join j) {
             return sourceColumnDriving(j.left(), column);
         }
@@ -454,7 +454,7 @@ final class Fold {
         return sourceColumn(src, column);
     }
 
-    static SqlExpr.Column sourceColumn(SqlSource src, String column) {
+    static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src, String column) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —
         // a genuine column carrying that spelling (its own extend) wins.

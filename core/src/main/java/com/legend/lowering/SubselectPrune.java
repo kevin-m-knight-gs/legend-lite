@@ -50,7 +50,7 @@ final class SubselectPrune {
             this(new HashMap<>(), new HashSet<>(), new HashSet<>());
         }
 
-        void col(String table, String name) {
+        void col(@com.legend.Nullable String table, String name) {
             if (table == null) {
                 unqualified.add(name);
             } else {
