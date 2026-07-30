@@ -72,10 +72,10 @@ in-process Alloy-shaped path).
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 |
 | tests/query | 83 | 73 | 1 | 8 | 1 |
-| transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
+| transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2120** | 94 | 169 | 155 |
+| **total** | 2538 | **2123** | 91 | 169 | 155 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8542,17 +8542,14 @@ in-process Alloy-shaped path).
 - ERROR testJoinStringFunction [tests/query]: LIST_AGG reached a dialect without a list encoding
 - ERROR testDayOfWeekNumberFunction [tests/query]: no overload of 'meta::pure::functions::date::dayOfWeekNumber' accepts 2 argument(s)
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::tests::functions::sqlstring]
-- FAIL testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: assertEquals: expected select "root".FIRSTNAME as "firstName", sum("root".AGE) as "age" from personTable as "root" group by "root".FIRSTNAME, got select "root".FIRSTNAME as "firstName", sum("root".AGE) as "age" from personTable as "root" group by "firstName"
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::extension]
 - FAIL testToSQLStringSplitPart [transform/fromPure/tests]: assertEquals: expected select legend_h2_extension_split_part(legend_h2_extension_split_part("root".FIRSTNAME, '|', 1), ',', 2) as "splitComma", legend_h2_extension_split_part(legend_h2_extension_split_part("root".FIRSTNAME, '|', 1 + 1 + 1), ',', 1 + 1 + 1) as "splitCommaExpression" from personTable 
 - FAIL testToSQLStringWithPosition [transform/fromPure/tests]: assertEquals: expected select substring("root".FULLNAME, 0, locate(',', "root".FULLNAME) - 1) as "firstName" from personTable as "root", got select substr("root".FULLNAME, 1, strpos("root".FULLNAME, ',') - 1 + 1 - 1) as "firstName" from personTable as "root"
-- FAIL testDayOfYear [transform/fromPure/tests]: assertEquals: expected select extract(doy from "root".tradeDate) as "doy" from tradeTable as "root", got select date_part('doy', "root".tradeDate) as "doy" from tradeTable as "root"
 - SHAPE testTrim [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
 - SHAPE testPad [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
-- FAIL testLeftRight [transform/fromPure/tests]: assertEquals: expected select trim(left("root".FIRSTNAME, 1)) as "left", trim(right("root".FIRSTNAME, 1)) as "right" from personTable as "root", got select left("root".FIRSTNAME, 1) as "left", right("root".FIRSTNAME, 1) as "right" from personTable as "root"
 - SHAPE testCbrt [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInProjectionForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInFiltersForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

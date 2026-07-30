@@ -406,7 +406,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * {@code group by "prodName"}); a bare same-name key (mapping
      * ~groupBy has no alias) keeps the physical expression. Render-only:
      * the IR keys stay real expressions for the execution dialects. */
-    private String groupKey(SqlSelect s, SqlExpr e) {
+    protected String groupKey(SqlSelect s, SqlExpr e) {
         if (e instanceof SqlExpr.Column c && c.table() == null) {
             // a SELF-ALIASED key (ENTITY_ID as ENTITY_ID — the view
             // ~groupBy form) spells the PHYSICAL expression (golden:
@@ -942,6 +942,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     : super.call(c, parentPrec);
             case DATE_TRUNC_DAY -> "cast(truncate(" + expr(a.get(0), 0)
                     + ") as date)";
+            // extract-part goldens spell the SQL-standard extract form
+            // (testToSQLString.pure:368 'extract(doy from ...)'; the
+            // engine's spelling of that form: oracleExtension.pure:204)
+            case EXTRACT -> a.size() == 2
+                    && a.get(0) instanceof SqlExpr.StringLit part
+                    && "doy".equals(part.value())
+                    ? "extract(doy from " + expr(a.get(1), 0) + ")"
+                    : super.call(c, parentPrec);
             // firstDayOf* family: every H2 golden spells the uniform
             // double cast; a TODAY anchor renders bare now() inside
             case DATE_TRUNC -> {

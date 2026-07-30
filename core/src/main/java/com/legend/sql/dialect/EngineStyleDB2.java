@@ -43,6 +43,15 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                 ? "\"\\'\" \"\\'\" {}" : super.holderArgs(k);
     }
 
+    /** DB2 has no group-by-alias: every key spells the PHYSICAL
+     * expression (testToSQLStringWithAggregationDB2 golden —
+     * {@code group by "root".FIRSTNAME}); the engine resolves aliases
+     * before rendering for DB2 where H2 keeps the TDS alias text. */
+    @Override
+    protected String groupKey(com.legend.sql.SqlSelect s, SqlExpr e) {
+        return expr(e, 0);
+    }
+
     @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
@@ -56,6 +65,19 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                     ? "trim(" + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
             case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
+            // DB2 spells dayOfYear as the bare function
+            // (db2Extension.pure:91 — 'dayofyear(%s)')
+            case EXTRACT -> c.args().size() == 2
+                    && c.args().get(0) instanceof SqlExpr.StringLit pt
+                    && "doy".equals(pt.value())
+                    ? "dayofyear(" + expr(c.args().get(1), 0) + ")"
+                    : super.call(c, parentPrec);
+            // DB2 wraps left/right in trim (db2Extension.pure:100/:115 —
+            // 'trim(left(%s, %s))'/'trim(right(%s, %s))')
+            case LEFT -> "trim(left(" + expr(a.get(0), 0) + ", "
+                    + expr(a.get(1), 0) + "))";
+            case RIGHT -> "trim(right(" + expr(a.get(0), 0) + ", "
+                    + expr(a.get(1), 0) + "))";
             case TODAY -> "date(current date)";
             case LENGTH -> "CHARACTER_LENGTH(" + expr(a.get(0), 0)
                     + ",CODEUNITS32)";
