@@ -38,12 +38,12 @@ import java.util.Map;
 public record ClassSource(
         String mappingFqn,
         String classFqn,
-        String setId,
+        @com.legend.Nullable String setId,
         TypedSpec pipeline,
         String rowVar,
         Map<String, TypedSpec> bindings,
         Type.RelationType rowType,
-        String sourceClass) {
+        @com.legend.Nullable String sourceClass) {
 
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
@@ -52,7 +52,8 @@ public record ClassSource(
     /** No known upstream source class (relational sets, synthesized
      * unions) — consumers requiring source identity fall back to
      * structural checks (audit 24 F4). */
-    public ClassSource(String mappingFqn, String classFqn, String setId,
+    public ClassSource(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId,
             TypedSpec pipeline, String rowVar,
             Map<String, TypedSpec> bindings, Type.RelationType rowType) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,

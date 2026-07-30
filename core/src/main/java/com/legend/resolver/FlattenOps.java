@@ -164,7 +164,7 @@ final class FlattenOps {
      * the flatten's downstream demand (task #63: the hop target must
      * materialize WITH the nav/slot steps those heads dispatch through). */
     static java.util.Set<String> downstreamHeads(List<TypedSpec> ops,
-            TypedSpec top) {
+            @com.legend.Nullable TypedSpec top) {
         java.util.Set<String> heads = new java.util.LinkedHashSet<>();
         collectLambdaHeads(ops == null ? List.of() : ops, heads);
         if (top != null) {

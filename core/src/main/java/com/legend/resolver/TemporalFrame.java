@@ -1155,7 +1155,7 @@ final class TemporalFrame {
         if (fromCol == null || thruCol == null) {
             throw new com.legend.error.NotImplementedException(
                     "outer-row milestoning date: target table '"
-                    + rt.table() + "' has no FROM/THRU pair");
+                    + java.util.Objects.requireNonNull(rt).table() + "' has no FROM/THRU pair");
         }
         return outerDatedWindowCond(cond, left, right, fromCol, thruCol,
                 inclusive, outerCol, navClass, false, specDate);
@@ -1464,7 +1464,7 @@ final class TemporalFrame {
                 // any table milestoned with a different infinity date
                 throw new MappingResolutionException("%latest usage for"
                         + " temporal fetch of '" + classFqn + "' requires"
-                        + " table '" + root.table() + "' to specify a"
+                        + " table '" + java.util.Objects.requireNonNull(root).table() + "' to specify a"
                         + " milestoning 'INFINITY_DATE'", classFqn);
             }
             ExprType dt =
@@ -2207,7 +2207,7 @@ final class TemporalFrame {
      * context for HEAD hops only (audit 13 F5: the root date leaked
      * through non-temporal intermediates).
      */
-    TemporalContext contextAt(String chainPrefix,
+    TemporalContext contextAt(@com.legend.Nullable String chainPrefix,
             String targetClassFqn, TemporalContext inherited) {
         TemporalSpec spec = chainPrefix == null ? null
                 : specs.get(chainPrefix);

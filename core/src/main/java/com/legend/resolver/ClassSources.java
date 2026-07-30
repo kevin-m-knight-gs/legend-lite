@@ -123,7 +123,7 @@ public final class ClassSources {
      * resolution to this mapping (+ includes).
      */
     public ClassSource get(String mappingFqn, String classFqn,
-            UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
             String contextKey) {
         return get(mappingFqn, classFqn, null, upstreamMapping, contextKey);
     }
@@ -133,8 +133,9 @@ public final class ClassSources {
      * set's binding realizes the target; absent, the class-level lookup
      * serves (union targets: member set ids never bind class-level, the
      * fallback lands on the union). */
-    public ClassSource get(String mappingFqn, String classFqn, String setId,
-            UnaryOperator<String> upstreamMapping,
+    public ClassSource get(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
             String contextKey) {
         // The context key participates in memoization because an M2M
         // composition resolves its UPSTREAM through the runtime dispatch —
@@ -171,7 +172,7 @@ public final class ClassSources {
      * extent is per-member dispatch — not built yet, loud downstream.
      */
     private ClassSource mixedUnionSource(String mappingFqn, String classFqn,
-            List<String> memberSetIds, UnaryOperator<String> upstreamMapping,
+            List<String> memberSetIds, @com.legend.Nullable UnaryOperator<String> upstreamMapping,
             String contextKey) {
         var cls = ctx.findClass(classFqn).orElseThrow(() ->
                 new IllegalStateException("resolver bug: mixed-union class '"
@@ -258,7 +259,9 @@ public final class ClassSources {
                     new TypedVariable(rowVar, rowInfo), c.name(),
                     new ExprType(c.type(), c.multiplicity())));
         }
-        return new ClassSource(mappingFqn, classFqn, "union", union,
+        return new ClassSource(mappingFqn, classFqn, "union",
+                java.util.Objects.requireNonNull(union,
+                        "union with zero members"),
                 rowVar, bindings, rowType);
     }
 
@@ -578,12 +581,14 @@ public final class ClassSources {
                     new ExprType(c.type(), c.multiplicity())));
         }
         return new MixedChild(new ClassSource(mappingFqn, childClassFqn,
-                "union", union, rowVar, bindings, rowType), keysPerPair);
+                "union", java.util.Objects.requireNonNull(union,
+                        "mixed child with zero arms"),
+                rowVar, bindings, rowType), keysPerPair);
     }
 
     private ClassSource build(String mappingFqn, String classFqn,
-            String setId,
-            UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
             String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
@@ -822,7 +827,7 @@ public final class ClassSources {
     private ClassSource composeModelToModel(String mappingFqn, String classFqn,
             MappingDefinition.ClassBinding binding, TypedSpec pipeline,
             TypedLambda mapper, TypedNewInstance ctor, Type.ClassType srcType,
-            UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
             String contextKey) {
         // Ops between the extent and the constructor: instance-space
         // FILTERS compose (their predicates substitute through the
@@ -890,12 +895,12 @@ public final class ClassSources {
      * Closed vocabulary with a LOUD default — a node this rewriter does not
      * know is a normalizer contract change, never silent.
      */
-    private @com.legend.Nullable TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
+    private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
             ClassSource inner, String classFqn, String mappingFqn) {
         return substituteSourceReads(n, srcVar, inner, classFqn, mappingFqn, true);
     }
 
-    private @com.legend.Nullable TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
+    private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
             ClassSource inner, String classFqn, String mappingFqn,
             boolean bindingPosition) {
         if (n instanceof TypedPropertyAccess pa
@@ -1133,7 +1138,7 @@ public final class ClassSources {
      * poison explains the 0-binder error). */
     private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
-                                                       String setId,
+                                                       @com.legend.Nullable String setId,
                                                        LinkedHashSet<String> visited) {
         List<MappingDefinition.ClassBinding> local = new ArrayList<>();
         for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {

@@ -694,9 +694,9 @@ final class SyntheticHeads {
             renamed = new TypedMilestonedAccess(
                     ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
         } else {
-            var hp = (TypedPropertyAccess) headNode;
+            var hp = (TypedPropertyAccess) java.util.Objects.requireNonNull(headNode);
             renamed = new TypedPropertyAccess(
-                    hp.source(), synth, hp.info());
+                    java.util.Objects.requireNonNull(hp).source(), synth, hp.info());
         }
         return new TypedPropertyAccess(
                 renamed, leafRead.property(), leafRead.info());
@@ -1049,7 +1049,7 @@ final class SyntheticHeads {
                 new LinkedHashMap<>(), new int[]{0});
     }
 
-    private static TypedSpec alphaNormalize(TypedSpec n,
+    private static TypedSpec alphaNormalize(@com.legend.Nullable TypedSpec n,
             Map<String, String> env, int[] counter) {
         if (n instanceof TypedVariable v) {
             String canonical = env.get(v.name());
@@ -1070,11 +1070,12 @@ final class SyntheticHeads {
                             .toList(),
                     l.info());
         }
-        return rebuildChildren(n, c -> alphaNormalize(c, env, counter));
+        return rebuildChildren(java.util.Objects.requireNonNull(n),
+                c -> alphaNormalize(c, env, counter));
     }
 
     /** The variable a liftable navigation chain bottoms at. */
-    private static String bottomVarOf(TypedSpec n) {
+    private static String bottomVarOf(@com.legend.Nullable TypedSpec n) {
         return switch (n) {
             case TypedVariable v -> v.name();
             case TypedPropertyAccess pa -> bottomVarOf(pa.source());

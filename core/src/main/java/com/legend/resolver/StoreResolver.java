@@ -125,7 +125,6 @@ public final class StoreResolver {
                 synthetics, corrSubs);
     }
 
-    /** Resolve every statement of a query body (lets + final expression). */
     public List<TypedSpec> resolve(List<TypedSpec> body) { return resolve(body, null); }
 
     /**
@@ -135,9 +134,7 @@ public final class StoreResolver {
      * the query always wins; the driver runtime is the outermost fallback.
      */
     public List<TypedSpec> resolve(List<TypedSpec> body,
-            @com.legend.Nullable String driverRuntimeFqn) {
-        return resolve(body, driverRuntimeFqn, null);
-    }
+            @com.legend.Nullable String driverRuntimeFqn) { return resolve(body, driverRuntimeFqn, null); }
 
     /** {@code explicitMappingFqn}: resolve class fetches against THIS
      * mapping (the ~func-pipeline recursion — ClassSources) — an explicit
@@ -242,9 +239,7 @@ public final class StoreResolver {
             @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
             Map<String, String> jsonSources) {
         Context(@com.legend.Nullable String explicitMapping,
-                @com.legend.Nullable String runtimeFqn) {
-            this(explicitMapping, runtimeFqn, List.of(), Map.of());
-        }
+                @com.legend.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of()); }
         Context(@com.legend.Nullable String explicitMapping, @com.legend.Nullable String runtimeFqn,
                 List<String> chainMappings) {
             this(explicitMapping, runtimeFqn, chainMappings, Map.of());
@@ -347,7 +342,8 @@ public final class StoreResolver {
             // project DISTRIBUTES over a class-collection concatenate
             // (UNION ALL): each side is its own object-space chain
             case TypedProject p when classConcatOf(p.source()) != null -> {
-                TypedNativeCall c = classConcatOf(p.source());
+                TypedNativeCall c = java.util.Objects.requireNonNull(
+                        classConcatOf(p.source()));
                 yield new TypedConcatenate(
                         resolveNode(new TypedProject(c.args().get(0), p.columns(),
                                 p.info()), context),
@@ -819,7 +815,8 @@ public final class StoreResolver {
      * (unmatched parents ride as null rows — corpus-asserted); value/graph
      * terminals stamp INNER = the engine READER's null-pk skip (21b F3). */
     private ClassSource flattenSource(ClassSource src, String hop,
-            Context context, List<TypedSpec> ops, TypedSpec top,
+            Context context, List<TypedSpec> ops,
+            @com.legend.Nullable TypedSpec top,
             Set<String> extraHeads,
             Map<String, Substitution.AssocSub> provOut,
             List<TypedSpec> belowOps, boolean rowPreserving) {
@@ -841,7 +838,8 @@ public final class StoreResolver {
         String alias = hopBinding == null ? null
                 : InnerDemand.navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
-            return flattenNavSlot(src, alias, navSteps.get(alias),
+            return flattenNavSlot(src, alias, java.util.Objects
+                    .requireNonNull(navSteps.get(alias)),
                     heads, provOut, belowOps, context, rowPreserving);
         }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
@@ -867,7 +865,7 @@ public final class StoreResolver {
         ExprType rowInfo = new ExprType(row,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joined = new TypedJoin(left, aj.targetPipeline(),
-                rowPreserving ? leftKind() : innerKind(), aj.condition(),
+                rowPreserving ? leftKind() : innerKind(), java.util.Objects.requireNonNull(aj.condition()),
                 Optional.of(aj.prefix()),
                 // a VIEW-backed target joins as a frame NAMED BY THE VIEW
                 // (legalentity_view_0, never the physical table's group)
@@ -1569,7 +1567,7 @@ public final class StoreResolver {
      * the body comments. Mutates {@code existsSubs}. */
     private void registerDottedExistsSubs(ClassSource cs,
             List<TypedSpec> ops, TypedSpec top,
-            List<TypedGraphTree> tree, Context context,
+            @com.legend.Nullable List<TypedGraphTree> tree, Context context,
             Map<String, Substitution.AssocSub> assocs,
             Map<String, Substitution.ExistsSub> existsSubs) {
         // 2a''. CLASS-TYPED LEAF under an emptiness call — isNotEmpty(
@@ -1707,7 +1705,7 @@ public final class StoreResolver {
                         + " the chain prefix pre-prefixing assumes joined-row"
                         + " reads (audit 14 B-F7)");
             }
-            String pv = cond.parameters().get(0);
+            String pv = java.util.Objects.requireNonNull(cond).parameters().get(0);
             TypedSpec cbody = Pipelines.prefixColumns(
                     cond.body().get(cond.body().size() - 1), pv,
                     chain.prefix(), v -> v);
@@ -1856,7 +1854,8 @@ public final class StoreResolver {
     /** scalar-subquery IN (#78): class-query membership collections
      * resolve up front, identity-keyed for the substitution arm. */
     private Map<TypedSpec, Substitution.InQueryRead> inQueryReadsFor(
-            List<TypedSpec> ops, TypedSpec top, List<TypedGraphTree> tree,
+            List<TypedSpec> ops, TypedSpec top,
+            @com.legend.Nullable List<TypedGraphTree> tree,
             Context context) {
         return InnerDemand.inQueryReads(ops,
                 tree == null ? terminalLambdas(top) : List.of(),
@@ -1911,7 +1910,7 @@ public final class StoreResolver {
                         aj.prefix() + c.name(), c.type(), c.multiplicity()));
             }
             withJoins = new TypedJoin(withJoins,
-                    joinTarget, leftKind(), joinCond,
+                    joinTarget, leftKind(), java.util.Objects.requireNonNull(joinCond),
                     Optional.of(aj.prefix()),
                     ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
@@ -1944,7 +1943,7 @@ public final class StoreResolver {
             // equi keys, and joins back on key equality.
             TypedLambda corrAgg = synthetics.correlatedPred(head);
             CorrelatedSubselects.CorrAggSub cas =
-                    corrSubs.corrAggSubSource(cs, head, aj, corrAgg);
+                    corrSubs.corrAggSubSource(cs, head, java.util.Objects.requireNonNull(aj), corrAgg);
             String corrRowVar = cas.rowVar();
             String corrTp = cas.targetPrefix();
             Type.RelationType corrJoinedRow = cas.joinedRow();
@@ -1955,7 +1954,7 @@ public final class StoreResolver {
             // ID_0/ID_1) — group by ALL split columns, join back on OR
             // of same-name pairs (engine unionBase model, task #27 U4)
             List<String> keyCols2 = CorrelatedSubselects
-                    .expandSplitKeys(keyCols, keyRow);
+                    .expandSplitKeys(java.util.Objects.requireNonNull(keyCols), keyRow);
             boolean splitKeys = !keyCols2.equals(keyCols);
             keyCols = keyCols2;
             CorrelatedSubselects.ParentCopy pc = cas.pc();
@@ -1986,9 +1985,9 @@ public final class StoreResolver {
             List<TypedAggCol> aggs =
                     new ArrayList<>();
             int ord = 0;
-            var targetRowType = new ExprType(
-                    aj.targetRow(), com.legend.compiler.element.type.Multiplicity
-                            .Bounded.ONE);
+            var targetRowType = new ExprType(java.util.Objects
+                    .requireNonNull(aj).targetRow(),
+                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
             for (AggDemand d : entry.getValue()) {
                 String alias = "agg_" + ord++;
                 aggs.add(corrSubs.aggColFor(cs, head, aj, d, alias,
@@ -2024,7 +2023,7 @@ public final class StoreResolver {
                                     withJoins.info().type(), subRow,
                             splitKeys);
             withJoins = new TypedJoin(withJoins,
-                    sub, leftKind(), backCond,
+                    sub, leftKind(), java.util.Objects.requireNonNull(backCond),
                     Optional.of(prefix), null,
                     new ExprType(
                             new Type.RelationType(cols),
@@ -2121,8 +2120,9 @@ public final class StoreResolver {
                 Map<String, Substitution.SubNav> tSubNavs = new LinkedHashMap<>();
                 for (var pne : predNavAliases.entrySet()) {
                     String pfx = tMat0.slotPrefixes().get(pne.getValue());
-                    var stepT = Pipelines.navSteps(t.pipeline())
-                            .get(pne.getValue()).target();
+                    var stepT = java.util.Objects.requireNonNull(
+                            Pipelines.navSteps(t.pipeline())
+                                    .get(pne.getValue())).target();
                     if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                         continue;
                     }
@@ -2222,7 +2222,7 @@ public final class StoreResolver {
             NestedScope assocNs = nestedScope(aj.target(), ops, head, context,
                     aj.targetPipeline());
             existsSubs.put(head, new Substitution.ExistsSub(assocNs.pipeline(),
-                    aj.condition(), aj.target().rowVar(), aj.target().bindings(),
+                    java.util.Objects.requireNonNull(aj.condition()), aj.target().rowVar(), aj.target().bindings(),
                     assocNs.row(), aj.target().classFqn(),
                     Pipelines.slotAliases(aj.target().pipeline()),
                     aj.targetSlotPrefixes(), isToMany)
@@ -2366,7 +2366,7 @@ public final class StoreResolver {
                                 pp2 + c.name(), c.type(), c.multiplicity()));
                     }
                     var leftRow = new Type.RelationType(leftCols);
-                    String leftParam = cond.parameters().get(0);
+                    String leftParam = java.util.Objects.requireNonNull(cond).parameters().get(0);
                     TypedSpec body = Pipelines.prefixColumns(
                             cond.body().get(cond.body().size() - 1), leftParam, pp2,
                             v -> new TypedVariable(leftParam,
@@ -2409,7 +2409,7 @@ public final class StoreResolver {
             NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(),
                     targetClass,
                     extraNavTails.getOrDefault(headKey, List.of()),
-                    headKey, null);
+                    headKey, TemporalContext.NONE);
             // the slot route's root stamp comes from the outer join-walk;
             // an extra join never passes it — stamp here (assoc emission)
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
@@ -2456,7 +2456,7 @@ public final class StoreResolver {
             NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(
                     temporal, cs.mappingFqn(), targetClass,
                     navTailsByAlias.getOrDefault(alias, List.of()),
-                    headKey, null);
+                    headKey, TemporalContext.NONE);
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
                             Map.of()));
@@ -2503,7 +2503,8 @@ public final class StoreResolver {
         // 2-hop heads whose join target carries the predicate.
         final Context canonCtx = context;
         synthetics.setCanonicalizer(nn -> corrSubs.subTypeNavCastCanon(nn,
-                fqn -> dispatch(canonCtx, fqn), isNotEmptyCallee()));
+                fqn -> dispatch(canonCtx, fqn),
+                java.util.Objects.requireNonNull(isNotEmptyCallee())));
         top = synthetics.liftFilteredHeads(top);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —
@@ -2743,7 +2744,8 @@ public final class StoreResolver {
      * chain-keyed (conflicting dates for one chain are loud — the date
      * split renamed genuine two-date heads before this runs). */
     private Map<String, TemporalFrame.TemporalSpec> collectChainSpecs(
-            List<TypedSpec> ops, TypedSpec top, List<TypedGraphTree> tree) {
+            List<TypedSpec> ops, TypedSpec top,
+            @com.legend.Nullable List<TypedGraphTree> tree) {
         Map<String, TemporalFrame.TemporalSpec> specs =
                 new LinkedHashMap<>();
         for (TypedSpec op : ops) {
@@ -2873,10 +2875,12 @@ public final class StoreResolver {
                 corrSubs.buildAggMaterials(temporal, cs, context, aggDemands);
         Set<String> joinKeyReads = new LinkedHashSet<>();
         for (AssociationJoins.AssocJoin aj : assocJoins) {
-            CorrelatedSubselects.collectParamColumnReads(aj.condition(), joinKeyReads);
+            var ajCondR = aj.condition();
+            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
         }
         for (AssociationJoins.AssocJoin aj : aggMaterials.values()) {
-            CorrelatedSubselects.collectParamColumnReads(aj.condition(), joinKeyReads);
+            var ajCondR = aj.condition();
+            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
         }
         for (Substitution.ExistsSub ex : existsSubs.values()) {
             CorrelatedSubselects.collectParamColumnReads(ex.orientedCond(), joinKeyReads);
@@ -3101,7 +3105,6 @@ public final class StoreResolver {
             @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
 
         AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf) { this(node, leaf, null, null, true); }
-
         AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf,
                 @com.legend.Nullable TypedLambda mapper) { this(node, leaf, mapper, null, true); }
 
@@ -3112,7 +3115,8 @@ public final class StoreResolver {
             if (leaf != null) {
                 out.add(leaf);
             } else {
-                for (List<String> pth : lambdaHeads(mapper)) {
+                for (List<String> pth : lambdaHeads(
+                        java.util.Objects.requireNonNull(mapper))) {
                     out.add(pth.get(0));
                 }
             }
@@ -3217,11 +3221,8 @@ public final class StoreResolver {
         return toMany && isAssocOrNavHead(cs, real);
     }
 
-    /** See {@link AssociationJoins#isAssocOrNavHead} (relocated —
-     * file-size seam). */
-    boolean isAssocOrNavHead(ClassSource cs, String head) {
-        return assocMaterial.isAssocOrNavHead(cs, head);
-    }
+    /** See {@link AssociationJoins#isAssocOrNavHead} (relocated). */
+    boolean isAssocOrNavHead(ClassSource cs, String head) { return assocMaterial.isAssocOrNavHead(cs, head); }
 
     /**
      * The TARGET-side key columns of a conjunctive equi-join condition —

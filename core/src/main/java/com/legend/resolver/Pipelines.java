@@ -263,7 +263,7 @@ final class Pipelines {
 
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     Set<String> demandedNavs, String classFqn,
-                                    TargetResolver targets) {
+                                    @com.legend.Nullable TargetResolver targets) {
         Set<String> all = slotAliases(pipeline);
         Map<String, TypedNavigate> navs = navSteps(pipeline);
         if (all.isEmpty() && navs.isEmpty()) {
@@ -297,7 +297,7 @@ final class Pipelines {
 
 
     private static TypedSpec walkJoinSlot(TypedJoinSlot js, Set<String> demanded,
-            Set<String> demandedNavs, TargetResolver targets,
+            Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
             Map<String, String> prefixes, Set<String> stripped,
             String classFqn) {
 
@@ -413,7 +413,7 @@ final class Pipelines {
     }
 
     private static TypedSpec walk(TypedSpec n, Set<String> demanded,
-                                  Set<String> demandedNavs, TargetResolver targets,
+                                  Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
                                   Map<String, String> prefixes, Set<String> stripped,
                                   String classFqn) {
         return switch (n) {
@@ -634,7 +634,7 @@ final class Pipelines {
      * to the prefixed columns (mirror of the project-over-slots arm).
      */
     private static TypedSpec groupByOverSlots(TypedGroupBy g,
-            TargetResolver targets, String classFqn) {
+            @com.legend.Nullable TargetResolver targets, String classFqn) {
         Set<String> gSlots = slotAliases(g.source());
         Set<String> gDemand = new LinkedHashSet<>();
         for (var k : g.keys()) {

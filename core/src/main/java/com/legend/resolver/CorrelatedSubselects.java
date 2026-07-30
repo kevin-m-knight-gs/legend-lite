@@ -117,7 +117,7 @@ final class CorrelatedSubselects {
     CorrAggSub corrAggSubSource(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj, @com.legend.Nullable TypedLambda corrAgg) {
         if (corrAgg == null) {
-            List<String> tKeys = targetEquiKeysOrNull(aj.condition());
+            List<String> tKeys = targetEquiKeysOrNull(java.util.Objects.requireNonNull(aj.condition()));
             if (tKeys != null) {
                 return new CorrAggSub(aj.targetPipeline(), tKeys,
                         aj.targetRow(), null, null, null, null);
@@ -125,7 +125,8 @@ final class CorrelatedSubselects {
             return chainedAggSubSource(cs, head, aj);
         }
         List<String> keyCols = parentEquiKeys(aj.condition(), head);
-        ParentCopy pc = parentCopyFor(cs, corrAgg);
+        ParentCopy pc = java.util.Objects.requireNonNull(
+                parentCopyFor(cs, corrAgg));
         Type.RelationType pcRow = (Type.RelationType)
                 pc.mat().pipeline().info().type();
         String corrTp = AssociationJoins.prefixFor(head + "_t", cs);
@@ -144,7 +145,7 @@ final class CorrelatedSubselects {
         var jInfo = new ExprType(corrJoinedRow,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
-                aj.targetPipeline(), StoreResolver.leftKind(), aj.condition(),
+                aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
                 Optional.of(corrTp), null, jInfo);
         String corrRowVar = "_cj";
         // audit 23: a user lambda variable named _cj would shadow-stop the
@@ -185,7 +186,8 @@ final class CorrelatedSubselects {
         // the flat join, with the pred resolvable.
         List<String> keyCols = parentEquiKeys(aj.condition(),
                 aj.prefix());
-        ParentCopy pc = parentCopyFor(cs, aj.corrSubPred());
+        ParentCopy pc = java.util.Objects.requireNonNull(
+                parentCopyFor(cs, aj.corrSubPred()));
         Type.RelationType pcRow = (Type.RelationType)
                 pc.mat().pipeline().info().type();
         String corrTp = aj.prefix() + "t_";
@@ -202,7 +204,7 @@ final class CorrelatedSubselects {
                 com.legend.compiler.element.type.Multiplicity
                         .Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
-                aj.targetPipeline(), StoreResolver.leftKind(), aj.condition(),
+                aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
                 Optional.of(corrTp), null, jInfo);
         // audit 23: same _cj freshness bump as corrAggSubSource
         String cjVar = "_cj";
@@ -225,6 +227,8 @@ final class CorrelatedSubselects {
                 new ArrayList<>();
         List<Type.Column> subColsX = new ArrayList<>();
         List<String> subKeys = new ArrayList<>();
+        java.util.Objects.requireNonNull(keyCols,
+                "chained agg sub requires equi keys");
         for (int ki = 0; ki < keyCols.size(); ki++) {
             String k = keyCols.get(ki);
             var col = pcRow.columns().stream()
@@ -290,9 +294,9 @@ private static boolean hasColPrefixed(Type.RelationType row, String prefix) {
     }
 
 
-private static @com.legend.Nullable List<String> parentEquiKeys(TypedLambda cond, String head) {
+private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Nullable TypedLambda cond, String head) {
         List<String> keys = new ArrayList<>();
-        if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
+        if (!collectEquiKeys(java.util.Objects.requireNonNull(cond).body().get(cond.body().size() - 1),
                 cond.parameters().get(1), cond.parameters().get(0), keys)
                 || keys.isEmpty()) {
             throw new NotImplementedException("correlated aggregate over"
@@ -308,9 +312,10 @@ private static @com.legend.Nullable List<String> parentEquiKeys(TypedLambda cond
             Map<String, Substitution.SubNav> subNavs) {}
 
 
-    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs, TypedLambda corr) {
+    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
+            @com.legend.Nullable TypedLambda corr) {
         Set<String> names = new LinkedHashSet<>();
-        for (TypedSpec b : corr.body()) {
+        for (TypedSpec b : java.util.Objects.requireNonNull(corr).body()) {
             collectVarNamesInto(b, names);
         }
         names.removeAll(corr.parameters());
@@ -363,7 +368,10 @@ private static @com.legend.Nullable List<String> parentEquiKeys(TypedLambda cond
     }
 
 
-static void collectVarNamesInto(TypedSpec n, Set<String> out) {
+static void collectVarNamesInto(@com.legend.Nullable TypedSpec n, Set<String> out) {
+        if (n == null) {
+            return;
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
             out.add(v.name());
         }
@@ -477,7 +485,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
      * as per-member variants (k_0, k_1, …) expands to ALL of them — the
      * grouped subselect groups by every split column and joins back on
      * OR of pairs (task #27 U4). Keys found verbatim pass through. */
-    static List<String> expandSplitKeys(@com.legend.Nullable List<String> keys,
+    static List<String> expandSplitKeys(List<String> keys,
             Type.RelationType row) {
         List<String> out = new ArrayList<>();
         for (String k : keys) {
@@ -503,7 +511,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
     private CorrAggSub chainedAggSubSource(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj) {
         TypedLambda cond = aj.condition();
-        String srcVar = cond.parameters().get(0);
+        String srcVar = java.util.Objects.requireNonNull(cond).parameters().get(0);
         Set<String> slots = Pipelines.slotAliases(cs.pipeline());
         Set<String> condSlots = new LinkedHashSet<>();
         for (TypedSpec b : cond.body()) {
@@ -722,7 +730,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             aj.targetSubNavs(),
                             pc == null ? Map.of() : pc.mat().slotPrefixes(),
                             pc == null ? Map.of() : pc.subNavs(),
-                            corrRowVar, corrJoinedRow);
+                            java.util.Objects.requireNonNull(corrRowVar),
+                            java.util.Objects.requireNonNull(corrJoinedRow));
             mapBody = mm.body().get(0);
             leafType = mapBody.info().type();
             leafMult = mapBody.info().multiplicity();
@@ -749,7 +758,10 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 mapBody = Pipelines.prefixColumns(leafBinding,
                         aj.target().rowVar(), corrTp,
                         v -> new com.legend.compiler.spec.typed
-                                .TypedVariable(rv, new ExprType(jr,
+                                .TypedVariable(
+                                        java.util.Objects.requireNonNull(rv),
+                                        new ExprType(java.util.Objects
+                                                .requireNonNull(jr),
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)));
             }
@@ -833,7 +845,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             aj.targetSubNavs(),
                             pc == null ? Map.of() : pc.mat().slotPrefixes(),
                             pc == null ? Map.of() : pc.subNavs(),
-                            corrRowVar, corrJoinedRow);
+                            java.util.Objects.requireNonNull(corrRowVar),
+                            java.util.Objects.requireNonNull(corrJoinedRow));
         }
         return new TypedAggCol(alias, map, reduce, orderLambda,
                 d.orderAsc());
@@ -971,7 +984,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             }
             Type.RelationType widened = new Type.RelationType(cols);
             pipe = new TypedJoin(pipe, aj2.targetPipeline(), StoreResolver.leftKind(),
-                    aj2.condition(), Optional.of(aj2.prefix()), null,
+                    java.util.Objects.requireNonNull(aj2.condition()), Optional.of(aj2.prefix()), null,
                     new ExprType(widened,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
             nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
@@ -1064,7 +1077,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             c.type(), c.multiplicity()));
                 }
                 Type.RelationType leftRow3 = new Type.RelationType(leftCols3);
-                String lp3 = cond3.parameters().get(0);
+                String lp3 = java.util.Objects.requireNonNull(cond3).parameters().get(0);
                 final String ppf = parentPrefix;
                 TypedSpec body3 = Pipelines.prefixColumns(
                         cond3.body().get(cond3.body().size() - 1), lp3, ppf,
@@ -1311,7 +1324,7 @@ record CompositeChain(TypedSpec pipeline,
             String pfx = slotPfx.get(en.getKey());
             String c1t = c1.parameters().get(1);
             TypedSpec oc = Pipelines.prefixColumns(
-                    c1.body().get(c1.body().size() - 1), c1t, pfx,
+                    c1.body().get(c1.body().size() - 1), c1t, java.util.Objects.requireNonNull(pfx),
                     v -> new TypedVariable(tParam,
                             new ExprType(finalRow, one)));
             String c1s = c1.parameters().get(0);

@@ -142,7 +142,7 @@ final class Substitution {
      * — engine temp-table semantics ≡ IN-subquery ≡ EXISTS-equality):
      * the resolved single-column relation + its column, identity-keyed by
      * the in/contains call node (task #78 scalar-subquery IN). */
-    record InQueryRead(TypedSpec relation, String column) {
+    record InQueryRead(TypedSpec relation, @com.legend.Nullable String column) {
     }
 
     record Target(RowScope row, Registries regs, TemporalView temporal,
@@ -366,7 +366,8 @@ final class Substitution {
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes,
-                 String readVar, Type.RelationType readRowType,
+                 @com.legend.Nullable String readVar,
+                 Type.@com.legend.Nullable RelationType readRowType,
                  Map<String, String> targetMilestoneColumns) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
                     targetSlotAliases, targetSlotPrefixes, readVar, readRowType,
@@ -507,7 +508,7 @@ final class Substitution {
                     fl.body().get(fl.body().size() - 1));
             Type.Column tc0 = tRow.columns().get(0);
             String tv = "_tc";
-            TypedSpec eqT = new TypedNativeCall(target.equalCallee(),
+            TypedSpec eqT = new TypedNativeCall(eqCallee(),
                     List.of(outer,
                             new TypedPropertyAccess(
                                     new TypedVariable(tv, new ExprType(
@@ -528,7 +529,7 @@ final class Substitution {
                             Multiplicity.Bounded.ONE));
             TypedSpec tFiltered = new TypedFilter(tq.relation(), tPred,
                     tq.relation().info());
-            return new TypedNativeCall(target.isNotEmptyCallee(),
+            return new TypedNativeCall(neCallee(),
                     List.of(tFiltered), n.info());
     }
 
@@ -596,7 +597,7 @@ final class Substitution {
                         Multiplicity.Bounded.ONE));
         TypedSpec tFiltered = new TypedFilter(tq.relation(), tPred,
                 tq.relation().info());
-        return new TypedNativeCall(target.isNotEmptyCallee(),
+        return new TypedNativeCall(neCallee(),
                 List.of(tFiltered), n.info());
     }
 
@@ -787,7 +788,8 @@ final class Substitution {
             if (headPath != null && headPath.size() >= 2 && isEmptinessFamily(call)
                     && target.existsSubs().containsKey(String.join(".", headPath))) {
                 return rewriteExists(call,
-                        target.existsSubs().get(String.join(".", headPath)),
+                        java.util.Objects.requireNonNull(target.existsSubs()
+                                .get(String.join(".", headPath))),
                         List.of());
             }
             // FILTER-WRAPPED emptiness: isEmpty/exists($p.head->filter(f)
@@ -862,11 +864,11 @@ final class Substitution {
                                     new IllegalStateException("resolver bug:"
                                             + " in-subquery column '"
                                             + q.column() + "' missing"));
-                    TypedSpec eq = new TypedNativeCall(target.equalCallee(),
+                    TypedSpec eq = new TypedNativeCall(eqCallee(),
                             List.of(new TypedPropertyAccess(
                                             new TypedVariable(qv, new ExprType(
                                                     qRow, Multiplicity.Bounded.ONE)),
-                                            q.column(),
+                                            java.util.Objects.requireNonNull(q.column()),
                                             new ExprType(qc.type(),
                                                     qc.multiplicity())),
                                     rewrite(singletonNeedle(needle))),
@@ -882,7 +884,7 @@ final class Substitution {
                                     Multiplicity.Bounded.ONE));
                     TypedSpec filtered = new TypedFilter(q.relation(), qPred,
                             q.relation().info());
-                    return new TypedNativeCall(target.isNotEmptyCallee(),
+                    return new TypedNativeCall(neCallee(),
                             List.of(filtered), n.info());
                 }
                 List<String> cp = coll
@@ -974,7 +976,7 @@ final class Substitution {
                 boolean filteredHead = crossPath != null
                         && SyntheticHeads.isFiltered(crossPath.get(0));
                 return new TypedIf(
-                        new TypedNativeCall(target.isNotEmptyCallee(),
+                        new TypedNativeCall(neCallee(),
                                 List.of(readInner),
                                 new ExprType(Type.Primitive.BOOLEAN,
                                         Multiplicity.Bounded.ONE)),
@@ -1262,6 +1264,20 @@ final class Substitution {
         return null;
     }
 
+
+    /** {@link Registries} callee lookups are nullable (nested
+     * predFilteredPipe registries carry none); the emitting arms
+     * REQUIRE them — loud with the registry named. */
+    private com.legend.compiler.element.TypedFunction neCallee() {
+        return java.util.Objects.requireNonNull(target.isNotEmptyCallee(),
+                "registries built without an isNotEmpty callee");
+    }
+
+    private com.legend.compiler.element.TypedFunction eqCallee() {
+        return java.util.Objects.requireNonNull(target.equalCallee(),
+                "registries built without an equal callee");
+    }
+
     private TypedSpec rewrite(TypedSpec n) {
         // AGGREGATE over a to-many navigation (identity-registered by the
         // demand scan): the whole call reads its grouped-subselect column —
@@ -1276,7 +1292,7 @@ final class Substitution {
                 return read;
             }
             return new TypedIf(
-                    new TypedNativeCall(target.isNotEmptyCallee(), List.of(read),
+                    new TypedNativeCall(neCallee(), List.of(read),
                             new ExprType(Type.Primitive.BOOLEAN,
                                     Multiplicity.Bounded.ONE)),
                     read,
@@ -1859,7 +1875,7 @@ final class Substitution {
                     + "' has no binding in mapping '" + target.mappingFqn()
                     + "' (membership crossing leaf)", ex.targetClassFqn());
         }
-        TypedSpec eq = new TypedNativeCall(target.equalCallee(),
+        TypedSpec eq = new TypedNativeCall(eqCallee(),
                 List.of(leafBinding, rewrite(singletonNeedle(needle))),
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
         TypedLambda memberPred = new TypedLambda(List.of(ex.targetRowVar()),
@@ -1868,7 +1884,7 @@ final class Substitution {
                 new TypedFilter(
                         ex.targetPipeline(), corr, ex.targetPipeline().info()),
                 memberPred, ex.targetPipeline().info());
-        return new TypedNativeCall(target.isNotEmptyCallee(), List.of(rel),
+        return new TypedNativeCall(neCallee(), List.of(rel),
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
     }
 
@@ -1885,7 +1901,8 @@ final class Substitution {
         }
         java.util.Set<String> heads = new java.util.LinkedHashSet<>();
         for (TypedSpec r : all) {
-            heads.add(pathOf(r, target.userVar()).get(0));
+            heads.add(java.util.Objects.requireNonNull(
+                    pathOf(r, target.userVar())).get(0));
         }
         if (heads.size() > 1) {
             throw new NotImplementedException("boolean leaf crosses "
@@ -1912,7 +1929,7 @@ final class Substitution {
     /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with
      * toOne look-through) or an otherwise composition's partial. */
     static @com.legend.Nullable TypedNewInstance embeddedPartialOf(
-            TypedSpec binding) {
+            @com.legend.Nullable TypedSpec binding) {
         if (binding == null) {
             return null;
         }
@@ -1980,7 +1997,8 @@ final class Substitution {
             TypedNewInstance partial) {
         List<String> p = pathOf(n, var);
         if (p != null && p.size() == 1) {
-            return renameRowVar(partial.properties().get(p.get(0)));
+            return renameRowVar(java.util.Objects.requireNonNull(
+                    partial.properties().get(p.get(0))));
         }
         if (n instanceof TypedNativeCall c) {
             return new TypedNativeCall(c.callee(),

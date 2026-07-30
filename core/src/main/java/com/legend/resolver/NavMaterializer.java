@@ -64,7 +64,7 @@ final class NavMaterializer {
      * getMilestoningContextForQualifiedProperty), not only from the root. */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
-            String chainPrefix, TemporalContext inherited) {
+            @com.legend.Nullable String chainPrefix, TemporalContext inherited) {
         return navTargetMaterialized(temporal, mappingFqn, targetClassFqn,
                 tails, chainPrefix, inherited, List.of());
     }
@@ -74,7 +74,7 @@ final class NavMaterializer {
      * join the demand; property-path reads ride {@code tails}. */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
-            String chainPrefix, TemporalContext inherited,
+            @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
         return navTargetMaterialized(temporal, mappingFqn, targetClassFqn,
                 tails, chainPrefix, inherited, parkedPreds, Set.of());
@@ -87,13 +87,13 @@ final class NavMaterializer {
      * member arms — ROW semantics, unionalias_3 vs unionalias_2). */
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
-            String chainPrefix, TemporalContext inherited,
+            @com.legend.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
         // (possibly rootless) multi-set target resolves through the
         // set-discriminated binding (ClassSources.getForNav).
         ClassSource t = sources.getForNav(mappingFqn, targetClassFqn,
-                chainPrefix.contains(".")
+                chainPrefix == null ? "" : chainPrefix.contains(".")
                         ? chainPrefix.substring(chainPrefix.lastIndexOf('.') + 1)
                         : chainPrefix);
         // TEMPORAL GATE (same discipline as the union lift): the nested
@@ -265,7 +265,7 @@ final class NavMaterializer {
                     mappingFqn, subTails, midByAlias, subMats,
                     subClsByAlias, chainPrefix, hopCtx);
             CorrelatedSubselects.CompositeChain cc =
-                    corrSubs.compositeChainTarget(t, st.predicate(), sub0);
+                    corrSubs.compositeChainTarget(t, st.predicate(), java.util.Objects.requireNonNull(sub0));
             if (cc == null) {
                 // composite not applicable: the flat sibling-reading
                 // predicate stands. NOT walled (audit 23 B6 probe): the
@@ -313,7 +313,8 @@ final class NavMaterializer {
                 continue;
             }
             ClassSource subCs = sources.get(mappingFqn,
-                    subClsByAlias.get(sm.getKey()));
+                    java.util.Objects.requireNonNull(
+                            subClsByAlias.get(sm.getKey())));
             subTree.put(prop, new Substitution.SubNav(p, subCs.rowVar(),
                     subCs.bindings(),
                     composeSubNavPrefixes(p, sm.getValue().subNavs())));
@@ -344,7 +345,7 @@ final class NavMaterializer {
             String alias, String cls, String mappingFqn,
             Map<String, List<List<String>>> subTails,
             Map<String, String> midByAlias, Map<String, NavMat> subMats,
-            Map<String, String> subClsByAlias, String chainPrefix,
+            Map<String, String> subClsByAlias, @com.legend.Nullable String chainPrefix,
             TemporalContext hopCtx) {
 
             String midProp = midByAlias.get(alias);
@@ -435,7 +436,7 @@ final class NavMaterializer {
             Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
             Set<String> tDemand, Set<String> tNavs,
             Map<String, List<List<String>>> subTails,
-            String chainPrefix, TemporalContext hopCtx) {
+            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx) {
         String mappingFqn = t.mappingFqn();
         // a BARE class-typed TO-ONE tail joins too (qualifier-truncated
         // demand — the qualifier body's leaves never reach the scan, but
@@ -542,9 +543,9 @@ final class NavMaterializer {
      * INSIDE the materialized pipeline (the same descriptor->emission the
      * root uses) and rides the SubNav tree — the composed prefix (y_ + z_)
      * resolves the leaf on the joined row. */
-    private @com.legend.Nullable TypedSpec foldAssocSubs(TemporalFrame temporal, ClassSource t,
+    private TypedSpec foldAssocSubs(TemporalFrame temporal, ClassSource t,
             TypedSpec pipe, Map<String, Substitution.SubNav> subTree,
-            Map<String, Set<String>> assocSubLeaves, String chainPrefix) {
+            Map<String, Set<String>> assocSubLeaves, @com.legend.Nullable String chainPrefix) {
         for (var e : assocSubLeaves.entrySet()) {
             String prop = e.getKey();
             String subChain = chainPrefix == null ? prop
@@ -566,7 +567,8 @@ final class NavMaterializer {
                     ? aj.onForm().pipeline() : aj.targetPipeline();
             com.legend.compiler.spec.typed.TypedLambda ajCond =
                     aj.onForm() != null
-                    ? aj.onForm().condition() : aj.condition();
+                    ? aj.onForm().condition()
+                    : java.util.Objects.requireNonNull(aj.condition());
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
                     ajPipe, StoreResolver.leftKind(),
                     ajCond, java.util.Optional.of(aj.prefix()), null,
@@ -584,13 +586,13 @@ final class NavMaterializer {
     /** EXTRA sub-slot identity joins (per-identity emission): the nav
      * step's own predicate joins the freshly-materialized sub target
      * (that identity's pred applied in-target) onto the pipeline. */
-    private @com.legend.Nullable TypedSpec foldExtraSubIdentities(TemporalFrame temporal,
+    private TypedSpec foldExtraSubIdentities(TemporalFrame temporal,
             String mappingFqn, ClassSource t, TypedSpec pipe,
             Map<String, Substitution.SubNav> subTree,
             Map<String, String> extraSubHeads,
             Map<String, List<List<String>>> extraSubTails,
             Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
-            String chainPrefix, TemporalContext hopCtx) {
+            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx) {
         for (var e : extraSubHeads.entrySet()) {
             String prop = e.getKey();
             String alias = e.getValue();
@@ -656,14 +658,14 @@ final class NavMaterializer {
      * copy's raw OR condition fans the member arms exactly like the
      * engine's unionalias_3 (expected 16 = filtered 8 x 2).
      */
-    private @com.legend.Nullable TypedSpec foldProjectionCopies(TemporalFrame temporal,
+    private TypedSpec foldProjectionCopies(TemporalFrame temporal,
             String mappingFqn, ClassSource t, TypedSpec pipe,
             Map<String, Substitution.SubNav> subTree,
             Map<String, NavMat> subMats, Map<String, String> midByAlias,
             Pipelines.Materialized matM, Map<String, String> subClsByAlias,
             Map<String, List<List<String>>> subTails,
             Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
-            String chainPrefix, TemporalContext hopCtx,
+            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx,
             Set<String> splitChains) {
         if (System.getenv("LEGEND_LITE_SPLIT_TRACE") != null) {
             System.err.println("[split] chainPrefix=" + chainPrefix
@@ -689,6 +691,9 @@ final class NavMaterializer {
             TypedSpec sub2 = subPipeFor(temporal, t, na, sg.classFqn(),
                     mappingFqn, subTails, midByAlias, subMats,
                     subClsByAlias, chainPrefix, hopCtx);
+            if (sub2 == null) {
+                continue;
+            }
             if (System.getenv("LEGEND_LITE_SPLIT_TRACE") != null) {
                 System.err.println("[split] gate na=" + na + " concat="
                         + Pipelines.containsConcatenate(sub2)
@@ -725,7 +730,8 @@ final class NavMaterializer {
                                     .RelationType(cols),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ONE));
-            ClassSource subCs = sources.get(mappingFqn, subClsByAlias.get(na));
+            ClassSource subCs = sources.get(mappingFqn,
+                    java.util.Objects.requireNonNull(subClsByAlias.get(na)));
             subTree.put(prop + "#p", new Substitution.SubNav(prefix2,
                     subCs.rowVar(), subCs.bindings(),
                     composeSubNavPrefixes(prefix2,

@@ -33,8 +33,9 @@ final class CastNav {
 
     /** The cast's SOURCE expression (the upstream slot read). */
     static TypedSpec castSource(@com.legend.Nullable TypedSpec drill) {
-        return unwrapToOne(
-                ((TypedNewInstanceCast) unwrapToOne(drill)).source());
+        return java.util.Objects.requireNonNull(unwrapToOne(
+                ((TypedNewInstanceCast) java.util.Objects.requireNonNull(unwrapToOne(drill)))
+                        .source()));
     }
 
     /** The source whose bindings serve the head's LEAVES: the cast

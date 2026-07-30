@@ -936,7 +936,7 @@ final class GraphEmission {
                 ? assoc.property1() : assoc.property2();
         boolean toMany = !end.isToOne();
         return correlatedGraphChild(aj.target(), aj.targetPipeline(), aj.targetRow(),
-                aj.condition(), toMany, node, parentRowVar, parentRowType,
+                java.util.Objects.requireNonNull(aj.condition()), toMany, node, parentRowVar, parentRowType,
                 context, aj.targetSlotPrefixes());
     }
 
@@ -946,7 +946,7 @@ final class GraphEmission {
      * λ(sourceRow, targetRow) correlates them.
      */
     TypedSerializeGraph.Child navSlotChild(ClassSource cs, TypedGraphTree node,
-            TypedNavigate nav, String castClassFqn,
+            TypedNavigate nav, @com.legend.Nullable String castClassFqn,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
         return navSlotChild(cs, cs.classFqn(), node, nav, castClassFqn,
@@ -958,7 +958,7 @@ final class GraphEmission {
      * inside an embedded ctor (the pipeline/row stay the source's). */
     TypedSerializeGraph.Child navSlotChild(ClassSource cs,
             String ownerClassFqn, TypedGraphTree node,
-            TypedNavigate nav, String castClassFqn,
+            TypedNavigate nav, @com.legend.Nullable String castClassFqn,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
         String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
@@ -1097,7 +1097,7 @@ final class GraphEmission {
         return correlatedGraphChild(child, cMat.pipeline(),
                 (Type.RelationType)
                         cMat.pipeline().info().type(),
-                aj.condition(), toMany, node, parentRowVar, parentRowType,
+                java.util.Objects.requireNonNull(aj.condition()), toMany, node, parentRowVar, parentRowType,
                 context, cMat.slotPrefixes());
     }
 
@@ -1367,7 +1367,9 @@ final class GraphEmission {
         // their own arm and must NEVER pair — the shared correlation
         // emission (toOneJoinEquals) keeps them SQL-semantics
         TypedLambda condL = new TypedLambda(List.of(pv, tv),
-                List.of(toOneJoinEquals(cond)), new ExprType(fnT, one));
+                List.of(toOneJoinEquals(java.util.Objects.requireNonNull(cond,
+                        "mixed-union child needs at least one key pair"))),
+                new ExprType(fnT, one));
         return correlatedGraphChild(mc.target(), mc.target().pipeline(), tRow,
                 condL, mixedChildToMany(cs.classFqn(), node.property()), node,
                 parentRowVar, parentRowType, context);
@@ -1517,7 +1519,7 @@ final class GraphEmission {
     private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
             TypedGraphTree node, TypedNewInstance ctor,
             StoreResolver.Context context, TypedSpec parentPipeline,
-            TypedSpec otherwiseFallback) {
+            @com.legend.Nullable TypedSpec otherwiseFallback) {
         var prop = ctx.findProperty(cs.classFqn(), node.property())
                 .orElseThrow(() -> new IllegalStateException(
                         "resolver bug: graph child '" + node.property()
@@ -1549,8 +1551,9 @@ final class GraphEmission {
                         : hr.target().bindings().get(c.property());
                 if (fb != null
                         && !(fb.info().type() instanceof Type.ClassType)) {
-                    e = scalarLeafSubquery(hr.rel(), hr.target().rowVar(),
-                            hr.targetRow(), c.property(), fb);
+                    var hr2 = java.util.Objects.requireNonNull(hr);
+                    e = scalarLeafSubquery(hr2.rel(), hr2.target().rowVar(),
+                            hr2.targetRow(), c.property(), fb);
                 }
             }
             if (e == null) {
@@ -1578,7 +1581,7 @@ final class GraphEmission {
                             : embAssoc.get().property2();
                     nested.add(correlatedGraphChild(aj.target(),
                             aj.targetPipeline(), aj.targetRow(),
-                            aj.condition(), !embEnd.isToOne(), c,
+                            java.util.Objects.requireNonNull(aj.condition()), !embEnd.isToOne(), c,
                             cs.rowVar(), rowT, context,
                             aj.targetSlotPrefixes()));
                     continue;
@@ -1983,7 +1986,7 @@ final class GraphEmission {
             targetRow = (Type.RelationType) targetPipeline.info().type();
             cond = nav.pairedPredicate().orElse(nav.predicate());
         }
-        String pVar = cond.parameters().get(0);
+        String pVar = java.util.Objects.requireNonNull(cond).parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(cb ->
                 toOneJoinEquals(
@@ -2114,8 +2117,9 @@ final class GraphEmission {
                 default -> null;
             };
             TypedSpec nested = navLeafSubquery(ih.target(),
-                    new TypedPropertyAccess(rebuiltHop, leaf.property(),
-                            leaf.info()),
+                    new TypedPropertyAccess(
+                            java.util.Objects.requireNonNull(rebuiltHop),
+                            leaf.property(), leaf.info()),
                     iVar, context, iVar, ih.targetRow());
             if (nested == null) {
                 return null;
@@ -2222,7 +2226,7 @@ final class GraphEmission {
     }
 
     private @com.legend.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
-            String classFqn, TypedGraphTree node, SubqueryEnv env) {
+            String classFqn, TypedGraphTree node, @com.legend.Nullable SubqueryEnv env) {
         String prop = node.property();
         var p = ctx.findProperty(classFqn, prop).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
@@ -2272,7 +2276,7 @@ final class GraphEmission {
 
     private TypedSpec inlineThis(TypedSpec n, String thisVar,
             Map<String, TypedSpec> binds, Map<String, TypedSpec> bindings,
-            String classFqn, String prop, SubqueryEnv env) {
+            String classFqn, String prop, @com.legend.Nullable SubqueryEnv env) {
         if (n instanceof TypedVariable bv && binds.containsKey(bv.name())) {
             return binds.get(bv.name());
         }
@@ -2500,7 +2504,7 @@ final class GraphEmission {
                         + (context.runtimeFqn() == null ? ""
                                 : context.runtimeFqn());
                 ClassSource subCs = sources.get(cs.mappingFqn(),
-                        node.subTypeFqn(),
+                        java.util.Objects.requireNonNull(node.subTypeFqn()),
                         target -> dispatch.apply(context, target), skey);
                 patchChildren.add(graphChild(subCs, sub, context,
                         rowVar, rowType,
@@ -2518,7 +2522,8 @@ final class GraphEmission {
                 // .landmark.lmName}): no carrier exists — inline the
                 // lifted body against the SOURCE's bindings (inherited
                 // navs); the member witness gates the branch
-                TypedSpec dv = derivedLeaf(cs, node.subTypeFqn(), sub,
+                TypedSpec dv = derivedLeaf(cs,
+                        java.util.Objects.requireNonNull(node.subTypeFqn()), sub,
                         context, rowVar, rowType);
                 if (dv != null) {
                     var dFn = new Type.FunctionType(
@@ -2579,7 +2584,8 @@ final class GraphEmission {
                                 com.legend.compiler.element.type
                                         .Multiplicity.Bounded.ONE)));
         return new TypedSerializeGraph.SubTypePatch(
-                node.subTypeFqn(), patch, member, patchChildren);
+                java.util.Objects.requireNonNull(node.subTypeFqn()),
+                patch, member, patchChildren);
     }
 
     /** The supported serialize-config surface: includeType (+ typeKeyName,

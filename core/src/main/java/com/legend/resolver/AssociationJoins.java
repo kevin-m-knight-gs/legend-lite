@@ -535,7 +535,7 @@ final class AssociationJoins {
         if (paj != null) {
             // RAW pipeline: colspec bodies still carry the two-hop reads
             // the (alias,col)->projName mapping is recovered from
-            TypedLambda rw = rewriteChainedLiftReads(out.condition(),
+            TypedLambda rw = rewriteChainedLiftReads(java.util.Objects.requireNonNull(out.condition()),
                     paj.target().pipeline());
             if (rw != null) {
                 out = out.withCondition(rw);
@@ -547,7 +547,7 @@ final class AssociationJoins {
     private AssocJoin chainedUnionHopInner(TemporalFrame temporal,
             ClassSource parent, AssocJoin aj, String head, String chainKey,
             StoreResolver.Context context, Set<String> leaves) {
-        TypedLambda paired = memberPairedCondition(aj.condition(),
+        TypedLambda paired = memberPairedCondition(java.util.Objects.requireNonNull(aj.condition()),
                 (Type.RelationType) parent.pipeline().info().type(),
                 aj.targetRow());
         if (paired != null) {
@@ -567,7 +567,7 @@ final class AssociationJoins {
     /** The chained-hop union arm: paired condition or the loud wall. */
     AssocJoin pairChainedUnionHop(AssocJoin aj, ClassSource parent,
             String chainKey) {
-        TypedLambda paired = memberPairedCondition(aj.condition(),
+        TypedLambda paired = memberPairedCondition(java.util.Objects.requireNonNull(aj.condition()),
                 (Type.RelationType) parent.pipeline().info().type(),
                 aj.targetRow());
         if (paired == null) {
@@ -619,7 +619,8 @@ final class AssociationJoins {
                         boolT);
                 grp = grp == null ? e : boolCall("and", e, grp, boolT);
             }
-            or = or == null ? grp : boolCall("or", grp, or, boolT);
+            var grpNN = java.util.Objects.requireNonNull(grp, "empty key pair");
+            or = or == null ? grpNN : boolCall("or", grpNN, or, boolT);
         }
         return new TypedLambda(cond.parameters(), List.of(or), cond.info());
     }
@@ -719,21 +720,23 @@ final class AssociationJoins {
     record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
                              Type.RelationType targetRow,
-                             TypedLambda condition,
+                             @com.legend.Nullable TypedLambda condition,
                              Map<String, String> targetSlotPrefixes,
                              Map<String, Substitution.SubNav> targetSubNavs,
                              @com.legend.Nullable TypedLambda corrSubPred,
                              @com.legend.Nullable OnForm onForm) {
 
         AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
-                  Type.RelationType targetRow, TypedLambda condition,
+                  Type.RelationType targetRow,
+                  @com.legend.Nullable TypedLambda condition,
                   Map<String, String> targetSlotPrefixes) {
             this(prefix, target, targetPipeline, targetRow, condition,
                     targetSlotPrefixes, Map.of(), null, null);
         }
 
         AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
-                  Type.RelationType targetRow, TypedLambda condition,
+                  Type.RelationType targetRow,
+                  @com.legend.Nullable TypedLambda condition,
                   Map<String, String> targetSlotPrefixes,
                   Map<String, Substitution.SubNav> targetSubNavs) {
             this(prefix, target, targetPipeline, targetRow, condition,
@@ -874,6 +877,13 @@ final class AssociationJoins {
             String cur = cs.classFqn();
             for (int i = 0; i + 1 < path.size(); i++) {
                 cur = hopTargetClass(cur, path.get(i));
+                if (cur == null) {
+                    // pseudo-hops (.milestoning, stc_ synthetics) have no
+                    // target class — the resolvable chain ends here (the
+                    // pre-gate code walked on with null, registering
+                    // nothing; gate-caught: a loud wrap broke 12 tests)
+                    break;
+                }
                 List<String> tail = path.subList(i + 1, path.size());
                 if (tail.size() >= 2 || toOneClassProp(cur, tail.get(0))) {
                     out.computeIfAbsent(
@@ -1040,7 +1050,7 @@ final class AssociationJoins {
             }
             basePipe = new com.legend.compiler.spec.typed.TypedJoin(
                     basePipe, aj2.targetPipeline(),
-                    StoreResolver.leftKind(), aj2.condition(),
+                    StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj2.condition()),
                     java.util.Optional.of(pfx), null,
                     new ExprType(new Type.RelationType(wcols),
                             com.legend.compiler.element.type.Multiplicity
@@ -1134,7 +1144,7 @@ final class AssociationJoins {
      * form (String set-id args, class-typed cond params), and — for that
      * form — the pinned TARGET set id. */
     record PredMaterial(TypedLambda cond, boolean reverse,
-            boolean propertySpace, String targetSetId) {}
+            boolean propertySpace, @com.legend.Nullable String targetSetId) {}
 
     private PredMaterial predicateMaterial(ClassSource cs,
             com.legend.model.AssociationDefinition assoc, String real,
@@ -1425,7 +1435,7 @@ final class AssociationJoins {
                     + " hop target '" + aj.target().classFqn() + "'");
         }
         var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-        String pVar = aj.condition().parameters().get(0);
+        String pVar = java.util.Objects.requireNonNull(aj.condition()).parameters().get(0);
         String tVar = aj.condition().parameters().get(1);
         List<TypedSpec> corrBody = aj.condition().body().stream()
                 .map(cb -> Pipelines.rewriteRowReads(cb, pVar, Map.of(),
@@ -1585,13 +1595,15 @@ final class AssociationJoins {
      * depth-1 SubNavs). Same alpha/capture discipline as the ON-clause
      * composition (audit 22a).
      */
-    TypedLambda corrPredOnJoinedRow(TypedLambda pred, ClassSource parent,
+    TypedLambda corrPredOnJoinedRow(@com.legend.Nullable TypedLambda pred, ClassSource parent,
             ClassSource target, String targetPrefix,
             Map<String, String> targetSlotPrefixes,
             Map<String, Substitution.SubNav> targetSubNavs,
             Map<String, String> parentCopySlotPrefixes,
             Map<String, Substitution.SubNav> parentCopySubNavs,
             String rowVar, Type.RelationType rowType) {
+        java.util.Objects.requireNonNull(pred,
+                "corrPredOnJoinedRow requires a predicate");
         Set<String> taken = new LinkedHashSet<>(pred.parameters());
         for (TypedSpec b : pred.body()) {
             collectVarNames(b, taken);
@@ -1742,7 +1754,7 @@ final class AssociationJoins {
             Map<String, AssocJoin> joinsByChain,
             Map<String, Substitution.AssocSub> assocs) {
         TypedLambda cond = aj.condition();
-        if (cond.parameters().size() != 2) {
+        if (cond == null || cond.parameters().size() != 2) {
             return aj;
         }
         String srcVar = cond.parameters().get(0);
@@ -1810,7 +1822,7 @@ final class AssociationJoins {
     /** The condition with nested-association reads re-pointed at the
      * WIDENED target row's prefixed columns. */
     static TypedLambda rewriteNestedAssocCondReads(TypedLambda cond,
-            String tgtVar, Map<String, String> prefixByProp,
+            @com.legend.Nullable String tgtVar, Map<String, String> prefixByProp,
             Type.RelationType row) {
         if (tgtVar == null || prefixByProp.isEmpty()) {
             return cond;
