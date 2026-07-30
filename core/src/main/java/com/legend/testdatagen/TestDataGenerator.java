@@ -65,7 +65,7 @@ public final class TestDataGenerator {
     }
 
     public record Result(List<String> sqls, String dataCsvString,
-            List<String[]> tables) {
+            @com.legend.Nullable List<String[]> tables) {
         public Result(List<String> sqls, String dataCsvString) {
             this(sqls, dataCsvString, null);
         }
@@ -160,7 +160,7 @@ public final class TestDataGenerator {
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, MilestoningDates dates,
+            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates,
             Connection conn) throws SQLException {
         return generate(ctx, resolvedQuery, mappingFqn, rowIds, dates,
                 false, conn);
@@ -168,7 +168,7 @@ public final class TestDataGenerator {
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, MilestoningDates dates,
+            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates,
             boolean hashStrings, Connection conn) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
@@ -204,7 +204,7 @@ public final class TestDataGenerator {
 
     private static void collectColMap(ModelContext ctx,
             ScanRelations.Rel rel, Map<String, List<String>> colMap,
-            String parentDb) {
+            @com.legend.Nullable String parentDb) {
         rel = expandIfView(ctx, rel, parentDb);
         Located loc = locate(ctx, rel.db(), rel.table());
         String key = loc.schema() + "\n" + rel.table();
@@ -240,10 +240,13 @@ public final class TestDataGenerator {
     private static void fetchRoot(ModelContext ctx, ScanRelations.Rel rel,
             List<TableRowIds> rowIds, Statement st, List<String> sqls,
             Map<String, Fetched> fetched, List<String> temps,
-            Map<String, List<String>> colMap, MilestoningDates dates)
+            Map<String, List<String>> colMap, @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
         Located loc = locate(ctx, rel.db(), rel.table());
-        List<String> cols = colMap.get(loc.schema() + "\n" + rel.table());
+        String tbl = java.util.Objects.requireNonNull(rel.table());
+        List<String> cols = java.util.Objects.requireNonNull(
+                colMap.get(loc.schema() + "\n" + tbl),
+                "no column map for " + tbl);
         TableRowIds ids = null;
         for (TableRowIds t : rowIds) {
             if (t.table().equals(rel.table())
@@ -276,12 +279,12 @@ public final class TestDataGenerator {
         String mf = milestoningFilter(loc.def(), "\"root\"", dates);
         String sql = "select " + String.join(", ",
                 cols.stream().map(c -> "\"root\"." + q(c)).toList())
-                + " from " + qualify(loc.schema(), rel.table())
+                + " from " + qualify(loc.schema(), tbl)
                 + " as \"root\" where " + (mf == null ? where.toString()
                         : "(" + where + ") and " + mf) + " limit 20";
-        String temp = materialize(st, sql, rel.table(), temps);
+        String temp = materialize(st, sql, tbl, temps);
         sqls.add(sql);
-        record(fetched, loc.schema(), rel.table(), cols, temp);
+        record(fetched, loc.schema(), tbl, cols, temp);
         for (ScanRelations.Rel child : rel.children()) {
             fetchChild(ctx, rel, temp, child, st, sqls, fetched, temps,
                     colMap, dates);
@@ -292,23 +295,25 @@ public final class TestDataGenerator {
             String parentTemp, ScanRelations.Rel child, Statement st,
             List<String> sqls, Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap,
-            MilestoningDates dates)
+            @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
         child = expandIfView(ctx, child, parent.db());
         Located loc = locate(ctx, child.db(), child.table());
-        List<String> cols = colMap.get(loc.schema() + "\n" + child.table());
+        String ct = java.util.Objects.requireNonNull(child.table());
+        List<String> cols = java.util.Objects.requireNonNull(
+                colMap.get(loc.schema() + "\n" + ct),
+                "no column map for " + ct);
         RelationalOperation op = child.cond() != null ? child.cond()
                 : findJoin(ctx, child.joinName(), child.db(),
                         parent.db()).operation();
-        String alias = child.table().equals(parent.table())
-                ? "t_" + child.table() : child.table();
+        String alias = ct.equals(parent.table()) ? "t_" + ct : ct;
         String cond = renderCondition(op, parent.table(),
                 child.table(), alias, String.valueOf(child.joinName()));
         String mf = milestoningFilter(loc.def(), q(alias), dates);
         String sql = "select " + String.join(", ",
                 cols.stream().map(c -> q(alias) + "." + q(c)).toList())
                 + " from " + parentTemp + " as main inner join "
-                + qualify(loc.schema(), child.table()) + " as " + q(alias)
+                + qualify(loc.schema(), ct) + " as " + q(alias)
                 + " on " + cond
                 + (mf == null ? "" : " where " + mf) + " limit 20";
         String temp = materialize(st, sql, child.table(), temps);
@@ -324,9 +329,9 @@ public final class TestDataGenerator {
      * MILESTONED table's fetch (business/processing from-thru ranges,
      * snapshot equality). A milestoned table without its date is the
      * engine's own assert — a loud wall. */
-    private static String milestoningFilter(
+    private static @com.legend.Nullable String milestoningFilter(
             DatabaseDefinition.TableDefinition def, String alias,
-            MilestoningDates d) {
+            @com.legend.Nullable MilestoningDates d) {
         var ms = def.milestoning();
         if (ms == null || d == null) {
             return null;
@@ -340,9 +345,12 @@ public final class TestDataGenerator {
                         + "'");
             } else {
                 String bd = requireDate(d.business(), def, "businessDate");
-                parts.add(alias + "." + q(b.from()) + " <= DATE '" + bd
+                parts.add(alias + "." + q(java.util.Objects.requireNonNull(b.from(),
+                        "milestoning business block without BUS_FROM"))
+                        + " <= DATE '" + bd
                         + "'");
-                parts.add(alias + "." + q(b.thru())
+                parts.add(alias + "." + q(java.util.Objects.requireNonNull(b.thru(),
+                        "milestoning business block without BUS_THRU"))
                         + (b.thruIsInclusive() ? " >= DATE '" : " > DATE '")
                         + bd + "'");
             }
@@ -356,9 +364,13 @@ public final class TestDataGenerator {
             } else {
                 String pd = requireDate(d.processing(), def,
                         "processingDate");
-                parts.add(alias + "." + q(pr.in()) + " <= DATE '" + pd
+                parts.add(alias + "." + q(java.util.Objects.requireNonNull(pr.in(),
+                        "milestoning processing block without"
+                        + " PROCESSING_IN")) + " <= DATE '" + pd
                         + "'");
-                parts.add(alias + "." + q(pr.out())
+                parts.add(alias + "." + q(java.util.Objects.requireNonNull(pr.out(),
+                        "milestoning processing block without"
+                        + " PROCESSING_OUT"))
                         + (pr.outIsInclusive() ? " >= DATE '" : " > DATE '")
                         + pd + "'");
             }
@@ -366,7 +378,7 @@ public final class TestDataGenerator {
         return parts.isEmpty() ? null : String.join(" and ", parts);
     }
 
-    private static String requireDate(String v,
+    private static String requireDate(@com.legend.Nullable String v,
             DatabaseDefinition.TableDefinition def, String name) {
         if (v == null) {
             throw new NotImplementedException("testDataGen: table '"
@@ -457,14 +469,14 @@ public final class TestDataGenerator {
     }
 
     private static void addIf(TreeSet<String> out,
-            java.util.Set<String> known, String col) {
+            java.util.Set<String> known, @com.legend.Nullable String col) {
         if (col != null && known.contains(col)) {
             out.add(col);
         }
     }
 
     private static void collectTableCols(RelationalOperation op,
-            String table, TreeSet<String> out, java.util.Set<String> known) {
+            @com.legend.Nullable String table, TreeSet<String> out, java.util.Set<String> known) {
         switch (op) {
             case RelationalOperation.ColumnRef cr -> {
                 if (bare(cr.table()).equals(table) && known.contains(cr.column())) {
@@ -503,7 +515,7 @@ public final class TestDataGenerator {
     // ===== join condition rendering =====
 
     private static String renderCondition(RelationalOperation op,
-            String parentTable, String childTable, String childAlias,
+            @com.legend.Nullable String parentTable, String childTable, String childAlias,
             String joinName) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
@@ -560,10 +572,11 @@ public final class TestDataGenerator {
      * base columns. {@code parentDb} resolves the connecting join when
      * the view is a CHILD. */
     private static ScanRelations.Rel expandIfView(ModelContext ctx,
-            ScanRelations.Rel r, String parentDb) {
+            ScanRelations.Rel r, @com.legend.Nullable String parentDb) {
         if (!ScanRelations.isView(ctx, r.db(), r.table())) {
             return r;
         }
+        String vt = java.util.Objects.requireNonNull(r.table());
         ScanRelations.ViewExpansion ve =
                 ScanRelations.viewExpansion(ctx, r.db(), r.table());
         ScanRelations.Rel base = ve.tree();
@@ -572,8 +585,8 @@ public final class TestDataGenerator {
             RelationalOperation op = r.cond() != null ? r.cond()
                     : findJoin(ctx, r.joinName(), r.db(), parentDb)
                             .operation();
-            cond = substituteViewRefs(op, r.table(), ve.mainTable(),
-                    ve.colToBase());
+            cond = substituteViewRefs(op, vt, java.util.Objects.requireNonNull(
+                    ve.mainTable()), ve.colToBase());
         }
         List<ScanRelations.Rel> kids = new ArrayList<>(base.children());
         for (ScanRelations.Rel c : r.children()) {
@@ -581,8 +594,8 @@ public final class TestDataGenerator {
                     : findJoin(ctx, c.joinName(), c.db(), r.db())
                             .operation();
             kids.add(new ScanRelations.Rel(c.db(), c.table(), c.joinName(),
-                    substituteViewRefs(op, r.table(), ve.mainTable(),
-                            ve.colToBase()),
+                    substituteViewRefs(op, vt, java.util.Objects.requireNonNull(
+                            ve.mainTable()), ve.colToBase()),
                     c.cols(), c.children()));
         }
         return new ScanRelations.Rel(base.db(), base.table(), r.joinName(),
@@ -640,7 +653,9 @@ public final class TestDataGenerator {
     // ===== lookups =====
 
     private static Located locate(ModelContext ctx, String dbFqn,
-            String table) {
+            @com.legend.Nullable String table0) {
+        String table = java.util.Objects.requireNonNull(table0,
+                "testDataGen: relation without a physical table");
         ArrayDeque<String> work = new ArrayDeque<>();
         java.util.Set<String> seen = new LinkedHashSet<>();
         work.add(dbFqn);
@@ -690,8 +705,16 @@ public final class TestDataGenerator {
     }
 
     private static DatabaseDefinition.JoinDefinition findJoin(
-            ModelContext ctx, String name, String... dbFqns) {
-        ArrayDeque<String> work = new ArrayDeque<>(List.of(dbFqns));
+            ModelContext ctx, @com.legend.Nullable String name0,
+            @com.legend.Nullable String... dbFqns) {
+        String name = java.util.Objects.requireNonNull(name0,
+                "testDataGen: join edge without a join name");
+        ArrayDeque<String> work = new ArrayDeque<>();
+        for (String db : dbFqns) {
+            if (db != null) {
+                work.add(db);
+            }
+        }
         java.util.Set<String> seen = new LinkedHashSet<>();
         while (!work.isEmpty()) {
             String fqn = work.poll();
@@ -847,7 +870,8 @@ public final class TestDataGenerator {
      * numeric spellings, exactly like the engine's route through
      * setUpDataSQLs. Returns null when equal, else a failure message.
      */
-    public static String compareCsv(ModelContext ctx, String dbFqn,
+    public static @com.legend.Nullable String compareCsv(ModelContext ctx,
+            String dbFqn,
             String expected, String actual, Connection conn)
             throws SQLException {
         Map<String, String[][]> exp = parseBlocks(expected);
@@ -859,8 +883,9 @@ public final class TestDataGenerator {
         List<String> temps = new ArrayList<>();
         try (Statement st = conn.createStatement()) {
             for (String key : exp.keySet()) {
-                String[][] e = exp.get(key);
-                String[][] a = act.get(key);
+                String[][] e = java.util.Objects.requireNonNull(exp.get(key));
+                String[][] a = java.util.Objects.requireNonNull(act.get(key),
+                        "assertTestData: actual data lacks " + key);
                 String table = key.substring(key.indexOf('\n') + 1);
                 if (!headerKey(e[0]).equals(headerKey(a[0]))) {
                     return "assertTestData: columns of '" + table
@@ -1010,8 +1035,8 @@ public final class TestDataGenerator {
         };
     }
 
-    private static String lit(Object v,
-            DatabaseDefinition.ColumnDefinition col) {
+    private static String lit(@com.legend.Nullable Object v,
+            @com.legend.Nullable DatabaseDefinition.ColumnDefinition col) {
         if (v == null) {
             return "NULL";
         }
@@ -1074,7 +1099,8 @@ public final class TestDataGenerator {
                         .toList();
                 String sql = "select " + String.join(", ",
                         cols.stream().map(TestDataGenerator::q).toList())
-                        + " from " + qualify(loc.schema(), r.table());
+                        + " from " + qualify(loc.schema(),
+                                java.util.Objects.requireNonNull(r.table()));
                 out.append('\n')
                         .append("meta::relational::testDataGeneration::"
                                 + "createTableRowIdentifiers(")
@@ -1137,11 +1163,15 @@ public final class TestDataGenerator {
     }
 
     private static void planNode(ModelContext ctx, ScanRelations.Rel rel,
-            ScanRelations.Rel parent, String res, List<TableRowIds> rowIds,
-            MilestoningDates dates, Map<String, List<String>> colMap,
+            ScanRelations.@com.legend.Nullable Rel parent, String res,
+            List<TableRowIds> rowIds,
+            @com.legend.Nullable MilestoningDates dates, Map<String, List<String>> colMap,
             StringBuilder out) {
         Located loc = locate(ctx, rel.db(), rel.table());
-        List<String> cols = colMap.get(loc.schema() + "\n" + rel.table());
+        String tbl = java.util.Objects.requireNonNull(rel.table());
+        List<String> cols = java.util.Objects.requireNonNull(
+                colMap.get(loc.schema() + "\n" + tbl),
+                "no column map for " + tbl);
         String relType = relationType(rel, loc, cols);
         String sql = parent == null
                 ? planRootSql(loc, rel, cols, rowIds, dates)
@@ -1182,7 +1212,7 @@ public final class TestDataGenerator {
 
     private static String planRootSql(Located loc, ScanRelations.Rel rel,
             List<String> cols, List<TableRowIds> rowIds,
-            MilestoningDates dates) {
+            @com.legend.Nullable MilestoningDates dates) {
         TableRowIds ids = null;
         for (TableRowIds t : rowIds) {
             if (t.table().equals(rel.table())
@@ -1218,20 +1248,21 @@ public final class TestDataGenerator {
         return "select top 20 " + cols.stream()
                 .map(c -> "\"root\"." + c + " as \"" + c + "\"")
                 .collect(java.util.stream.Collectors.joining(", "))
-                + " from " + qualify(loc.schema(), rel.table())
+                + " from " + qualify(loc.schema(),
+                        java.util.Objects.requireNonNull(rel.table()))
                 + " as \"root\" where " + where;
     }
 
     private static String planChildSql(ModelContext ctx, Located loc,
             ScanRelations.Rel parent, ScanRelations.Rel child,
-            List<String> cols, String res, MilestoningDates dates) {
+            List<String> cols, String res, @com.legend.Nullable MilestoningDates dates) {
         String parentRes = res.substring(0, res.lastIndexOf("_c"));
         // the engine's per-query alias-group index: each child fetch SQL
         // joins exactly ONE table by construction, so its group index is
         // always 0 (audit 25 — a multi-join child would need the full
         // group counter)
-        String alias = child.table().toLowerCase(java.util.Locale.ROOT)
-                + "_0";
+        String ct = java.util.Objects.requireNonNull(child.table());
+        String alias = ct.toLowerCase(java.util.Locale.ROOT) + "_0";
         RelationalOperation op = child.cond() != null ? child.cond()
                 : findJoin(ctx, child.joinName(), child.db(), parent.db())
                         .operation();
@@ -1251,7 +1282,8 @@ public final class TestDataGenerator {
      * aliased result columns ({@code "root"."col"}), child refs the
      * joined table ({@code "alias".col}). */
     private static String planCond(RelationalOperation op,
-            String parentTable, String childTable, String childAlias) {
+            @com.legend.Nullable String parentTable, String childTable,
+            String childAlias) {
         return switch (op) {
             case RelationalOperation.ColumnRef r ->
                     bareTable(r.table()).equals(parentTable)
@@ -1286,9 +1318,9 @@ public final class TestDataGenerator {
     }
 
     /** Engine-text milestoning filter — {@code DATE'...'} spelling. */
-    private static String planMilestone(
+    private static @com.legend.Nullable String planMilestone(
             DatabaseDefinition.TableDefinition def, String alias,
-            MilestoningDates d) {
+            @com.legend.Nullable MilestoningDates d) {
         var ms = def.milestoning();
         if (ms == null || d == null) {
             return null;

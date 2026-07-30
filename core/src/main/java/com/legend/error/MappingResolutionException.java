@@ -12,11 +12,12 @@ package com.legend.error;
  */
 public final class MappingResolutionException extends LegendCompileException {
 
-    public MappingResolutionException(String message) {
+    public MappingResolutionException(@com.legend.Nullable String message) {
         super(Phase.MAPPING, message);
     }
 
-    public MappingResolutionException(String message, String elementFqn) {
+    public MappingResolutionException(@com.legend.Nullable String message,
+            @com.legend.Nullable String elementFqn) {
         super(Phase.MAPPING, message, elementFqn);
     }
 }

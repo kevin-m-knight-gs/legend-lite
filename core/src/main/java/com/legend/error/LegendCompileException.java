@@ -27,19 +27,21 @@ public abstract class LegendCompileException extends RuntimeException {
     public enum Phase { PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE }
 
     private final Phase phase;
-    private final String element;
+    private final @com.legend.Nullable String element;
 
-    protected LegendCompileException(Phase phase, String message) {
+    protected LegendCompileException(Phase phase, @com.legend.Nullable String message) {
         this(phase, message, (String) null);
     }
 
-    protected LegendCompileException(Phase phase, String message, String element) {
+    protected LegendCompileException(Phase phase, @com.legend.Nullable String message,
+            @com.legend.Nullable String element) {
         super(message);
         this.phase = java.util.Objects.requireNonNull(phase, "phase");
         this.element = element;
     }
 
-    protected LegendCompileException(Phase phase, String message, Throwable cause) {
+    protected LegendCompileException(Phase phase, @com.legend.Nullable String message,
+            Throwable cause) {
         super(message, cause);
         this.phase = java.util.Objects.requireNonNull(phase, "phase");
         this.element = null;
@@ -55,7 +57,7 @@ public abstract class LegendCompileException extends RuntimeException {
      * {@code [line:col]} from the parse-time side index ({@code ParsedModel
      * .elementOffsets}). Null when unknown.
      */
-    public String element() {
+    public @com.legend.Nullable String element() {
         return element;
     }
 

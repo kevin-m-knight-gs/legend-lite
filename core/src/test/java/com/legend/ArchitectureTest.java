@@ -331,9 +331,12 @@ final class ArchitectureTest {
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
             .that().resideInAnyPackage(
                     "com.legend.values", "com.legend.error", "com.legend.cache")
-            .should().onlyDependOnClassesThat().resideInAnyPackage(
-                    "com.legend.values", "com.legend.error", "com.legend.cache",
-                    "java..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.values",
+                                    "com.legend.error", "com.legend.cache",
+                                    "java..")
+                            .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6g: values/error/cache import nothing from the pipeline")
             .check(CORE_PROD_CLASSES);
     }
