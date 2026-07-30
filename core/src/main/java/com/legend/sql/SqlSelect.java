@@ -1,5 +1,7 @@
 package com.legend.sql;
 
+import com.legend.Nullable;
+
 import java.util.List;
 
 /**
@@ -9,9 +11,12 @@ import java.util.List;
  * {@code with*} copiers; a fresh nesting level exists only as an explicit
  * {@link SqlSource.Subselect}. Empty {@link #projections} means {@code SELECT *}.
  */
-public record SqlSelect(List<Projection> projections, boolean distinct, SqlSource from,
-                        SqlExpr where, List<SqlExpr> groupBy, SqlExpr having, SqlExpr qualify,
-                        List<SortKey> orderBy, Long limit, Long offset, List<OutputCol> outputs)
+public record SqlSelect(List<Projection> projections, boolean distinct,
+                        @Nullable SqlSource from,
+                        @Nullable SqlExpr where, List<SqlExpr> groupBy,
+                        @Nullable SqlExpr having, @Nullable SqlExpr qualify,
+                        List<SortKey> orderBy, @Nullable Long limit,
+                        @Nullable Long offset, List<OutputCol> outputs)
         implements SqlQuery {
 
     /** {@code SELECT * FROM source} with every other clause empty. */
@@ -20,7 +25,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
                 List.of(), null, null, from.outputs());
     }
 
-    public record Projection(SqlExpr expr, String alias) {
+    public record Projection(SqlExpr expr, @Nullable String alias) {
 
         /**
          * The projected OUTPUT name: the alias, else the bare column's own
@@ -28,7 +33,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
          * addressable name). THE one implementation of the rule (an audit
          * found it duplicated across Fold and the Lowerer).
          */
-        public String outputName() {
+        public @Nullable String outputName() {
             return alias != null ? alias
                     : expr instanceof SqlExpr.Column c ? c.name() : null;
         }
@@ -40,7 +45,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
      * sort addresses; engine text spells it ({@code order by "name"
      * asc}), execution dialects render {@code expr}. Null otherwise. */
     public record SortKey(SqlExpr expr, boolean ascending,
-            NullOrder nullOrder, String outputName) {
+            @Nullable NullOrder nullOrder, @Nullable String outputName) {
         public enum NullOrder { NULLS_FIRST, NULLS_LAST }
 
         // NO short overload: a defaulted outputName silently de-addressed a
@@ -59,7 +64,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
 
     // ----- clause copiers: the fold policy's fingers -----
 
-    public SqlSelect withFrom(SqlSource f) {
+    public SqlSelect withFrom(@Nullable SqlSource f) {
         return new SqlSelect(projections, distinct, f, where, groupBy, having,
                 qualify, orderBy, limit, offset, outputs);
     }
@@ -72,7 +77,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
         return new SqlSelect(projections, true, from, where, groupBy, having, qualify, orderBy, limit, offset, outputs);
     }
 
-    public SqlSelect withWhere(SqlExpr w) {
+    public SqlSelect withWhere(@Nullable SqlExpr w) {
         return new SqlSelect(projections, distinct, from, w, groupBy, having, qualify, orderBy, limit, offset, outputs);
     }
 
@@ -80,11 +85,11 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
         return new SqlSelect(projections, distinct, from, where, keys, having, qualify, orderBy, limit, offset, outputs);
     }
 
-    public SqlSelect withHaving(SqlExpr h) {
+    public SqlSelect withHaving(@Nullable SqlExpr h) {
         return new SqlSelect(projections, distinct, from, where, groupBy, h, qualify, orderBy, limit, offset, outputs);
     }
 
-    public SqlSelect withQualify(SqlExpr q) {
+    public SqlSelect withQualify(@Nullable SqlExpr q) {
         return new SqlSelect(projections, distinct, from, where, groupBy, having, q, orderBy, limit, offset, outputs);
     }
 
@@ -92,11 +97,11 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
         return new SqlSelect(projections, distinct, from, where, groupBy, having, qualify, keys, limit, offset, outputs);
     }
 
-    public SqlSelect withLimit(Long n) {
+    public SqlSelect withLimit(@Nullable Long n) {
         return new SqlSelect(projections, distinct, from, where, groupBy, having, qualify, orderBy, n, offset, outputs);
     }
 
-    public SqlSelect withOffset(Long n) {
+    public SqlSelect withOffset(@Nullable Long n) {
         return new SqlSelect(projections, distinct, from, where, groupBy, having, qualify, orderBy, limit, n, outputs);
     }
 }

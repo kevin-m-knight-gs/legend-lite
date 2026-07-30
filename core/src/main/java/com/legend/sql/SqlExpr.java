@@ -19,18 +19,21 @@ public sealed interface SqlExpr
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlAgg.Reducer {
 
     /** A column reference, optionally qualified by a source alias. */
-    record Column(String table, String name) implements SqlExpr {
+    /** {@code table} null = unqualified reference (lambda params,
+     * pivot args, post-unqualify rewrites). */
+    record Column(@com.legend.Nullable String table, String name) implements SqlExpr {
     }
 
     /** {@code *} or {@code alias.*}. */
     /** {@code alias.* EXCLUDE (a, b)} — the star minus named columns (pivot key synthesis). */
-    record StarExcept(String table, List<String> except) implements SqlExpr {
+    record StarExcept(@com.legend.Nullable String table, List<String> except) implements SqlExpr {
         public StarExcept {
             except = List.copyOf(except);
         }
     }
 
-    record Star(String table) implements SqlExpr {
+    /** {@code table} null = unqualified {@code *}. */
+    record Star(@com.legend.Nullable String table) implements SqlExpr {
     }
 
     record StringLit(String value) implements SqlExpr {
@@ -72,7 +75,7 @@ public sealed interface SqlExpr
      * through the engine-style dialect and is a loud error in any
      * executable dialect. */
     record PlanParam(String name, Kind kind, boolean optional,
-            String enumMapFn) implements SqlExpr {
+            @com.legend.Nullable String enumMapFn) implements SqlExpr {
         public enum Kind { STRING, DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
             OTHER }
 
@@ -135,7 +138,8 @@ public sealed interface SqlExpr
     }
 
     /** {@code CASE WHEN ... THEN ... [WHEN ...] ELSE ... END}. */
-    record Case(List<When> whens, SqlExpr otherwise) implements SqlExpr {
+    /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). */
+    record Case(List<When> whens, @com.legend.Nullable SqlExpr otherwise) implements SqlExpr {
         public record When(SqlExpr condition, SqlExpr then) {
         }
     }

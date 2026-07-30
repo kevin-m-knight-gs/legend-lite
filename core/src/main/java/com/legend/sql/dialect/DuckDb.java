@@ -38,7 +38,9 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected void appendQualify(StringBuilder sb, SqlSelect s, int depth) {
-        nl(sb, depth).append("QUALIFY ").append(expr(s.qualify(), 0));
+        nl(sb, depth).append("QUALIFY ").append(expr(
+                java.util.Objects.requireNonNull(s.qualify(),
+                        "appendQualify without a qualify clause"), 0));
     }
 
     @Override

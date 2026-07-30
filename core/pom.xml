@@ -44,4 +44,67 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- THE NULL GATE (AUDIT_PROGRAM §3): NullAway via Error Prone,
+                 build tooling only — annotationProcessorPaths never touches
+                 the compile/runtime classpath or the shipped jar. Production
+                 dependencies stay the two JDBC drivers.
+
+                 The AnnotatedPackages list below IS the adoption ratchet:
+                 a listed package builds under the non-null-by-default rule
+                 (fields/params/returns; @com.legend.Nullable declares the
+                 exceptions) and NEVER leaves the list. Adoption order
+                 (cheapest proof first): sql -> lowering -> compiler/spec ->
+                 resolver; normalizer/exec/harness AFTER their T4.1/T4.2/V3.1
+                 restructures — do not annotate code scheduled for deletion.
+
+                 MAIN sources only (default-compile): test code keeps its
+                 looser discipline until the gate has proven itself.
+
+                 The forked-compiler -J flags below are the - -add-exports
+                 block Error Prone needs on JDK 16+ (load-bearing build
+                 config; expect to touch it on any JDK upgrade). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-compile</id>
+                        <configuration>
+                            <fork>true</fork>
+                            <compilerArgs>
+                                <arg>-XDcompilePolicy=simple</arg>
+                                <arg>--should-stop=ifError=FLOW</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+                                <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+                                <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
+                                <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
+                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=com.legend.sql -XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable -XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull</arg>
+                            </compilerArgs>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>com.google.errorprone</groupId>
+                                    <artifactId>error_prone_core</artifactId>
+                                    <version>2.41.0</version>
+                                </path>
+                                <path>
+                                    <groupId>com.uber.nullaway</groupId>
+                                    <artifactId>nullaway</artifactId>
+                                    <version>0.12.10</version>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

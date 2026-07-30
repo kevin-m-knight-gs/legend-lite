@@ -3,6 +3,8 @@
 
 package com.legend.sql;
 
+import com.legend.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,24 +22,25 @@ public final class DecodeShapes {
 
     /** The chain's (condition, literal) branches, or null when {@code e}
      * is not a literal-decode case (nested via otherwise). */
-    public static List<SqlExpr.Case.When> flattenDecode(SqlExpr e) {
+    public static @Nullable List<SqlExpr.Case.When> flattenDecode(SqlExpr e) {
         List<SqlExpr.Case.When> out = new ArrayList<>();
-        while (e instanceof SqlExpr.Case c) {
+        @Nullable SqlExpr cur = e;
+        while (cur instanceof SqlExpr.Case c) {
             for (var w : c.whens()) {
                 if (!(w.then() instanceof SqlExpr.StringLit)) {
                     return null;
                 }
                 out.add(w);
             }
-            e = c.otherwise();
+            cur = c.otherwise();
         }
-        return e == null || e instanceof SqlExpr.NullLit
+        return cur == null || cur instanceof SqlExpr.NullLit
                 ? (out.isEmpty() ? null : out) : null;
     }
 
     /** The ONE source expression every branch condition compares
      * ({@code src = literal}), or null. */
-    public static SqlExpr sourceExpr(SqlExpr e) {
+    public static @Nullable SqlExpr sourceExpr(SqlExpr e) {
         List<SqlExpr.Case.When> flat = flattenDecode(e);
         if (flat == null) {
             return null;
@@ -59,7 +62,7 @@ public final class DecodeShapes {
     }
 
     /** {@link #sourceExpr} narrowed to a raw store COLUMN, or null. */
-    public static SqlExpr.Column sourceColumn(SqlExpr e) {
+    public static SqlExpr.@Nullable Column sourceColumn(SqlExpr e) {
         return sourceExpr(e) instanceof SqlExpr.Column c ? c : null;
     }
 

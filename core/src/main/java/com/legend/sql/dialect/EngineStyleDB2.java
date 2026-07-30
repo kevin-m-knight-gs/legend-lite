@@ -161,7 +161,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
 
     /** TYPED format parts → DB2's pattern spelling; null when a part has
      * no mapping (the caller throws — never a silent fallback). */
-    private static String db2Pattern(SqlExpr.FormatLit fl) {
+    private static @com.legend.Nullable String db2Pattern(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
         for (com.legend.sql.DateFmt d : fl.parts()) {
             switch (d) {

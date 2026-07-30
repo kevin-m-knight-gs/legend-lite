@@ -48,7 +48,8 @@ public sealed interface SqlSource {
     /** {@code frameName}: the derived table's MODEL identity (a view's
      * own name) — null for anonymous isolation subselects. Dialects that
      * re-alias by table group name view frames by it. */
-    record Subselect(SqlQuery inner, String alias, String frameName)
+    record Subselect(SqlQuery inner, String alias,
+            @com.legend.Nullable String frameName)
             implements SqlSource {
 
         // NO short overload: a defaulted frameName silently anonymized a
@@ -66,7 +67,9 @@ public sealed interface SqlSource {
                   List<OutputCol> outputs) implements SqlSource {
     }
 
-    record Join(SqlSource left, SqlSource right, Kind kind, SqlExpr on) implements SqlSource {
+    /** {@code on} null = CROSS/NATURAL forms (renderer decides). */
+    record Join(SqlSource left, SqlSource right, Kind kind,
+            @com.legend.Nullable SqlExpr on) implements SqlSource {
         @Override
         public String alias() {
             throw new IllegalStateException(
