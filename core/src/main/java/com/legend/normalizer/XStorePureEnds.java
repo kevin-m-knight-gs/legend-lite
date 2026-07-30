@@ -55,13 +55,13 @@ final class XStorePureEnds {
      * (pipeline + column view), a RELATIONAL set converted to its column
      * view, or a PURE set (property space — no pipeline, no column view;
      * {@code localProps} names its {@code +prop} lines). */
-    record XEnd(ValueSpecification pipeline,
-            ClassMapping.RelationFunction colsView,
+    record XEnd(@com.legend.Nullable ValueSpecification pipeline, 
+            ClassMapping.@com.legend.Nullable RelationFunction colsView, 
             String setId, boolean pure, Set<String> localProps) {
     }
 
     static XEnd xstoreEndOf(LegacyMappingDefinition md,
-            String classFqn, String setId, ModelBuilder model) {
+            String classFqn, @com.legend.Nullable String setId, ModelBuilder model) {
         // the end sets may live in INCLUDED mappings (modelJoins:
         // XStore lines over include LegalEntityMapping/TradesMapping) —
         // the engine compiles the include closure as one mapping
@@ -237,7 +237,7 @@ final class XStorePureEnds {
                 && ap.receiver() instanceof Variable var
                 && rowByVar.containsKey(var.name())) {
             Variable row = rowByVar.get(var.name());
-            if (endByVar.get(var.name()).localProps().contains(ap.property())) {
+            if (java.util.Objects.requireNonNull(endByVar.get(var.name())).localProps().contains(ap.property())) {
                 return new AppliedFunction("legacyLocalProperty",
                         List.of(row, new CString(ap.property())));
             }

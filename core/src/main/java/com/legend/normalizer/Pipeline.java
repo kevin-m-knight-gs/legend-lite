@@ -42,7 +42,7 @@ final class Pipeline {
     // columns may substitute the physical expressions even when the view
     // carries filter/distinct/groupBy — those row semantics already live
     // in the class pipeline; any OTHER non-plain view stays a wall.
-    final String backingView;
+    final @com.legend.Nullable String backingView;
     /** Routed class-typed navigations: property -> per-PM route entries
      * (target union-member ordinal + join), classified from each PM's
      * OWN {@code Join.targetSetId} (audit 11: the name-keyed map lost
@@ -58,7 +58,7 @@ final class Pipeline {
         this(expr, null);
     }
 
-    Pipeline(ValueSpecification expr, String backingView) {
+    Pipeline(ValueSpecification expr, @com.legend.Nullable String backingView) {
         this.expr = expr;
         this.backingView = backingView;
     }
@@ -75,7 +75,8 @@ final class Pipeline {
             @Override public String slotFor(List<JoinChainElement> chain) {
                 return JoinChainEmission.slotFor(Pipeline.this, chain);
             }
-            @Override public String targetTable(String alias) {
+            @Override public @com.legend.Nullable String targetTable(
+                    @com.legend.Nullable String alias) {
                 return aliasToTargetTable.get(alias);
             }
         };

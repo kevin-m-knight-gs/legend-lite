@@ -35,14 +35,15 @@ final class ModelJoinNesting {
     private ModelJoinNesting() {
     }
 
-    record Composed(ValueSpecification pipeA, ValueSpecification pipeB,
+    record Composed(@com.legend.Nullable ValueSpecification pipeA,
+            @com.legend.Nullable ValueSpecification pipeB,
             Map<String, Map<String, Map<String, String>>> nestedCols) {}
 
     static Composed compose(LegacyMappingDefinition md, ModelBuilder model,
             AssociationMapping.ModelJoin mj, AssociationDefinition ad2,
             String classA, String classB, String aVar, String bVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
-            ValueSpecification pipeA0, ValueSpecification pipeB0) {
+            @com.legend.Nullable ValueSpecification pipeA0, @com.legend.Nullable ValueSpecification pipeB0) {
         // NESTED HOPS ($employees.address.city): the mid property is
         // ANOTHER ModelJoin association — the END's pipeline composes
         // with the nested target joined in (the engine golden's side
@@ -59,7 +60,7 @@ final class ModelJoinNesting {
         for (String[] hop : hops) {
             String var = hop[0];
             String prop = hop[1];
-            ClassMapping.RelationFunction rf0 = rfByVar.get(var);
+            ClassMapping.RelationFunction rf0 = java.util.Objects.requireNonNull(rfByVar.get(var));
             boolean plainCol = rf0.columns().stream().anyMatch(
                     c -> c.property().equals(prop) && c.column() != null);
             if (plainCol || nestedCols.getOrDefault(var, Map.of())
@@ -133,7 +134,7 @@ final class ModelJoinNesting {
                 pipeB = composite;
             }
             Map<String, String> leafCols = new LinkedHashMap<>();
-            for (ClassMapping.RelationFunction.Col nc : nRf.columns()) {
+            for (ClassMapping.RelationFunction.Col nc : java.util.Objects.requireNonNull(nRf).columns()) {
                 if (nc.column() != null) {
                     leafCols.put(nc.property(), nc.column());
                 }
@@ -149,7 +150,7 @@ final class ModelJoinNesting {
      * property-name rule — never suffix matching. */
     static String[] pairEndVars(String assocName,
             AssociationDefinition ad2, String classA, String classB,
-            Variable p0, Variable p1, String t0, String t1) {
+            Variable p0, Variable p1, @com.legend.Nullable String t0, @com.legend.Nullable String t1) {
         if (!classA.equals(classB) && classA.equals(t0) && classB.equals(t1)) {
             return new String[] {p0.name(), p1.name()};
         }

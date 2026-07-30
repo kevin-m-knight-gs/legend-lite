@@ -59,7 +59,7 @@ final class StoreSubstitutionRewrite {
                 r.sourceUrl(), r.propertyTargetSets());
     }
 
-    private static String db(String database, Map<String, String> m) {
+    private static @com.legend.Nullable String db(String database, Map<String, String> m) {
         return database == null ? null : m.getOrDefault(database, database);
     }
 

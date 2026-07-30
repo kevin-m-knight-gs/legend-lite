@@ -204,7 +204,7 @@ final class AssociationSynthesis {
 
     /** The class mapping with this class's/set's pending injections
      * appended; null when none apply. */
-    private static ClassMapping.Relational withInjectedPMs(ClassMapping cm,
+    private static ClassMapping.@com.legend.Nullable Relational withInjectedPMs(ClassMapping cm,
             Map<String, List<PropertyMapping>> byClass,
             Map<String, Map<String, List<PropertyMapping>>> bySet) {
         if (!(cm instanceof ClassMapping.Relational rcm)) return null;
@@ -282,7 +282,7 @@ final class AssociationSynthesis {
      */
     /** The property's OWN end class (the navigation target), mirror of
      * {@link #associationOwnerClass}. */
-    static String associationTargetClass(AssociationDefinition ad, String propName) {
+    static @com.legend.Nullable String associationTargetClass(AssociationDefinition ad, String propName) {
         if (ad.property1().propertyName().equals(propName)) {
             return MappingNormalizer.nameRefOrNull(ad.property1().targetClass());
         }
@@ -292,7 +292,7 @@ final class AssociationSynthesis {
         return null;
     }
 
-    static String associationOwnerClass(AssociationDefinition ad, String propName) {
+    static @com.legend.Nullable String associationOwnerClass(AssociationDefinition ad, String propName) {
         if (ad.property1().propertyName().equals(propName)) {
             return MappingNormalizer.nameRefOrNull(ad.property2().targetClass());
         }
@@ -327,7 +327,7 @@ final class AssociationSynthesis {
                         md.qualifiedName().substring(0, cut) + "::" + name);
     }
 
-    static FunctionDefinition synthesizeAssociationMapping(LegacyMappingDefinition md,
+    static @com.legend.Nullable FunctionDefinition synthesizeAssociationMapping(LegacyMappingDefinition md,
                                                                   AssociationMapping am,
                                                                   ModelBuilder model) {
         AssociationDefinition ad0 = resolveAssociation(model, md, am)

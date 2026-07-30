@@ -103,7 +103,7 @@ public final class ModelNormalizer {
      * mapping normalizer — failing mappings are walled and excluded in
      * one pass instead of throwing on the first. */
     public static NormalizedModel normalize(ParsedModel parsed,
-            java.util.Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         // E.0 — association QUALIFIED properties adopt into the class that
         // owns them (the end OPPOSITE the one the property returns — real

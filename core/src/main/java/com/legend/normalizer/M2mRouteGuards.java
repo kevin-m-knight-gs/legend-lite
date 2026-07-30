@@ -36,7 +36,7 @@ final class M2mRouteGuards {
      * must name this very set; a mismatch is a model shape we don't route.
      */
     static void requireBenignRoute(ClassMapping.Pure.PropertyBinding pb,
-            ClassMapping.Pure pcm, ClassDefinition tgt,
+            ClassMapping.Pure pcm, @com.legend.Nullable ClassDefinition tgt,
             LegacyMappingDefinition md, ModelBuilder model) {
         if (pb.sourceSetId() == null && pb.targetSetId() == null) {
             return;
@@ -116,7 +116,7 @@ final class M2mRouteGuards {
      * cannot hold both, and silent retargeting was the original bug). */
     static com.legend.model.spec.KeyExpression localField(
             com.legend.model.ClassMapping.Pure.PropertyBinding pb,
-            com.legend.model.ClassDefinition tgt,
+            com.legend.model.@com.legend.Nullable ClassDefinition tgt,
             com.legend.model.LegacyMappingDefinition md,
             com.legend.compiler.ModelBuilder model, boolean collides) {
         if (tgt != null && collides) {

@@ -362,13 +362,13 @@ final class ViewRelation {
      * orderNegativePnlViewOnView.ORDER_ID → orderPnlView.ORDER_ID →
      * orderTable.ID). Computed view columns yield null — the caller's
      * loud wall names them. */
-    static String columnPureKind(String db, String table, String col,
+    static @com.legend.Nullable String columnPureKind(String db, String table, String col,
             ModelBuilder model) {
         return columnPureKind(db, table, col, model,
                 new java.util.HashSet<>());
     }
 
-    private static String columnPureKind(String db, String table, String col,
+    private static @com.legend.Nullable String columnPureKind(String db, String table, String col,
             ModelBuilder model, java.util.Set<String> seen) {
         if (!seen.add(db + "@" + table + "." + col)) {
             return null;
@@ -401,7 +401,7 @@ final class ViewRelation {
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
                                             String viewName, LegacyMappingDefinition md,
-                                            ModelBuilder model, String dbFqn) {
+                                            @com.legend.Nullable ModelBuilder model, @com.legend.Nullable String dbFqn) {
         Set<String> tables = new LinkedHashSet<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
             RelationalOperation expr = vc.expression();
@@ -440,7 +440,7 @@ final class ViewRelation {
      * condition tables MINUS the terminal tables the columns read — a
      * single remainder is the root (table or view); null keeps the
      * caller's loud wall. */
-    private static String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
+    private static @com.legend.Nullable String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
             ModelBuilder model, String dbFqn) {
         Set<String> terminals = new LinkedHashSet<>();
         JoinChainElement first = null;

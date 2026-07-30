@@ -35,8 +35,8 @@ final class RelationReads {
 
     /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
     static ValueSpecification xstore(ValueSpecification v,
-            Variable thisRow, ClassMapping.RelationFunction thisRf,
-            Variable thatRow, ClassMapping.RelationFunction thatRf,
+            Variable thisRow, ClassMapping.@com.legend.Nullable RelationFunction thisRf,
+            Variable thatRow, ClassMapping.@com.legend.Nullable RelationFunction thatRf,
             String assocName, LegacyMappingDefinition md, ModelBuilder model) {
         return rewrite(v,
                 Map.of("this", thisRow, "that", thatRow),
@@ -51,7 +51,7 @@ final class RelationReads {
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
             String assocName, LegacyMappingDefinition md,
-            Map<String, Map<String, Map<String, String>>> nestedCols) {
+            @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols) {
         return rewrite(v, rowByVar, rfByVar, assocName, md,
                 nestedCols, null);
     }
@@ -60,17 +60,19 @@ final class RelationReads {
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
             String assocName, LegacyMappingDefinition md,
-            Map<String, Map<String, Map<String, String>>> nestedCols,
-            ModelBuilder model) {
+            @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
+            @com.legend.Nullable ModelBuilder model) {
         // NESTED hop read: $end.assocProp.leaf resolves to the nested
         // target's column on the END's composite row
         if (v instanceof AppliedProperty ap0
                 && ap0.receiver() instanceof AppliedProperty mid0
                 && mid0.receiver() instanceof Variable var0
+                && nestedCols != null
                 && nestedCols.getOrDefault(var0.name(), Map.of())
                         .containsKey(mid0.property())) {
-            Map<String, String> leafCols = nestedCols.get(var0.name())
-                    .get(mid0.property());
+            Map<String, String> leafCols = java.util.Objects.requireNonNull(
+                    java.util.Objects.requireNonNull(nestedCols.get(var0.name()))
+                            .get(mid0.property()));
             String col = leafCols.get(ap0.property());
             if (col == null) {
                 throw new NotImplementedException(
@@ -87,7 +89,7 @@ final class RelationReads {
         if (v instanceof AppliedProperty ap
                 && ap.receiver() instanceof Variable var
                 && rowByVar.containsKey(var.name())) {
-            ClassMapping.RelationFunction rf = rfByVar.get(var.name());
+            ClassMapping.RelationFunction rf = java.util.Objects.requireNonNull(rfByVar.get(var.name()));
             for (ClassMapping.RelationFunction.Col c : rf.columns()) {
                 if (c.property().equals(ap.property()) && c.column() != null) {
                     ValueSpecification read = new AppliedProperty(
@@ -98,7 +100,8 @@ final class RelationReads {
                     // guards the engine never spells (masking trap #4)
                     ClassDefinition rcd = model == null ? null
                             : model.findClass(rf.className()).orElse(null);
-                    if (rcd != null && Multiplicity.Concrete.PURE_ONE.equals(
+                    if (model != null && rcd != null
+                            && Multiplicity.Concrete.PURE_ONE.equals(
                             findPropertyDeclared(rcd, ap.property(), model))) {
                         read = new AppliedFunction("toOne", List.of(read));
                     }
@@ -131,7 +134,7 @@ final class RelationReads {
         };
     }
 
-    static Multiplicity findPropertyDeclared(
+    static @com.legend.Nullable Multiplicity findPropertyDeclared(
             ClassDefinition owner, String prop, ModelBuilder model) {
         for (ClassDefinition.PropertyDefinition pd
                 : owner.properties()) {

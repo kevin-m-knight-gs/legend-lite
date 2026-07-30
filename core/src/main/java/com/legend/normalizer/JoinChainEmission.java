@@ -234,7 +234,7 @@ final class JoinChainEmission {
      * (the one touching the main table).
      */
     private static List<JoinChainElement> perArmHops(Pipeline p,
-            String propName, String targetClassFqn,
+            @com.legend.Nullable String propName, @com.legend.Nullable String targetClassFqn,
             List<JoinChainElement> hops) {
         if (targetClassFqn == null || hops.size() < 2) {
             return hops;
@@ -256,8 +256,8 @@ final class JoinChainEmission {
      * {@link Pipeline#aliasToTargetTable}.
      */
     static void emitJoinChain(Pipeline p, List<JoinChainElement> hops,
-                                     String chainDb, String propName,
-                                     String ownerClassFqn, String mainDb,
+                                     String chainDb, @com.legend.Nullable String propName,
+                                     @com.legend.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
                                      ModelBuilder model, LegacyMappingDefinition md,
                                      boolean classTypedTerminus) {
@@ -283,7 +283,8 @@ final class JoinChainEmission {
             // their slot is the property, not a flattened chain.
             List<String> pathKey = emitNavigate ? null : List.copyOf(prefixPath);
             String navAlias = emitNavigate
-                    ? mintNavSlotAlias(p, model, mainDb, mainTable, propName)
+                    ? mintNavSlotAlias(p, model, mainDb, mainTable, Objects
+                            .requireNonNull(propName, "nav hop needs propName"))
                     : null;
             if (emitNavigate) {
                 if (p.aliasToTargetTable.containsKey(navAlias)) {
@@ -570,7 +571,8 @@ final class JoinChainEmission {
         return false;
     }
 
-    static String uniqueSlotName(Pipeline p, List<String> path) {
+    static String uniqueSlotName(Pipeline p,
+            @com.legend.Nullable List<String> path) {
         String base = String.join("__", path);
         if (!p.aliasToTargetTable.containsKey(base)) return base;
         int n = 2;
@@ -607,7 +609,8 @@ final class JoinChainEmission {
         return slot;
     }
 
-    static String classTypedTargetIfMapped(String ownerClassFqn,
+    static @com.legend.Nullable String classTypedTargetIfMapped(
+            @com.legend.Nullable String ownerClassFqn,
                                                   String propName, ModelBuilder model) {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
         if (owner == null) return null;
@@ -628,7 +631,7 @@ final class JoinChainEmission {
      * referenced set's expression-level {@code @Join} navigations hoist
      * into the OWNER pipeline exactly like a direct embedded block. */
     static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
-            List<JoinNavSpec> out, LegacyMappingDefinition md) {
+            List<JoinNavSpec> out, @com.legend.Nullable LegacyMappingDefinition md) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.EnumeratedExpression ee -> collectJoinNavigations(ee.expression(), out);
@@ -701,8 +704,8 @@ final class JoinChainEmission {
     }
 
     private static HopTarget hopTarget(RelationalOperation joinCond,
-            String viewTarget, String prevTable, String hopDb,
-            String joinName, String propName, int i, Pipeline p,
+            @com.legend.Nullable String viewTarget, @com.legend.Nullable String prevTable, String hopDb,
+            String joinName, @com.legend.Nullable String propName, int i, Pipeline p,
             ModelBuilder model, LegacyMappingDefinition md) {
         if (viewTarget != null) {
             return new HopTarget(joinCond, viewTarget);
@@ -727,10 +730,13 @@ final class JoinChainEmission {
      * cond replaces the expansion. Null = keep the expansion: a non-plain
      * view (filter/groupBy/distinct — a REAL relation the join lands on),
      * a foreign table's view, or an unmapped target class. */
-    private static RelationalOperation plainClassViewCond(
+    private static @com.legend.Nullable RelationalOperation plainClassViewCond(
             RelationalOperation joinCond, String viewTarget,
-            String targetClassFqn, String hopDb, ModelBuilder model,
+            @com.legend.Nullable String targetClassFqn, String hopDb, ModelBuilder model,
             LegacyMappingDefinition md) {
+        if (targetClassFqn == null) {
+            return null;
+        }
         DatabaseDefinition.ViewDefinition vd =
                 model.findView(hopDb, viewTarget).orElseThrow();
         if (vd.filter() != null || !vd.groupByColumns().isEmpty()
@@ -903,7 +909,7 @@ final class JoinChainEmission {
         };
     }
 
-    private static DatabaseDefinition.TableDefinition findPhysicalTable(
+    private static DatabaseDefinition.@com.legend.Nullable TableDefinition findPhysicalTable(
             String dbFqn, String table, ModelBuilder model, Set<String> seen) {
         if (!seen.add(dbFqn)) {
             return null;
@@ -946,7 +952,7 @@ final class JoinChainEmission {
     }
 
     /** View-aware column kind — see {@link ViewRelation#columnPureKind}. */
-    private static String columnPureKind(String db, String table, String col,
+    private static @com.legend.Nullable String columnPureKind(String db, String table, String col,
             ModelBuilder model) {
         return ViewRelation.columnPureKind(db, table, col, model);
     }

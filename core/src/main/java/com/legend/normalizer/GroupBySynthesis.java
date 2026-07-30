@@ -223,7 +223,7 @@ final class GroupBySynthesis {
         return false;
     }
 
-    static RelationalOperation pmAsRelationalOp(PropertyMapping pm) {
+    static @com.legend.Nullable RelationalOperation pmAsRelationalOp(PropertyMapping pm) {
         if (pm instanceof PropertyMapping.Column col) {
             return new RelationalOperation.ColumnRef(col.database(), col.table(), col.column());
         }
@@ -257,7 +257,7 @@ final class GroupBySynthesis {
         return Objects.equals(a, b);
     }
 
-    static String keyBaseName(RelationalOperation op) {
+    static @com.legend.Nullable String keyBaseName(RelationalOperation op) {
         if (op instanceof RelationalOperation.ColumnRef cr) return cr.column();
         if (op instanceof RelationalOperation.TargetColumnRef tr) return tr.column();
         return null;

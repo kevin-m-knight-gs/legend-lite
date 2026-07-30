@@ -60,9 +60,9 @@ final class RelOpTranslator {
         boolean hasSlots();
 
         /** Alias of the hoisted join step for {@code chain}; loud if absent. */
-        String slotFor(List<JoinChainElement> chain);
+        @com.legend.Nullable String slotFor(List<JoinChainElement> chain);
 
-        String targetTable(String alias);
+        @com.legend.Nullable String targetTable(@com.legend.Nullable String alias);
 
         /** Outside any pipeline: nothing is ambiguous, no slots exist. */
         PipelineView NONE = new PipelineView() {
@@ -75,7 +75,8 @@ final class RelOpTranslator {
             @Override public String slotFor(List<JoinChainElement> chain) {
                 throw new IllegalStateException("no pipeline slots in this context");
             }
-            @Override public String targetTable(String alias) {
+            @Override public @com.legend.Nullable String targetTable(
+                    @com.legend.Nullable String alias) {
                 return null;
             }
         };
@@ -128,7 +129,7 @@ final class RelOpTranslator {
     private static List<ValueSpecification> translateArgs(
             RelationalOperation.FunctionCall call,
             Map<String, ValueSpecification> tableScope,
-            ValueSpecification targetVarOrNull, Variable rowBindOrNull,
+            @com.legend.Nullable ValueSpecification targetVarOrNull, @com.legend.Nullable Variable rowBindOrNull,
             PipelineView pipeline) {
         return call.args().stream()
                 .map(a -> {
@@ -163,8 +164,8 @@ final class RelOpTranslator {
 
     static ValueSpecification translate(RelationalOperation op,
                                                     Map<String, ValueSpecification> tableScope,
-                                                    ValueSpecification targetVarOrNull,
-                                                    Variable rowBindOrNull,
+                                                    @com.legend.Nullable ValueSpecification targetVarOrNull,
+                                                    @com.legend.Nullable Variable rowBindOrNull,
                                                     PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.ColumnRef ref -> {
@@ -330,8 +331,8 @@ final class RelOpTranslator {
      * preserved — the split is at an arm boundary). */
     private static ValueSpecification translateTail(RelationalOperation op,
             Map<String, ValueSpecification> tableScope,
-            ValueSpecification targetVarOrNull,
-            Variable rowBindOrNull,
+            @com.legend.Nullable ValueSpecification targetVarOrNull,
+            @com.legend.Nullable Variable rowBindOrNull,
             PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.FunctionCall call

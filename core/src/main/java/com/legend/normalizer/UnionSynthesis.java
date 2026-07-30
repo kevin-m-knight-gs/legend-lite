@@ -78,8 +78,8 @@ final class UnionSynthesis {
      * union's declaration order = the synthesized concatenate's thread
      * order = the engine's {@code _N} key suffix.
      */
-    static ClassMapping.Union unionForClass(LegacyMappingDefinition md,
-            ModelBuilder model, String classFqn) {
+    static ClassMapping.@com.legend.Nullable Union unionForClass(LegacyMappingDefinition md,
+            ModelBuilder model, @com.legend.Nullable String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Union u
                     && u.className().equals(classFqn)) {
@@ -130,8 +130,7 @@ final class UnionSynthesis {
      * member-suffixed NULL-crossed form (un-routed members must not
      * match — the TDSNull golden).
      */
-    static boolean mergedTargetRoutes(List<UnionRoute> routes,
-            ClassMapping.Union targetUnion) {
+    static boolean mergedTargetRoutes(List<UnionRoute> routes, ClassMapping.@com.legend.Nullable Union targetUnion) {
         if (targetUnion == null) {
             return false;
         }
@@ -484,7 +483,7 @@ final class UnionSynthesis {
 
     /** The inheritance op mapping a class, own then includes — the
      * Inheritance sibling of {@link #unionForClass}. */
-    static ClassMapping.Inheritance inheritanceForClass(LegacyMappingDefinition md,
+    static ClassMapping.@com.legend.Nullable Inheritance inheritanceForClass(LegacyMappingDefinition md,
             ModelBuilder model, String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Inheritance ih
@@ -577,7 +576,7 @@ final class UnionSynthesis {
         for (ClassMapping cm : md.classMappings()) {
             // engine rootClassMappingByClass: the * set, or the class's
             // SOLE set (corpus mappings often omit * on singletons)
-            if (cm.root() || setsPerClass.get(cm.className()) == 1) {
+            if (cm.root() || java.util.Objects.requireNonNull(setsPerClass.get(cm.className())) == 1) {
                 out.put(cm.className(), cm);
             }
         }
@@ -982,7 +981,7 @@ final class UnionSynthesis {
     /** The embedded ctor under a field value: unwrap {@code toOne(...)}
      * then the parser/normalizer {@code new(ptr, NewInstance)} wrapper
      * (MappingNormalizer.buildNewInstance emission). Null = not a ctor. */
-    private static NewInstance ctorOf(ValueSpecification v) {
+    private static @com.legend.Nullable NewInstance ctorOf(ValueSpecification v) {
         if (v instanceof AppliedFunction f && f.function().equals("toOne")
                 && f.parameters().size() == 1) {
             v = f.parameters().get(0);
@@ -1076,7 +1075,7 @@ final class UnionSynthesis {
 
     private static EmbDist collectEmbeddedDistribution(
             List<MappingNormalizer.RelationalParts> parts,
-            ClassDefinition unionClass, ModelBuilder model) {
+            @com.legend.Nullable ClassDefinition unionClass, ModelBuilder model) {
         Map<String, LinkedHashSet<String>> embSubs = new LinkedHashMap<>();
         Map<String, String> embInner = new LinkedHashMap<>();
         Set<String> poisoned = new LinkedHashSet<>();
@@ -1172,7 +1171,7 @@ final class UnionSynthesis {
     }
 
     /** The member's ctor at a dotted path, or null (member maps none). */
-    private static NewInstance ctorAtPath(Map<String, KeyExpression> fields,
+    private static @com.legend.Nullable NewInstance ctorAtPath(Map<String, KeyExpression> fields,
             String path) {
         String[] segs = path.split("\\.");
         KeyExpression ke = fields.get(segs[0]);
@@ -1218,7 +1217,7 @@ final class UnionSynthesis {
      */
     record NavLift(String property, String targetClassFqn,
             ValueSpecification targetRows, LambdaFunction condition,
-            LambdaFunction pairedCondition,
+            @com.legend.Nullable LambdaFunction pairedCondition,
             Map<Integer, Map<String, String>> srcKeysByOrdinal,
             Map<Integer, List<LiftChain>> chainsByOrdinal) {
     }
@@ -1369,7 +1368,7 @@ final class UnionSynthesis {
      * graph rootLevel SameStore golden) demand strict member pairing. */
     private static boolean liftTargetMerged(List<int[]> ordsPre,
             List<PropertyMapping.Join> jsPre, String prop,
-            ClassMapping.Union targetUnion, String targetClassFqn,
+            ClassMapping.@com.legend.Nullable Union targetUnion, String targetClassFqn,
             List<ClassMapping> members, LegacyMappingDefinition md,
             ModelBuilder model) {
         if (targetUnion == null) {
@@ -1435,7 +1434,7 @@ final class UnionSynthesis {
      * per-member OR dispatch (snapshot golden: the engine's own OR form;
      * VarReferenceWithUnion golden: both members' rows live). */
     private static boolean singleSetTargetCollapse(
-            ClassMapping.Union targetUnion, List<PropertyMapping.Join> js) {
+            ClassMapping.@com.legend.Nullable Union targetUnion, List<PropertyMapping.Join> js) {
         if (targetUnion != null || js.size() < 2) {
             return false;
         }
@@ -1514,7 +1513,8 @@ final class UnionSynthesis {
     /** A chained entry's per-member material: the mid steps plus the FINAL
      * hop's source-key columns (on the LAST mid table, read via its slot
      * and projected member-suffixed — engine {@code fk1_1}). */
-    record LiftChain(List<LiftMidStep> steps, String keyAlias,
+    record LiftChain(List<LiftMidStep> steps,
+            @com.legend.Nullable String keyAlias,
             String keyDb, String keyTable, Map<String, String> keys) {
     }
 
@@ -1630,7 +1630,7 @@ final class UnionSynthesis {
             // audit 11: a partial lift matched the wrong members, a throw
             // here poisoned scalar-only union queries.
             String skipReason = null;
-            for (PropertyMapping.Join j0 : joins.get(prop)) {
+            for (PropertyMapping.Join j0 : java.util.Objects.requireNonNull(joins.get(prop))) {
                 if (j0.targetSetId() != null && (targetUnion == null
                         || memberOrdinalOf(targetUnion.memberSetIds(), md,
                                 model, j0.targetSetId()) < 0)) {
@@ -1806,10 +1806,10 @@ final class UnionSynthesis {
                 }
             }
             ValueSpecification targetRows = ViewRelation.relationExpr(
-                    landingDb, landingTable, model, md);
+                    java.util.Objects.requireNonNull(landingDb), java.util.Objects.requireNonNull(landingTable), model, md);
             if (!tgtKeyCols.isEmpty()) {
                 List<ColSpec> keySpecs = routedLiftKeySpecs(tgtKeyCols,
-                        landingDb, landingTable, md, model);
+                        java.util.Objects.requireNonNull(landingDb), java.util.Objects.requireNonNull(landingTable), md, model);
                 targetRows = new AppliedFunction("project",
                         List.of(targetRows, new ColSpecArray(keySpecs)));
             }
@@ -1838,7 +1838,7 @@ final class UnionSynthesis {
             ModelBuilder model, List<String> memberIds,
             List<ClassMapping> members,
             Map<Integer, Map<String, String>> sink,
-            Map<Integer, List<LiftChain>> chainsSink) {
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink) {
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         MappingNormalizer.collectMappingClosure(md, model, closure, new HashSet<>());
         for (LegacyMappingDefinition m : closure) {
@@ -1933,7 +1933,7 @@ final class UnionSynthesis {
             List<ClassMapping> members, boolean uniform,
             LegacyMappingDefinition md, ModelBuilder model,
             Map<Integer, Map<String, String>> sink,
-            Map<Integer, List<LiftChain>> chainsSink) {
+            @com.legend.Nullable Map<Integer, List<LiftChain>> chainsSink) {
         if (!(members.get(ord) instanceof ClassMapping.Relational routedMember)) {
             return;     // routes into Relation(~func) members have no
                         // physical key table (loud at navigation if demanded)
