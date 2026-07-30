@@ -152,7 +152,7 @@ public final class PlanEnumForm {
 
     /** The enum parameter when {@code e} is the rewritten selector
      * shape ({@code col = p} or {@code not(col = p)}), else null. */
-    private static SqlExpr.PlanParam selectorParam(SqlExpr e) {
+    private static SqlExpr.@com.legend.Nullable PlanParam selectorParam(SqlExpr e) {
         if (e instanceof SqlExpr.Call n && n.fn() == SqlFn.NOT
                 && n.args().size() == 1) {
             return selectorParam(n.args().get(0));
@@ -185,7 +185,7 @@ public final class PlanEnumForm {
         return inner == g.inner() ? g : new SqlExpr.Group(inner);
     }
 
-    private static SqlExpr.PlanParam enumParam(SqlExpr e) {
+    private static SqlExpr.@com.legend.Nullable PlanParam enumParam(SqlExpr e) {
         return e instanceof SqlExpr.PlanParam p && p.enumMapFn() != null
                 ? p : null;
     }
@@ -204,7 +204,7 @@ public final class PlanEnumForm {
 
     /** The single distinct Column reference inside an expression, or
      * null when it reads zero or several. */
-    static SqlExpr.Column singleColumnIn(SqlExpr e) {
+    static SqlExpr.@com.legend.Nullable Column singleColumnIn(SqlExpr e) {
         java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
         List<SqlExpr.Column> found = new ArrayList<>();
         collectColumns(e, keys, found);

@@ -66,7 +66,7 @@ public final class PlanText {
     public static String typeBlock(ModelContext ctx, String rootClassFqn,
             String[] impl, SqlQuery plan,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            String mappingFqn) {
+            @com.legend.Nullable String mappingFqn) {
         com.legend.compiler.spec.typed.TypedSpec last =
                 body.get(body.size() - 1);
         if (last.info().type()
@@ -220,7 +220,7 @@ public final class PlanText {
     private static String tdsTuples(ModelContext ctx, String dbFqn,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
-            java.util.Map<String, String> docs, String mappingFqn) {
+            java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn) {
         return tdsTuples(ctx, dbFqn, plan, rt, docs, mappingFqn, false);
     }
 
@@ -230,7 +230,7 @@ public final class PlanText {
     private static String tdsTuples(ModelContext ctx, String dbFqn,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
-            java.util.Map<String, String> docs, String mappingFqn,
+            java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn,
             boolean m2m) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
@@ -310,7 +310,7 @@ public final class PlanText {
     /** The mapping's ENUMERATION-MAPPING for an enum FQN (exact match
      * first, simple-name second — parsed mappings may hold either
      * spelling), or null. */
-    public static com.legend.model.EnumerationMapping enumMappingOf(
+    public static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
             ModelContext ctx, String mappingFqn, String enumFqn) {
         var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
         if (md == null) {
@@ -331,7 +331,7 @@ public final class PlanText {
         return null;
     }
 
-    private static String enumMappingIdOf(ModelContext ctx,
+    private static @com.legend.Nullable String enumMappingIdOf(ModelContext ctx,
             String mappingFqn, String enumFqn) {
         var em = enumMappingOf(ctx, mappingFqn, enumFqn);
         return em == null ? null : em.mappingId();
@@ -342,8 +342,8 @@ public final class PlanText {
      * reads the column declares which one ({@code prop:
      * EnumerationMapping synonym: T.COL}). Falls back to
      * first-declared. */
-    private static String enumMappingIdFor(ModelContext ctx,
-            String mappingFqn, String enumFqn, String[] phys) {
+    private static @com.legend.Nullable String enumMappingIdFor(ModelContext ctx,
+            String mappingFqn, String enumFqn, String @com.legend.Nullable [] phys) {
         var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
@@ -389,7 +389,7 @@ public final class PlanText {
      * {@code enumMap_<mapping fqn underscored>_<enum-mapping id>}
      * (relationalMappingExecution enum templates), or null when the
      * mapping carries no enumeration mapping for the enum. */
-    public static String enumMapFnOf(ModelContext ctx, String mappingFqn,
+    public static @com.legend.Nullable String enumMapFnOf(ModelContext ctx, String mappingFqn,
             String enumFqn) {
         String id = enumMappingIdOf(ctx, mappingFqn, enumFqn);
         return id == null ? null
@@ -453,7 +453,9 @@ public final class PlanText {
                 // COMPUTED projection (aggregate, expression): the engine
                 // spells an EMPTY QUOTED type (inferRelationalType has no
                 // physical column) — golden ("Income Function", "")
-                sb.append("(\"").append(strip(p.outputName()))
+                sb.append("(\"").append(strip(java.util.Objects
+                    .requireNonNull(p.outputName(),
+                            "plan TDS projection without an output name")))
                         .append("\", \"\")");
                 continue;
             }
@@ -469,7 +471,9 @@ public final class PlanText {
                             () -> new NotImplementedException("plan:"
                                     + " column '" + c.name() + "' not on '"
                                     + table + "'"));
-            sb.append("(\"").append(strip(p.outputName()))
+            sb.append("(\"").append(strip(java.util.Objects
+                    .requireNonNull(p.outputName(),
+                            "plan TDS projection without an output name")))
                     .append("\", ").append(spell(cd.dataType())).append(')');
         }
         return sb.toString();
@@ -478,7 +482,7 @@ public final class PlanText {
     /** The engine dataType a computed column's PURE type infers to
      * (executionPlan goldens: aggregate Number/Float -> FLOAT); null =
      * no known spelling (stays a named wall). */
-    private static String pureDbSpelling(
+    private static @com.legend.Nullable String pureDbSpelling(
             com.legend.compiler.element.type.Type t) {
         if (t == com.legend.compiler.element.type.Type.Primitive.NUMBER
                 || t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
@@ -501,7 +505,7 @@ public final class PlanText {
 
     /** The ONE column every CASE branch (thens + else, nested) reads,
      * or null when branches differ or carry non-column leaves. */
-    private static SqlExpr.Column uniformCaseColumn(SqlExpr e) {
+    private static SqlExpr.@com.legend.Nullable Column uniformCaseColumn(SqlExpr e) {
         if (!(e instanceof SqlExpr.Case)) {
             return null;
         }
@@ -539,7 +543,7 @@ public final class PlanText {
     }
 
     /** The physical table behind a FROM-tree alias. */
-    private static String tableOf(SqlSource src, String alias) {
+    private static String tableOf(SqlSource src, @com.legend.Nullable String alias) {
         return resolvePhysical(src, alias, null)[0];
     }
 
@@ -547,8 +551,8 @@ public final class PlanText {
      * looks THROUGH subselects (a VIEW's pnl resolves to the underlying
      * table's column; the engine types resultColumns by the physical
      * store column). {@code col} null = table identity only. */
-    private static String[] resolvePhysical(SqlSource src, String alias,
-            String col) {
+    private static String[] resolvePhysical(SqlSource src, @com.legend.Nullable String alias,
+            @com.legend.Nullable String col) {
         switch (src) {
             case SqlSource.Table t -> {
                 if (t.alias().equals(alias)) {
@@ -571,7 +575,8 @@ public final class PlanText {
                                 + " required to resolve through it");
                     }
                     for (SqlSelect.Projection p2 : is.projections()) {
-                        if (col.equals(strip(p2.outputName()))
+                        if (p2.outputName() != null
+                                && col.equals(strip(p2.outputName()))
                                 && p2.expr() instanceof SqlExpr.Column c2) {
                             return resolvePhysical(is.from(), c2.table(),
                                     strip(c2.name()));
