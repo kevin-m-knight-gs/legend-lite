@@ -23,7 +23,7 @@ public final class CsvSeed {
     private CsvSeed() {
     }
 
-    public static List<String> sqls(String csvBlocks, String dbFqn,
+    public static List<String> sqls(String csvBlocks, @com.legend.Nullable String dbFqn,
             ModelContext ctx) {
         List<String> out = new ArrayList<>();
         // block separators: a line of dashes — '-' (the Alloy '\n-\n'
@@ -44,7 +44,7 @@ public final class CsvSeed {
         return out;
     }
 
-    private static void blockSqls(String csv, String dbFqn, ModelContext ctx,
+    private static void blockSqls(String csv, @com.legend.Nullable String dbFqn, ModelContext ctx,
             List<String> out) {
         String[] lines = csv.split("\n");
         while (lines.length > 0 && lines[0].isBlank()) {

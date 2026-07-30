@@ -64,7 +64,7 @@ public final class TestDataGenerator {
             String snapshot) {
     }
 
-    public record Result(List<String> sqls, String dataCsvString,
+    public record Result(List<String> sqls, @com.legend.Nullable String dataCsvString,
             @com.legend.Nullable List<String[]> tables) {
         public Result(List<String> sqls, String dataCsvString) {
             this(sqls, dataCsvString, null);

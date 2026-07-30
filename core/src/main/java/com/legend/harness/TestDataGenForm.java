@@ -42,35 +42,39 @@ final class TestDataGenForm {
     }
 
     /** Does this let RHS carry a generateTestData call? */
-    static boolean hasGenerate(ValueSpecification rhs) {
+    static boolean hasGenerate(@com.legend.Nullable ValueSpecification rhs) {
         return findCall(rhs, "generateTestData") != null;
     }
 
     /** planTestDataGeneration: a PLAN-TEXT contract (MultiResultSequence
      * printout with engine-H2 SQL per fetch) — pending the tdg plan
      * printer. */
-    static boolean hasPlanGenerate(ValueSpecification rhs) {
+    static boolean hasPlanGenerate(@com.legend.Nullable ValueSpecification rhs) {
         return findCall(rhs, "planTestDataGeneration") != null;
     }
 
     /** Whether the rhs carries a generateSeedDataString call. */
-    static boolean hasSeedDataString(ValueSpecification rhs) {
+    static boolean hasSeedDataString(@com.legend.Nullable ValueSpecification rhs) {
         return findCall(rhs, "generateSeedDataString") != null;
     }
 
     /** Run generateSeedDataString — the createRowIdentifier SOURCE-CODE
      * rendering of the demanded rows. */
     static TestDataGenerator.Result runSeedDataString(
-            ValueSpecification rhs, ModelContext ctx, ImportScope imports,
+            @com.legend.Nullable ValueSpecification rhs, ModelContext ctx, ImportScope imports,
             java.sql.Connection conn) throws java.sql.SQLException {
-        AppliedFunction call = findCall(rhs, "generateSeedDataString");
+        AppliedFunction call0 = findCall(rhs, "generateSeedDataString");
+        AppliedFunction call = java.util.Objects.requireNonNull(call0,
+                "testDataGen: dispatch call not found");
         List<ValueSpecification> ps = call.parameters();
         if (ps.size() < 2 || !(ps.get(0) instanceof LambdaFunction query)
                 || !(ps.get(1) instanceof PackageableElementPtr mp)) {
             throw new NotImplementedException(
                     "testDataGen: unrecognized seed-data call shape");
         }
-        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        String mappingFqn = java.util.Objects.requireNonNull(
+                qualify(mp.fullPath(), ctx, imports),
+                "unresolvable mapping reference");
         LambdaFunction resolved = (LambdaFunction) NameResolver
                 .resolveQuery(query, imports, ctx.elementFqns());
         return new TestDataGenerator.Result(List.of(),
@@ -79,23 +83,27 @@ final class TestDataGenForm {
     }
 
     /** Whether the rhs carries a getRelationalCSVDataFromQuery call. */
-    static boolean hasCsvCensus(ValueSpecification rhs) {
+    static boolean hasCsvCensus(@com.legend.Nullable ValueSpecification rhs) {
         return findCall(rhs, "getRelationalCSVDataFromQuery") != null;
     }
 
     /** Run the NECESSARY-column census (engine
      * getRelationalCSVDataFromQuery — no execution). */
-    static TestDataGenerator.Result runCsvCensus(ValueSpecification rhs,
+    static TestDataGenerator.Result runCsvCensus(@com.legend.Nullable ValueSpecification rhs,
             ModelContext ctx, ImportScope imports) {
-        AppliedFunction call =
+        AppliedFunction call0 =
                 findCall(rhs, "getRelationalCSVDataFromQuery");
+        AppliedFunction call = java.util.Objects.requireNonNull(call0,
+                "testDataGen: dispatch call not found");
         List<ValueSpecification> ps = call.parameters();
         if (ps.size() < 2 || !(ps.get(0) instanceof LambdaFunction query)
                 || !(ps.get(1) instanceof PackageableElementPtr mp)) {
             throw new NotImplementedException(
                     "testDataGen: unrecognized csv-census call shape");
         }
-        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        String mappingFqn = java.util.Objects.requireNonNull(
+                qualify(mp.fullPath(), ctx, imports),
+                "unresolvable mapping reference");
         LambdaFunction resolved = (LambdaFunction) NameResolver
                 .resolveQuery(query, imports, ctx.elementFqns());
         return new TestDataGenerator.Result(List.of(), null,
@@ -106,7 +114,7 @@ final class TestDataGenForm {
     /** The planTestDataGeneration PLAN TEXT for a substituted assert
      * argument, or null when the argument carries no such call. Walls
      * throw {@link NotImplementedException}. */
-    static String planText(ValueSpecification subArg, ModelContext ctx,
+    static @com.legend.Nullable String planText(ValueSpecification subArg, ModelContext ctx,
             ImportScope imports) {
         AppliedFunction call = findCall(subArg, "planTestDataGeneration");
         if (call == null) {
@@ -124,7 +132,9 @@ final class TestDataGenForm {
         for (int i = 3; i < ps.size(); i++) {
             classifyArg(ps.get(i), rowIds, dates, new boolean[1]);
         }
-        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        String mappingFqn = java.util.Objects.requireNonNull(
+                qualify(mp.fullPath(), ctx, imports),
+                "unresolvable mapping reference");
         LambdaFunction resolved = (LambdaFunction) NameResolver
                 .resolveQuery(query, imports, ctx.elementFqns());
         return TestDataGenerator.planText(ctx, resolved, mappingFqn,
@@ -132,10 +142,12 @@ final class TestDataGenForm {
     }
 
     /** Parse + run. Walls throw {@link NotImplementedException}. */
-    static TestDataGenerator.Result run(ValueSpecification rhs,
+    static TestDataGenerator.Result run(@com.legend.Nullable ValueSpecification rhs,
             ModelContext ctx, ImportScope imports, Connection conn)
             throws SQLException {
-        AppliedFunction call = findCall(rhs, "generateTestData");
+        AppliedFunction call0 = findCall(rhs, "generateTestData");
+        AppliedFunction call = java.util.Objects.requireNonNull(call0,
+                "testDataGen: dispatch call not found");
         List<ValueSpecification> ps = call.parameters();
         if (ps.size() < 4) {
             throw new NotImplementedException("testDataGen: "
@@ -156,7 +168,9 @@ final class TestDataGenForm {
         for (int i = 3; i < ps.size(); i++) {
             classifyArg(ps.get(i), rowIds, dates, hash);
         }
-        String mappingFqn = qualify(mp.fullPath(), ctx, imports);
+        String mappingFqn = java.util.Objects.requireNonNull(
+                qualify(mp.fullPath(), ctx, imports),
+                "unresolvable mapping reference");
         LambdaFunction resolved = (LambdaFunction) NameResolver
                 .resolveQuery(query, imports, ctx.elementFqns());
         return TestDataGenerator.generate(ctx, resolved, mappingFqn,
@@ -313,7 +327,7 @@ final class TestDataGenForm {
                 "testDataGen: row identifier shape pending");
     }
 
-    private static Object literal(ValueSpecification v) {
+    private static @com.legend.Nullable Object literal(ValueSpecification v) {
         if (v instanceof CString s) {
             return s.value();
         }
@@ -351,7 +365,7 @@ final class TestDataGenForm {
     record Read(String var, String kind) {
     }
 
-    static Read read(ValueSpecification v) {
+    static @com.legend.Nullable Read read(ValueSpecification v) {
         String kind = null;
         while (true) {
             if (v instanceof Variable var) {
@@ -380,7 +394,8 @@ final class TestDataGenForm {
     /** Replace {@code $td.dataCsvString} / {@code $td.sqls} reads with
      * their LITERAL values so downstream statements (the corpus's
      * loadAndTestExecution tail) run through the platform unchanged. */
-    static ValueSpecification inlineReads(ValueSpecification v,
+    static @com.legend.Nullable ValueSpecification inlineReads(
+            @com.legend.Nullable ValueSpecification v,
             java.util.Map<String, TestDataGenerator.Result> tdg) {
         if (tdg.isEmpty()) {
             return v;
@@ -391,7 +406,9 @@ final class TestDataGenForm {
                     r == null ? null : tdg.get(r.var());
             if (bound != null) {
                 if ("dataCsvString".equals(ap.property())) {
-                    return new CString(bound.dataCsvString());
+                    return new CString(java.util.Objects.requireNonNull(
+                            bound.dataCsvString(),
+                            "tdg binding without csv"));
                 }
                 if ("sqls".equals(ap.property())) {
                     List<ValueSpecification> ss = new ArrayList<>();
@@ -401,7 +418,8 @@ final class TestDataGenForm {
                     return new PureCollection(ss);
                 }
             }
-            ValueSpecification rec = inlineReads(ap.receiver(), tdg);
+            ValueSpecification rec = java.util.Objects.requireNonNull(
+                    inlineReads(ap.receiver(), tdg));
             return rec == ap.receiver() ? ap
                     : new AppliedProperty(rec, ap.property());
         }
@@ -439,7 +457,7 @@ final class TestDataGenForm {
         return v;
     }
 
-    static String qualify(String name, ModelContext ctx,
+    static @com.legend.Nullable String qualify(String name, ModelContext ctx,
             ImportScope imports) {
         if (ctx.findMapping(name).isPresent()
                 || ctx.findDatabase(name).isPresent()) {
@@ -456,7 +474,7 @@ final class TestDataGenForm {
     }
 
     /** Fold {@code 'a' + 'b' + ...} chains to one literal. */
-    static String foldString(ValueSpecification v) {
+    static @com.legend.Nullable String foldString(ValueSpecification v) {
         if (v instanceof CString cs) {
             return cs.value();
         }
@@ -495,7 +513,7 @@ final class TestDataGenForm {
         return List.of(v);
     }
 
-    private static AppliedFunction findCall(ValueSpecification n,
+    private static @com.legend.Nullable AppliedFunction findCall(@com.legend.Nullable ValueSpecification n,
             String name) {
         if (n instanceof AppliedFunction af) {
             if (name.equals(simple(af.function()))) {

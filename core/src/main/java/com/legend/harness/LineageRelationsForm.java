@@ -37,7 +37,7 @@ final class LineageRelationsForm {
     private LineageRelationsForm() {
     }
 
-    static TestBody.Outcome tryRun(ModelContext ctx,
+    static TestBody.@com.legend.Nullable Outcome tryRun(ModelContext ctx,
             List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn) {
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
@@ -119,7 +119,10 @@ final class LineageRelationsForm {
                 }
                 String got = ScanRelations.treeString(ctx,
                         (LambdaFunction) resolved,
-                        qualifyMapping(mp.fullPath(), ctx, imports));
+                        java.util.Objects.requireNonNull(
+                                qualifyMapping(mp.fullPath(), ctx,
+                                        imports),
+                                "unresolvable mapping reference"));
                 verified++;
                 if (!a[1].equals(got)) {
                     failures.add("scanRelations: expected\n" + a[1]
@@ -142,7 +145,7 @@ final class LineageRelationsForm {
         return new TestBody.Outcome.Ran(verified, advisory, 0, failures);
     }
 
-    private static String qualifyMapping(String name, ModelContext ctx,
+    private static @com.legend.Nullable String qualifyMapping(String name, ModelContext ctx,
             ImportScope imports) {
         if (ctx.findMapping(name).isPresent()) {
             return name;
@@ -156,7 +159,7 @@ final class LineageRelationsForm {
         return name;
     }
 
-    private static ValueSpecification deref(ValueSpecification v,
+    private static @com.legend.Nullable ValueSpecification deref(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
         return v instanceof Variable var && lets.containsKey(var.name())
                 ? lets.get(var.name()) : v;
@@ -164,7 +167,7 @@ final class LineageRelationsForm {
 
     /** {@code $x->relationTreeAsString()}'s receiver let name, looking
      * through toOne(). */
-    private static String receiverVar(ValueSpecification v) {
+    private static @com.legend.Nullable String receiverVar(ValueSpecification v) {
         if (v instanceof Variable var) {
             return var.name();
         }
@@ -177,7 +180,7 @@ final class LineageRelationsForm {
 
     /** Fold {@code 'a' + 'b' + ...} chains (and let-bound strings) to one
      * literal; null when any part is not a string. */
-    private static String foldString(ValueSpecification v,
+    private static @com.legend.Nullable String foldString(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
         v = deref(v, lets);
         if (v instanceof CString cs) {
@@ -208,7 +211,7 @@ final class LineageRelationsForm {
         return null;
     }
 
-    private static AppliedFunction findCall(ValueSpecification n,
+    private static @com.legend.Nullable AppliedFunction findCall(ValueSpecification n,
             String name) {
         if (n instanceof AppliedFunction af) {
             if (name.equals(simple(af.function()))) {

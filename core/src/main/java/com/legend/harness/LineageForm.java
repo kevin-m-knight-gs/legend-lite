@@ -53,7 +53,7 @@ final class LineageForm {
 
     /** Runs the body when it IS the canonical scanColumns form; null
      * when the form doesn't match (the caller proceeds normally). */
-    static TestBody.Outcome tryRun(ModelContext ctx,
+    static TestBody.@com.legend.Nullable Outcome tryRun(ModelContext ctx,
             List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn) {
         LambdaFunction query = null;
@@ -149,18 +149,18 @@ final class LineageForm {
         }
     }
 
-    private static ValueSpecification letValue(ValueSpecification stmt) {
+    private static @com.legend.Nullable ValueSpecification letValue(ValueSpecification stmt) {
         return stmt instanceof AppliedFunction af
                 && "letFunction".equals(af.function())
                 && af.parameters().size() == 2
                 ? af.parameters().get(1) : stmt;
     }
 
-    private static boolean containsCall(ValueSpecification n, String simple) {
+    private static boolean containsCall(@com.legend.Nullable ValueSpecification n, String simple) {
         return findCall(n, simple) != null;
     }
 
-    private static AppliedFunction findCall(ValueSpecification n,
+    private static @com.legend.Nullable AppliedFunction findCall(@com.legend.Nullable ValueSpecification n,
             String simple) {
         if (n instanceof AppliedFunction af) {
             String s = af.function()
@@ -198,7 +198,7 @@ final class LineageForm {
 
     /** The query lambda: the zero-parameter lambda the reflection chain
      * opens with ({@code {|Q}.expressionSequence...}). */
-    private static LambdaFunction zeroParamLambda(ValueSpecification n) {
+    private static @com.legend.Nullable LambdaFunction zeroParamLambda(@com.legend.Nullable ValueSpecification n) {
         if (n instanceof LambdaFunction lf && lf.parameters().isEmpty()) {
             return lf;
         }
@@ -217,7 +217,7 @@ final class LineageForm {
         return null;
     }
 
-    private static List<String> stringList(ValueSpecification n) {
+    private static @com.legend.Nullable List<String> stringList(ValueSpecification n) {
         if (n instanceof CString cs) {
             return List.of(cs.value());
         }

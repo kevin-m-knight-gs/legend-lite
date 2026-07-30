@@ -40,7 +40,7 @@ public final class H2Verify {
     /** Verification could not run (driver absent, seed replay failed,
      * golden text not executable) — the caller stays advisory. */
     public static final class Unverifiable extends RuntimeException {
-        public Unverifiable(String msg, Throwable cause) {
+        public Unverifiable(String msg, @com.legend.Nullable Throwable cause) {
             super(msg, cause);
         }
     }
@@ -81,7 +81,7 @@ public final class H2Verify {
      * divergence message; throws {@link Unverifiable} when H2 cannot
      * evaluate the inputs at all.
      */
-    public static String verify(List<String> seeds, String goldenSql,
+    public static @com.legend.Nullable String verify(List<String> seeds, String goldenSql,
             ExecutionResult ours) {
         if (!READY) {
             throw new Unverifiable("h2 driver not on classpath", null);

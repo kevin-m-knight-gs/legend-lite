@@ -143,12 +143,17 @@ public final class TestBody {
     private static ValueSpecification orderView(ValueSpecification v,
             Map<String, ValueSpecification> execChains) {
         if (v instanceof AppliedProperty ap && ap.property().equals("values")
-                && ap.receiver() instanceof Variable var
-                && execChains.containsKey(var.name())) {
-            return execChains.get(var.name());
+                && ap.receiver() instanceof Variable var) {
+            ValueSpecification chain = execChains.get(var.name());
+            if (chain != null) {
+                return chain;
+            }
         }
-        if (v instanceof Variable var && execChains.containsKey(var.name())) {
-            return execChains.get(var.name());
+        if (v instanceof Variable var) {
+            ValueSpecification chain = execChains.get(var.name());
+            if (chain != null) {
+                return chain;
+            }
         }
         return switch (v) {
             case AppliedFunction af -> new AppliedFunction(af.function(),
@@ -163,7 +168,7 @@ public final class TestBody {
     /** BARE {@code $result.values} = the engine Result envelope's values:
      * a TDS is ONE object (carrier); instance/scalar collections SPLAT to
      * their element count (the router composition goldens pin both). */
-    private static String carrierSizeCheck(Object n, ValueSpecification arg,
+    private static @com.legend.Nullable String carrierSizeCheck(Object n, ValueSpecification arg,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
@@ -225,7 +230,7 @@ public final class TestBody {
      * @param runtimeFqn the driver-supplied runtime (connections; also the
      *                   dialect)
      */
-    public static Outcome run(ModelContext ctx, String body, ImportScope imports,
+    public static @com.legend.Nullable Outcome run(ModelContext ctx, String body, ImportScope imports,
             String runtimeFqn, Connection conn) throws java.sql.SQLException {
         return run(ctx, body, imports, runtimeFqn, conn, false);
     }
@@ -237,7 +242,7 @@ public final class TestBody {
      * expected grid) proves nothing then and the body reports Unsupported
      * instead of a hollow pass.
      */
-    public static Outcome run(ModelContext ctx, String body, ImportScope imports,
+    public static @com.legend.Nullable Outcome run(ModelContext ctx, String body, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable)
             throws java.sql.SQLException {
         return run(ctx, SpecParser.parseCodeBlock(body), imports, runtimeFqn,
@@ -250,12 +255,12 @@ public final class TestBody {
      * statement lists come straight off the FunctionDefinition, no
      * re-parse of extracted text.
      */
-    public static Outcome run(ModelContext ctx,
+    public static @com.legend.Nullable Outcome run(ModelContext ctx,
             java.util.List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable)
             throws java.sql.SQLException {
         return run(ctx, statements, imports, runtimeFqn, conn,
-                emptinessUnverifiable, null);
+                emptinessUnverifiable, java.util.List.of());
     }
 
     /**
@@ -264,7 +269,7 @@ public final class TestBody {
      * aborting (engine-harness tolerance), and a non-empty ledger makes
      * emptiness-shaped assertions unverifiable from that point on.
      */
-    public static Outcome run(ModelContext ctx,
+    public static @com.legend.Nullable Outcome run(ModelContext ctx,
             java.util.List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.List<String> seedFailures)
@@ -377,7 +382,7 @@ public final class TestBody {
                 // bind-time folds: literal-if thunks + parse-through-
                 // our-own-parser grammar strings (foldLiteralIf / clgArm)
                 ValueSpecification rhs = clgArm(foldLiteralIf(
-                        substitute(af.parameters().get(1), lets)), lets);
+                        subst(af.parameters().get(1), lets)), lets);
                 // #46 arms: generateTestData binding / literal read
                 // inlining / plan-transparent executionPlan chain
                 TdgLet tl = tdgLetArm(name, rhs, lets, tdg, planLets,
@@ -389,7 +394,8 @@ public final class TestBody {
                     executed++;
                     continue;
                 }
-                rhs = tl.rhs();
+                rhs = java.util.Objects.requireNonNull(tl.rhs(),
+                        "tdg let arm neither consumed nor rewritten");
                 List<ValueSpecification> elq = elqSplice(name, rhs, lets);
                 if (elq != null) {
                     for (int i = elq.size() - 1; i >= 0; i--) {
@@ -479,8 +485,9 @@ public final class TestBody {
             // trusted after a failed setup statement.
             if (stmt instanceof AppliedFunction af3) {
                 try {
-                    ValueSpecification sub = TestDataGenForm.inlineReads(
-                            substitute(stmt, lets), tdg);
+                    ValueSpecification sub = java.util.Objects.requireNonNull(
+                            TestDataGenForm.inlineReads(
+                                    subst(stmt, lets), tdg));
                     ValueSpecification wrapped =
                             referencesAny(sub, execVars)
                                     ? new LambdaFunction(List.of(),
@@ -513,7 +520,7 @@ public final class TestBody {
     }
 
     private record Preamble(java.util.List<ValueSpecification> statements,
-            Outcome lineage) {
+            @com.legend.Nullable Outcome lineage) {
     }
 
     /** FEATURE-TRACK preprocessing before statement routing:
@@ -553,7 +560,7 @@ public final class TestBody {
      * {@code meta::pure::router::preeval::preval(query, extensions)} — the
      * engine's PLAN-TIME pre-evaluation, identity for row semantics: the
      * wrapped query IS the query. */
-    private static LambdaFunction zeroArgLambdaArg(
+    private static @com.legend.Nullable LambdaFunction zeroArgLambdaArg(
             AppliedFunction wrap, Map<String, ValueSpecification> lets) {
         for (ValueSpecification arg : wrap.parameters()) {
             ValueSpecification a2 = arg instanceof Variable av
@@ -577,7 +584,7 @@ public final class TestBody {
         return null;
     }
 
-    private static ValueSpecification foldLiteralIf(ValueSpecification v) {
+    private static @com.legend.Nullable ValueSpecification foldLiteralIf(ValueSpecification v) {
         while (v instanceof AppliedFunction f && f.function().equals("if")
                 && f.parameters().size() == 3
                 && f.parameters().get(0)
@@ -594,7 +601,7 @@ public final class TestBody {
     /** Strip JSON canonicalization wrappers (parseJSON / toPrettyJSONString)
      * from an assertJsonStringsEqual argument — the assert parses and
      * deep-compares both sides itself, so the wrappers are identity. */
-    private static com.legend.model.spec.ValueSpecification stripJsonCanon(
+    private static com.legend.model.spec.@com.legend.Nullable ValueSpecification stripJsonCanon(
             com.legend.model.spec.ValueSpecification v) {
         while (v instanceof com.legend.model.spec.AppliedFunction af
                 && af.parameters().size() == 1
@@ -610,7 +617,7 @@ public final class TestBody {
     /** One side of a JSON assert as a PARSED structure: a GRAPH result's
      * envelope, or a String value holding JSON text. Null = not JSON-shaped
      * (the caller reports Unsupported, never a false verdict). */
-    private static Object jsonValueOf(Eval e) {
+    private static @com.legend.Nullable Object jsonValueOf(Eval e) {
         if (e.result instanceof com.legend.exec.ExecutionResult.Graph g) {
             return com.legend.exec.Json.parse(g.json());
         }
@@ -625,14 +632,14 @@ public final class TestBody {
         return null;
     }
 
-    private static String abbreviate(String s) {
+    private static @com.legend.Nullable String abbreviate(String s) {
         return s.length() <= 160 ? s : s.substring(0, 157) + "...";
     }
 
     /** The elements of a CONSTANT string collection ({@code ['a'+'b', $x]}
      * with let-resolved, concat-folded elements), or null if any element
      * is not a compile-time string. */
-    private static List<String> constantStrings(ValueSpecification v) {
+    private static @com.legend.Nullable List<String> constantStrings(ValueSpecification v) {
         List<ValueSpecification> elems =
                 v instanceof PureCollection pc ? pc.values() : List.of(v);
         List<String> out = new ArrayList<>(elems.size());
@@ -646,7 +653,7 @@ public final class TestBody {
         return out;
     }
 
-    private static String constantString(ValueSpecification v) {
+    private static @com.legend.Nullable String constantString(ValueSpecification v) {
         if (v instanceof CString cs) {
             return cs.value();
         }
@@ -693,12 +700,12 @@ public final class TestBody {
      * CLEAR it. Best-effort: an unset reason keeps the generic message. */
     static final ThreadLocal<String> UNSUPPORTED_REASON = new ThreadLocal<>();
 
-    static String unsupported(String reason) {
+    static @com.legend.Nullable String unsupported(String reason) {
         UNSUPPORTED_REASON.set(reason);
         return UNSUPPORTED_MARKER;
     }
 
-    private static String takeUnsupportedReason() {
+    private static @com.legend.Nullable String takeUnsupportedReason() {
         String why = UNSUPPORTED_REASON.get();
         UNSUPPORTED_REASON.remove();
         return why;
@@ -708,7 +715,7 @@ public final class TestBody {
 
     /** The statement-splice forms, first match wins: per-driver golden
      * loops, result-var loops, the alloy fallback. */
-    private static List<ValueSpecification> spliceForms(
+    private static @com.legend.Nullable List<ValueSpecification> spliceForms(
             ValueSpecification stmt) {
         List<ValueSpecification> out = enumDriverLoop(stmt);
         if (out == null) {
@@ -725,7 +732,7 @@ public final class TestBody {
      * splices — the engine's own no-server CI takes the same branch
      * (usually {@code {|true}}). A non-lambda fallback returns null and
      * the statement walls loudly downstream. */
-    private static List<ValueSpecification> alloyFallback(
+    private static @com.legend.Nullable List<ValueSpecification> alloyFallback(
             ValueSpecification stmt) {
         if (stmt instanceof AppliedFunction af
                 && simpleName(af.function()).equals("mayExecuteAlloyTest")
@@ -744,7 +751,7 @@ public final class TestBody {
      * silently pass. Returns the spliced statements (body statements +
      * the binding as toString(final)) in EXECUTION order, or null when
      * the rhs is not this shape. */
-    private static List<ValueSpecification> elqSplice(CString name,
+    private static @com.legend.Nullable List<ValueSpecification> elqSplice(CString name,
             ValueSpecification rhs, Map<String, ValueSpecification> lets) {
         if (rhs instanceof AppliedFunction elq
                 && harnessVocabName(elq.function())
@@ -770,7 +777,8 @@ public final class TestBody {
      * the grammar with the platform's own parser and return the selected
      * FunctionDefinition's BODY as a zero-arg lambda; any other shape
      * passes through untouched. */
-    private static ValueSpecification clgArm(ValueSpecification rhs,
+    private static @com.legend.Nullable ValueSpecification clgArm(
+            @com.legend.Nullable ValueSpecification rhs,
             Map<String, ValueSpecification> lets) {
         ValueSpecification cur = rhs;
         long idx = 0;
@@ -795,7 +803,7 @@ public final class TestBody {
             return rhs;
         }
         String src = TestDataGenForm.foldString(
-                substitute(clg.parameters().get(0), lets));
+                subst(clg.parameters().get(0), lets));
         if (src == null) {
             return rhs;
         }
@@ -820,7 +828,7 @@ public final class TestBody {
      * other verification fails on the diff (runner scoring). */
     /** assertContains(collection, value[, message…]) — real pure
      * membership (assertContains.pure:20); message args ignored. */
-    private static String assertContainsCheck(List<ValueSpecification> args,
+    private static @com.legend.Nullable String assertContainsCheck(List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
@@ -848,7 +856,8 @@ public final class TestBody {
                 + " does not contain " + val.render();
     }
 
-    private static Outcome scoreAssert(AppliedFunction af, String failure,
+    private static @com.legend.Nullable Outcome scoreAssert(
+            AppliedFunction af, @com.legend.Nullable String failure,
             int[] counters, List<String> sqlDiffs, int executed) {
         if (failure == UNSUPPORTED_MARKER) {
             String why = takeUnsupportedReason();
@@ -875,7 +884,7 @@ public final class TestBody {
 
     /** {@code assertInstanceOf}: metamodel-walk values carry their
      * KIND — compared against the type ref's simple name. */
-    private static String instanceOfAssert(List<ValueSpecification> args,
+    private static @com.legend.Nullable String instanceOfAssert(List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts,
             java.util.Set<String> execVars,
@@ -913,7 +922,7 @@ public final class TestBody {
      * equal = execution-equivalent, SQL divergence stays visible in the
      * census); when neither verifies, the TEXT DIFF is the failure —
      * never a silent advisory skip. */
-    private static String sqlTextVerify(List<ValueSpecification> args,
+    private static @com.legend.Nullable String sqlTextVerify(List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts,
             java.util.Set<String> execVars,
@@ -923,7 +932,7 @@ public final class TestBody {
         String golden = null;
         ValueSpecification actual = null;
         for (ValueSpecification a : args) {
-            String s = TestDataGenForm.foldString(substitute(a, lets));
+            String s = TestDataGenForm.foldString(subst(a, lets));
             if (s != null && golden == null) {
                 golden = s;
             } else {
@@ -946,7 +955,7 @@ public final class TestBody {
                         "meta::relational::functions::sqlstring::toSQLString",
                         ps), lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
-                if (golden.equals(sql)) {
+                if (java.util.Objects.equals(golden, sql)) {
                     return null;
                 }
                 // divergent text: execution-equivalence may still verify
@@ -969,7 +978,8 @@ public final class TestBody {
 
     /** The execute(...) call behind a golden-SQL read chain
      * ({@code $r->sqlRemoveFormatting()} / direct), or null. */
-    private static AppliedFunction sqlTextExecCall(ValueSpecification v,
+    private static @com.legend.Nullable AppliedFunction sqlTextExecCall(
+            @com.legend.Nullable ValueSpecification v,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts) {
         if (v == null) {
@@ -1022,7 +1032,7 @@ public final class TestBody {
      * order-insensitive. null = verified match (a REAL verification, not
      * a hollow pass); text = divergence FAIL; unverifiable inputs return
      * the advisory marker — exactly the pre-#67 behavior. */
-    private static String h2Upgrade(List<ValueSpecification> args,
+    private static @com.legend.Nullable String h2Upgrade(List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts,
             java.util.Set<String> execVars,
@@ -1036,7 +1046,7 @@ public final class TestBody {
         String golden = null;
         ValueSpecification actual = null;
         for (ValueSpecification a : args) {
-            String s = TestDataGenForm.foldString(substitute(a, lets));
+            String s = TestDataGenForm.foldString(subst(a, lets));
             if (s != null && golden == null) {
                 golden = s;
             } else {
@@ -1072,7 +1082,7 @@ public final class TestBody {
      * PK auto-inference (#78): the referenced corpus function's parsed
      * body walks through {@link com.legend.lineage.PkInference}; list
      * equality VERIFIES (assertSameElements order-insensitively). */
-    private static String pkAssert(AppliedFunction af,
+    private static @com.legend.Nullable String pkAssert(AppliedFunction af,
             List<ValueSpecification> args, ModelContext ctx) {
         String fn = simpleName(af.function());
         if (!(fn.equals("assertEquals") || fn.equals("assertSameElements"))
@@ -1114,7 +1124,7 @@ public final class TestBody {
     }
 
 
-    static boolean walkHasProp(ValueSpecification v, String name) {
+    static boolean walkHasProp(@com.legend.Nullable ValueSpecification v, String name) {
         if (v instanceof AppliedProperty ap) {
             return name.equals(ap.property())
                     || walkHasProp(ap.receiver(), name);
@@ -1126,7 +1136,7 @@ public final class TestBody {
         return false;
     }
 
-    static boolean walkHasCall(ValueSpecification v) {
+    static boolean walkHasCall(@com.legend.Nullable ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
             return simpleName(af.function()).equals("executionPlan")
                     || af.parameters().stream()
@@ -1143,7 +1153,7 @@ public final class TestBody {
 
     /** The exec-frame variable an expression reads through (receiver /
      * first-arg chains), or null. */
-    private static String rootExecVar(ValueSpecification v,
+    private static @com.legend.Nullable String rootExecVar(ValueSpecification v,
             java.util.Set<String> execVars,
             Map<String, ValueSpecification> lets) {
         v = substitute(v, lets);
@@ -1164,7 +1174,7 @@ public final class TestBody {
 
     /** #46 let-arm result: a wall, a consumed binding, or a (possibly
      * rewritten) rhs for the ordinary let path. */
-    private record TdgLet(Outcome wall, ValueSpecification rhs,
+    private record TdgLet(@com.legend.Nullable Outcome wall, @com.legend.Nullable ValueSpecification rhs,
             boolean consumed) {
     }
 
@@ -1173,7 +1183,7 @@ public final class TestBody {
      * runs NOW for its side effects through the platform; the binding
      * itself still rides lazily (its value is the runtime handle).
      * Returns null normally, an Outcome wall on compile failure. */
-    private static Outcome letSetupArm(ValueSpecification rhs,
+    private static @com.legend.Nullable Outcome letSetupArm(ValueSpecification rhs,
             Map<String, ValueSpecification> lets,
             Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
             ModelContext ctx, ImportScope imports, String runtimeFqn,
@@ -1196,7 +1206,8 @@ public final class TestBody {
         }
         try {
             Compiler.executeResolved(NameResolver.resolveQuery(
-                    TestDataGenForm.inlineReads(substitute(rhs, lets), tdg),
+                    java.util.Objects.requireNonNull(TestDataGenForm
+                            .inlineReads(subst(rhs, lets), tdg)),
                     imports, ctx.elementFqns()),
                     ctx, runtimeFqn, conn,
                     seedFailures == null ? null : seedFailures::add);
@@ -1215,7 +1226,7 @@ public final class TestBody {
      * the binding — but the statements already ran through the platform
      * (letSetupArm), so the value IS the remainder. 0-arg helpers only;
      * anything else keeps the raw call (walls stay honest). */
-    private static ValueSpecification purifiedSetup(ValueSpecification rhs,
+    private static @com.legend.Nullable ValueSpecification purifiedSetup(ValueSpecification rhs,
             ModelContext ctx) {
         if (!(rhs instanceof AppliedFunction af)
                 || !af.parameters().isEmpty()) {
@@ -1290,7 +1301,7 @@ public final class TestBody {
     /** Test-level lets the plan lambda reads, injected as LEADING
      * lambda-local lets in first-use order (engine inScopeVars — each
      * prints as an Allocation node). */
-    private static AppliedFunction injectOpenLets(AppliedFunction ep,
+    private static @com.legend.Nullable AppliedFunction injectOpenLets(AppliedFunction ep,
             Map<String, ValueSpecification> lets) {
         if (!(ep.parameters().get(0) instanceof LambdaFunction plam)) {
             return ep;
@@ -1356,7 +1367,7 @@ public final class TestBody {
      * only ever flows into {@code $plan->execute(...)}, which re-forms as
      * the execute native (identical row semantics; plan text is never
      * inspected here). */
-    private static TdgLet tdgLetArm(CString name, ValueSpecification rhs,
+    private static TdgLet tdgLetArm(CString name, @com.legend.Nullable ValueSpecification rhs,
             Map<String, ValueSpecification> lets,
             Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
             Map<String, AppliedFunction> planLets,
@@ -1469,7 +1480,7 @@ public final class TestBody {
      * advisory (the golden-SQL doctrine), .sqls COUNTS verify. Returns
      * {@link #NOT_TDG_MARKER} when the assert doesn't touch a
      * generateTestData binding. */
-    private static String checkTdgAssert(AppliedFunction af,
+    private static @com.legend.Nullable String checkTdgAssert(AppliedFunction af,
             List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg,
@@ -1484,11 +1495,11 @@ public final class TestBody {
                     return UNSUPPORTED_MARKER;
                 }
                 TestDataGenForm.Read r = TestDataGenForm.read(
-                        substitute(args.get(1), lets));
+                        subst(args.get(1), lets));
                 var bound = r == null ? null : tdg.get(r.var());
                 String expected = TestDataGenForm.foldString(
-                        substitute(args.get(0), lets));
-                if (bound == null || expected == null
+                        subst(args.get(0), lets));
+                if (r == null || bound == null || expected == null
                         || !"dataCsvString".equals(r.kind())
                         || !(substitute(args.get(2), lets)
                                 instanceof com.legend.model.spec
@@ -1497,16 +1508,21 @@ public final class TestBody {
                 }
                 try {
                     return com.legend.testdatagen.TestDataGenerator
-                            .compareCsv(ctx, TestDataGenForm.qualify(
-                                    dbp.fullPath(), ctx, imports),
-                                    expected, bound.dataCsvString(), conn);
+                            .compareCsv(ctx, java.util.Objects.requireNonNull(
+                                    TestDataGenForm.qualify(
+                                            dbp.fullPath(), ctx, imports),
+                                    "unresolvable db reference"),
+                                    expected, java.util.Objects.requireNonNull(
+                                            bound.dataCsvString(),
+                                            "tdg binding without csv"),
+                                    conn);
                 } catch (com.legend.error.NotImplementedException e) {
                     return UNSUPPORTED_MARKER;
                 }
             }
             case "assertSqlEquals" -> {
                 TestDataGenForm.Read r = TestDataGenForm.read(
-                        substitute(args.size() == 2 ? args.get(1)
+                        subst(args.size() == 2 ? args.get(1)
                                 : args.get(0), lets));
                 return r != null && tdg.containsKey(r.var())
                         ? ADVISORY_MARKER : UNSUPPORTED_MARKER;
@@ -1516,7 +1532,7 @@ public final class TestBody {
         }
         if (!tdg.isEmpty() && !args.isEmpty()) {
             TestDataGenForm.Read r0 = TestDataGenForm.read(
-                    substitute(args.get(0), lets));
+                    subst(args.get(0), lets));
             if (r0 != null && tdg.containsKey(r0.var())
                     && "sqls".equals(r0.kind())) {
                 if (simpleName(af.function()).equals("assertSize")
@@ -1534,7 +1550,7 @@ public final class TestBody {
             }
             for (ValueSpecification a : args) {
                 TestDataGenForm.Read r = TestDataGenForm.read(
-                        substitute(a, lets));
+                        subst(a, lets));
                 if (r != null && tdg.containsKey(r.var())) {
                     return ADVISORY_MARKER;
                 }
@@ -1548,9 +1564,10 @@ public final class TestBody {
                 && tdg.get(sv.name()).sqls().isEmpty()
                 && tdg.get(sv.name()).dataCsvString() != null) {
             // a STRING-product binding (generateSeedDataString): literal
-            String got2 = tdg.get(sv.name()).dataCsvString();
+            String got2 = java.util.Objects.requireNonNull(
+                    java.util.Objects.requireNonNull(tdg.get(sv.name())).dataCsvString());
             String exp2 = TestDataGenForm.foldString(
-                    substitute(args.get(0), lets));
+                    subst(args.get(0), lets));
             return got2.equals(exp2) ? null
                     : "assertEquals: expected " + exp2 + ", got " + got2;
         }
@@ -1564,7 +1581,7 @@ public final class TestBody {
                     String text;
                     try {
                         text = TestDataGenForm.planText(
-                                substitute(arg, lets), ctx, imports);
+                                subst(arg, lets), ctx, imports);
                     } catch (com.legend.error.NotImplementedException e) {
                         if (System.getenv("LL_TMP_DEBUG") != null) {
                             System.err.println("[tdg-plan-wall] " + e);
@@ -1581,13 +1598,13 @@ public final class TestBody {
                             continue;
                         }
                         if (text.equals(TestDataGenForm.foldString(
-                                substitute(g, lets)))) {
+                                subst(g, lets)))) {
                             return null;
                         }
                     }
                     return "assertEquals: expected "
                             + TestDataGenForm.foldString(
-                                    substitute(args.get(0), lets))
+                                    subst(args.get(0), lets))
                             + ", got " + text;
                 }
             }
@@ -1598,7 +1615,7 @@ public final class TestBody {
     /** getRelationalCSVDataFromQuery reads: {@code $x.tables->size()}
      * and the schema/table/values map-join idiom — host-side over the
      * census triples. */
-    private static String csvCensusAssert(AppliedFunction af,
+    private static @com.legend.Nullable String csvCensusAssert(AppliedFunction af,
             List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg) {
@@ -1615,7 +1632,8 @@ public final class TestBody {
                 && tp.receiver() instanceof Variable v
                 && tdg.get(v.name()) != null
                 && tdg.get(v.name()).tables() != null) {
-            long got = tdg.get(v.name()).tables().size();
+            long got = java.util.Objects.requireNonNull(
+                    java.util.Objects.requireNonNull(tdg.get(v.name())).tables()).size();
             if (!(args.get(0)
                     instanceof com.legend.model.spec.CInteger ci)) {
                 return NOT_TDG_MARKER;
@@ -1632,7 +1650,7 @@ public final class TestBody {
                 && simpleName(mp2.function()).equals("map")
                 && mp2.parameters().size() == 2
                 && mp2.parameters().get(1) instanceof LambdaFunction ml
-                && propertyReadOrder(ml).equals(
+                && java.util.Objects.equals(propertyReadOrder(ml),
                         List.of("schema", "table", "values"))) {
             // the source may carry an optional sortBy(schema+table)
             ValueSpecification src = mp2.parameters().get(0);
@@ -1641,7 +1659,7 @@ public final class TestBody {
                     && simpleName(sb.function()).equals("sortBy")
                     && sb.parameters().size() == 2
                     && sb.parameters().get(1) instanceof LambdaFunction sl
-                    && propertyReadOrder(sl).equals(
+                    && java.util.Objects.equals(propertyReadOrder(sl),
                             List.of("schema", "table"))) {
                 sorted = true;
                 src = sb.parameters().get(0);
@@ -1654,7 +1672,8 @@ public final class TestBody {
                 return NOT_TDG_MARKER;
             }
             List<String[]> triples =
-                    new ArrayList<>(tdg.get(v2.name()).tables());
+                    new ArrayList<>(java.util.Objects.requireNonNull(
+                            java.util.Objects.requireNonNull(tdg.get(v2.name())).tables()));
             if (sorted) {
                 triples.sort(java.util.Comparator.comparing(
                         t -> t[0] + t[1]));
@@ -1664,7 +1683,7 @@ public final class TestBody {
                     .collect(java.util.stream.Collectors
                             .joining(sep.value()));
             String exp = TestDataGenForm.foldString(
-                    substitute(args.get(0), lets));
+                    subst(args.get(0), lets));
             return got.equals(exp) ? null
                     : "assertEquals: expected " + exp + ", got " + got;
         }
@@ -1673,7 +1692,7 @@ public final class TestBody {
 
     /** The lambda body's property-read names in source order (the
      * census join idiom pin — anything else stays a wall). */
-    private static List<String> propertyReadOrder(LambdaFunction ml) {
+    private static @com.legend.Nullable List<String> propertyReadOrder(LambdaFunction ml) {
         List<String> out = new ArrayList<>();
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(ml.body());
@@ -1725,7 +1744,7 @@ public final class TestBody {
     }
 
     /** null = held; ADVISORY_MARKER = golden-SQL; UNSUPPORTED_MARKER; else the failure text. */
-    private static String checkAssert(AppliedFunction af,
+    private static @com.legend.Nullable String checkAssert(AppliedFunction af,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
@@ -1752,7 +1771,7 @@ public final class TestBody {
                 if (args.isEmpty()) {
                     return UNSUPPORTED_MARKER;
                 }
-                if (PlanAsserts.containsPlanToString(substitute(args.get(0), lets))) {
+                if (PlanAsserts.containsPlanToString(subst(args.get(0), lets))) {
                     return PlanAsserts.planPredicateAssert(af, args, lets, execStmts,
                             execVars, execChains, ctx, imports,
                             runtimeFqn, conn);
@@ -1789,7 +1808,7 @@ public final class TestBody {
                 // skip the golden-SQL advisory routing entirely
                 ValueSpecification lastSub =
                         substitute(args.get(args.size() - 1), lets);
-                if (PlanAsserts.containsPlanToString(substitute(args.get(0), lets))
+                if (PlanAsserts.containsPlanToString(subst(args.get(0), lets))
                         || PlanAsserts.containsPlanToString(lastSub)
                         || PlanAsserts.containsPlanWalk(lastSub)) {
                     return PlanAsserts.planTextAssert(args, lets, execStmts, execVars,
@@ -1993,7 +2012,7 @@ public final class TestBody {
      * .values}), runTest asserts the golden SQL (advisory) and the row
      * count. Null = not this idiom (the caller keeps its wall).
      */
-    private static List<ValueSpecification> etaExpandWrapper(
+    private static @com.legend.Nullable List<ValueSpecification> etaExpandWrapper(
             AppliedFunction wrap, Map<String, ValueSpecification> lets) {
         String fn = simpleName(wrap.function());
         List<ValueSpecification> args = wrap.parameters();
@@ -2024,7 +2043,7 @@ public final class TestBody {
                 return null;
             }
         }
-        ValueSpecification bound = substitute(lf.body().get(0), binding);
+        ValueSpecification bound = subst(lf.body().get(0), binding);
         if (legend) {
             return List.of(new AppliedFunction("assertEquals", List.of(
                     args.get(2),
@@ -2041,7 +2060,7 @@ public final class TestBody {
 
     /** The per-driver golden loop body — null when every pair verified
      * clean; counters = {verified, advisory} accumulate in place. */
-    private static Outcome runPerDriverLoop(List<AppliedFunction> pairs,
+    private static @com.legend.Nullable Outcome runPerDriverLoop(List<AppliedFunction> pairs,
             LambdaFunction perDriver, Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
@@ -2125,7 +2144,7 @@ public final class TestBody {
      * idiom ({@code [$r1,$r2]->map(r|let o=$r.values; assertEquals(..);)}):
      * HOST-side unroll, the sibling of the per-driver enum loop. Variables
      * only — a map over computed elements is a QUERY and must not unroll. */
-    private static List<ValueSpecification> resultVarLoop(ValueSpecification stmt) {
+    private static @com.legend.Nullable List<ValueSpecification> resultVarLoop(ValueSpecification stmt) {
         if (!(stmt instanceof AppliedFunction m
                 && harnessVocabName(m.function())
                 && simpleName(m.function()).equals("map")
@@ -2146,7 +2165,7 @@ public final class TestBody {
         return out;
     }
 
-    private static List<ValueSpecification> enumDriverLoop(
+    private static @com.legend.Nullable List<ValueSpecification> enumDriverLoop(
             ValueSpecification stmt) {
         ValueSpecification enumLoop = stmt;
         if (stmt instanceof AppliedFunction eqw
@@ -2189,7 +2208,7 @@ public final class TestBody {
         return null;
     }
 
-    private static LambdaFunction driverPairLoop(ValueSpecification v,
+    private static @com.legend.Nullable LambdaFunction driverPairLoop(ValueSpecification v,
             Map<String, ValueSpecification> lets,
             List<AppliedFunction> pairsOut) {
         if (!(v instanceof AppliedFunction d
@@ -2225,7 +2244,8 @@ public final class TestBody {
 
     /** Rewrite {@code $p.first}/{@code $p.second} reads to the pair's
      * concrete values (shadowing lambdas stop the walk). */
-    private static ValueSpecification substPairReads(ValueSpecification v,
+    private static @com.legend.Nullable ValueSpecification substPairReads(
+            @com.legend.Nullable ValueSpecification v,
             String pVar, ValueSpecification first, ValueSpecification second) {
         return switch (v) {
             case AppliedProperty ap when ap.receiver() instanceof Variable pv
@@ -2235,7 +2255,8 @@ public final class TestBody {
                     && pv.name().equals(pVar)
                     && ap.property().equals("second") -> second;
             case AppliedProperty ap -> new AppliedProperty(
-                    substPairReads(ap.receiver(), pVar, first, second),
+                    java.util.Objects.requireNonNull(substPairReads(
+                            ap.receiver(), pVar, first, second)),
                     ap.property());
             case AppliedFunction af -> new AppliedFunction(af.function(),
                     af.parameters().stream()
@@ -2255,7 +2276,7 @@ public final class TestBody {
 
     /** The trailing member name of an enum-shaped read ({@code DatabaseType.H2}
      * as an EnumValue or a property read); null when neither shape. */
-    private static String enumTail(ValueSpecification v) {
+    private static @com.legend.Nullable String enumTail(ValueSpecification v) {
         if (v instanceof com.legend.model.spec.EnumValue ev) {
             return ev.value();
         }
@@ -2275,7 +2296,8 @@ public final class TestBody {
      * deep-equal — the SAME semantics as {@link #jsonDeepEquals} (objects
      * key-order-insensitive, arrays order-sensitive), reported as a
      * dotted/indexed path with the local expected/actual values. */
-    private static String jsonDiffPath(Object e, Object a, String path) {
+    private static @com.legend.Nullable String jsonDiffPath(@com.legend.Nullable Object e,
+            @com.legend.Nullable Object a, String path) {
         if (e instanceof java.math.BigDecimal be
                 && a instanceof java.math.BigDecimal ba) {
             return be.compareTo(ba) == 0 ? null
@@ -2320,7 +2342,7 @@ public final class TestBody {
                         + ", got " + abbreviate(String.valueOf(a));
     }
 
-    private static boolean jsonDeepEquals(Object e, Object a) {
+    private static boolean jsonDeepEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
         if (e instanceof java.math.BigDecimal be
                 && a instanceof java.math.BigDecimal ba) {
             return be.compareTo(ba) == 0;
@@ -2410,7 +2432,7 @@ public final class TestBody {
 
     /** One evaluated side: the execution result + how it compares. */
     record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
-            boolean csvTail, String joinSep, boolean flatCells) {
+            boolean csvTail, @com.legend.Nullable String joinSep, boolean flatCells) {
 
         Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
                 boolean csvTail) {
@@ -2485,7 +2507,7 @@ public final class TestBody {
             Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        ValueSpecification spliced = substitute(expr, lets);
+        ValueSpecification spliced = subst(expr, lets);
         // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
         // compares STRUCTURALLY (or renders for a string-literal peer) —
         // rendering is a wire concern, not a query. A tail whose receiver
@@ -3225,7 +3247,7 @@ public final class TestBody {
         return es.equals(as);
     }
 
-    private static boolean wireEquals(Object e, Object a) {
+    private static boolean wireEquals(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
         // the null-cell wire sentinel: an expected ^TDSNull() (or a TDS-grid
         // 'TDSNull' cell) equals an actual NULL cell — 'TDSNull' is never a
         // genuine string payload (established: real pure parses it as the
@@ -3330,7 +3352,14 @@ public final class TestBody {
      * substituted here — those statements forward to the platform's result
      * frame, which owns the envelope splice (audit 19d B2).
      */
-    static ValueSpecification substitute(ValueSpecification v,
+    /** {@link #substitute} with the non-null passthrough asserted. */
+    static ValueSpecification subst(ValueSpecification v,
+            Map<String, ValueSpecification> lets) {
+        return java.util.Objects.requireNonNull(substitute(v, lets));
+    }
+
+    static @com.legend.Nullable ValueSpecification substitute(
+            @com.legend.Nullable ValueSpecification v,
             Map<String, ValueSpecification> lets) {
         if (v == null) {
             return null;
@@ -3375,7 +3404,8 @@ public final class TestBody {
                         yield pf.parameters().get(1);
                     }
                 }
-                yield new AppliedProperty(recv, ap3.property());
+                yield new AppliedProperty(java.util.Objects.requireNonNull(recv),
+                        ap3.property());
             }
             case PureCollection pc -> new PureCollection(
                     substituteAll(pc.values(), lets));
@@ -3422,7 +3452,7 @@ public final class TestBody {
             case NewInstance ni -> {
                 Map<String, KeyExpression> props = new LinkedHashMap<>();
                 ni.properties().forEach((k, ke) -> props.put(k,
-                        new KeyExpression(substitute(ke.value(), lets),
+                        new KeyExpression(subst(ke.value(), lets),
                                 ke.isAdd(), ke.isLocal())));
                 yield new NewInstance(ni.className(), ni.typeArguments(),
                         props);
@@ -3441,7 +3471,7 @@ public final class TestBody {
     }
 
     /** The chain's OUTER tail carries a sort — its order is a contract. */
-    private static boolean endsInSort(ValueSpecification v) {
+    private static boolean endsInSort(@com.legend.Nullable ValueSpecification v) {
         // names compare by SIMPLE name uniformly — an FQN-spelled sort must
         // still count as sorted (audit 9: raw-name matching left FQN
         // spellings silently lenient)

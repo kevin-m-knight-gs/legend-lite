@@ -30,7 +30,7 @@ final class PlanAsserts {
     /** A plan-handle WALK chain: reads rootExecutionNode over an
      * executionPlan call — its terminal value (sqlQuery text) compares
      * LITERALLY like plan text. */
-    static boolean containsPlanWalk(ValueSpecification v) {
+    static boolean containsPlanWalk(@com.legend.Nullable ValueSpecification v) {
         return (TestBody.walkHasProp(v, "rootExecutionNode")
                 && TestBody.walkHasCall(v))
                 // ->sqlRemoveFormatting() over an executionPlan binding is
@@ -41,7 +41,7 @@ final class PlanAsserts {
                         && hasCallNamed(v, "executionPlan"));
     }
 
-    private static boolean hasCallNamed(ValueSpecification v, String simple) {
+    private static boolean hasCallNamed(@com.legend.Nullable ValueSpecification v, String simple) {
         if (v instanceof AppliedFunction af) {
             if (TestBody.simpleName(af.function()).equals(simple)) {
                 return true;
@@ -57,7 +57,7 @@ final class PlanAsserts {
         return false;
     }
 
-    static boolean containsPlanToString(ValueSpecification v) {
+    static boolean containsPlanToString(@com.legend.Nullable ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
             if (TestBody.simpleName(af.function()).equals("planToString")
                     || TestBody.simpleName(af.function())
@@ -78,7 +78,7 @@ final class PlanAsserts {
     /** A predicate over PLAN TEXT (indexOf/contains chains): the
      * plan-channel text inlines as a literal, the rest evaluates
      * ordinarily (host-string semantics); walls stay SHAPE. */
-    static String planPredicateAssert(AppliedFunction af,
+    static @com.legend.Nullable String planPredicateAssert(AppliedFunction af,
             List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
@@ -87,9 +87,11 @@ final class PlanAsserts {
             throws java.sql.SQLException {
         try {
             ValueSpecification inlined = inlinePlanText(
-                    TestBody.substitute(args.get(0), lets), lets, execStmts,
+                    TestBody.subst(args.get(0), lets), lets, execStmts,
                     execVars, execChains, ctx, imports, runtimeFqn, conn);
-            Object pv = TestBody.evalScalar(inlined, lets, execStmts, execVars,
+            Object pv = TestBody.evalScalar(java.util.Objects.requireNonNull(inlined,
+                    "plan-text assert without an inlined plan"),
+                    lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn);
             boolean pexp = af.function().equals("assert");
             return Boolean.valueOf(pexp).equals(pv) ? null
@@ -105,7 +107,7 @@ final class PlanAsserts {
     /** Replace each planToString-family SUBTREE with the literal text
      * the plan channel produces — the surrounding host-string predicate
      * then evaluates ordinarily. */
-    static ValueSpecification inlinePlanText(ValueSpecification v,
+    static @com.legend.Nullable ValueSpecification inlinePlanText(ValueSpecification v,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
@@ -147,7 +149,7 @@ final class PlanAsserts {
                 + ">");
     }
 
-    static String planTextAssert(List<ValueSpecification> args,
+    static @com.legend.Nullable String planTextAssert(List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
