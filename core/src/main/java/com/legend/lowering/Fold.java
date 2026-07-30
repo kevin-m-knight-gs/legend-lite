@@ -139,16 +139,7 @@ final class Fold {
                     c.args().forEach(x -> walkColumns(x, f));
             case com.legend.sql.SqlExpr.Cast c -> walkColumns(c.value(), f);
             case com.legend.sql.SqlExpr.Group g -> walkColumns(g.inner(), f);
-            case com.legend.sql.SqlExpr.Case cs -> {
-                cs.whens().forEach(w -> {
-                    walkColumns(w.condition(), f);
-                    walkColumns(w.then(), f);
-                });
-                if (cs.otherwise() != null) {
-                    walkColumns(cs.otherwise(), f);
-                }
-            }
-            default -> { }
+            default -> e.children().forEach(c -> walkColumns(c, f));
         }
     }
 

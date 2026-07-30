@@ -198,7 +198,22 @@ public final class SqlPostProcessors {
                     j.on() == null ? null : expr(j.on(), m));
             case SqlSource.Subselect sub -> new SqlSource.Subselect(
                     apply(sub.inner(), m), sub.alias(), sub.frameName());
-            default -> src;
+            // TOTAL by construction — a Pivot's INNER source and a Values
+            // row expression rename like any other (the old default arm
+            // silently skipped both)
+            case SqlSource.Pivot p -> new SqlSource.Pivot(source(p.source(), m),
+                    p.on().stream().map(x -> expr(x, m)).toList(),
+                    p.in().stream().map(x -> expr(x, m)).toList(),
+                    p.usings().stream().map(u -> new SqlSource.Pivot.Using(
+                            (com.legend.sql.SqlAgg.Reducer) expr(u.agg(), m),
+                            u.alias())).toList(),
+                    p.alias(), p.outputs());
+            case SqlSource.Values v -> new SqlSource.Values(
+                    v.rows().stream().map(r -> r.stream()
+                            .map(x -> expr(x, m)).toList()).toList(),
+                    v.columns(), v.alias(), v.outputs());
+            case SqlSource.SourceUrl u -> u;
+            case SqlSource.Dual d -> d;
         };
     }
 
@@ -220,7 +235,7 @@ public final class SqlPostProcessors {
                     apply(ex.subquery(), m));
             case SqlExpr.ScalarSubquery sq -> new SqlExpr.ScalarSubquery(
                     apply(sq.subquery(), m));
-            default -> e;
+            default -> e.mapChildren(x -> expr(x, m));
         };
     }
 }

@@ -18,6 +18,186 @@ public sealed interface SqlExpr
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlAgg.Reducer {
 
+    /**
+     * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
+     * structural-recursion contract every expression walker shares. The
+     * switch is EXHAUSTIVE with no default arm: a new variant fails
+     * compilation HERE (and in {@link #withChildren}) until it declares
+     * its children, and every walker inherits correct traversal.
+     * Query-carrying nodes ({@link Exists}, {@link ScalarSubquery}) own
+     * their inner traversal — expression walkers do not descend into
+     * subqueries through this contract.
+     */
+    default List<SqlExpr> children() {
+        return switch (this) {
+            case Column ignored -> List.of();
+            case Star ignored -> List.of();
+            case StarExcept ignored -> List.of();
+            case StringLit ignored -> List.of();
+            case IntLit ignored -> List.of();
+            case FloatLit ignored -> List.of();
+            case DecimalLit ignored -> List.of();
+            case BoolLit ignored -> List.of();
+            case NullLit ignored -> List.of();
+            case DateLit ignored -> List.of();
+            case TimestampLit ignored -> List.of();
+            case FormatLit ignored -> List.of();
+            case PlanParam ignored -> List.of();
+            case Group g -> List.of(g.inner());
+            case ArrayLit a -> a.elements();
+            case OrderedListAgg o -> List.of(o.value(), o.orderBy());
+            case StructLit s -> s.fields().stream()
+                    .map(StructLit.Field::value).toList();
+            case StructGet g -> List.of(g.source());
+            case Call c -> c.args();
+            case Case cs -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                for (Case.When w : cs.whens()) {
+                    out.add(w.condition());
+                    out.add(w.then());
+                }
+                if (cs.otherwise() != null) {
+                    out.add(cs.otherwise());
+                }
+                yield out;
+            }
+            case Exists ignored -> List.of();
+            case ScalarSubquery ignored -> List.of();
+            case WindowCall w -> {
+                java.util.List<SqlExpr> out =
+                        new java.util.ArrayList<>(w.partitionBy());
+                for (SqlSelect.SortKey k : w.orderBy()) {
+                    out.add(k.expr());
+                }
+                yield out;
+            }
+            case Lambda l -> List.of(l.body());
+            case Cast c -> List.of(c.value());
+            case FoldCall f -> List.of(f.source(), f.lambda(), f.init());
+            case JsonObject j -> j.kv();
+            case JsonArrayAgg j -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                out.add(j.value());
+                for (JsonArrayAgg.Key k : j.orderKeys()) {
+                    out.add(k.expr());
+                }
+                yield out;
+            }
+            case SqlAgg.Reducer r -> {
+                java.util.List<SqlExpr> out =
+                        new java.util.ArrayList<>(r.args());
+                for (SqlSelect.SortKey k : r.orderBy()) {
+                    out.add(k.expr());
+                }
+                yield out;
+            }
+        };
+    }
+
+    /**
+     * This node with its direct children replaced by {@code cs}
+     * ({@code cs.size() == children().size()}, same order). The other
+     * half of the recursion contract — see {@link #children()}.
+     */
+    default SqlExpr withChildren(List<SqlExpr> cs) {
+        return switch (this) {
+            case Column ignored -> this;
+            case Star ignored -> this;
+            case StarExcept ignored -> this;
+            case StringLit ignored -> this;
+            case IntLit ignored -> this;
+            case FloatLit ignored -> this;
+            case DecimalLit ignored -> this;
+            case BoolLit ignored -> this;
+            case NullLit ignored -> this;
+            case DateLit ignored -> this;
+            case TimestampLit ignored -> this;
+            case FormatLit ignored -> this;
+            case PlanParam ignored -> this;
+            case Exists ignored -> this;
+            case ScalarSubquery ignored -> this;
+            case Group ignored -> new Group(cs.get(0));
+            case ArrayLit ignored -> new ArrayLit(cs);
+            case OrderedListAgg ignored ->
+                    new OrderedListAgg(cs.get(0), cs.get(1));
+            case StructLit s -> {
+                java.util.List<StructLit.Field> fs = new java.util.ArrayList<>();
+                for (int i = 0; i < s.fields().size(); i++) {
+                    fs.add(new StructLit.Field(s.fields().get(i).name(),
+                            cs.get(i)));
+                }
+                yield new StructLit(fs);
+            }
+            case StructGet g -> new StructGet(cs.get(0), g.field());
+            case Call c -> new Call(c.fn(), cs);
+            case Case old -> {
+                java.util.List<Case.When> ws = new java.util.ArrayList<>();
+                int i = 0;
+                for (int w = 0; w < old.whens().size(); w++) {
+                    ws.add(new Case.When(cs.get(i), cs.get(i + 1)));
+                    i += 2;
+                }
+                yield new Case(ws, old.otherwise() == null ? null : cs.get(i));
+            }
+            case WindowCall w -> {
+                int np = w.partitionBy().size();
+                java.util.List<SqlSelect.SortKey> ks = new java.util.ArrayList<>();
+                for (int i = 0; i < w.orderBy().size(); i++) {
+                    SqlSelect.SortKey k = w.orderBy().get(i);
+                    ks.add(new SqlSelect.SortKey(cs.get(np + i), k.ascending(),
+                            k.nullOrder(), k.outputName()));
+                }
+                yield new WindowCall(w.fn(), cs.subList(0, np), ks, w.frame());
+            }
+            case Lambda l -> new Lambda(l.params(), cs.get(0));
+            case Cast c -> new Cast(cs.get(0), c.target());
+            case FoldCall f -> new FoldCall(cs.get(0), (Lambda) cs.get(1),
+                    cs.get(2), f.accIsList(), f.homogeneous());
+            case JsonObject ignored -> new JsonObject(cs);
+            case JsonArrayAgg j -> {
+                java.util.List<JsonArrayAgg.Key> ks = new java.util.ArrayList<>();
+                for (int i = 0; i < j.orderKeys().size(); i++) {
+                    ks.add(new JsonArrayAgg.Key(cs.get(1 + i),
+                            j.orderKeys().get(i).desc()));
+                }
+                yield new JsonArrayAgg(cs.get(0), ks);
+            }
+            case SqlAgg.Reducer r -> {
+                int na = r.args().size();
+                java.util.List<SqlSelect.SortKey> ks = new java.util.ArrayList<>();
+                for (int i = 0; i < r.orderBy().size(); i++) {
+                    SqlSelect.SortKey k = r.orderBy().get(i);
+                    ks.add(new SqlSelect.SortKey(cs.get(na + i), k.ascending(),
+                            k.nullOrder(), k.outputName()));
+                }
+                yield new SqlAgg.Reducer(r.fn(), cs.subList(0, na),
+                        r.distinct(), ks);
+            }
+        };
+    }
+
+    /**
+     * Identity-preserving one-level rewrite: {@code f} over each direct
+     * child, reassembled through {@link #withChildren} only when a child
+     * actually changed. Walkers recurse by calling this from their own
+     * default arm — a variant they do not special-case still traverses
+     * correctly by construction.
+     */
+    default SqlExpr mapChildren(java.util.function.UnaryOperator<SqlExpr> f) {
+        List<SqlExpr> cs = children();
+        if (cs.isEmpty()) {
+            return this;
+        }
+        java.util.List<SqlExpr> rw = new java.util.ArrayList<>(cs.size());
+        boolean same = true;
+        for (SqlExpr c : cs) {
+            SqlExpr r = f.apply(c);
+            same = same && r == c;
+            rw.add(r);
+        }
+        return same ? this : withChildren(rw);
+    }
+
     /** A column reference, optionally qualified by a source alias. */
     /** {@code table} null = unqualified reference (lambda params,
      * pivot args, post-unqualify rewrites). */

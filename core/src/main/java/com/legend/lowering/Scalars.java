@@ -2737,7 +2737,7 @@ final class Scalars {
                     new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(f.value()));
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(
                     a.elements().stream().map(Scalars::undoubled).toList());
-            default -> e;
+            default -> e.mapChildren(Scalars::undoubled);
         };
     }
 
@@ -3124,7 +3124,10 @@ final class Scalars {
             case SqlExpr.Lambda l -> l.params().contains(name)
                     ? l
                     : new SqlExpr.Lambda(l.params(), substituteRef(l.body(), name, replacement));
-            default -> e;   // leaves and query-carrying nodes: no bare lambda refs inside
+            // leaves pass; every other composite recurses structurally
+            // (query-carrying nodes own their traversal — children() is
+            // empty for them by contract)
+            default -> e.mapChildren(x -> substituteRef(x, name, replacement));
         };
     }
 

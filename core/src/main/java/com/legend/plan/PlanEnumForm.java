@@ -231,9 +231,7 @@ public final class PlanEnumForm {
                     collectColumns(cs.otherwise(), keys, out);
                 }
             }
-            case SqlExpr.Cast ct -> collectColumns(ct.value(), keys, out);
-            case SqlExpr.Group g -> collectColumns(g.inner(), keys, out);
-            default -> { }
+            default -> e.children().forEach(x -> collectColumns(x, keys, out));
         }
     }
 }
