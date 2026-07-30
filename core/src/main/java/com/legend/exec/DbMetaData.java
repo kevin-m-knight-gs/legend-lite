@@ -110,13 +110,14 @@ public final class DbMetaData {
                     try {
                         st.execute(one);
                     } catch (SQLException e) {
-                        // skipped — see javadoc
-                        if (System.getenv("LL_TMP_DEBUG") != null) {
-                            System.err.println("[h2-meta-replay] skip: "
-                                    + one.strip().split("\\n")[0] + " => "
-                                    + String.valueOf(e.getMessage())
-                                            .split("\\n")[0]);
-                        }
+                        // skipped — see javadoc. UNCONDITIONALLY visible
+                        // (audit V1.17: a swallowed Java-synthesized ALTER
+                        // silently changes what the metadata natives
+                        // return; every sweep counts these now)
+                        System.err.println("[h2-meta-replay] skip: "
+                                + one.strip().split("\\n")[0] + " => "
+                                + String.valueOf(e.getMessage())
+                                        .split("\\n")[0]);
                     }
                 }
             }

@@ -1057,9 +1057,13 @@ public final class TestBody {
                     com.legend.exec.RawSqlBoundary.recording(), golden,
                     rows.result());
         } catch (java.sql.SQLException | RuntimeException e) {
-            if (System.getenv("LL_H2_DEBUG") != null) {
-                System.err.println("[h2-advisory] unverifiable: " + e);
-            }
+            // audit (TENET V2.1): this decline was visible ONLY under
+            // LL_H2_DEBUG — a row-verification opportunity silently fell
+            // back to advisory. The fallback stays (pre-#67 status quo;
+            // hardening it to FAIL waits on the CsvSeed producer fix),
+            // but every sweep now COUNTS it: grep '\[h2-unverifiable\]'.
+            System.err.println("[h2-unverifiable] replay/verify failed: "
+                    + String.valueOf(e.getMessage()).replace('\n', ' '));
             return ADVISORY_MARKER;
         }
     }

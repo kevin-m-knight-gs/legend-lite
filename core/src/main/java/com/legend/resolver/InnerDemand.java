@@ -498,7 +498,14 @@ final class InnerDemand {
                                     rel0.info());
                 }
                 return rawResolver.apply(chain);
-            } catch (RuntimeException e) {
+            } catch (com.legend.error.NotImplementedException
+                    | com.legend.error.LegendCompileException e) {
+                // EXPECTED walls only: this chain is not resolvable as an
+                // in-query read — keep its ordinary wall. A broad
+                // RuntimeException catch here degraded genuine resolver
+                // BUGS (NPE/ISE) into "not an in-query read" and a
+                // DIFFERENT, possibly wrong lowering (audit T §4.4) —
+                // those now propagate loudly.
                 return null;
             }
         };
