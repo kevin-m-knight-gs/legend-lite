@@ -776,7 +776,10 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 new ExprType(
                         new Type.FunctionType(
                                 List.of(new com.legend.compiler
-                                        .element.type.Type.Param(mapRowType,
+                                        .element.type.Type.Param(
+                                        java.util.Objects.requireNonNull(
+                                                mapRowType,
+                                                "assoc join without target row"),
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)),
                                 new Type.Param(leafType, leafMult)),

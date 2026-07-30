@@ -533,11 +533,10 @@ public final class ClassSources {
                 // suffix (suffixTargetReads) — on the pair's OWN arm the
                 // read is the bare physical column (deterministic contract;
                 // strip only when the bare column exists on the arm row)
-                int tOrd = memberIds == null ? -1
-                    : ctx.mixedUnionMembers(mappingFqn, childClassFqn) == null
-                        ? -1
-                        : ctx.mixedUnionMembers(mappingFqn, childClassFqn)
-                                .indexOf(r.targetSetId());
+                java.util.List<String> mixed = memberIds == null ? null
+                    : ctx.mixedUnionMembers(mappingFqn, childClassFqn);
+                int tOrd = mixed == null ? -1
+                        : mixed.indexOf(r.targetSetId());
                 final int tOrdF = tOrd;
                 tKeys = tk.stream().map(x -> stripMemberSuffix(
                         Pipelines.rewriteRowReads(x, p1,

@@ -57,7 +57,7 @@ public record TypedFunction(
         Multiplicity returnMultiplicity,
         Optional<List<ValueSpecification>> body,
         boolean isNative,
-        com.legend.model.Function definition) implements TypedElement {
+        com.legend.model.@com.legend.Nullable Function definition) implements TypedElement {
 
     /** The stable overload identity (see {@code Function.signatureKey}). */
     public String signatureKey() {
@@ -83,13 +83,28 @@ public record TypedFunction(
                 returnType, returnMultiplicity, body, isNative, null);
     }
 
-    public TypedFunction {
+    public TypedFunction(String qualifiedName,
+                         @com.legend.Nullable List<String> typeParameters,
+                         @com.legend.Nullable List<String> multiplicityParameters,
+                         @com.legend.Nullable List<TypedParameter> parameters,
+                         Type returnType, Multiplicity returnMultiplicity,
+                         @com.legend.Nullable Optional<List<ValueSpecification>> body,
+                         boolean isNative,
+                         com.legend.model.@com.legend.Nullable Function definition) {
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         Objects.requireNonNull(returnType, "returnType");
         Objects.requireNonNull(returnMultiplicity, "returnMultiplicity");
-        typeParameters = typeParameters == null ? List.of() : List.copyOf(typeParameters);
-        multiplicityParameters = multiplicityParameters == null ? List.of() : List.copyOf(multiplicityParameters);
-        parameters = parameters == null ? List.of() : List.copyOf(parameters);
-        body = body == null ? Optional.empty() : body.map(List::copyOf);
+        this.qualifiedName = qualifiedName;
+        this.typeParameters = typeParameters == null
+                ? List.of() : List.copyOf(typeParameters);
+        this.multiplicityParameters = multiplicityParameters == null
+                ? List.of() : List.copyOf(multiplicityParameters);
+        this.parameters = parameters == null
+                ? List.of() : List.copyOf(parameters);
+        this.returnType = returnType;
+        this.returnMultiplicity = returnMultiplicity;
+        this.body = body == null ? Optional.empty() : body.map(List::copyOf);
+        this.isNative = isNative;
+        this.definition = definition;
     }
 }

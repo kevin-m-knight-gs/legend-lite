@@ -113,7 +113,7 @@ public final class ModelBuilder {
      * associations are interned by then; the builder is read-only after
      * construction).
      */
-    private Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>>
+    private @com.legend.Nullable Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>>
             associationEndsByOwner;
     private final ArrayList<EnumDefinition>        enums         = new ArrayList<>();
     private final ArrayList<ProfileDefinition>     profiles      = new ArrayList<>();
@@ -527,7 +527,7 @@ public final class ModelBuilder {
         }
     }
 
-    private static <T> T idGet(ArrayList<T> list, int id) {
+    private static <T> @com.legend.Nullable T idGet(ArrayList<T> list, int id) {
         if (id < 0 || id >= list.size()) return null;
         return list.get(id);
     }
@@ -537,7 +537,10 @@ public final class ModelBuilder {
     // ====================================================================
 
     /** O(1). Returns {@link ClassDefinition} for {@code fqn}, if any. */
-    public Optional<ClassDefinition> findClass(String fqn) {
+    public Optional<ClassDefinition> findClass(@com.legend.Nullable String fqn) {
+        if (fqn == null) {
+            return Optional.empty();
+        }
         ClassDefinition exact = idGet(classes, symbols.resolveId(fqn));
         if (exact != null) {
             return Optional.of(exact);
@@ -818,7 +821,10 @@ public final class ModelBuilder {
     }
 
     /** O(1). Returns {@link RuntimeDefinition} for {@code fqn}, if any. */
-    public Optional<RuntimeDefinition> findRuntime(String fqn) {
+    public Optional<RuntimeDefinition> findRuntime(@com.legend.Nullable String fqn) {
+        if (fqn == null) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(idGet(runtimes, symbols.resolveId(fqn)));
     }
 

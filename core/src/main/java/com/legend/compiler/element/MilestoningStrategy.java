@@ -20,7 +20,8 @@ public enum MilestoningStrategy {
      * {@code temporal.*} stereotype names (matching the historical
      * set-membership tolerance).
      */
-    public static MilestoningStrategy ofStereotypeOrNull(String profileName,
+    public static @com.legend.Nullable MilestoningStrategy ofStereotypeOrNull(
+            String profileName,
             String stereotypeName) {
         if (!"temporal".equals(profileName)
                 && !"meta::pure::profiles::temporal".equals(profileName)) {

@@ -13,7 +13,7 @@ public final class Temporal {
      * members. ONE registry for query-position typing (Typer) and graph
      * trees (GraphFetchChecker); null when {@code prop} is not generated
      * for {@code classFqn}. */
-    public static com.legend.compiler.element.type.ExprType generatedMember(
+    public static com.legend.compiler.element.type.@com.legend.Nullable ExprType generatedMember(
             ModelContext ctx, String classFqn, String prop) {
         MilestoningStrategy strat = strategyOf(ctx, classFqn);
         boolean generated = strat != null
@@ -60,7 +60,8 @@ public final class Temporal {
      * etc., inherited through superclasses), or {@code null} for a
      * non-temporal class.
      */
-    public static MilestoningStrategy strategyOf(ModelContext ctx, String classFqn) {
+    public static @com.legend.Nullable MilestoningStrategy strategyOf(ModelContext ctx,
+            String classFqn) {
         java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         work.add(classFqn);

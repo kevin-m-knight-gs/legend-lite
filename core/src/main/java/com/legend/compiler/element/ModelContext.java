@@ -98,7 +98,8 @@ public interface ModelContext {
      * mapping when a class query names a runtime (explicitly via
      * {@code ->from(...)} or through the driver's execution context).
      */
-    Optional<com.legend.model.RuntimeDefinition> findRuntime(String fqn);
+    Optional<com.legend.model.RuntimeDefinition> findRuntime(
+            @com.legend.Nullable String fqn);
 
     /** Normalization-failure reason for {@code mapping::class}, when its class mapping was poisoned. */
     default Optional<String> mappingPoison(String mappingFqn, String classFqn) {
@@ -107,7 +108,7 @@ public interface ModelContext {
 
     /** Member set ids of a MIXED-KIND Operation union (a Pure member —
      * resolver-side arm synthesis, route b); {@code null} otherwise. */
-    default java.util.List<String> mixedUnionMembers(String mappingFqn,
+    default java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
         return null;
     }

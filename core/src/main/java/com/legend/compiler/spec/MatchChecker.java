@@ -172,7 +172,11 @@ final class MatchChecker {
         return new com.legend.compiler.spec.typed.TypedMatchRuntime(
                 input, arms, extraParam,
                 extraParam.isPresent() ? extra : Optional.empty(),
-                new ExprType(lub, lubMult));
+                new ExprType(
+                        java.util.Objects.requireNonNull(lub,
+                                "match() with no arms"),
+                        java.util.Objects.requireNonNull(lubMult,
+                                "match() with no arms")));
     }
 
     private static String typeFqnOf(Type t) {

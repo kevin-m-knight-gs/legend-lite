@@ -1014,7 +1014,7 @@ public final class InferenceKernel {
 
     private int primitiveTypeScore(Type actual, Type formal) {
         String f = primitiveFqn(formal), a = primitiveFqn(actual);
-        if (a == null) {
+        if (a == null || f == null) {
             return -1;
         }
         return a.equals(f) ? 2 : (ctx.isSubtype(a, f) ? 1 : -1);

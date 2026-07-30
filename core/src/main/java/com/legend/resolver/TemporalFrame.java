@@ -1914,7 +1914,7 @@ final class TemporalFrame {
      * non-temporal class. Drives which milestoning block filters the fetch
      * — engine {@code milestoningCanSupportTemporalStrategy}.
      */
-    MilestoningStrategy temporalStrategy(String classFqn) {
+    @com.legend.Nullable MilestoningStrategy temporalStrategy(String classFqn) {
         return Temporal.strategyOf(ctx, classFqn);
     }
 

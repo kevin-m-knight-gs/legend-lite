@@ -45,7 +45,8 @@ record TemporalContext(@com.legend.Nullable TypedSpec processing,
     static final TemporalContext NONE =
             new TemporalContext(null, null, null, null, null);
 
-    static TemporalContext single(MilestoningStrategy strategy, TypedSpec date) {
+    static TemporalContext single(@com.legend.Nullable MilestoningStrategy strategy,
+            TypedSpec date) {
         // audit 23: EXHAUSTIVE — the old else built a BUSINESS context
         // for ANY other strategy (a bitemporal class with one date, or a
         // null strategy, silently stamped business columns only)
@@ -76,7 +77,8 @@ record TemporalContext(@com.legend.Nullable TypedSpec processing,
     /** A validity-overlap window IN ONE DIMENSION ({@code rangeDim} = the
      * swept class's strategy) — the old size-2 date list left range vs
      * bi-temporal vs dimension a per-site guess. */
-    static TemporalContext range(MilestoningStrategy strategy, TypedSpec start,
+    static TemporalContext range(@com.legend.Nullable MilestoningStrategy strategy,
+            TypedSpec start,
             TypedSpec end) {
         return new TemporalContext(null, null, start, end, strategy);
     }
@@ -99,7 +101,8 @@ record TemporalContext(@com.legend.Nullable TypedSpec processing,
      * filter), when the context is a RANGE, or when {@code strategy} is
      * null/bitemporal (a bi-temporal consumer takes both via the
      * dimension-specific accessors). */
-    @com.legend.Nullable TypedSpec dateFor(MilestoningStrategy strategy) {
+    @com.legend.Nullable TypedSpec dateFor(
+            @com.legend.Nullable MilestoningStrategy strategy) {
         if (strategy == MilestoningStrategy.PROCESSING) {
             return processing;
         }

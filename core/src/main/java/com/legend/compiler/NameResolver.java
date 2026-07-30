@@ -164,7 +164,7 @@ public final class NameResolver {
      * throwing — one pass walls them all. Null = strict (throw on first).
      */
     public static ParsedModel resolve(ParsedModel parsed,
-            java.util.Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         java.util.Map<String, ImportScope> perElement = new java.util.HashMap<>();
         parsed.elementImports().forEach((fqn, sc) -> perElement.put(fqn, withPrelude(sc)));
@@ -186,7 +186,7 @@ public final class NameResolver {
 
     /** {@link #resolve(ParsedModel, Set)} with an optional tolerant wall sink. */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
-            java.util.Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
         Scope globalScope = Scope.of(model.imports(), knownFqns);
         // SECTION-scoped resolution (real pure): each element resolves in
         // ITS OWN section's imports when recorded; the union scope is the
@@ -318,7 +318,7 @@ public final class NameResolver {
      */
     public static ValueSpecification resolve(
             ValueSpecification vs, Scope scope) {
-        return resolveVs(vs, scope);
+        return Objects.requireNonNull(resolveVs(vs, scope));
     }
 
     /**
@@ -331,7 +331,7 @@ public final class NameResolver {
      * bare name passes through and fails loudly in Phase G.
      */
     public static ValueSpecification resolveQuery(ValueSpecification query) {
-        return resolveVs(query, QUERY_SCOPE);
+        return Objects.requireNonNull(resolveVs(query, QUERY_SCOPE));
     }
 
     /**
@@ -346,7 +346,9 @@ public final class NameResolver {
         Set<String> known = new HashSet<>(Pure.nativeClassFqns());
         known.addAll(Pure.nativeEnumFqns());
         known.addAll(modelFqns);
-        return resolveVs(query, Scope.of(withPrelude(imports), Set.copyOf(known)));
+        return Objects.requireNonNull(
+                resolveVs(query, Scope.of(withPrelude(imports),
+                        Set.copyOf(known))));
     }
 
     /** The sectionless-query scope: prelude imports only; the native FQN universe. */
@@ -358,8 +360,8 @@ public final class NameResolver {
         return Scope.of(withPrelude(new ImportScope.Builder().build()), Set.copyOf(known));
     }
 
-    private static TypeExpression resolveType(
-            TypeExpression t, Scope scope) {
+    private static @com.legend.Nullable TypeExpression resolveType(
+            @com.legend.Nullable TypeExpression t, Scope scope) {
         if (t == null) return null;
         return switch (t) {
             case TypeExpression.NameRef nr -> {
@@ -701,7 +703,9 @@ public final class NameResolver {
                         : new Realization.Ref(fqn);
             }
             case Realization.Inline inl -> {
-                List<ValueSpecification> body = resolveList(inl.body(), NameResolver::resolveVs, scope);
+                List<ValueSpecification> body = resolveList(inl.body(),
+                        (x, sc) -> Objects.requireNonNull(resolveVs(x, sc)),
+                        scope);
                 yield body == inl.body() ? inl
                         : new Realization.Inline(body);
             }
@@ -910,11 +914,13 @@ public final class NameResolver {
 
     private static List<PropertyMapping> resolvePropertyMappingList(
             List<PropertyMapping> list, Scope scope) {
-        return resolveList(list, NameResolver::resolvePropertyMapping, scope);
+        return resolveList(list,
+                (x, sc) -> Objects.requireNonNull(
+                        resolvePropertyMapping(x, sc)), scope);
     }
 
-    private static PropertyMapping resolvePropertyMapping(
-            PropertyMapping pm, Scope scope) {
+    private static @com.legend.Nullable PropertyMapping resolvePropertyMapping(
+            @com.legend.Nullable PropertyMapping pm, Scope scope) {
         if (pm == null) return null;
         return switch (pm) {
             case PropertyMapping.Column c -> {
@@ -1095,15 +1101,15 @@ public final class NameResolver {
     // Shared nested-AST walkers
     // =================================================================
 
-    private static TableReference resolveTableReference(
-            TableReference t, Scope scope) {
+    private static @com.legend.Nullable TableReference resolveTableReference(
+            @com.legend.Nullable TableReference t, Scope scope) {
         if (t == null) return null;
         String db = resolveName(t.database(), scope);
         return db.equals(t.database()) ? t : new TableReference(db, t.table());
     }
 
-    private static FilterMapping resolveFilterMapping(
-            FilterMapping fm, Scope scope) {
+    private static @com.legend.Nullable FilterMapping resolveFilterMapping(
+            @com.legend.Nullable FilterMapping fm, Scope scope) {
         if (fm == null) return null;
         return switch (fm) {
             case FilterMapping.Direct d -> {
@@ -1151,8 +1157,8 @@ public final class NameResolver {
     // RelationalOperation (10 variants)
     // =================================================================
 
-    private static RelationalOperation resolveRelOp(
-            RelationalOperation op, Scope scope) {
+    private static @com.legend.Nullable RelationalOperation resolveRelOp(
+            @com.legend.Nullable RelationalOperation op, Scope scope) {
         if (op == null) return null;
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
@@ -1228,7 +1234,8 @@ public final class NameResolver {
 
     private static List<RelationalOperation> resolveRelOpList(
             List<RelationalOperation> ops, Scope scope) {
-        return resolveList(ops, NameResolver::resolveRelOp, scope);
+        return resolveList(ops,
+                (x, sc) -> Objects.requireNonNull(resolveRelOp(x, sc)), scope);
     }
 
     // =================================================================
@@ -1262,8 +1269,8 @@ public final class NameResolver {
     // ValueSpecification
     // =================================================================
 
-    private static ValueSpecification resolveVs(
-            ValueSpecification vs, Scope scope) {
+    private static @com.legend.Nullable ValueSpecification resolveVs(
+            @com.legend.Nullable ValueSpecification vs, Scope scope) {
         if (vs == null) return null;
         return switch (vs) {
             case PackageableElementPtr ptr -> {
@@ -1351,7 +1358,8 @@ public final class NameResolver {
 
     private static List<ValueSpecification> resolveVsList(
             List<ValueSpecification> list, Scope scope) {
-        return resolveList(list, NameResolver::resolveVs, scope);
+        return resolveList(list,
+                (x, sc) -> Objects.requireNonNull(resolveVs(x, sc)), scope);
     }
 
     private static Variable resolveVariable(Variable v, Scope scope) {
@@ -1411,7 +1419,7 @@ public final class NameResolver {
         // qualifier CALL args (graph-tree synonymByType(ProductSynonymType
         // .CUSIP)) carry names too — un-resolved they reach the checker bare
         List<ValueSpecification> ra = resolveList(cs.args(),
-                NameResolver::resolveVs, scope);
+                (x, sc) -> Objects.requireNonNull(resolveVs(x, sc)), scope);
         return (r1 == fn1 && r2 == fn2 && ra == cs.args()) ? cs
                 : new ColSpec(cs.name(), r1, r2, cs.alias(), ra,
                         cs.qualified());
@@ -1473,7 +1481,8 @@ public final class NameResolver {
     }
 
     private static List<TypeExpression> resolveTypeList(List<TypeExpression> types, Scope scope) {
-        return resolveList(types, NameResolver::resolveType, scope);
+        return resolveList(types,
+                (x, sc) -> Objects.requireNonNull(resolveType(x, sc)), scope);
     }
 
     private static List<PropertyDefinition> resolvePropertyList(List<PropertyDefinition> props, Scope scope) {

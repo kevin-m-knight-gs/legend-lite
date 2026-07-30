@@ -37,7 +37,8 @@ final class ModelIntegrity {
      * collects EVERY failing element's first error line in one pass instead
      * of throwing on the first — the caller drops them and re-runs. */
     static void check(ModelBuilder model, TypeClassifier classifier,
-            FunctionCompiler functions, java.util.Map<String, String> wallSink) {
+            FunctionCompiler functions,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
         model.classes().forEach(cd -> withElement(cd.qualifiedName(),
                 () -> checkClass(cd, classifier, functions), wallSink));
         model.functions().forEach(f -> withElement(f.qualifiedName(),
@@ -52,7 +53,7 @@ final class ModelIntegrity {
 
     /** Attach the element FQN to escaping ModelExceptions (positions wave). */
     private static void withElement(String elementFqn, Runnable work,
-            java.util.Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
         try {
             work.run();
         } catch (com.legend.error.ModelException e) {
