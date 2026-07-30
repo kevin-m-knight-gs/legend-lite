@@ -384,7 +384,13 @@ public final class Pure {
     // schema is a parent back-REFERENCE (never struct state — a
     // Schema-typed prop would cycle the value layout Table<->Schema);
     // declared Any per the class-reference convention
-    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::relational::metamodel::RelationalOperationElement { name: meta::pure::metamodel::type::String[1]; columns: meta::relational::metamodel::Column[*]; schema: meta::pure::metamodel::type::Any[0..1]; }");
+    // Real relational.pure:45/:50 — the store-relation hierarchy Table
+    // sits under (Relation's real second parent SetRelation flattens per
+    // the single-inheritance idiom; Relation's columns stay off — Table
+    // declares its own typed columns). NamedRelation carries name.
+    public static final ClassDefinition REL_RELATION_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Relation extends meta::relational::metamodel::RelationalOperationElement {}");
+    public static final ClassDefinition NAMED_RELATION_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::NamedRelation extends meta::relational::metamodel::relation::Relation { name: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::relational::metamodel::relation::NamedRelation { columns: meta::relational::metamodel::Column[*]; schema: meta::pure::metamodel::type::Any[0..1]; }");
     // The generated-SQL metamodel root the POST-PROCESSOR hooks receive
     // (relationalRuntime.pure:40-42) — opaque here: legend-lite applies
     // recognized post-processors over its OWN SQL IR

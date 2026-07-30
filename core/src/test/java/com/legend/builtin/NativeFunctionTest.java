@@ -472,7 +472,10 @@ class NativeFunctionTest {
         //     RelationalMapperPostProcessor (relationalMapper rename
         //     surface — corpus metamodel.pure:185-208 + postprocessor
         //     .pure:40-43).
-        assertEquals(186, Pure.allNativeClasses().size(),
+        // 188: +relation::Relation/NamedRelation (relational.pure:45/:50
+        //     — the store-relation chain Table sits under; TableTDS'
+        //     defining file compiles in 42 corpus modules again).
+        assertEquals(188, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -596,8 +599,11 @@ class NativeFunctionTest {
                     "meta::external::query::sql::metamodel::QualifiedNameReference",
                     List.of("name")),
                     java.util.Map.entry(
+                    "meta::relational::metamodel::relation::NamedRelation",
+                    List.of("name")),
+                    java.util.Map.entry(
                     "meta::relational::metamodel::relation::Table",
-                    List.of("name", "columns", "schema")),
+                    List.of("columns", "schema")),
                     java.util.Map.entry(
                     "meta::relational::metamodel::Schema",
                     List.of("tables", "views", "name", "database")),
