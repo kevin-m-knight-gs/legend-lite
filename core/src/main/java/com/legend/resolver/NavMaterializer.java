@@ -72,7 +72,7 @@ final class NavMaterializer {
     /** {@code parkedPreds}: filter-lifted preds that will apply to THIS
      * target — their DIRECT slot-alias reads (β-inlined qualifier bodies)
      * join the demand; property-path reads ride {@code tails}. */
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    @com.legend.Nullable NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
@@ -85,7 +85,7 @@ final class NavMaterializer {
      * chain joins ONCE PER OCCURRENCE CLASS (engine per-call join
      * identity: the projection read rides its own copy and OR-fans the
      * member arms — ROW semantics, unionalias_3 vs unionalias_2). */
-    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    @com.legend.Nullable NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
@@ -334,7 +334,7 @@ final class NavMaterializer {
     /** ONE demanded sub-nav target pipeline: recursive materialization,
      * lifted-pred application, per-hop temporal stamping (the materialize
      * resolver body, extracted so composites can pre-build). */
-    private TypedSpec subPipeFor(TemporalFrame temporal, ClassSource t,
+    private @com.legend.Nullable TypedSpec subPipeFor(TemporalFrame temporal, ClassSource t,
             String alias, String cls, String mappingFqn,
             Map<String, List<List<String>>> subTails,
             Map<String, String> midByAlias, Map<String, NavMat> subMats,
@@ -536,7 +536,7 @@ final class NavMaterializer {
      * INSIDE the materialized pipeline (the same descriptor->emission the
      * root uses) and rides the SubNav tree — the composed prefix (y_ + z_)
      * resolves the leaf on the joined row. */
-    private TypedSpec foldAssocSubs(TemporalFrame temporal, ClassSource t,
+    private @com.legend.Nullable TypedSpec foldAssocSubs(TemporalFrame temporal, ClassSource t,
             TypedSpec pipe, Map<String, Substitution.SubNav> subTree,
             Map<String, Set<String>> assocSubLeaves, String chainPrefix) {
         for (var e : assocSubLeaves.entrySet()) {
@@ -578,7 +578,7 @@ final class NavMaterializer {
     /** EXTRA sub-slot identity joins (per-identity emission): the nav
      * step's own predicate joins the freshly-materialized sub target
      * (that identity's pred applied in-target) onto the pipeline. */
-    private TypedSpec foldExtraSubIdentities(TemporalFrame temporal,
+    private @com.legend.Nullable TypedSpec foldExtraSubIdentities(TemporalFrame temporal,
             String mappingFqn, ClassSource t, TypedSpec pipe,
             Map<String, Substitution.SubNav> subTree,
             Map<String, String> extraSubHeads,
@@ -649,7 +649,7 @@ final class NavMaterializer {
      * copy's raw OR condition fans the member arms exactly like the
      * engine's unionalias_3 (expected 16 = filtered 8 x 2).
      */
-    private TypedSpec foldProjectionCopies(TemporalFrame temporal,
+    private @com.legend.Nullable TypedSpec foldProjectionCopies(TemporalFrame temporal,
             String mappingFqn, ClassSource t, TypedSpec pipe,
             Map<String, Substitution.SubNav> subTree,
             Map<String, NavMat> subMats, Map<String, String> midByAlias,

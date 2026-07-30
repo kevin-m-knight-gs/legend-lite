@@ -117,7 +117,7 @@ final class Substitution {
          * a cross-dimension ask under a dimensioned context is LOUD (the
          * legacy positional list silently served the wrong dimension).
          * Null when no root context (callers fall through). */
-        TypedSpec rootContextDate(String prop) {
+        @com.legend.Nullable TypedSpec rootContextDate(String prop) {
             if (rootCtx == null || rootCtx.isEmpty()) {
                 return null;
             }
@@ -431,7 +431,7 @@ final class Substitution {
      * the user's lambda variable, its property name; else {@code null}.
      * (H3 extends this to multi-hop paths; DemandScan shares it.)
      */
-    static String propertyOnUserVar(TypedSpec n, String userVar) {
+    static @com.legend.Nullable String propertyOnUserVar(TypedSpec n, String userVar) {
         List<String> p = pathOf(n, userVar);
         return p != null && p.size() == 1 ? p.get(0) : null;
     }
@@ -673,7 +673,7 @@ final class Substitution {
         }
     }
 
-    static List<String> pathOf(TypedSpec n, String userVar) {
+    static @com.legend.Nullable List<String> pathOf(TypedSpec n, String userVar) {
         // toOne() look-through: $p.employer->toOne().legal is the idiomatic
         // spelling after an optional navigation — the coercion is
         // multiplicity-only and transparent to the path (audit R3).
@@ -750,7 +750,7 @@ final class Substitution {
      * contains/in, negation isolation) — null when none matches and
      * the walk continues (their original fall-through). Order within
      * is load-bearing. */
-    private TypedSpec rewriteCallArms(TypedSpec n) {
+    private @com.legend.Nullable TypedSpec rewriteCallArms(TypedSpec n) {
         if (n instanceof TypedNativeCall call && !call.args().isEmpty()) {
             List<String> headPath = pathOf(call.args().get(0), target.userVar());
             // exists over an EMBEDDED (same-row) head whose predicate reads
@@ -1190,7 +1190,7 @@ final class Substitution {
     /** A 1-HOP head read: bindings, generated temporal dates, honest
      * bare-head errors — resolves, throws loud, or (no match) NULL to
      * continue the walk. */
-    private TypedSpec rewriteHeadProp(String prop, TypedSpec n) {
+    private @com.legend.Nullable TypedSpec rewriteHeadProp(String prop, TypedSpec n) {
         if (prop != null) {
             TypedSpec binding = target.bindings().get(prop);
             if (binding != null) {
@@ -1259,7 +1259,7 @@ final class Substitution {
         return null;
     }
 
-    private TypedSpec rewrite(TypedSpec n) {
+    private @com.legend.Nullable TypedSpec rewrite(TypedSpec n) {
         // AGGREGATE over a to-many navigation (identity-registered by the
         // demand scan): the whole call reads its grouped-subselect column —
         // same ExprType as the node it replaces (discipline, plan risk #1).
@@ -1874,7 +1874,7 @@ final class Substitution {
      * TWO DISTINCT to-many heads is LOUD (audit 23 B1): the isolation
      * null-guard covers one read — guarding only the first silently
      * inverts booleans for parents empty on the other head. */
-    private TypedSpec toManyCrossingRead(TypedSpec n) {
+    private @com.legend.Nullable TypedSpec toManyCrossingRead(TypedSpec n) {
         List<TypedSpec> all = new ArrayList<>();
         collectToManyCrossings(n, all);
         if (all.isEmpty()) {
@@ -1908,7 +1908,7 @@ final class Substitution {
 
     /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with
      * toOne look-through) or an otherwise composition's partial. */
-    static TypedNewInstance embeddedPartialOf(
+    static @com.legend.Nullable TypedNewInstance embeddedPartialOf(
             TypedSpec binding) {
         if (binding == null) {
             return null;
@@ -1957,7 +1957,7 @@ final class Substitution {
     /** Substitute the predicate over the PARENT row: {@code $b.prop} becomes
      * the embedded partial's binding expression; everything else (outer
      * reads) runs through THIS substitution. */
-    private TypedSpec rewriteEmbeddedExists(TypedLambda pl,
+    private @com.legend.Nullable TypedSpec rewriteEmbeddedExists(TypedLambda pl,
             TypedNewInstance partial) {
         // audit 23: a multi-statement predicate body would silently DROP
         // its leading statements (a let's variable then leaks through the
@@ -2036,7 +2036,7 @@ final class Substitution {
      * NULL: the read is {@code [0..1]}). Returns null when the shape does
      * not match (the caller falls through to the ordinary walk).
      */
-    private TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
+    private @com.legend.Nullable TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
         boolean dbg = System.getenv("LL_FNLR_DEBUG") != null;
         TypedSpec src = pa.source();
         boolean firstRow = false;
@@ -2249,7 +2249,7 @@ final class Substitution {
      * the instance variable; a cast whose subtype has no registration
      * (unmapped subtype, own-source subtype, or a nested position whose
      * registries never saw the scan) stays loud. */
-    private TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
+    private @com.legend.Nullable TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
         if (!(pa.source() instanceof TypedNativeCall nc)
                 || !nc.callee().qualifiedName()
                         .equals("meta::pure::functions::lang::subType")
@@ -2415,7 +2415,7 @@ final class Substitution {
      * otherwise composition. The normalizer emits exactly this shape —
      * partial FIRST, fallback slot read second (canonical by construction).
      */
-    static TypedNativeCall otherwiseOf(TypedSpec binding) {
+    static @com.legend.Nullable TypedNativeCall otherwiseOf(TypedSpec binding) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c && c.args().size() == 1
                 && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
@@ -2437,7 +2437,7 @@ final class Substitution {
      * Returns the leaf's binding expression (over the sub-target's row
      * var), or {@code null} when any hop is not a ctor property — the
      * caller's loud wall stands. */
-    private static TypedSpec ctorTailLeaf(SubNav sub, List<String> path,
+    private static @com.legend.Nullable TypedSpec ctorTailLeaf(SubNav sub, List<String> path,
             int hop) {
         TypedSpec cur = sub.bindings().get(path.get(hop));
         int h = hop + 1;

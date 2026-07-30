@@ -25,7 +25,7 @@ final class CastNav {
 
     /** The cast TARGET class FQN when {@code drill} is a class-typed M2M
      * cast on a composed source — null otherwise. */
-    static String castTarget(ClassSource cs, TypedSpec drill) {
+    static @com.legend.Nullable String castTarget(ClassSource cs, TypedSpec drill) {
         return unwrapToOne(drill) instanceof TypedNewInstanceCast nic
                 && cs.sourceClass() != null ? nic.classFqn() : null;
     }
@@ -58,7 +58,7 @@ final class CastNav {
     /** The CLASS at hop {@code upto} of a navigation path (declared
      * property walk) — null when a hop is not class-typed. (Relocated
      * from StoreResolver, shared path utility.) */
-    static String classAtHop(com.legend.compiler.element.ModelContext ctx,
+    static @com.legend.Nullable String classAtHop(com.legend.compiler.element.ModelContext ctx,
             ClassSource cs, java.util.List<String> path, int upto) {
         String cur = cs.classFqn();
         for (int i = 0; i < upto; i++) {

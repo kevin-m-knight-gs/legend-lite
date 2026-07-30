@@ -120,7 +120,7 @@ final class SyntheticHeads {
         return JoinIdentity.of(head).kind() == JoinIdentity.Kind.FILTERED;
     }
 
-    TypedLambda pred(String head) {
+    @com.legend.Nullable TypedLambda pred(String head) {
         return preds.get(head);
     }
 
@@ -130,7 +130,7 @@ final class SyntheticHeads {
     }
 
     /** The CORRELATED predicate parked on {@code head}, or null. */
-    TypedLambda correlatedPred(String head) {
+    @com.legend.Nullable TypedLambda correlatedPred(String head) {
         return corrPreds.get(head);
     }
 
@@ -168,7 +168,7 @@ final class SyntheticHeads {
      * streams join as one union subselect). PLAIN/DATED heads pass
      * through.
      */
-    TypedSpec applyToPipe(String head, TypedSpec pipe,
+    @com.legend.Nullable TypedSpec applyToPipe(String head, TypedSpec pipe,
             java.util.function.BiFunction<TypedSpec, TypedLambda, TypedSpec> filter) {
         TypedLambda single = preds.get(head);
         if (single != null) {
@@ -613,7 +613,7 @@ final class SyntheticHeads {
      * (null = unfiltered branch). Null when any branch refuses — the
      * caller falls through to the loud wall.
      */
-    private TypedSpec liftConcatStreams(TypedNativeCall cc,
+    private @com.legend.Nullable TypedSpec liftConcatStreams(TypedNativeCall cc,
             TypedPropertyAccess leafRead) {
         List<TypedSpec> streams = new java.util.ArrayList<>();
         flattenConcat(cc, streams);
@@ -785,7 +785,7 @@ final class SyntheticHeads {
      *       the scalar first-row read).</li>
      * </ul>
      */
-    private TypedSpec foldWrappedSpelling(TypedSpec n) {
+    private @com.legend.Nullable TypedSpec foldWrappedSpelling(TypedSpec n) {
         if (n instanceof TypedNativeCall ex
                 && ex.callee().qualifiedName()
                         .equals("meta::pure::functions::collection::exists")

@@ -97,7 +97,7 @@ record TemporalContext(TypedSpec processing, TypedSpec business,
      * filter), when the context is a RANGE, or when {@code strategy} is
      * null/bitemporal (a bi-temporal consumer takes both via the
      * dimension-specific accessors). */
-    TypedSpec dateFor(MilestoningStrategy strategy) {
+    @com.legend.Nullable TypedSpec dateFor(MilestoningStrategy strategy) {
         if (strategy == MilestoningStrategy.PROCESSING) {
             return processing;
         }

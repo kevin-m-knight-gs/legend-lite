@@ -52,7 +52,7 @@ final class AssociationJoins {
      * side) or the stop is not an association (today's loud wall). */
     record PassThrough(ClassSource root, int startHop) {}
 
-    PassThrough embeddedPassThrough(ClassSource cs, java.util.List<String> path) {
+    @com.legend.Nullable PassThrough embeddedPassThrough(ClassSource cs, java.util.List<String> path) {
         TypedSpec cur = cs.bindings().get(SyntheticHeads.realHead(path.get(0)));
         int hop = 1;
         while (hop + 1 <= path.size() - 1) {
@@ -243,7 +243,7 @@ final class AssociationJoins {
         return ctx.findAssociationOf(cs.classFqn(), real).isPresent();
     }
 
-    static String embeddedAggAlias(ClassSource cs,
+    static @com.legend.Nullable String embeddedAggAlias(ClassSource cs,
             com.legend.compiler.spec.typed.TypedNewInstance ctor) {
         Set<String> aliases = new LinkedHashSet<>(
                 Pipelines.navSteps(cs.pipeline()).keySet());
@@ -251,7 +251,7 @@ final class AssociationJoins {
         return embeddedAggAlias(cs, ctor, aliases);
     }
 
-    private static String embeddedAggAlias(ClassSource cs,
+    private static @com.legend.Nullable String embeddedAggAlias(ClassSource cs,
             com.legend.compiler.spec.typed.TypedNewInstance ctor,
             java.util.Set<String> navAliases) {
         Set<String> reads = new LinkedHashSet<>();
@@ -267,7 +267,7 @@ final class AssociationJoins {
      * from {@code $row.alias.col} onto the target row (leaves reading the
      * parent row directly are omitted — loud at aggColFor if demanded);
      * condition = the slot predicate, unchanged. */
-    private AssocJoin embeddedAggJoin(TemporalFrame temporal, ClassSource cs,
+    private @com.legend.Nullable AssocJoin embeddedAggJoin(TemporalFrame temporal, ClassSource cs,
             String head, com.legend.compiler.spec.typed.TypedNewInstance ctor,
             java.util.Map<String, com.legend.compiler.spec.typed
                     .TypedNavigate> navSteps) {
@@ -324,7 +324,7 @@ final class AssociationJoins {
     /** {@code $row.alias.col} reads become {@code $tv.col}; any OTHER
      * read rooted at {@code rowVar} (a parent column, a different alias)
      * makes the leaf unrebasable — null. */
-    private static TypedSpec rebaseAliasReads(TypedSpec n, String rowVar,
+    private static @com.legend.Nullable TypedSpec rebaseAliasReads(TypedSpec n, String rowVar,
             String alias, String tv, ExprType tVarInfo) {
         boolean[] bad = {false};
         TypedSpec out = rebaseWalk(n, rowVar, alias, tv, tVarInfo, bad);
@@ -359,7 +359,7 @@ final class AssociationJoins {
      * scanColumns testQualifier pins that ordinary filters never do);
      * null otherwise (hybrid replaceScan stamps, pre-filtered pipes,
      * views keep the in-pipe form for every consumer). */
-    private OnForm onFormOf(TypedSpec stamped, TypedLambda cond) {
+    private @com.legend.Nullable OnForm onFormOf(TypedSpec stamped, TypedLambda cond) {
         java.util.List<TypedLambda> stamps = new java.util.ArrayList<>();
         TypedSpec cur = stamped;
         while (cur instanceof com.legend.compiler.spec.typed.TypedFilter tf0
@@ -421,7 +421,7 @@ final class AssociationJoins {
      * the parent pipe's PROJECTED names — recovered from the member
      * project colspecs whose bodies read {@code toOne($row.alias.col)}
      * (the chained-lift emission). Null when nothing rewrote. */
-    static TypedLambda rewriteChainedLiftReads(TypedLambda cond,
+    static @com.legend.Nullable TypedLambda rewriteChainedLiftReads(TypedLambda cond,
             TypedSpec parentPipe) {
         Map<String, String> byAliasCol = new java.util.LinkedHashMap<>();
         collectLiftColspecNames(parentPipe, byAliasCol);
@@ -575,7 +575,7 @@ final class AssociationJoins {
         return aj.withCondition(paired);
     }
 
-    TypedLambda memberPairedCondition(TypedLambda cond,
+    @com.legend.Nullable TypedLambda memberPairedCondition(TypedLambda cond,
             Type.RelationType srcRow, Type.RelationType tgtRow) {
         List<TypedSpec[]> eqs = new ArrayList<>();
         if (!collectEqualities(cond.body().get(cond.body().size() - 1), eqs)) {
@@ -899,7 +899,7 @@ final class AssociationJoins {
     /** The class a hop lands on: a declared class-typed property, or an
      * association end (the walk's own dispatch — findProperty alone
      * misses association-declared ends). */
-    private String hopTargetClass(String clsFqn, String prop) {
+    private @com.legend.Nullable String hopTargetClass(String clsFqn, String prop) {
         if (clsFqn == null) {
             return null;
         }
@@ -1682,7 +1682,7 @@ final class AssociationJoins {
      * demand plus NESTED-association reads (the navigate() rule) —
      * returns the condition's target param name (null when the
      * predicate shape is unrecognized). Extracted seam (guardrail). */
-    private String scanCondTargetReads(ClassSource cs,
+    private @com.legend.Nullable String scanCondTargetReads(ClassSource cs,
             com.legend.model.AssociationDefinition assoc, String real,
             String targetClass, ClassSource target, Set<String> targetSlots,
             Set<String> targetDemand, Set<String> navStepKeys,

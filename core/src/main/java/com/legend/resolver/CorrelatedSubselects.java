@@ -286,7 +286,7 @@ private static boolean hasColPrefixed(Type.RelationType row, String prefix) {
     }
 
 
-private static List<String> parentEquiKeys(TypedLambda cond, String head) {
+private static @com.legend.Nullable List<String> parentEquiKeys(TypedLambda cond, String head) {
         List<String> keys = new ArrayList<>();
         if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
                 cond.parameters().get(1), cond.parameters().get(0), keys)
@@ -304,7 +304,7 @@ private static List<String> parentEquiKeys(TypedLambda cond, String head) {
             Map<String, Substitution.SubNav> subNavs) {}
 
 
-    ParentCopy parentCopyFor(ClassSource cs, TypedLambda corr) {
+    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs, TypedLambda corr) {
         Set<String> names = new LinkedHashSet<>();
         for (TypedSpec b : corr.body()) {
             collectVarNamesInto(b, names);
@@ -369,7 +369,7 @@ static void collectVarNamesInto(TypedSpec n, Set<String> out) {
     }
 
 
-private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
+private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambda cond) {
         List<String> keys = new ArrayList<>();
         if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
                 cond.parameters().get(0), cond.parameters().get(1), keys)
@@ -396,7 +396,7 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
      * spelling {@code $vals.prop} (TypedMap) or a bare property access;
      * null when either input has no such shape or the sources differ
      * (value equality — the spliced result chain appears twice). */
-    static TypedSpec zipPairMap(TypedMap zm, TypedNativeCall zc,
+    static @com.legend.Nullable TypedSpec zipPairMap(TypedMap zm, TypedNativeCall zc,
             java.util.function.UnaryOperator<TypedSpec> resolver) {
         TypedSpec zp = zipPairProject(zc, resolver);
         if (zp == null) {
@@ -407,7 +407,7 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
         return new TypedMap(zp, zm.mapper(), zm.info());
     }
 
-    private static TypedSpec zipPairProject(TypedNativeCall zc,
+    private static @com.legend.Nullable TypedSpec zipPairProject(TypedNativeCall zc,
             java.util.function.UnaryOperator<TypedSpec> resolver) {
         Object[] a = zipSide(zc.args().get(0));
         Object[] b = zipSide(zc.args().get(1));
@@ -432,7 +432,7 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
         return resolver.apply(proj);
     }
 
-    private static Object[] zipSide(TypedSpec n) {
+    private static @com.legend.Nullable Object[] zipSide(TypedSpec n) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1
                 && !(((Type.FunctionType) m.mapper().info().type()).result()
                         .type() instanceof Type.ClassType)) {
@@ -591,7 +591,7 @@ private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
      * not reference the parent row. Returns null on any unrecognized
      * conjunct (slot-shaped reads are NOT bare — the caller's chase or
      * wall handles them). */
-    private static List<String> parentKeysLenient(TypedSpec n,
+    private static @com.legend.Nullable List<String> parentKeysLenient(TypedSpec n,
             String parentVar) {
         if (!(n instanceof TypedNativeCall c)) {
             return null;
@@ -833,7 +833,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 d.orderAsc());
     }
     /** The bare column a side of an equi conjunct reads on {@code var}. */
-    private static String bareColumnOn(TypedSpec n, String var) {
+    private static @com.legend.Nullable String bareColumnOn(TypedSpec n, String var) {
         return n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(var) ? pa.property() : null;
@@ -1101,7 +1101,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
 
     /** The SUB class source a navigate-slot property of {@code parent}
      * targets, or null when the property is not a nav-slot binding. */
-    private ClassSource navSubSource(ClassSource parent, String seg) {
+    private @com.legend.Nullable ClassSource navSubSource(ClassSource parent, String seg) {
         TypedSpec b = parent.bindings().get(seg);
         var navSteps = Pipelines.navSteps(parent.pipeline());
         String alias = b == null ? null
@@ -1119,7 +1119,7 @@ record CompositeChain(TypedSpec pipeline,
             TypedLambda orientedCond) {}
 
 
-CompositeChain compositeChainTarget(ClassSource cs,
+@com.legend.Nullable CompositeChain compositeChainTarget(ClassSource cs,
         TypedLambda navCond, TypedSpec targetPipe) {
         Set<String> parentSlots = Pipelines.slotAliases(cs.pipeline());
         if (parentSlots.isEmpty()) {
@@ -1798,7 +1798,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * 1-hop head access, then re-roots them on a fresh [1]-stamped param.
      * Null when a wrapper is not peelable (auto-map / milestoned
      * spellings) — the caller's loud wall stands. */
-    private static TypedLambda tailMapperOf(TypedSpec arg, String userVar) {
+    private static @com.legend.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar) {
         ArrayDeque<Function<TypedSpec, TypedSpec>> shell = new ArrayDeque<>();
         TypedSpec cur = arg;
         while (true) {

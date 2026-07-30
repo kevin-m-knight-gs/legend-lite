@@ -164,7 +164,7 @@ final class GraphEmission {
      * date when one exists (point fetch), else the row's own
      * validity-start milestone column (version sweep); {@code null} when
      * the property is not a generated date here. */
-    TypedSpec generatedDateLeaf(ClassSource cs, String prop,
+    @com.legend.Nullable TypedSpec generatedDateLeaf(ClassSource cs, String prop,
             Type.RelationType rowType,
             String rowVar) {
         if ((!prop.equals("businessDate") && !prop.equals("processingDate"))
@@ -609,7 +609,7 @@ final class GraphEmission {
      * Temporal targets stay un-rewritten (the per-hop date calculus does
      * not thread here) — their reads keep the loud H4b wall.
      */
-    private TypedSpec correlateStrippedNavReads(TypedSpec n, ClassSource cs,
+    private @com.legend.Nullable TypedSpec correlateStrippedNavReads(TypedSpec n, ClassSource cs,
             String rowVar, Type.RelationType rowType, Set<String> stripped,
             StoreResolver.Context context) {
         var navSteps = Pipelines.outerNavSteps(cs.pipeline());
@@ -692,7 +692,7 @@ final class GraphEmission {
      * DECLARED property multiplicity is the guard (the raw read types
      * per COLUMN [0..1], masking the property's [*] — same rule as the
      * whole-source path). Null when the shape does not match. */
-    private TypedSerializeGraph.Child primitiveArrayLeaf(ClassSource cs,
+    private TypedSerializeGraph.@com.legend.Nullable Child primitiveArrayLeaf(ClassSource cs,
             com.legend.compiler.spec.typed.TypedGraphTree node,
             TypedSpec inner, String rowVar, Type.RelationType rowType) {
         var declLeaf = ctx.findProperty(cs.classFqn(), node.property())
@@ -1216,7 +1216,7 @@ final class GraphEmission {
                 && d.parameters().size() == node.args().size();
     }
 
-    private TypedSerializeGraph.Child derivedChild(ClassSource cs,
+    private TypedSerializeGraph.@com.legend.Nullable Child derivedChild(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
         var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
@@ -1312,7 +1312,7 @@ final class GraphEmission {
      * arms make cross-pair matches impossible). Null when the property is
      * not class-typed (scalar walls stay downstream).
      */
-    private TypedSerializeGraph.Child mixedUnionChild(ClassSource cs,
+    private TypedSerializeGraph.@com.legend.Nullable Child mixedUnionChild(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
         String childClass = mixedChildClassOf(cs.classFqn(), node.property());
@@ -1385,7 +1385,7 @@ final class GraphEmission {
                 + " and the child material drifted");
     }
 
-    private String mixedChildClassOf(String clsFqn, String prop) {
+    private @com.legend.Nullable String mixedChildClassOf(String clsFqn, String prop) {
         var p = ctx.findProperty(clsFqn, prop).orElse(null);
         if (p != null && p.type() instanceof Type.ClassType ct) {
             return ct.fqn();
@@ -1744,7 +1744,7 @@ final class GraphEmission {
     /** The INLINED typed body of a parameterless derived property, its
      * {@code $this} reads substituted to the class's row bindings —
      * null when the name is not a parameterless derived property. */
-    private TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node,
+    private @com.legend.Nullable TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String rowVar,
             Type.RelationType rowType) {
         return derivedLeaf(cs, cs.classFqn(), node, context, rowVar, rowType);
@@ -1755,7 +1755,7 @@ final class GraphEmission {
      * patch (the body's {@code $this} reads still resolve through the
      * SOURCE's bindings: inherited navs live there; subtype-only stored
      * reads fall to the louder walls). */
-    private TypedSpec derivedLeaf(ClassSource cs, String ownerClassFqn,
+    private @com.legend.Nullable TypedSpec derivedLeaf(ClassSource cs, String ownerClassFqn,
             TypedGraphTree node,
             StoreResolver.Context context, String rowVar,
             Type.RelationType rowType) {
@@ -1808,7 +1808,7 @@ final class GraphEmission {
      * lowering renders a correlated scalar aggregate subquery (the T1.7
      * reducer catalog is the one membership test). Null when the shape
      * does not match (the inline route's louder walls take over). */
-    private TypedSpec navAggSubquery(ClassSource cs, TypedSpec body,
+    private @com.legend.Nullable TypedSpec navAggSubquery(ClassSource cs, TypedSpec body,
             String thisVar, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
         if (!(body instanceof TypedNativeCall agg && agg.args().size() == 1
@@ -1878,7 +1878,7 @@ final class GraphEmission {
             TypedSpec rel) {
     }
 
-    private HeadRel navHeadRelation(SubqueryEnv env, TypedSpec hop,
+    private @com.legend.Nullable HeadRel navHeadRelation(SubqueryEnv env, TypedSpec hop,
             String thisVar) {
         ClassSource cs = env.cs();
         StoreResolver.Context context = env.context();
@@ -2015,7 +2015,7 @@ final class GraphEmission {
      * scalar subquery. Null when the shape does not match (the inline
      * route and its louder walls take over).
      */
-    private TypedSpec navLeafSubquery(ClassSource cs, TypedSpec body,
+    private @com.legend.Nullable TypedSpec navLeafSubquery(ClassSource cs, TypedSpec body,
             String thisVar, StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
         TypedSpec b = body;
@@ -2216,12 +2216,12 @@ final class GraphEmission {
                                 .Multiplicity.Bounded.ZERO_ONE));
     }
 
-    private TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
+    private @com.legend.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
             String classFqn, TypedGraphTree node) {
         return derivedLeaf(bindings, classFqn, node, null);
     }
 
-    private TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
+    private @com.legend.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
             String classFqn, TypedGraphTree node, SubqueryEnv env) {
         String prop = node.property();
         var p = ctx.findProperty(classFqn, prop).orElse(null);
@@ -2588,7 +2588,7 @@ final class GraphEmission {
     record SerializeTypeConfig(String typeKey, boolean fq) {
     }
 
-    static SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
+    static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
                 || !ni.classFqn().endsWith("AlloySerializationConfig")) {
             throw new NotImplementedException("serialize config of shape "

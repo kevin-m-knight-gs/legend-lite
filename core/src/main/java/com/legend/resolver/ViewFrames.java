@@ -23,7 +23,7 @@ public final class ViewFrames {
      * class maps a physical table (or the lookup cannot resolve). Walks
      * the mapping INCLUDE CLOSURE — the class set may live in an
      * included mapping (modelJoins' LegalEntityMapping). */
-    public static String frameNameOf(ModelContext ctx, ClassSource cs) {
+    public static @com.legend.Nullable String frameNameOf(ModelContext ctx, ClassSource cs) {
         if (ctx == null || cs == null) {
             return null;
         }

@@ -454,7 +454,7 @@ public final class ClassSources {
      * {@code keysPerPair} aligns with the parent's arm order. */
     record MixedChild(ClassSource target, List<List<String>> keysPerPair) {}
 
-    MixedChild mixedChildMaterial(String mappingFqn, String classFqn,
+    @com.legend.Nullable MixedChild mixedChildMaterial(String mappingFqn, String classFqn,
             String prop, String childClassFqn) {
         List<String> memberIds = ctx.mixedUnionMembers(mappingFqn, classFqn);
         if (memberIds == null) {
@@ -889,12 +889,12 @@ public final class ClassSources {
      * Closed vocabulary with a LOUD default — a node this rewriter does not
      * know is a normalizer contract change, never silent.
      */
-    private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
+    private @com.legend.Nullable TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
             ClassSource inner, String classFqn, String mappingFqn) {
         return substituteSourceReads(n, srcVar, inner, classFqn, mappingFqn, true);
     }
 
-    private TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
+    private @com.legend.Nullable TypedSpec substituteSourceReads(TypedSpec n, String srcVar,
             ClassSource inner, String classFqn, String mappingFqn,
             boolean bindingPosition) {
         if (n instanceof TypedPropertyAccess pa
@@ -1118,7 +1118,7 @@ public final class ClassSources {
         return null;
     }
 
-    private MappingDefinition.ClassBinding findBinding(MappingDefinition mapping,
+    private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        LinkedHashSet<String> visited) {
         return findBinding(mapping, classFqn, null, visited);
@@ -1130,7 +1130,7 @@ public final class ClassSources {
      * bindings (engine .all() = root only); a rootless multi-set class
      * yields no class-level binding (the normalizer's implicit-union
      * poison explains the 0-binder error). */
-    private MappingDefinition.ClassBinding findBinding(MappingDefinition mapping,
+    private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        String setId,
                                                        LinkedHashSet<String> visited) {

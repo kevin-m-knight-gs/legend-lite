@@ -938,7 +938,7 @@ final class Pipelines {
                         Multiplicity.Bounded.ONE));
     }
 
-    private static Type.Column columnOf(Type.RelationType row, String name) {
+    private static Type.@com.legend.Nullable Column columnOf(Type.RelationType row, String name) {
         for (Type.Column c : row.columns()) {
             if (c.name().equals(name)) {
                 return c;
@@ -1314,7 +1314,7 @@ final class Pipelines {
                         one));
     }
 
-    static TypedSpec autoMapRead(TypedPropertyAccess pa) {
+    static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
         if (pa.info().type() instanceof Type.ClassType
                 || pa.info().type() instanceof Type.RelationType) {
             return null;

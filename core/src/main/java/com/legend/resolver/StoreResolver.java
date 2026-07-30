@@ -259,7 +259,7 @@ public final class StoreResolver {
 
     /** if() over class queries: the condition must be STATICALLY
      * decidable — the chosen branch's thunk body resolves. */
-    private TypedSpec resolveStaticIf(TypedIf i, Context context) {
+    private @com.legend.Nullable TypedSpec resolveStaticIf(TypedIf i, Context context) {
         Boolean cond = staticBool(i.condition());
         if (cond == null) {
             throw new NotImplementedException("class query under if()"
@@ -278,7 +278,7 @@ public final class StoreResolver {
      * dispatches by variant, INERT is the identity. Guard ORDER is now
      * structure: an arm's precedence is the space level it lives in.
      */
-    private TypedSpec resolveNode(TypedSpec n, Context context) {
+    private @com.legend.Nullable TypedSpec resolveNode(TypedSpec n, Context context) {
         // ---- space-independent normalizations (fire in ANY space) ----
         // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27)
         if (n instanceof TypedNativeCall wf
@@ -325,7 +325,7 @@ public final class StoreResolver {
      * is the CLASS-RESULT mapper — the auto-map flatten IS the mapper body
      * with the source spliced for the param; the resulting hop chain
      * re-enters resolution. Everything else is a chain segment. */
-    private TypedSpec objectNode(TypedSpec n, Context context) {
+    private @com.legend.Nullable TypedSpec objectNode(TypedSpec n, Context context) {
         return n instanceof TypedMap m
                 ? resolveNode(substituteParam(m.mapper(), m.source()), context)
                 : resolveChain(n, context);
@@ -335,7 +335,7 @@ public final class StoreResolver {
      * beneath — chain TERMINALS first, then relation-space wrappers; an
      * unhandled variant is the NAMED H2-vocabulary wall, never a silent
      * pass-through. */
-    private TypedSpec anchoredNode(TypedSpec n, Context context) {
+    private @com.legend.Nullable TypedSpec anchoredNode(TypedSpec n, Context context) {
         return switch (n) {
             case TypedProject p when objectSpace(p.source()) ->
                     resolveChain(p, context);
@@ -1122,7 +1122,7 @@ public final class StoreResolver {
      * direction ({@code $x->compare($y)} ascending, {@code $y->compare($x)}
      * descending). Anything richer has no relation sort shape.
      */
-    static TypedSortBy classSortOf(TypedSpec n) {
+    static @com.legend.Nullable TypedSortBy classSortOf(TypedSpec n) {
         // class-space sortBy(coll, key)/sortByReversed — the 2-arg native
         // spelling of the relation sort (computed keys substitute like any)
         if (n instanceof TypedNativeCall sb && sb.args().size() == 2
@@ -1144,7 +1144,7 @@ public final class StoreResolver {
                 : new TypedSortBy(c.args().get(0), key, ascending, c.info());
     }
 
-    private static Boolean comparatorDirection(TypedLambda cmp) {
+    private static @com.legend.Nullable Boolean comparatorDirection(TypedLambda cmp) {
         if (cmp.parameters().size() != 2 || cmp.body().size() != 1
                 || !(cmp.body().get(0) instanceof TypedNativeCall cc)
                 || !COMPARE_FQN.equals(cc.callee().qualifiedName())
@@ -1165,7 +1165,7 @@ public final class StoreResolver {
     }
 
     /** concatenate over two class-collection chains, both fetch-bearing. */
-    private TypedNativeCall classConcatOf(TypedSpec n) {
+    private @com.legend.Nullable TypedNativeCall classConcatOf(TypedSpec n) {
         return n instanceof TypedNativeCall c && c.args().size() == 2
                 && CONCAT_FQN.equals(c.callee().qualifiedName())
                 && anchored(c.args().get(0)) && anchored(c.args().get(1))
@@ -1173,7 +1173,7 @@ public final class StoreResolver {
     }
 
     /** Statically decide an if() condition, or null when genuinely runtime. */
-    private static Boolean staticBool(TypedSpec cond) {
+    private static @com.legend.Nullable Boolean staticBool(TypedSpec cond) {
         return switch (cond) {
             case TypedCBoolean b -> b.value();
             case TypedNativeCall c when c.args().size() == 2
@@ -1187,7 +1187,7 @@ public final class StoreResolver {
         };
     }
 
-    private static Object literalValue(TypedSpec n) {
+    private static @com.legend.Nullable Object literalValue(TypedSpec n) {
         return switch (n) {
             case TypedCBoolean b -> b.value();
             case TypedCInteger i -> i.value();
@@ -3438,7 +3438,7 @@ public final class StoreResolver {
     }
 
     /** Any registered equal overload — membership-crossing emission. */
-    private TypedFunction equalCallee() {
+    private @com.legend.Nullable TypedFunction equalCallee() {
         // exact FQN (audit 23 A3): a user-defined 'equal' must never
         // become the membership callee
         var fns = ctx.findFunction("meta::pure::functions::boolean::equal");

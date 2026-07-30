@@ -65,7 +65,7 @@ final class SubQueryLift {
 
     /** {@code toOne/first/graphFetch} wrappers peel down to the
      * object-space chain; any other source shape returns null. */
-    private static TypedSpec peelScalarWraps(TypedSpec s) {
+    private static @com.legend.Nullable TypedSpec peelScalarWraps(TypedSpec s) {
         TypedSpec cur = s;
         boolean peeled = false;
         while (true) {

@@ -206,7 +206,7 @@ final class InnerDemand {
 
     /** The nav-step ALIAS a binding reads (a bare class-typed slot read,
      * toOne-wrapped or not), null otherwise. */
-    static String navSlotAlias(TypedSpec binding, String rowVar,
+    static @com.legend.Nullable String navSlotAlias(TypedSpec binding, String rowVar,
                                        Set<String> navAliases) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c

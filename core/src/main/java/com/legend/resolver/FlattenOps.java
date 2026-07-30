@@ -203,7 +203,7 @@ final class FlattenOps {
      * stamped INNER, or null when absent. The composed walk serves the
      * multi-hop flatten: an inner hop's navigate join nests inside the
      * previous hop's join-right with only its local prefix. */
-    private static TypedSpec innerizeOrNull(TypedSpec pipe, String prefix,
+    private static @com.legend.Nullable TypedSpec innerizeOrNull(TypedSpec pipe, String prefix,
             String acc) {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoin j) {
             String composed = j.prefix().map(p -> acc + p).orElse(null);
