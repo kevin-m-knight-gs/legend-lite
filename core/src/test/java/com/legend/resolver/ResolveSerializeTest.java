@@ -54,7 +54,11 @@ class ResolveSerializeTest {
             st.execute("INSERT INTO P VALUES ('Ann', 30, 1), ('Bob', 40, NULL),"
                     + " ('Cat', 25, 1)");
             st.execute("CREATE TABLE F (ID INTEGER, LEGAL VARCHAR)");
-            st.execute("INSERT INTO F VALUES (1, 'ACME'), (2, 'Empty Corp')");
+            // the NULL-key firm: SQL join semantics say a NULL FK never
+            // matches a NULL key — the null-safe filter-equal arm would
+            // pair Bob (FID NULL) with it (the dormant correlation bug)
+            st.execute("INSERT INTO F VALUES (1, 'ACME'), (2, 'Empty Corp'),"
+                    + " (NULL, 'Ghost')");
         }
     }
 
@@ -112,6 +116,9 @@ class ResolveSerializeTest {
                 "ACME's two staff serialize as array elements: " + json);
         assertTrue(json.contains("\"legal\":\"Empty Corp\",\"staff\":[]"),
                 "an empty to-many is the EMPTY ARRAY, never null: " + json);
+        assertTrue(json.contains("\"legal\":\"Ghost\",\"staff\":[]"),
+                "a NULL-keyed row must not acquire NULL-FK children"
+                        + " (SQL join semantics — toOneJoinEquals): " + json);
     }
 
     @Test
