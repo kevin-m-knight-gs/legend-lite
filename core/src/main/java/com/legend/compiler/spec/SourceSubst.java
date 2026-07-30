@@ -81,9 +81,8 @@ final class SourceSubst {
                     cs.function2() == null ? null
                             : (LambdaFunction) substitute(cs.function2(), env),
                     cs.alias(),
-                    cs.args() == null ? null
-                            : cs.args().stream().map(a -> substitute(a, env))
-                                    .toList());
+                    cs.args().stream().map(a -> substitute(a, env))
+                            .toList());
             case ColSpecArray ca -> new ColSpecArray(ca.colSpecs().stream()
                     .map(c -> (ColSpec) substitute(c, env)).toList());
             case NewInstance ni -> {

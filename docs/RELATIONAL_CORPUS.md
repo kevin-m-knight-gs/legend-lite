@@ -50,7 +50,7 @@ in-process Alloy-shaped path).
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
 | tests/mapping/embedded | 63 | 55 | 1 | 7 | 0 | 0 |
 | tests/mapping/enumeration | 26 | 16 | 5 | 2 | 3 | 0 |
-| tests/mapping/extends | 23 | 21 | 2 | 0 | 0 | 10 |
+| tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
 | tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 |
 | tests/mapping/groupBy | 10 | 8 | 0 | 2 | 0 | 4 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2129** | 88 | 169 | 152 | 315 |
+| **total** | 2538 | **2131** | 86 | 169 | 152 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8443,8 +8443,6 @@ in-process Alloy-shaped path).
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: assertSameElements: expected [no, yes, no], got [no, no, no]
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
-- FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
 - ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: Binder Error: Values list "t3" does not have a column named "PRODUCT_ID" |  | LINE 13: ) AS t3 ON t1.k1__PRODUCT_ID = t3.PRODUCT_ID |                                         ^

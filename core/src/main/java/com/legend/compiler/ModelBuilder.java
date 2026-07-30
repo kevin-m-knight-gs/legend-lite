@@ -216,8 +216,7 @@ public final class ModelBuilder {
     public static ModelBuilder from(ParsedModel model) {
         Objects.requireNonNull(model, "model");
         ModelBuilder mb = new ModelBuilder(model.imports(),
-                model.elementImports() == null
-                        ? java.util.Map.of() : model.elementImports());
+                model.elementImports());
 
         // Phase 1: intern every FQN so cross-references (e.g. a
         // RuntimeDefinition naming a Class) can resolve in any order.

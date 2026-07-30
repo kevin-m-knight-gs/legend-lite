@@ -756,8 +756,9 @@ public final class MappingNormalizer {
                 child.mainTable() != null ? child.mainTable() : flatParent.mainTable(),
                 child.filter() != null ? child.filter() : flatParent.filter(),
                 child.distinct() || flatParent.distinct(),
-                child.groupBy() != null ? child.groupBy() : flatParent.groupBy(),
-                child.primaryKey() != null && !child.primaryKey().isEmpty()
+                !child.groupBy().isEmpty() ? child.groupBy()
+                        : flatParent.groupBy(),
+                !child.primaryKey().isEmpty()
                         ? child.primaryKey() : flatParent.primaryKey(),
                 new ArrayList<>(merged.values()), child.sourceUrl(),
                 child.propertyTargetSets());

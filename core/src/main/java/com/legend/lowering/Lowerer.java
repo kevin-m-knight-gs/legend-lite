@@ -1452,7 +1452,7 @@ public final class Lowerer {
         // the engine form — subselect(A union B) named by the unionAlias
         // frame, plain outer re-projection of the output columns (SQL
         // UNION dedups; never a distinct wrapper)
-        boolean wholeRow = d.columns() == null || d.columns().isEmpty()
+        boolean wholeRow = d.columns().isEmpty()
                 || d.columns().equals(((Type.RelationType) d.info().type())
                         .columns().stream().map(Type.Column::name).toList());
         if (wholeRow && d.source() instanceof TypedConcatenate tc) {
@@ -1470,7 +1470,7 @@ public final class Lowerer {
                     null, List.of(), null, null, u.outputs());
         }
         SqlSelect src = relation(d.source());
-        if (d.columns() != null && !d.columns().isEmpty()) {
+        if (!d.columns().isEmpty()) {
             return distinctNarrowTo(src, d.columns(), d.info());
         }
         return (Fold.distinctFolds(src) ? src : isolate(src)).withDistinct();

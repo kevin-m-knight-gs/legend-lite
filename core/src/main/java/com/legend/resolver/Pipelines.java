@@ -578,7 +578,7 @@ final class Pipelines {
                 TypedSpec src = walk(d.source(), scalarSlotAliases(d.source()),
                         demandedNavs, targets, prefixes, stripped, classFqn);
                 Type.RelationType row = (Type.RelationType) src.info().type();
-                if (d.columns() != null && !d.columns().isEmpty()) {
+                if (!d.columns().isEmpty()) {
                     // MAPPED-COLUMN distinct (slot-carrying ~distinct): the
                     // tuple is the mapped main columns plus each newly
                     // materialized slot's prefixed columns (join-equality
@@ -710,7 +710,7 @@ final class Pipelines {
         // A COLUMN-LIST distinct (slot-carrying ~distinct, already
         // materialized): widen the tuple with the missing key columns
         // present on its source row.
-        if (d.columns() != null && !d.columns().isEmpty()
+        if (!d.columns().isEmpty()
                 && !(d.source() instanceof TypedSelect)) {
             Type.RelationType srow = (Type.RelationType) d.source().info().type();
             List<String> dcols = new ArrayList<>(d.columns());
@@ -775,8 +775,7 @@ final class Pipelines {
         TypedSpec ns = new TypedSelect(
                 sel.source(), newCols, row);
         return rewrap.apply(new TypedDistinct(
-                ns, d.columns() == null || d.columns().isEmpty() ? d.columns()
-                        : newCols, row));
+                ns, d.columns().isEmpty() ? d.columns() : newCols, row));
     }
 
     /**

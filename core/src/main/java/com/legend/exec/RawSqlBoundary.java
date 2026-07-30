@@ -47,7 +47,7 @@ public final class RawSqlBoundary {
         }
     }
 
-    public static List<String> recording() {
+    public static @com.legend.Nullable List<String> recording() {
         return RECORDER.get();
     }
 
@@ -67,7 +67,7 @@ public final class RawSqlBoundary {
         }
     }
 
-    public static List<String> metaRecording() {
+    public static @com.legend.Nullable List<String> metaRecording() {
         return META_RECORDER.get();
     }
 

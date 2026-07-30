@@ -468,8 +468,7 @@ public final class MetamodelWalk {
                                 "alias", "\"" + target + "\"",
                                 "relation", convertElement(tbl, st));
             }
-            Object cond = jt.operation() == null ? null
-                    : convertOp(jt.operation());
+            Object cond = convertOp(jt.operation());
             if (rel == null || cond == null) {
                 return null;
             }

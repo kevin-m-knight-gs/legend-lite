@@ -1313,8 +1313,7 @@ final class Typer {
                     cs.function1() == null ? null : (LambdaFunction) alphaRename(cs.function1()),
                     cs.function2() == null ? null : (LambdaFunction) alphaRename(cs.function2()),
                     cs.alias(),
-                    cs.args() == null ? null
-                            : cs.args().stream().map(this::alphaRename).toList());
+                    cs.args().stream().map(this::alphaRename).toList());
             case com.legend.model.spec.ColSpecArray ca -> new com.legend.model.spec.ColSpecArray(
                     ca.colSpecs().stream()
                             .map(c -> (com.legend.model.spec.ColSpec) alphaRename(c)).toList());
