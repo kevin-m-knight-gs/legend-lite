@@ -1,0 +1,28 @@
+# THE GATE, enforced (NULL_GATE_VERIFICATION G0.2): the same protocol
+# docs/ENGINEERING_LOG.md prescribes by hand — clean core build (NullAway
+# null gate + guardrails run only on a cold compile), then the corpus
+# sweep, which self-checks against docs/RELATIONAL_CORPUS.md and fails
+# on any family regression.
+name: gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - name: core (null gate + suite; clean is load-bearing)
+        run: mvn -B -pl core clean test
+      - name: install core for engine
+        run: mvn -B -pl core install -DskipTests
+      - name: corpus sweep (self-checks vs committed scoreboard)
+        run: mvn -B -pl engine test -Dtest=RelationalCorpusRunner

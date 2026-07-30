@@ -64,8 +64,11 @@ public sealed interface SqlExpr
             case Exists ignored -> List.of();
             case ScalarSubquery ignored -> List.of();
             case WindowCall w -> {
-                java.util.List<SqlExpr> out =
-                        new java.util.ArrayList<>(w.partitionBy());
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                if (w.fn() instanceof SqlExpr fe) {
+                    out.add(fe);
+                }
+                out.addAll(w.partitionBy());
                 for (SqlSelect.SortKey k : w.orderBy()) {
                     out.add(k.expr());
                 }
@@ -140,14 +143,17 @@ public sealed interface SqlExpr
                 yield new Case(ws, old.otherwise() == null ? null : cs.get(i));
             }
             case WindowCall w -> {
+                int base = w.fn() instanceof SqlExpr ? 1 : 0;
+                SqlAgg fn = base == 1 ? (SqlAgg) cs.get(0) : w.fn();
                 int np = w.partitionBy().size();
                 java.util.List<SqlSelect.SortKey> ks = new java.util.ArrayList<>();
                 for (int i = 0; i < w.orderBy().size(); i++) {
                     SqlSelect.SortKey k = w.orderBy().get(i);
-                    ks.add(new SqlSelect.SortKey(cs.get(np + i), k.ascending(),
-                            k.nullOrder(), k.outputName()));
+                    ks.add(new SqlSelect.SortKey(cs.get(base + np + i),
+                            k.ascending(), k.nullOrder(), k.outputName()));
                 }
-                yield new WindowCall(w.fn(), cs.subList(0, np), ks, w.frame());
+                yield new WindowCall(fn, cs.subList(base, base + np), ks,
+                        w.frame());
             }
             case Lambda l -> new Lambda(l.params(), cs.get(0));
             case Cast c -> new Cast(cs.get(0), c.target());

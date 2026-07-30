@@ -3304,7 +3304,7 @@ public final class Lowerer {
     private static ColumnResolver lambdaResolver(
             List<String> params, ColumnResolver outer) {
         return (var, prop) -> {
-            if (!params.contains(var) || var == null) {
+            if (var == null || !params.contains(var)) {
                 return outer.resolve(var, prop);
             }
             return prop == null ? new SqlExpr.Column(null, var)

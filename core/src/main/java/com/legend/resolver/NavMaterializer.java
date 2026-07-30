@@ -92,10 +92,10 @@ final class NavMaterializer {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
         // (possibly rootless) multi-set target resolves through the
         // set-discriminated binding (ClassSources.getForNav).
+        String prefix = java.util.Objects.requireNonNull(chainPrefix,
+                "nav materialization without a set-id dispatch prefix");
         ClassSource t = sources.getForNav(mappingFqn, targetClassFqn,
-                chainPrefix == null ? "" : chainPrefix.contains(".")
-                        ? chainPrefix.substring(chainPrefix.lastIndexOf('.') + 1)
-                        : chainPrefix);
+                prefix.substring(prefix.lastIndexOf('.') + 1));
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
         // (engine: one context object per cursor, explicit dates override

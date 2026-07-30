@@ -37,7 +37,10 @@ the contract; golden SQL text is advisory.** Local reference checkouts:
 ## The gate protocol (every slice, no exceptions)
 
 ```
-mvn -pl core test                # must be Failures: 0, Errors: 0, Skipped: 0
+mvn -pl core clean test          # CLEAN is load-bearing: a warm target/ skips
+                                 # compilation and the null gate silently no-ops
+                                 # (NULL_GATE_VERIFICATION G0.1)
+                                 # must be Failures: 0, Errors: 0, Skipped: 0
 mvn -pl core install -DskipTests
 cd engine && mvn -o test -Dtest='!RelationalCorpusRunner'   # 2729, 0 fail
 mvn -o test -Dtest='RelationalCorpusRunner'                 # THE sweep
