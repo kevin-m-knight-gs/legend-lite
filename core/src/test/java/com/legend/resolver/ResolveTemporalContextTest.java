@@ -91,6 +91,48 @@ class ResolveTemporalContextTest {
             Runtime x::RT { mappings: [x::M]; }
             """;
 
+    /** Bitemporal target navigated with a MIXED outer-row + literal date
+     * pair. */
+    private static final String BITEMP_MODEL = """
+            Class b::Order { id: Integer[1]; orderDate: Date[1]; product: b::Product[1]; }
+            Class <<temporal.bitemporal>> b::Product { name: String[1]; }
+            Database b::DB (
+              Table OrderT ( ID INTEGER PRIMARY KEY, PID INTEGER, odate DATE )
+              Table ProdT (
+                milestoning( processing(PROCESSING_IN=in_z, PROCESSING_OUT=out_z), business(BUS_FROM=from_z, BUS_THRU=thru_z) )
+                ID INTEGER PRIMARY KEY, name VARCHAR(64), in_z TIMESTAMP, out_z TIMESTAMP, from_z DATE, thru_z DATE )
+              Join OP (OrderT.PID = ProdT.ID)
+            )
+            Mapping b::M (
+              *b::Order : Relational { ~mainTable [b::DB] OrderT
+                id: OrderT.ID, orderDate: OrderT.odate, product: [b::DB]@OP }
+              *b::Product : Relational { ~mainTable [b::DB] ProdT
+                name: ProdT.name }
+            )
+            Runtime b::RT { mappings: [b::M]; }
+            """;
+
+    @Test
+    @DisplayName("bitemporal head with an outer-row dimension composes BOTH windows on the ON")
+    void biTemporalOuterDateComposesBothWindowsOnJoin() {
+        // FAILS-BEFORE (task #81 diagnosis): the nav-channel join arm
+        // gated window composition on the SINGLE-date outerColumnDate;
+        // a 2-date spec's deferred windows had no consumer and the join
+        // emitted UN-DATED — silent wrong rows (engine
+        // testBiTemporalDateMilestoning:271-295).
+        String sql = sqlOf(BITEMP_MODEL,
+                "|b::Order.all()->project(o|$o.product($o.orderDate->toOne(),"
+                + " %2017-06-10).name, 'n')->from(b::M, b::RT)");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                sql.contains("in_z <= t0.odate")
+                        && sql.contains("out_z > t0.odate"),
+                "outer-row PROCESSING window on the ON: " + sql);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                sql.contains("from_z <= DATE '2017-06-10'")
+                        && sql.contains("thru_z > DATE '2017-06-10'"),
+                "literal BUSINESS window present: " + sql);
+    }
+
     private static String sqlOf(String model, String query) {
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);

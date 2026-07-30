@@ -1597,6 +1597,32 @@ final class TemporalFrame {
                     // <= root.orderDate and thru_z > root.orderDate));
                     // filtering the target pipe would read the outer var
                     // out of scope (task #32)
+                    // BITEMPORAL nav head with an OUTER-ROW dimension:
+                    // BOTH windows compose into the head's ON (the
+                    // association channel's outerBiDatedJoinCond — same
+                    // rule for nav heads; the single-date outerCol gate
+                    // below returns null for 2-date specs, and the head's
+                    // deferred windows previously DROPPED silently —
+                    // wrong rows, engine testBiTemporalDateMilestoning
+                    // :279 result1 carries all four windows on the ON,
+                    // :291 result4 the mixed literal+outer pair).
+                    ClassSource navTarget =
+                            sources.get(cs.mappingFqn(), navClass);
+                    if (navTarget != null && temporalStrategy(navClass)
+                            == MilestoningStrategy.BITEMPORAL) {
+                        TypedSpec biRight = temporalTargetPipe(cs, navTarget,
+                                chainHead, right);
+                        TypedLambda bi = outerBiDatedJoinCond(j.condition(),
+                                j.left(), biRight, cs, navTarget, chainHead);
+                        if (bi != null) {
+                            yield new TypedJoin(applyJoinTemporalFilters(
+                                    j.left(), cs, navPrefixToClass,
+                                    navPrefixToChain, midPrefixToChain,
+                                    midPrefixToDim),
+                                    biRight, j.kind(), bi, j.prefix(),
+                                    j.frameName(), j.info());
+                        }
+                    }
                     String outerCol = outerColumnDate(specs.get(chainHead), cs,
                             (Type.RelationType) j.left().info().type());
                     if (outerCol != null) {
