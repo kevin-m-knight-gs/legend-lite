@@ -1318,7 +1318,7 @@ final class Typer {
             case com.legend.model.spec.ColSpecArray ca -> new com.legend.model.spec.ColSpecArray(
                     ca.colSpecs().stream()
                             .map(c -> (com.legend.model.spec.ColSpec) alphaRename(c)).toList());
-            default -> v;
+            default -> v.mapChildren(this::alphaRename);
         };
     }
 

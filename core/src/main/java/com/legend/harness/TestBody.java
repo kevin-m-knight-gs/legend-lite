@@ -24,6 +24,7 @@ import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import static java.util.Objects.requireNonNull;
 import java.util.Map;
 
 /**
@@ -161,7 +162,7 @@ public final class TestBody {
                             .map(p -> orderView(p, execChains)).toList());
             case AppliedProperty ap -> new AppliedProperty(
                     orderView(ap.receiver(), execChains), ap.property());
-            default -> v;
+            default -> v.mapChildren(x -> orderView(x, execChains));
         };
     }
 
@@ -394,8 +395,7 @@ public final class TestBody {
                     executed++;
                     continue;
                 }
-                rhs = java.util.Objects.requireNonNull(tl.rhs(),
-                        "tdg let arm neither consumed nor rewritten");
+                rhs = requireNonNull(tl.rhs(), "tdg arm not rewritten");
                 List<ValueSpecification> elq = elqSplice(name, rhs, lets);
                 if (elq != null) {
                     for (int i = elq.size() - 1; i >= 0; i--) {
@@ -2248,6 +2248,7 @@ public final class TestBody {
             @com.legend.Nullable ValueSpecification v,
             String pVar, ValueSpecification first, ValueSpecification second) {
         return switch (v) {
+            case null -> null;
             case AppliedProperty ap when ap.receiver() instanceof Variable pv
                     && pv.name().equals(pVar)
                     && ap.property().equals("first") -> first;
@@ -2270,7 +2271,7 @@ public final class TestBody {
             case PureCollection pc -> new PureCollection(pc.values().stream()
                     .map(x -> substPairReads(x, pVar, first, second))
                     .toList());
-            default -> v;
+            default -> v.mapChildren(x -> requireNonNull(substPairReads(x, pVar, first, second)));
         };
     }
 
@@ -2662,7 +2663,7 @@ public final class TestBody {
                     pc.values().forEach(x -> collectInlineCsv(x, sink));
             case LambdaFunction lf ->
                     lf.body().forEach(x -> collectInlineCsv(x, sink));
-            default -> { }
+            default -> v.children().forEach(x -> collectInlineCsv(x, sink));
         }
     }
 
@@ -3356,7 +3357,7 @@ public final class TestBody {
     /** {@link #substitute} with the non-null passthrough asserted. */
     static ValueSpecification subst(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
-        return java.util.Objects.requireNonNull(substitute(v, lets));
+        return requireNonNull(substitute(v, lets));
     }
 
     static @com.legend.Nullable ValueSpecification substitute(
@@ -3458,7 +3459,7 @@ public final class TestBody {
                 yield new NewInstance(ni.className(), ni.typeArguments(),
                         props);
             }
-            default -> v;
+            default -> v.mapChildren(x -> subst(x, lets));
         };
     }
 

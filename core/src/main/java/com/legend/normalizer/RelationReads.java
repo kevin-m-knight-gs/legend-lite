@@ -131,7 +131,8 @@ final class RelationReads {
                     lf2.body().stream().map(x -> rewrite(x,
                             rowByVar, rfByVar, assocName, md, nestedCols,
                             model)).toList());
-            default -> v;
+            default -> v.mapChildren(x -> rewrite(x, rowByVar, rfByVar,
+                    assocName, md, nestedCols, model));
         };
     }
 

@@ -1298,7 +1298,7 @@ public final class ScanRelations {
                     .forEach(x -> scopedChains(x, scope, out));
             case PureCollection pc -> pc.values()
                     .forEach(v -> scopedChains(v, scope, out));
-            default -> { }
+            default -> n.children().forEach(x -> scopedChains(x, scope, out));
         }
     }
 
@@ -1817,7 +1817,7 @@ public final class ScanRelations {
             case com.legend.model.spec.ColSpec cs -> collectTreeChains(
                     new com.legend.model.spec.ColSpecArray(List.of(cs)),
                     List.of(), out);
-            default -> { }
+            default -> n.children().forEach(x -> collectChains(x, out));
         }
     }
 

@@ -193,7 +193,8 @@ final class ModelJoinNesting {
                     .forEach(x -> collectNestedHops(x, endVars, out));
             case LambdaFunction lf -> lf.body()
                     .forEach(x -> collectNestedHops(x, endVars, out));
-            default -> { }
+            default -> v.children()
+                    .forEach(x -> collectNestedHops(x, endVars, out));
         }
     }
 

@@ -124,7 +124,8 @@ final class GroupBySynthesis {
             case AppliedProperty ap2 -> new AppliedProperty(
                     renameSourceReads(ap2.receiver(), srcVar, groupedNames,
                             propName, md), ap2.property());
-            default -> v;
+            default -> v.mapChildren(x -> renameSourceReads(x, srcVar,
+                    groupedNames, propName, md));
         };
     }
 

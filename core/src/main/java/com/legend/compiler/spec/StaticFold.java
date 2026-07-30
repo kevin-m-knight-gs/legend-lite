@@ -118,7 +118,7 @@ final class StaticFold {
                             : cs.args().stream().map(a -> fold(a, scope)).toList());
             case ColSpecArray ca -> new ColSpecArray(ca.colSpecs().stream()
                     .map(c -> (ColSpec) fold(c, scope)).toList());
-            default -> v;
+            default -> v.mapChildren(x -> fold(x, scope));
         };
     }
 

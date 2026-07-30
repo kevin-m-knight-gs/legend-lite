@@ -96,8 +96,8 @@ final class SourceSubst {
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
                     nc.typeArguments(), substitute(nc.src(), env),
                     nc.targetSetId());
-            // literals, enum values, element pointers: no variables inside
-            default -> v;
+            // leaves pass; any composite not special-cased above recurses
+            default -> v.mapChildren(x -> substitute(x, env));
         };
     }
 }

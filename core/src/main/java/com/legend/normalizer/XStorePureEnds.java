@@ -258,7 +258,7 @@ final class XStorePureEnds {
             case LambdaFunction lf -> new LambdaFunction(lf.parameters(),
                     lf.body().stream().map(x ->
                             renameReads(x, rowByVar, endByVar)).toList());
-            default -> v;
+            default -> v.mapChildren(x -> renameReads(x, rowByVar, endByVar));
         };
     }
 }

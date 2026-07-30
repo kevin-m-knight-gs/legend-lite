@@ -62,4 +62,132 @@ public sealed interface ValueSpecification permits
         PureCollection,
         TypeAnnotation,
         Variable {
+
+    /**
+     * The DIRECT {@link ValueSpecification} children, in rebuild order —
+     * the ONE structural-recursion contract every spec walker shares.
+     * Both switches are EXHAUSTIVE with no default arm: a new variant
+     * fails compilation HERE until it declares its children, and every
+     * walker inherits correct traversal.
+     *
+     * <p>{@link LambdaFunction} children are its BODY only — walkers
+     * enter through bodies, never through the parameter Variables (the
+     * shadow-stop doctrine; rewriters that substitute through lambdas
+     * handle shadowing in their own explicit arm).
+     */
+    default java.util.List<ValueSpecification> children() {
+        return switch (this) {
+            case CBoolean ignored -> java.util.List.of();
+            case CDate ignored -> java.util.List.of();
+            case CDecimal ignored -> java.util.List.of();
+            case CFloat ignored -> java.util.List.of();
+            case CInteger ignored -> java.util.List.of();
+            case CLatestDate ignored -> java.util.List.of();
+            case CString ignored -> java.util.List.of();
+            case CTime ignored -> java.util.List.of();
+            case EnumValue ignored -> java.util.List.of();
+            case PackageableElementPtr ignored -> java.util.List.of();
+            case Variable ignored -> java.util.List.of();
+            case TypeAnnotation ignored -> java.util.List.of();
+            case AppliedFunction af -> af.parameters();
+            case AppliedProperty ap -> java.util.List.of(ap.receiver());
+            case LambdaFunction lf -> lf.body();
+            case NewInstance ni -> ni.properties().values().stream()
+                    .map(KeyExpression::value)
+                    .map(v -> (ValueSpecification) v).toList();
+            case NewInstanceCast nc -> java.util.List.of(nc.src());
+            case PureCollection pc -> pc.values();
+            case ColSpecArray ca -> java.util.List.copyOf(ca.colSpecs());
+            case ColSpec cs -> {
+                java.util.List<ValueSpecification> out =
+                        new java.util.ArrayList<>();
+                if (cs.function1() != null) {
+                    out.add(cs.function1());
+                }
+                if (cs.function2() != null) {
+                    out.add(cs.function2());
+                }
+                out.addAll(cs.args());
+                yield out;
+            }
+        };
+    }
+
+    /**
+     * This node with its direct children replaced ({@code cs.size() ==
+     * children().size()}, same order) — the other half of the recursion
+     * contract; see {@link #children()}.
+     */
+    default ValueSpecification withChildren(
+            java.util.List<ValueSpecification> cs) {
+        return switch (this) {
+            case CBoolean ignored -> this;
+            case CDate ignored -> this;
+            case CDecimal ignored -> this;
+            case CFloat ignored -> this;
+            case CInteger ignored -> this;
+            case CLatestDate ignored -> this;
+            case CString ignored -> this;
+            case CTime ignored -> this;
+            case EnumValue ignored -> this;
+            case PackageableElementPtr ignored -> this;
+            case Variable ignored -> this;
+            case TypeAnnotation ignored -> this;
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    cs, af.candidateFqns());
+            case AppliedProperty ap ->
+                    new AppliedProperty(cs.get(0), ap.property());
+            case LambdaFunction lf ->
+                    new LambdaFunction(lf.parameters(), cs);
+            case NewInstance ni -> {
+                java.util.Map<String, KeyExpression> props =
+                        new java.util.LinkedHashMap<>();
+                int i = 0;
+                for (var e : ni.properties().entrySet()) {
+                    props.put(e.getKey(), new KeyExpression(cs.get(i++),
+                            e.getValue().isAdd(), e.getValue().isLocal()));
+                }
+                yield new NewInstance(ni.className(), ni.typeArguments(),
+                        java.util.Collections.unmodifiableMap(props));
+            }
+            case NewInstanceCast nc -> new NewInstanceCast(nc.className(),
+                    nc.typeArguments(), cs.get(0), nc.targetSetId());
+            case PureCollection ignored -> new PureCollection(cs);
+            case ColSpecArray ignored -> new ColSpecArray(
+                    cs.stream().map(x -> (ColSpec) x).toList());
+            case ColSpec old -> {
+                int i = 0;
+                LambdaFunction f1 = old.function1() == null ? null
+                        : (LambdaFunction) cs.get(i++);
+                LambdaFunction f2 = old.function2() == null ? null
+                        : (LambdaFunction) cs.get(i++);
+                yield new ColSpec(old.name(), f1, f2, old.alias(),
+                        cs.subList(i, cs.size()), old.qualified());
+            }
+        };
+    }
+
+    /**
+     * Identity-preserving one-level rewrite: {@code f} over each direct
+     * child, reassembled through {@link #withChildren} only when a child
+     * actually changed. Walkers recurse by calling this from their own
+     * default arm — a variant they do not special-case still traverses
+     * correctly by construction.
+     */
+    default ValueSpecification mapChildren(
+            java.util.function.UnaryOperator<ValueSpecification> f) {
+        java.util.List<ValueSpecification> cs = children();
+        if (cs.isEmpty()) {
+            return this;
+        }
+        java.util.List<ValueSpecification> rw =
+                new java.util.ArrayList<>(cs.size());
+        boolean same = true;
+        for (ValueSpecification c : cs) {
+            ValueSpecification r = f.apply(c);
+            same = same && r == c;
+            rw.add(r);
+        }
+        return same ? this : withChildren(rw);
+    }
 }
