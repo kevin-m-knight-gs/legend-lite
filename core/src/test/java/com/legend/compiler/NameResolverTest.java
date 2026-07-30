@@ -177,6 +177,30 @@ class NameResolverTest {
     }
 
     @Test
+    void constraintMessageAndLevelSurviveResolution() {
+        // FAILS-BEFORE: the resolver's rebuild used the 2-arg convenience
+        // ctor and silently DROPPED ~message/~enforcementLevel whenever
+        // the body resolved differently — validate()'s MESSAGE column
+        // went empty (testConstraintUsageOfThisMilestoningContext3).
+        var body = new com.legend.model.spec.AppliedFunction("f",
+                List.of(new com.legend.model.spec.PackageableElementPtr("Person")));
+        var c = new ClassDefinition("model::T2", List.of(), List.of(),
+                List.of(),
+                List.of(),
+                List.of(new ClassDefinition.ConstraintDefinition("CST",
+                        new com.legend.model.Realization.Inline(
+                                List.of(body)),
+                        new com.legend.model.spec.CString("the message"),
+                        "Warn")),
+                List.of(), List.of(), false);
+        var r = (ClassDefinition) resolveOne(c);
+        var rc = r.constraints().get(0);
+        assertEquals("the message",
+                ((com.legend.model.spec.CString) rc.message()).value());
+        assertEquals("Warn", rc.enforcementLevel());
+    }
+
+    @Test
     void unknownNamePassesThroughForPrimitiveFallback() {
         // "Integer" is not in FQNS \u2014 stays as-is (next layer will recognise
         // it as a primitive).

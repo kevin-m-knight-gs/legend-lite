@@ -544,7 +544,17 @@ public final class NameResolver {
     private static ConstraintDefinition resolveConstraint(
             ConstraintDefinition c, Scope scope) {
         Realization realization = resolveRealization(c.realization(), scope);
-        return realization == c.realization() ? c : new ConstraintDefinition(c.name(), realization);
+        // ~message is an EXPRESSION over $this — resolve it like the body;
+        // the rebuild carries message + enforcementLevel (the 2-arg
+        // convenience ctor silently DROPPED both whenever resolution
+        // changed the body — validate()'s MESSAGE column went empty)
+        ValueSpecification message = c.message() == null ? null
+                : resolveVs(c.message(), scope);
+        if (realization == c.realization() && message == c.message()) {
+            return c;
+        }
+        return new ConstraintDefinition(c.name(), realization, message,
+                c.enforcementLevel());
     }
 
     private static AssociationDefinition resolveAssociation(

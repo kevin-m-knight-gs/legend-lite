@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 |
 | lineage/scanColumns | 6 | 3 | 1 | 1 | 1 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
-| milestoning/tests | 224 | 203 | 8 | 3 | 10 |
+| milestoning/tests | 224 | 204 | 7 | 3 | 10 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2124** | 90 | 169 | 155 |
+| **total** | 2538 | **2125** | 89 | 169 | 155 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8317,7 +8317,6 @@ in-process Alloy-shaped path).
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension]
-- FAIL testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: h2-advisory divergence: golden SQL on H2 gave 2 row(s) [CST|Error|Ensure that milestoning qualified properties passed function arguments which reference $this.temporalDate are processed correctly|2|ProductName2, CST|Error|Ensure that milestoning qualified properties passed function arguments which r
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call [calls meta::external::store::relational::tests]
 - SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", "productdescriptiontable_0".description as "stockProductName", "productclassificationtable_0".type as "classificationType", '2015-10-15' as "k_businessDate" from Pro
