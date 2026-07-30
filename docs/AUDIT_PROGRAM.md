@@ -286,11 +286,27 @@ A category with a four-for-four incidental hit rate is worth enumerating deliber
 
 ## 5. Audit I — every `if`
 
-This closes the round-1 question that is still unanswered: *"do we have a lot of hardcoded `if`
-statements that do special things just to pass tests?"* Rounds 1–3 all answered it obliquely, because
-a special case that exists to pass one test has **no architectural signature** — no re-derivation
-smell, no ownership violation, no coupling. It is one line that looks reasonable. You cannot sample
-for it, which makes exhaustive enumeration the correct shape rather than an excessive one.
+**Prior art — read `AUDIT_23_SPECIAL_CASING.md` first.** Audit 23 already censused every
+name/FQN/magic-string/shape/literal-**keyed** conditional across ~37k LOC and classified them
+engine-grounded / contract / overfit-suspect / wall / harness-compensation. Its results reshape this
+audit rather than duplicate it:
+
+- **The overfit hotspot is the resolver, not the normalizer** — 84 overfit-suspects in `resolver/`
+  (12.1k LOC) against 10 in `normalizer/` (7.5k LOC). Weight I-full accordingly.
+- **Zero corpus-test-data literals in code, anywhere.** The crudest form of the thing you were worried
+  about does not exist. Don't re-look for it.
+
+**What audit 23 could not see, and why I-slice is complementary rather than redundant.** It enumerated
+conditionals that are *keyed* on something — a name, an FQN, a magic string. The worst defect the tenet
+audit found is keyed on nothing: `Scalars.pureToString` exhausts every arm and lands on a default
+`Cast`, so `<relation>->toString()` compiles to a wrong value. A **missing arm** has no key to census
+for. That is a different population, and it is exactly I-slice's scope.
+
+So the round-1 question — *"do we have hardcoded `if` statements that do special things just to pass
+tests?"* — is **half answered**: keyed special-casing is measured, and the answer is "some, mostly in
+the resolver." Unkeyed fall-through is unmeasured. A special case with no key has no architectural
+signature — no re-derivation smell, no ownership violation, no coupling — so you cannot sample for it,
+which makes exhaustive enumeration the correct shape rather than an excessive one.
 
 ### 5.1 I-slice, now — branches that can fake a pass
 

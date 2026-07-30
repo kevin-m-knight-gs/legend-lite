@@ -9,6 +9,8 @@ lifecycles** — do not merge them into one queue; separate docs are what got th
 | [`CORRECTNESS_REMEDIATION.md`](CORRECTNESS_REMEDIATION.md) | **Answers** — silent wrong rows, and the scoreboard's own honesty | Tier C0 (four diagnostics) is the entry point |
 | [`TENET_REMEDIATION.md`](TENET_REMEDIATION.md) | **Who does the work** — tenet #1 conformance, 20 ranked violations | V0 (tenet text) first; it makes the rest adjudicable |
 | [`AUDIT_PROGRAM.md`](AUDIT_PROGRAM.md) | **What to audit next** — exhaustive `null` / `try` / `if` sweeps | Plan, not findings. Audit N is a gate and starts now |
+| [`AUDIT_23_SPECIAL_CASING.md`](AUDIT_23_SPECIAL_CASING.md) | **Keyed special-casing** — every name/FQN/magic-string conditional across ~37k LOC, censused | Complete. Read before any `if` audit |
+| [`AUDIT_2026_07.md`](AUDIT_2026_07.md) | Earlier round | Complete |
 
 ## Reading order for a new session
 
