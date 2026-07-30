@@ -9,6 +9,10 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedFold;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedMatchRuntime;
+import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedCopyInstance;
+import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -139,6 +143,87 @@ public final class HostEval {
     public record HostTable(DatabaseDefinition.TableDefinition def) {
     }
 
+    /** A CONSTRUCTED pure instance in the host channel (^Class(...)):
+     * class tag + property values in declaration order. */
+    public record HostInstance(String classFqn,
+            java.util.LinkedHashMap<String, Object> properties) {
+        @Override
+        public String toString() {
+            return "^" + classFqn.substring(classFqn.lastIndexOf(':') + 1)
+                    + properties;
+        }
+    }
+
+    /** STRUCTURAL equality over host values — the pure instance-graph
+     * assertEquals semantics (debugPrint goldens compare trees). */
+    public static boolean hostEquals(Object a, Object b) {
+        if (a instanceof HostInstance x && b instanceof HostInstance y) {
+            if (!x.classFqn().equals(y.classFqn())
+                    || !x.properties().keySet()
+                            .equals(y.properties().keySet())) {
+                return false;
+            }
+            for (String k : x.properties().keySet()) {
+                if (!hostEquals(x.properties().get(k),
+                        y.properties().get(k))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a instanceof List<?> la && b instanceof List<?> lb) {
+            if (la.size() != lb.size()) {
+                return false;
+            }
+            for (int i = 0; i < la.size(); i++) {
+                if (!hostEquals(la.get(i), lb.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (a instanceof Number na && b instanceof Number nb
+                && !(a instanceof Double || b instanceof Double)) {
+            return na.longValue() == nb.longValue();
+        }
+        return java.util.Objects.equals(a, b);
+    }
+
+    /** The runtime class tag of a host value (exact-FQN world). */
+    private static String hostTypeFqn(Object v) {
+        return switch (v) {
+            case HostInstance hi -> hi.classFqn();
+            case HostRow ignored ->
+                    "meta::relational::metamodel::execute::Row";
+            case DbMetaData.HostResultSet ignored ->
+                    "meta::relational::metamodel::execute::ResultSet";
+            case HostSchema ignored -> "meta::relational::metamodel::Schema";
+            case HostTable ignored ->
+                    "meta::relational::metamodel::relation::Table";
+            case String ignored -> "meta::pure::metamodel::type::String";
+            case Boolean ignored -> "meta::pure::metamodel::type::Boolean";
+            case Double ignored -> "meta::pure::metamodel::type::Float";
+            case Number ignored -> "meta::pure::metamodel::type::Integer";
+            default -> throw new NotImplementedException(
+                    "host-eval: no runtime type tag for "
+                            + (v == null ? "null" : v.getClass().getSimpleName()));
+        };
+    }
+
+    /** Runtime conformance: exact, declared-supertype (via the model's
+     * class hierarchy incl. native classes), or Any. */
+    private static boolean hostConforms(Object v, String typeFqn) {
+        if ("meta::pure::metamodel::type::Any".equals(typeFqn)) {
+            return true;
+        }
+        String actual = hostTypeFqn(v);
+        if (actual.equals(typeFqn)) {
+            return true;
+        }
+        com.legend.compiler.element.ModelContext ctx = CTX.get();
+        return ctx != null && ctx.isSubtype(actual, typeFqn);
+    }
+
     private static final ThreadLocal<com.legend.compiler.element.ModelContext>
             CTX = new ThreadLocal<>();
 
@@ -254,6 +339,11 @@ public final class HostEval {
                         }
                         return -1L;
                     }
+                    case "meta::pure::functions::meta::instanceOf" -> {
+                        Object v = asList(eval(nc.args().get(0), scope)).get(0);
+                        String typeFqn = typeRefFqn(nc.args().get(1));
+                        return hostConforms(v, typeFqn);
+                    }
                     case "meta::pure::functions::string::toString" -> {
                         Object v = eval(nc.args().get(0), scope);
                         return String.valueOf(v);
@@ -282,6 +372,51 @@ public final class HostEval {
                             eval(fn.body().get(fn.body().size() - 1), s2)));
                 }
                 return out;
+            }
+            case TypedMatchRuntime mr -> {
+                Object in = eval(mr.input(), scope);
+                Object inOne = asList(in).size() == 1 ? asList(in).get(0) : in;
+                for (TypedMatchRuntime.Arm arm : mr.arms()) {
+                    if (hostConforms(inOne, arm.typeFqn())) {
+                        Map<String, Object> s2 = new LinkedHashMap<>(scope);
+                        s2.put(arm.param(), inOne);
+                        if (mr.extraParam().isPresent()) {
+                            s2.put(mr.extraParam().get(),
+                                    eval(mr.extra().get(), scope));
+                        }
+                        return eval(arm.body(), s2);
+                    }
+                }
+                throw new IllegalStateException("host-eval: match — no arm"
+                        + " accepts runtime type " + hostTypeFqn(inOne));
+            }
+            case TypedNewInstance ni -> {
+                java.util.LinkedHashMap<String, Object> props =
+                        new java.util.LinkedHashMap<>();
+                for (Map.Entry<String, TypedSpec> e
+                        : ni.properties().entrySet()) {
+                    props.put(e.getKey(), eval(e.getValue(), scope));
+                }
+                return new HostInstance(ni.classFqn(), props);
+            }
+            case TypedCopyInstance ci -> {
+                Object src = eval(ci.source(), scope);
+                if (!(asList(src).get(0) instanceof HostInstance hi)) {
+                    throw new NotImplementedException(
+                            "host-eval: ^$copy over non-instance "
+                                    + hostTypeFqn(asList(src).get(0)));
+                }
+                java.util.LinkedHashMap<String, Object> props =
+                        new java.util.LinkedHashMap<>(hi.properties());
+                for (Map.Entry<String, TypedSpec> e
+                        : ci.overrides().entrySet()) {
+                    props.put(e.getKey(), eval(e.getValue(), scope));
+                }
+                return new HostInstance(hi.classFqn(), props);
+            }
+            case TypedCast tc -> {
+                // a HOST cast is an assertion, not a conversion
+                return eval(tc.source(), scope);
             }
             case TypedFold f -> {
                 List<Object> src = asList(eval(f.source(), scope));
@@ -464,6 +599,21 @@ public final class HostEval {
             }
         }
         return replay;
+    }
+
+    /** The class FQN named by a TYPE-reference argument (instanceOf's
+     * second parameter). */
+    private static String typeRefFqn(TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr) {
+            return pr.fullPath();
+        }
+        if (t.info().type() instanceof
+                com.legend.compiler.element.type.Type.ClassType ct) {
+            return ct.fqn();
+        }
+        throw new NotImplementedException(
+                "host-eval: instanceOf type argument "
+                        + t.getClass().getSimpleName());
     }
 
     /** A String[0..1] pattern argument: literal, empty collection (null =

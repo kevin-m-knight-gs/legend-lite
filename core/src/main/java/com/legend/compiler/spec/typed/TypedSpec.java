@@ -47,6 +47,7 @@ public sealed interface TypedSpec permits
         TypedTypeRef,
         TypedCast,
         TypedMatch,
+        TypedMatchRuntime,
         TypedEval,
         TypedTds,
         TypedSourceUrl,

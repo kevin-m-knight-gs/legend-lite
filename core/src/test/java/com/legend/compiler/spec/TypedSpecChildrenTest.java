@@ -280,6 +280,10 @@ class TypedSpecChildrenTest {
         if (type == double.class || type == Double.class) {
             return 1.0;
         }
+        if (type == com.legend.compiler.spec.typed.TypedMatchRuntime.Arm.class) {
+            return new com.legend.compiler.spec.typed.TypedMatchRuntime.Arm(
+                    "test::T", "p", leaf());
+        }
         throw new IllegalStateException("TypedSpecChildrenTest needs a dummy rule for "
                 + type.getName() + " — add one when introducing new node component types");
     }

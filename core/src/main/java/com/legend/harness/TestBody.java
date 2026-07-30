@@ -3181,6 +3181,12 @@ public final class TestBody {
         if ("TDSNull".equals(e) && a == null) {
             return true;
         }
+        // HOST INSTANCES compare STRUCTURALLY (pure instance-graph
+        // assertEquals — the debugPrint tree goldens)
+        if (e instanceof com.legend.exec.HostEval.HostInstance
+                || a instanceof com.legend.exec.HostEval.HostInstance) {
+            return com.legend.exec.HostEval.hostEquals(e, a);
+        }
         // NO actual-side bridge (audit 16 F5): if a bug ever put the
         // literal string 'TDSNull' on OUR wire where a NULL belongs, the
         // symmetric grant would mask it — same refusal as the temporal

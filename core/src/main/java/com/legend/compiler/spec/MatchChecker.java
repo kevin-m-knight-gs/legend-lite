@@ -60,6 +60,17 @@ final class MatchChecker {
             return runtimeDispatch;
         }
 
+        // RUNTIME dispatch guard: if any branch's declared type is a
+        // STRICT SUBTYPE of the input's static type, the first-accepting
+        // static rule would silently take a wider arm where real pure
+        // (Match.java walks the runtime value) takes the narrow one —
+        // keep ALL branches in a TypedMatchRuntime for the host channel
+        // (SQL lowering has no runtime type dispatch and walls loudly).
+        TypedSpec runtimeTyped = runtimeMatch(
+                t, input, extra, branches(params.get(1)), env);
+        if (runtimeTyped != null) {
+            return runtimeTyped;
+        }
         for (LambdaFunction branch : branches(params.get(1))) {
             if (branch.parameters().isEmpty() || branch.parameters().size() > 2
                     || branch.body().size() != 1) {
@@ -102,6 +113,89 @@ final class MatchChecker {
         }
         throw new TypeInferenceException("match: no branch matches input type '"
                 + input.info().type().typeName() + input.info().multiplicity().text() + "'");
+    }
+
+    /** Build the runtime-dispatch node when static selection is unsound
+     * (see caller comment); null when the static rule applies. */
+    private static TypedSpec runtimeMatch(Typer t, TypedSpec input,
+            Optional<TypedSpec> extra, List<LambdaFunction> branches, Env env) {
+        Type inputType = input.info().type();
+        boolean narrows = false;
+        for (LambdaFunction branch : branches) {
+            if (branch.parameters().isEmpty()
+                    || branch.parameters().get(0).type() == null) {
+                return null;   // malformed / untyped param: static path reports
+            }
+            Type bt = t.namedType(branch.parameters().get(0).type());
+            if (t.kernel().accepts(inputType, bt)
+                    && !t.kernel().accepts(bt, inputType)) {
+                narrows = true;
+            }
+        }
+        if (!narrows) {
+            return null;
+        }
+        List<com.legend.compiler.spec.typed.TypedMatchRuntime.Arm> arms =
+                new java.util.ArrayList<>(branches.size());
+        Type lub = null;
+        Multiplicity lubMult = null;
+        Optional<String> extraParam = Optional.empty();
+        for (LambdaFunction branch : branches) {
+            Variable param = branch.parameters().get(0);
+            Type branchType = t.namedType(param.type());
+            Multiplicity bound = param.multiplicity() != null
+                    ? Multiplicity.from(param.multiplicity())
+                    : input.info().multiplicity();
+            Env scope = env.with(param.name(),
+                    new ExprType(branchType, bound));
+            if (branch.parameters().size() == 2) {
+                if (extra.isEmpty()) {
+                    throw new TypeInferenceException(
+                            "a two-parameter match branch needs an extra argument");
+                }
+                Variable second = branch.parameters().get(1);
+                scope = scope.with(second.name(), extra.get().info());
+                extraParam = Optional.of(second.name());
+            }
+            if (branch.body().size() != 1) {
+                throw new TypeInferenceException(
+                        "a match branch must be a single-expression lambda");
+            }
+            TypedSpec body = t.synth(branch.body().get(0), scope);
+            arms.add(new com.legend.compiler.spec.typed.TypedMatchRuntime.Arm(
+                    typeFqnOf(branchType), param.name(), body));
+            lub = lub == null ? body.info().type()
+                    : t.kernel().commonSupertype(lub, body.info().type());
+            lubMult = lubMult == null ? body.info().multiplicity()
+                    : widen(lubMult, body.info().multiplicity());
+        }
+        return new com.legend.compiler.spec.typed.TypedMatchRuntime(
+                input, arms, extraParam,
+                extraParam.isPresent() ? extra : Optional.empty(),
+                new ExprType(lub, lubMult));
+    }
+
+    private static String typeFqnOf(Type t) {
+        return switch (t) {
+            case Type.ClassType c -> c.fqn();
+            case Type.Primitive p -> p.qualifiedName();
+            case Type.EnumType e -> e.fqn();
+            case Type.GenericType g -> g.rawFqn();
+            default -> throw new TypeInferenceException(
+                    "match branch type has no runtime tag: " + t.typeName());
+        };
+    }
+
+    /** The widest multiplicity covering both arms. */
+    private static Multiplicity widen(Multiplicity a, Multiplicity b) {
+        if (a instanceof Multiplicity.Bounded x
+                && b instanceof Multiplicity.Bounded y) {
+            int lower = Math.min(x.lower(), y.lower());
+            Integer upper = (x.upper() == null || y.upper() == null)
+                    ? null : Math.max(x.upper(), y.upper());
+            return new Multiplicity.Bounded(lower, upper);
+        }
+        return a;
     }
 
 
