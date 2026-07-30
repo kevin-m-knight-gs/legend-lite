@@ -94,7 +94,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         switch (src) {
             case SqlSource.Table t -> {
                 if (t.alias() != null) {
-                    String group = t.name().toLowerCase(Locale.ROOT);
+                    // alias groups take the BARE table name — the engine's
+                    // reAliasQuery keys by table, never schema-qualified
+                    // (golden "sourceannouncement_0", not
+                    // "s.sourceannouncement_0")
+                    String group = t.name()
+                            .substring(t.name().lastIndexOf('.') + 1)
+                            .toLowerCase(Locale.ROOT);
                     if (leftmost) {
                         // reAliasQuery: every 'root' pair in a group
                         // DEDUPES to one — the group spends ONE index on
@@ -166,7 +172,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             src = j.left();
         }
         return switch (src) {
-            case SqlSource.Table t -> t.name().toLowerCase(Locale.ROOT);
+            case SqlSource.Table t -> t.name()
+                    .substring(t.name().lastIndexOf('.') + 1)
+                    .toLowerCase(Locale.ROOT);
             case SqlSource.Subselect sub -> firstInnerTable(sub.inner());
             case null, default -> "subselect";
         };
@@ -942,6 +950,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     : super.call(c, parentPrec);
             case DATE_TRUNC_DAY -> "cast(truncate(" + expr(a.get(0), 0)
                     + ") as date)";
+            // contains(x, 'lit') lowers strpos(x, lit) > 0; the engine's
+            // H2 spelling is the LIKE form (extensionDefaults 'contains'
+            // — m2m2rShowcase golden: description like '%RECEIVE CASH%')
+            case GREATER -> a.size() == 2
+                    && a.get(0) instanceof SqlExpr.Call sp
+                    && sp.fn() == com.legend.sql.SqlFn.STRPOS
+                    && sp.args().size() == 2
+                    && sp.args().get(1) instanceof SqlExpr.StringLit lit
+                    && a.get(1) instanceof SqlExpr.IntLit z
+                    && z.value() == 0
+                    ? expr(sp.args().get(0), 0) + " like '%"
+                            + lit.value().replace("'", "''") + "%'"
+                    : super.call(c, parentPrec);
             // extract-part goldens spell the SQL-standard extract form
             // (testToSQLString.pure:368 'extract(doy from ...)'; the
             // engine's spelling of that form: oracleExtension.pure:204)

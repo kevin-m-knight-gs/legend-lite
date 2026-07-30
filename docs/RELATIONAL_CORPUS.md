@@ -25,7 +25,7 @@ in-process Alloy-shaped path).
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 |
 | milestoning/tests | 224 | 204 | 7 | 3 | 10 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 |
-| modelToModelToRelational | 5 | 0 | 2 | 0 | 3 |
+| modelToModelToRelational | 5 | 2 | 1 | 0 | 2 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2125** | 91 | 169 | 153 |
+| **total** | 2538 | **2127** | 90 | 169 | 152 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8304,11 +8304,9 @@ in-process Alloy-shaped path).
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testProp1 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
-- FAIL testProp2 [modelToModelToRelational]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop2, String, VARCHAR(8192), "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop2", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".description like '%RECEIVE CASH%' then 'Cash' e
+- SHAPE testProp2 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
 - FAIL testProp3 [modelToModelToRelational]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop3", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".basis = 0.0 then 0.0 else (((1.0 * "root".entitledQuant
 - SHAPE testProp4 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testPreeavalOnSort [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty]

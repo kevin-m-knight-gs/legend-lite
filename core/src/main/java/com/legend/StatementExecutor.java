@@ -791,6 +791,9 @@ final class StatementExecutor {
         String simple = switch (ni.classFqn()) {
             case "meta::external::store::relational::runtime"
                     + "::DatabaseConnection" -> "DatabaseConnection";
+            case "meta::external::store::relational::runtime"
+                    + "::RelationalDatabaseConnection" ->
+                    "RelationalDatabaseConnection";
             default -> "TestDatabaseConnection";
         };
         return simple + "(type = \"" + dbTypeOf(ni) + "\")";
@@ -809,6 +812,8 @@ final class StatementExecutor {
                     && ("meta::external::store::relational::runtime::DatabaseConnection"
                                     .equals(ni.classFqn())
                         || "meta::external::store::relational::runtime::TestDatabaseConnection"
+                                    .equals(ni.classFqn())
+                        || "meta::external::store::relational::runtime::RelationalDatabaseConnection"
                                     .equals(ni.classFqn()))) {
                 return ni;
             }

@@ -75,7 +75,7 @@ public final class PlanText {
             // tuples and NO resultSizeRange line; the engine quotes the
             // column name exactly when a documentation string rides it
             return "  type = TDS[" + tdsTuples(ctx, impl[2], plan, rt,
-                    docsOf(last), mappingFqn) + "]\n";
+                    docsOf(last), mappingFqn, impl.length > 4) + "]\n";
         }
         String size = "*";
         if (last.info().multiplicity()
@@ -221,6 +221,17 @@ public final class PlanText {
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
             java.util.Map<String, String> docs, String mappingFqn) {
+        return tdsTuples(ctx, dbFqn, plan, rt, docs, mappingFqn, false);
+    }
+
+    /** {@code m2m}: the root followed an M2M (~src) chase — tuple DB
+     * types spell PURE defaults, never the physical columns (the M2M
+     * layer erases them; m2m2rShowcase golden name VARCHAR(8192)). */
+    private static String tdsTuples(ModelContext ctx, String dbFqn,
+            SqlQuery plan,
+            com.legend.compiler.element.type.Type.RelationType rt,
+            java.util.Map<String, String> docs, String mappingFqn,
+            boolean m2m) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
                     "plan: non-select TDS top query pending");
@@ -236,7 +247,13 @@ public final class PlanText {
             SqlSelect.Projection p = s.projections().get(i);
             String db;
             String[] phys = null;
-            if (p.expr() instanceof SqlExpr.Column c) {
+            if (m2m) {
+                db = pureDbSpelling(cols.get(i).type());
+                if (db == null) {
+                    throw new NotImplementedException("plan: M2M TDS"
+                            + " column '" + name + "' type spelling pending");
+                }
+            } else if (p.expr() instanceof SqlExpr.Column c) {
                 String[] pc = resolvePhysical(s.from(), c.table(),
                         strip(c.name()));
                 phys = pc;
@@ -469,6 +486,10 @@ public final class PlanText {
         }
         if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
             return "INT";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
+            // m2m2rShowcase golden: (prop1, Boolean, BIT, "")
+            return "BIT";
         }
         if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
             // computed strings carry the engine's default width

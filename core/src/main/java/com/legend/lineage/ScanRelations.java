@@ -578,8 +578,14 @@ public final class ScanRelations {
                 for (com.legend.model.ClassMapping cm : m.classMappings()) {
                     if (cm instanceof ClassMapping.Pure pm
                             && typeMatches(pm.className(), classFqn)) {
-                        return rootImpl(ctx, mappingFqn, pm.sourceClass(),
-                                depth + 1);
+                        String[] up = rootImpl(ctx, mappingFqn,
+                                pm.sourceClass(), depth + 1);
+                        // 5th element marks the M2M chase: the plan's TDS
+                        // tuple types spell PURE defaults, not the
+                        // physical columns (the M2M layer erases them —
+                        // m2m2rShowcase golden name VARCHAR(8192))
+                        return new String[]{up[0], up[1], up[2], up[3],
+                                "m2m"};
                     }
                 }
             }
