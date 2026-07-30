@@ -105,13 +105,17 @@ final class CorrelatedSubselects {
     }
 
 
-    record CorrAggSub(TypedSpec subSource, List<String> keyCols,
-            Type.RelationType keyRow, String targetPrefix, String rowVar,
-            Type.RelationType joinedRow, ParentCopy pc) {}
+    record CorrAggSub(TypedSpec subSource,
+            @com.legend.Nullable List<String> keyCols,
+            Type.RelationType keyRow,
+            @com.legend.Nullable String targetPrefix,
+            @com.legend.Nullable String rowVar,
+            Type.@com.legend.Nullable RelationType joinedRow,
+            @com.legend.Nullable ParentCopy pc) {}
 
 
     CorrAggSub corrAggSubSource(ClassSource cs, String head,
-            AssociationJoins.AssocJoin aj, TypedLambda corrAgg) {
+            AssociationJoins.AssocJoin aj, @com.legend.Nullable TypedLambda corrAgg) {
         if (corrAgg == null) {
             List<String> tKeys = targetEquiKeysOrNull(aj.condition());
             if (tKeys != null) {
@@ -347,7 +351,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(TypedLambda cond
         Map<String, Substitution.SubNav> subNavs = new LinkedHashMap<>();
         for (var e : navByHead.entrySet()) {
             String pfx = mat.slotPrefixes().get(e.getValue());
-            var stepT = navSteps.get(e.getValue()).target();
+            var stepT = java.util.Objects.requireNonNull(navSteps.get(e.getValue())).target();
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
@@ -432,7 +436,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         return resolver.apply(proj);
     }
 
-    private static @com.legend.Nullable Object[] zipSide(TypedSpec n) {
+    private static Object @com.legend.Nullable [] zipSide(TypedSpec n) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1
                 && !(((Type.FunctionType) m.mapper().info().type()).result()
                         .type() instanceof Type.ClassType)) {
@@ -473,7 +477,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
      * as per-member variants (k_0, k_1, …) expands to ALL of them — the
      * grouped subselect groups by every split column and joins back on
      * OR of pairs (task #27 U4). Keys found verbatim pass through. */
-    static List<String> expandSplitKeys(List<String> keys,
+    static List<String> expandSplitKeys(@com.legend.Nullable List<String> keys,
             Type.RelationType row) {
         List<String> out = new ArrayList<>();
         for (String k : keys) {
@@ -677,9 +681,11 @@ private static boolean referencesVar(TypedSpec n, String var) {
      * rebuilt over the aggregate's own callee. */
     TypedAggCol aggColFor(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj, StoreResolver.AggDemand d,
-            String alias, TypedLambda corrAgg, String corrTp,
-            String corrRowVar, Type.RelationType corrJoinedRow,
-            ParentCopy pc) {
+            String alias, @com.legend.Nullable TypedLambda corrAgg,
+            @com.legend.Nullable String corrTp,
+            @com.legend.Nullable String corrRowVar,
+            Type.@com.legend.Nullable RelationType corrJoinedRow,
+            @com.legend.Nullable ParentCopy pc) {
         TypedSpec mapBody;
         String mapVar = aj.target().rowVar();
         var mapRowType = aj.targetRow();
@@ -1110,7 +1116,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
         if (alias == null) {
             return null;
         }
-        return navSteps.get(alias).target()
+        return java.util.Objects.requireNonNull(navSteps.get(alias)).target()
                 instanceof com.legend.compiler.spec.typed.TypedGetAll g
                 ? sources.get(parent.mappingFqn(), g.classFqn()) : null;
     }
@@ -1210,7 +1216,8 @@ record CompositeChain(TypedSpec pipeline,
         int lrOrd = 2;
         for (var en : bySlot.entrySet()) {
             String slotRef = en.getKey();
-            var js = joinSlots.get(slotRef);
+            var js = java.util.Objects.requireNonNull(
+                    joinSlots.get(slotRef));
             // FRAMED VIEW slot target (Leg 4): the frame carries its own
             // internal slots — materialize it in its OWN scope before it
             // joins the composite (walkJoinSlot's frame rule; the frame's
@@ -1298,7 +1305,8 @@ record CompositeChain(TypedSpec pipeline,
                             new ExprType(finalRow, one))));
         }
         for (var en : bySlot.entrySet()) {
-            var js = joinSlots.get(en.getKey());
+            var js = java.util.Objects.requireNonNull(
+                    joinSlots.get(en.getKey()));
             TypedLambda c1 = js.condition();
             String pfx = slotPfx.get(en.getKey());
             String c1t = c1.parameters().get(1);

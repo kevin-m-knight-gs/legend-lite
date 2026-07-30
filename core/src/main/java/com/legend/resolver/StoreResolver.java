@@ -93,7 +93,7 @@ public final class StoreResolver {
         return this;
     }
 
-    private GraphEmission.SerializeTypeConfig serializeTypeCfg;
+    private GraphEmission.@com.legend.Nullable SerializeTypeConfig serializeTypeCfg;
     private boolean checkedEnvelope;   // graphFetchChecked defect gate
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
@@ -126,9 +126,7 @@ public final class StoreResolver {
     }
 
     /** Resolve every statement of a query body (lets + final expression). */
-    public List<TypedSpec> resolve(List<TypedSpec> body) {
-        return resolve(body, null);
-    }
+    public List<TypedSpec> resolve(List<TypedSpec> body) { return resolve(body, null); }
 
     /**
      * Resolve with a DRIVER-SUPPLIED execution context (the corpus shape:
@@ -136,17 +134,19 @@ public final class StoreResolver {
      * service API). Precedence per the plan: an explicit {@code from()} in
      * the query always wins; the driver runtime is the outermost fallback.
      */
-    public List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn) {
+    public List<TypedSpec> resolve(List<TypedSpec> body,
+            @com.legend.Nullable String driverRuntimeFqn) {
         return resolve(body, driverRuntimeFqn, null);
     }
 
     /** {@code explicitMappingFqn}: resolve class fetches against THIS
      * mapping (the ~func-pipeline recursion — ClassSources) — an explicit
      * from() in the body still wins. */
-    public List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn,
-            String explicitMappingFqn) {
-        // LAZY: the runtime is consulted only when a class fetch needs a
-        // mapping — a pure relation query with an unusable runtime must not
+    public List<TypedSpec> resolve(List<TypedSpec> body,
+            @com.legend.Nullable String driverRuntimeFqn,
+            @com.legend.Nullable String explicitMappingFqn) {
+        // LAZY: runtime consulted only when a class fetch needs a
+        // mapping; a pure relation query must not consult it
         // fail (the corpus's date-literal regression).
         Context context = explicitMappingFqn != null
                 ? new Context(explicitMappingFqn, null)
@@ -238,12 +238,14 @@ public final class StoreResolver {
      * that binds the class wins; zero or several binders is loud (plan
      * audit catch 1's precedence rule).
      */
-    record Context(String explicitMapping, String runtimeFqn,
-            List<String> chainMappings, Map<String, String> jsonSources) {
-        Context(String explicitMapping, String runtimeFqn) {
+    record Context(@com.legend.Nullable String explicitMapping,
+            @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
+            Map<String, String> jsonSources) {
+        Context(@com.legend.Nullable String explicitMapping,
+                @com.legend.Nullable String runtimeFqn) {
             this(explicitMapping, runtimeFqn, List.of(), Map.of());
         }
-        Context(String explicitMapping, String runtimeFqn,
+        Context(@com.legend.Nullable String explicitMapping, @com.legend.Nullable String runtimeFqn,
                 List<String> chainMappings) {
             this(explicitMapping, runtimeFqn, chainMappings, Map.of());
         }
@@ -278,7 +280,7 @@ public final class StoreResolver {
      * dispatches by variant, INERT is the identity. Guard ORDER is now
      * structure: an arm's precedence is the space level it lives in.
      */
-    private @com.legend.Nullable TypedSpec resolveNode(TypedSpec n, Context context) {
+    private TypedSpec resolveNode(TypedSpec n, Context context) {
         // ---- space-independent normalizations (fire in ANY space) ----
         // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27)
         if (n instanceof TypedNativeCall wf
@@ -304,8 +306,11 @@ public final class StoreResolver {
                 && "meta::pure::functions::collection::zip".equals(
                         zc.callee().qualifiedName())
                 && zc.args().size() == 2) {
-            return CorrelatedSubselects.zipPairMap(zm, zc,
+            TypedSpec zp = CorrelatedSubselects.zipPairMap(zm, zc,
                     n2 -> resolveNode(n2, context));
+            if (zp != null) {
+                return zp;
+            }
         }
         // `.rows` MARKER erases here (audit 20c H1) — any space.
         if (n instanceof TypedPropertyAccess mk
@@ -325,7 +330,7 @@ public final class StoreResolver {
      * is the CLASS-RESULT mapper — the auto-map flatten IS the mapper body
      * with the source spliced for the param; the resulting hop chain
      * re-enters resolution. Everything else is a chain segment. */
-    private @com.legend.Nullable TypedSpec objectNode(TypedSpec n, Context context) {
+    private TypedSpec objectNode(TypedSpec n, Context context) {
         return n instanceof TypedMap m
                 ? resolveNode(substituteParam(m.mapper(), m.source()), context)
                 : resolveChain(n, context);
@@ -335,7 +340,7 @@ public final class StoreResolver {
      * beneath — chain TERMINALS first, then relation-space wrappers; an
      * unhandled variant is the NAMED H2-vocabulary wall, never a silent
      * pass-through. */
-    private @com.legend.Nullable TypedSpec anchoredNode(TypedSpec n, Context context) {
+    private TypedSpec anchoredNode(TypedSpec n, Context context) {
         return switch (n) {
             case TypedProject p when objectSpace(p.source()) ->
                     resolveChain(p, context);
@@ -350,7 +355,15 @@ public final class StoreResolver {
                                 p.info()), context),
                         p.info());
             }
-            case TypedIf i -> resolveStaticIf(i, context);
+            case TypedIf i -> {
+                TypedSpec st = resolveStaticIf(i, context);
+                if (st == null) {   // pre-gate: silent null for non-static if
+                    throw new com.legend.error.NotImplementedException(
+                            "class-typed if with a non-static condition"
+                            + " is not supported yet");
+                }
+                yield st;
+            }
             // size()/count() over a class extent = row count (engine
             // emits select count(*)); classExtentCount projects ONE const
             case TypedNativeCall nc
@@ -731,7 +744,7 @@ public final class StoreResolver {
             if (ip == null) {
                 continue;   // step not materialized: the read stays loud
             }
-            var navT = tNavSteps.get(he.getValue()).target();
+            var navT = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue())).target();
             if (!(navT instanceof TypedGetAll ng)) {
                 continue;
             }
@@ -1449,7 +1462,8 @@ public final class StoreResolver {
                 continue;
             }
             demandedNavs.add(alias);
-            var nav = navSteps.get(alias);
+            var nav = java.util.Objects.requireNonNull(
+                    navSteps.get(alias));
             // The nav condition may read joinslot sub-rows: demand them too.
             for (TypedSpec b : nav.predicate().body()) {
                 for (String slot : slotAliases) {
@@ -1468,7 +1482,8 @@ public final class StoreResolver {
         // prefixes (audit: Map.of() here walled every nested slot read).
         Map<String, NavMaterializer.NavMat> navMats = new LinkedHashMap<>();
         for (String alias : demandedNavs) {
-            var nav = navSteps.get(alias);
+            var nav = java.util.Objects.requireNonNull(
+                    navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             // the lifted head's parked preds thread as parkedPreds: their
@@ -1496,7 +1511,8 @@ public final class StoreResolver {
                     && synthetics.correlatedPred(predKey) == null) {
                 ClassSource target = sources.getForNav(cs.mappingFqn(),
                         targetClass, navHeadByAlias.getOrDefault(alias, alias));
-                NavMaterializer.NavMat mat = navMats.get(alias);
+                var mat = java.util.Objects.requireNonNull(
+                        navMats.get(alias));
                 navMats.put(alias, new NavMaterializer.NavMat(
                         synthetics.applyToPipe(predKey, mat.pipeline(),
                                 (p, pred) -> CorrelatedSubselects.predFilteredPipe(p, target,
@@ -1506,7 +1522,8 @@ public final class StoreResolver {
             }
         }
         for (String alias : demandedNavs) {
-            var nav = navSteps.get(alias);
+            var nav = java.util.Objects.requireNonNull(
+                    navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.getForNav(cs.mappingFqn(),
@@ -1517,7 +1534,7 @@ public final class StoreResolver {
             // audit 12 F1). Un-materialized sub-steps (temporal/filtered
             // gates) are absent: their reads stay loud.
             Map<String, Substitution.SubNav> subNavs =
-                    navMats.get(alias).subNavs();
+                    java.util.Objects.requireNonNull(navMats.get(alias)).subNavs();
             // H5c cast head: leaves resolve through the CAST TARGET's
             // composed (M2M) bindings — the same frame (rowVar identity
             // guarded, the graph channel's m2mAssocChild rule); a raw
@@ -2384,7 +2401,8 @@ public final class StoreResolver {
         for (var extra : extraNavHeads.entrySet()) {
             String headKey = extra.getKey();
             String alias = extra.getValue();
-            var nav = navSteps.get(alias);
+            var nav = java.util.Objects.requireNonNull(
+                    navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.get(cs.mappingFqn(), targetClass);
@@ -2430,7 +2448,8 @@ public final class StoreResolver {
         for (var ch : corrNavHeads.entrySet()) {
             String headKey = ch.getKey();
             String alias = ch.getValue();
-            var nav = navSteps.get(alias);
+            var nav = java.util.Objects.requireNonNull(
+                    navSteps.get(alias));
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
             ClassSource target = sources.get(cs.mappingFqn(), targetClass);
@@ -2470,7 +2489,7 @@ public final class StoreResolver {
      * context after in-chain from() re-scoping, and the bound source.
      * Field side-effects (temporal.root(), temporalByHead reset) happen in
      * {@link #collectOpChain} — one construction site. */
-    private record OpChain(TypedSpec top, List<TypedGraphTree> tree,
+    private record OpChain(TypedSpec top, @com.legend.Nullable List<TypedGraphTree> tree,
             boolean implicitSerialize, List<TypedSpec> ops, TypedGetAll getAll,
             Context context, ClassSource cs,
             Map<String, Substitution.AssocSub> flattenAssocs) {}
@@ -3078,16 +3097,13 @@ public final class StoreResolver {
     /** The class FQN reached after {@code upto} property hops from the
      * source class; null when any hop is not a class-typed property. */
     record AggDemand(TypedNativeCall node,
-            String leaf, TypedLambda mapper,
-            TypedLambda orderKey, boolean orderAsc) {
+            @com.legend.Nullable String leaf, @com.legend.Nullable TypedLambda mapper,
+            @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
 
-        AggDemand(TypedNativeCall node, String leaf) {
-            this(node, leaf, null, null, true);
-        }
+        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf) { this(node, leaf, null, null, true); }
 
-        AggDemand(TypedNativeCall node, String leaf, TypedLambda mapper) {
-            this(node, leaf, mapper, null, true);
-        }
+        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf,
+                @com.legend.Nullable TypedLambda mapper) { this(node, leaf, mapper, null, true); }
 
         /** Target-side property heads this demand reads — feeds the
          * target's slot demand. */
@@ -3446,7 +3462,7 @@ public final class StoreResolver {
     }
 
     /** Any registered isNotEmpty overload — the lowerer dispatches by family. */
-    private TypedFunction isNotEmptyCallee() {
+    private @com.legend.Nullable TypedFunction isNotEmptyCallee() {
         var fns = ctx.findFunction(
                 "meta::pure::functions::collection::isNotEmpty");
         if (fns.isEmpty()) {

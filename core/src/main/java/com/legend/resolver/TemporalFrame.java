@@ -68,7 +68,7 @@ final class TemporalFrame {
      * envelope spells it in milestoned qualified-property KEYS
      * ({@code synonyms(2023-10-15T00:00:00+0000)}). Null when the axis
      * carries no context date. */
-    com.legend.compiler.spec.typed.TypedSpec rootContextDate(
+    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec rootContextDate(
             boolean business) {
         return business ? root.business() : root.processing();
     }
@@ -213,9 +213,12 @@ final class TemporalFrame {
             if (!tableHasBlock(out, dim)) {
                 continue;
             }
+            TypedSpec dimDate = c.dateFor(dim);
             if (c.rangeAppliesTo(dim)) {
-                out = rangeScanPipe(out, c.rangeStart(), c.rangeEnd(), dim);
-            } else if (c.dateFor(dim) != null) {
+                out = rangeScanPipe(out,
+                        java.util.Objects.requireNonNull(c.rangeStart()),
+                        java.util.Objects.requireNonNull(c.rangeEnd()), dim);
+            } else if (dimDate != null) {
                 // an OUTER-ROW context date ($o.orderDate) cannot stamp
                 // in-pipe (the read is out of scope) — the DEFERRED
                 // sub-window on the head's join ON covers these targets
@@ -224,10 +227,10 @@ final class TemporalFrame {
                 // OUTER-ROW reads (own-column, nav-read, or wrapped —
                 // adjust($o...)) cannot stamp in-pipe; the join-ON
                 // composition owns their window (#32)
-                if (singleVarChain(c.dateFor(dim)) != null) {
+                if (singleVarChain(dimDate) != null) {
                     continue;
                 }
-                out = milestonedPipeByStrategy(out, c.dateFor(dim), dim, label);
+                out = milestonedPipeByStrategy(out, dimDate, dim, label);
             }
         }
         return out;
@@ -260,7 +263,9 @@ final class TemporalFrame {
             return pipe;
         }
         if (c.rangeAppliesTo(strat)) {
-            return rangeMilestonedPipe(pipe, c.rangeStart(), c.rangeEnd(),
+            return rangeMilestonedPipe(pipe,
+                    java.util.Objects.requireNonNull(c.rangeStart()),
+                    java.util.Objects.requireNonNull(c.rangeEnd()),
                     classFqn);
         }
         TypedSpec d = c.dateFor(strat);
@@ -293,10 +298,11 @@ final class TemporalFrame {
     TypedSpec stampForClassOrDefer(TypedSpec pipe, TemporalContext c,
             String classFqn, String chain) {
         MilestoningStrategy strat = temporalStrategy(classFqn);
+        TypedSpec stratDate = strat == null ? null : c.dateFor(strat);
         if (strat != null && strat != MilestoningStrategy.BITEMPORAL && !c.isEmpty()
-                && !c.rangeAppliesTo(strat) && chain != null
-                && outerRead(c.dateFor(strat)) != null
-                && deferWindow(chain, strat, pipe, c.dateFor(strat))) {
+                && !c.rangeAppliesTo(strat) && chain != null && stratDate != null
+                && outerRead(stratDate) != null
+                && deferWindow(chain, strat, pipe, stratDate)) {
             return pipe;
         }
         // BITEMPORAL: per-dimension — the LITERAL dimension stamps
@@ -540,7 +546,8 @@ final class TemporalFrame {
                 }
                 c = new TypedLambda(c.parameters(), body, c.info());
             }
-            List<String[]> ws = byPfx.get(pfx);
+            var ws = java.util.Objects.requireNonNull(
+                    byPfx.get(pfx));
             for (int k = 0; k < ws.size(); k++) {
                 String[] w = ws.get(k);
                 String entryOuter = w.length > 3 && !w[3].isEmpty()
@@ -548,7 +555,7 @@ final class TemporalFrame {
                 c = outerDatedWindowCond(c, out, sj.right(), w[0], w[1],
                         Boolean.parseBoolean(w[2]), entryOuter, navClass,
                         /*nullTolerant*/ false, deferredOuterSubDates.get(
-                                byPfxKeys.get(pfx).get(k)));
+                                java.util.Objects.requireNonNull(byPfxKeys.get(pfx)).get(k)));
             }
             Type.RelationType prev = (Type.RelationType) out.info().type();
             List<Type.Column> cols = new ArrayList<>(prev.columns());
@@ -650,7 +657,8 @@ final class TemporalFrame {
      * $o.orderDate->toOne()} &rarr; {@code orderDate}'s physical column
      * via the parent binding) — null when the spec is absent, multi-date,
      * sweep, or not an outer-row read. */
-    private @com.legend.Nullable String outerColumnDate(TemporalSpec spec, ClassSource cs) {
+    private @com.legend.Nullable String outerColumnDate(
+            @com.legend.Nullable TemporalSpec spec, ClassSource cs) {
         if (spec == null || spec.sweep() || spec.dates().size() != 1) {
             return null;
         }
@@ -661,7 +669,8 @@ final class TemporalFrame {
      * left row (materialized — the ClassSource row still holds raw
      * slots), so a date living on an already-joined row resolves to its
      * composed column and rides the ordinary outer-date calculus. */
-    private @com.legend.Nullable String outerColumnDate(TemporalSpec spec, ClassSource cs,
+    private @com.legend.Nullable String outerColumnDate(
+            @com.legend.Nullable TemporalSpec spec, ClassSource cs,
             Type.RelationType leftRow) {
         String own = outerColumnDate(spec, cs);
         if (own != null || spec == null || spec.sweep()
@@ -693,13 +702,16 @@ final class TemporalFrame {
      * parent); else the engine-generated 1-DATE form (the param is the
      * dimension the OWNER lacks, the owner's own fills from the context).
      * Null when underivable. */
-    private @com.legend.Nullable List<TypedSpec> biTemporalDatesFor(TemporalSpec spec,
+    private @com.legend.Nullable List<TypedSpec> biTemporalDatesFor(
+            @com.legend.Nullable TemporalSpec spec,
             ClassSource parent) {
         return biTemporalDatesFor(spec, parent, null);
     }
 
-    private @com.legend.Nullable List<TypedSpec> biTemporalDatesFor(TemporalSpec spec,
-            ClassSource parent, TemporalSpec parentSpec) {
+    private @com.legend.Nullable List<TypedSpec> biTemporalDatesFor(
+            @com.legend.Nullable TemporalSpec spec,
+            ClassSource parent,
+            @com.legend.Nullable TemporalSpec parentSpec) {
         if (spec != null && !spec.sweep() && spec.dates().size() == 2) {
             return spec.dates();
         }
@@ -925,7 +937,7 @@ final class TemporalFrame {
         String alias = InnerDemand.navSlotAlias(navB, cs.rowVar(),
                 navSteps.keySet());
         if (alias == null
-                || !(navSteps.get(alias).target()
+                || !(java.util.Objects.requireNonNull(navSteps.get(alias)).target()
                         instanceof com.legend.compiler.spec.typed.TypedGetAll g)) {
             return null;
         }
@@ -952,7 +964,7 @@ final class TemporalFrame {
         var navSteps = Pipelines.navSteps(cs.pipeline());
         String alias = b == null ? null
                 : InnerDemand.navSlotAlias(b, cs.rowVar(), navSteps.keySet());
-        return alias != null && navSteps.get(alias).target()
+        return alias != null && java.util.Objects.requireNonNull(navSteps.get(alias)).target()
                 instanceof com.legend.compiler.spec.typed.TypedGetAll g
                 ? g.classFqn() : null;
     }
@@ -1113,7 +1125,7 @@ final class TemporalFrame {
 
     private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String navClass, String outerCol,
-            TypedSpec specDate) {
+            @com.legend.Nullable TypedSpec specDate) {
         MilestoningStrategy strat = temporalStrategy(navClass);
         TypedTableReference rt = rootTable(right);
         var ms = rt == null ? null
@@ -1164,7 +1176,7 @@ final class TemporalFrame {
     private TypedLambda outerDatedWindowCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String fromCol, String thruCol,
             boolean inclusive, String outerCol, String navClass,
-            boolean nullTolerant, TypedSpec specDate) {
+            boolean nullTolerant, @com.legend.Nullable TypedSpec specDate) {
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
         Type.RelationType lRow = (Type.RelationType) left.info().type();
@@ -2169,8 +2181,10 @@ final class TemporalFrame {
                         target.classFqn());
             }
             if (root.rangeAppliesTo(strat)) {
-                return rangeMilestonedPipe(pipe, root.rangeStart(),
-                        root.rangeEnd(), target.classFqn());
+                return rangeMilestonedPipe(pipe,
+                        java.util.Objects.requireNonNull(root.rangeStart()),
+                        java.util.Objects.requireNonNull(root.rangeEnd()),
+                        target.classFqn());
             }
         }
         throw new MappingResolutionException("navigation '" + head
@@ -2223,7 +2237,8 @@ final class TemporalFrame {
                     }
                 } else if (inherited.dateFor(targetStrat) != null) {
                     return TemporalContext.single(targetStrat,
-                            inherited.dateFor(targetStrat));
+                            java.util.Objects.requireNonNull(
+                                    inherited.dateFor(targetStrat)));
                 } else if (inherited.rangeAppliesTo(targetStrat)) {
                     return inherited;
                 }
@@ -2236,7 +2251,8 @@ final class TemporalFrame {
                 }
                 if (root.dateFor(targetStrat) != null) {
                     return TemporalContext.single(targetStrat,
-                            root.dateFor(targetStrat));
+                            java.util.Objects.requireNonNull(
+                                    root.dateFor(targetStrat)));
                 }
                 if (root.rangeAppliesTo(targetStrat)) {
                     return root;

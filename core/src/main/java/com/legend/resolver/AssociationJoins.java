@@ -116,7 +116,8 @@ final class AssociationJoins {
                     + " aggregation is built");
         }
         String alias = InnerDemand.navSlotAlias(binding, cs.rowVar(), navSteps.keySet());
-        var nav = navSteps.get(alias);
+        var nav = java.util.Objects.requireNonNull(
+                navSteps.get(alias));
         String targetClass = ((TypedGetAll)
                 nav.target()).classFqn();
         ClassSource t = sources.get(cs.mappingFqn(), targetClass);
@@ -182,7 +183,7 @@ final class AssociationJoins {
         Map<String, Substitution.SubNav> tSubNavs = new java.util.LinkedHashMap<>();
         for (var pne : predNavAliases.entrySet()) {
             String pfx = tMat.slotPrefixes().get(pne.getValue());
-            var stepT = tNavSteps.get(pne.getValue()).target();
+            var stepT = java.util.Objects.requireNonNull(tNavSteps.get(pne.getValue())).target();
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
@@ -235,7 +236,8 @@ final class AssociationJoins {
             if (alias == null) {
                 return false;   // otherwise heads keep their routes
             }
-            var nav = navSteps.get(alias);
+            var nav = java.util.Objects.requireNonNull(
+                    navSteps.get(alias));
             return nav.target() instanceof com.legend.compiler.spec.typed
                     .TypedGetAll tg
                     && sources.binds(cs.mappingFqn(), tg.classFqn());
@@ -283,7 +285,8 @@ final class AssociationJoins {
             tPipe = nav.target();
             stepCond = (TypedLambda) nav.predicate();
         } else {
-            var slot = joinSlots.get(alias);
+            var slot = java.util.Objects.requireNonNull(
+                    joinSlots.get(alias));
             tPipe = slot.target();
             stepCond = slot.condition();
         }
@@ -719,8 +722,8 @@ final class AssociationJoins {
                              TypedLambda condition,
                              Map<String, String> targetSlotPrefixes,
                              Map<String, Substitution.SubNav> targetSubNavs,
-                             TypedLambda corrSubPred,
-                             OnForm onForm) {
+                             @com.legend.Nullable TypedLambda corrSubPred,
+                             @com.legend.Nullable OnForm onForm) {
 
         AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
                   Type.RelationType targetRow, TypedLambda condition,
@@ -1110,7 +1113,7 @@ final class AssociationJoins {
                 new java.util.LinkedHashMap<>();
         for (var tne : tailNavAliases.entrySet()) {
             String pfx3 = tMat.slotPrefixes().get(tne.getValue());
-            var stepT3 = tNavSteps3.get(tne.getValue()).target();
+            var stepT3 = java.util.Objects.requireNonNull(tNavSteps3.get(tne.getValue())).target();
             if (pfx3 == null || !(stepT3 instanceof TypedGetAll stg3)) {
                 continue;
             }

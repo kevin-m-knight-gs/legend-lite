@@ -80,13 +80,14 @@ final class Substitution {
                       Map<String, ExistsSub> existsSubs,
                       Map<TypedSpec, AggRead> aggReads,
                       Map<TypedSpec, InQueryRead> inQueryReads,
-                      TypedFunction isNotEmptyCallee,
-                      TypedFunction equalCallee) {
+                      @com.legend.Nullable TypedFunction isNotEmptyCallee,
+                      @com.legend.Nullable TypedFunction equalCallee) {
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
                    Map<TypedSpec, AggRead> aggReads,
-                   TypedFunction isNotEmptyCallee, TypedFunction equalCallee) {
+                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.Nullable TypedFunction equalCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, Map.of(),
                     isNotEmptyCallee, equalCallee);
         }
@@ -102,7 +103,7 @@ final class Substitution {
      * property-function dates — legacy list shapes at this boundary. */
     record TemporalView(List<TypedSpec> rootTemporalDates,
                         Map<String, List<TypedSpec>> headTemporalDates,
-                        TemporalContext rootCtx) {
+                        @com.legend.Nullable TemporalContext rootCtx) {
 
         TemporalView(List<TypedSpec> rootTemporalDates,
                 Map<String, List<TypedSpec>> headTemporalDates) {
@@ -207,11 +208,11 @@ final class Substitution {
             return regs.aggReads();
         }
 
-        TypedFunction isNotEmptyCallee() {
+        @com.legend.Nullable TypedFunction isNotEmptyCallee() {
             return regs.isNotEmptyCallee();
         }
 
-        TypedFunction equalCallee() {
+        @com.legend.Nullable TypedFunction equalCallee() {
             return regs.equalCallee();
         }
 
@@ -316,7 +317,8 @@ final class Substitution {
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
                     Set<String> targetSlotAliases,
                     Map<String, String> targetSlotPrefixes,
-                    String readVar, Type.RelationType readRowType,
+                    @com.legend.Nullable String readVar,
+                    Type.@com.legend.Nullable RelationType readRowType,
                     Map<String, String> targetMilestoneColumns,
                     Map<String, SubNav> subNavs,
                     boolean filteredTarget) {
@@ -325,7 +327,8 @@ final class Substitution {
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes,
-                 String readVar, Type.RelationType readRowType,
+                 @com.legend.Nullable String readVar,
+                 Type.@com.legend.Nullable RelationType readRowType,
                  Map<String, String> targetMilestoneColumns,
                  Map<String, SubNav> subNavs) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
@@ -1259,7 +1262,7 @@ final class Substitution {
         return null;
     }
 
-    private @com.legend.Nullable TypedSpec rewrite(TypedSpec n) {
+    private TypedSpec rewrite(TypedSpec n) {
         // AGGREGATE over a to-many navigation (identity-registered by the
         // demand scan): the whole call reads its grouped-subselect column —
         // same ExprType as the node it replaces (discipline, plan risk #1).
@@ -1354,9 +1357,9 @@ final class Substitution {
                         java.util.Optional.empty(), pa.info());
             }
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
-                    filteredNavLeafRead(pa);
+                    java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
-                    subTypeLeafRead(pa);
+                    java.util.Objects.requireNonNull(subTypeLeafRead(pa));
             case TypedVariable v when v.name().equals(target.userVar()) ->
                     throw new NotImplementedException(
                             "object-space use of the instance variable '$" + v.name()
@@ -1688,7 +1691,7 @@ final class Substitution {
      * the two-name check captured a third in-scope name (triply-nested
      * exists, a user var literally named t_n; audit 23 #75). */
     private String freshTargetBinder(String tVar, TypedLambda cond,
-            TypedSpec extra) {
+            @com.legend.Nullable TypedSpec extra) {
         java.util.Set<String> taken = new java.util.LinkedHashSet<>();
         taken.add(target.freshRowVar());
         taken.add(target.userVar());

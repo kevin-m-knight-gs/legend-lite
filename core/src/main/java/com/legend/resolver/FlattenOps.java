@@ -36,7 +36,7 @@ final class FlattenOps {
             java.util.Set<String> hopTailHeads) {}
 
     static BelowSplit splitBelowOps(List<TypedSpec> belowOps,
-            ClassSource src, String alias,
+            ClassSource src, @com.legend.Nullable String alias,
             java.util.Set<String> navStepKeys) {
         List<TypedSpec> hoisted = new java.util.ArrayList<>();
         List<TypedSpec> spliceOps = new java.util.ArrayList<>();

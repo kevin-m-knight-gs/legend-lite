@@ -178,7 +178,7 @@ final class InnerDemand {
      * the demanded alias set. Identity dedup keeps join count
      * engine-equal. */
     static Set<String> navStepDemand(ClassSource t, Set<String> navStepKeys,
-            TypedLambda corrPred, List<TypedLambda> parkedPreds,
+            @com.legend.Nullable TypedLambda corrPred, List<TypedLambda> parkedPreds,
             Set<List<String>> chains, java.util.Map<String, String> aliasOut) {
         Set<String> demand = new LinkedHashSet<>();
         Set<List<String>> paths = new LinkedHashSet<>();
@@ -206,7 +206,8 @@ final class InnerDemand {
 
     /** The nav-step ALIAS a binding reads (a bare class-typed slot read,
      * toOne-wrapped or not), null otherwise. */
-    static @com.legend.Nullable String navSlotAlias(TypedSpec binding, String rowVar,
+    static @com.legend.Nullable String navSlotAlias(
+            @com.legend.Nullable TypedSpec binding, String rowVar,
                                        Set<String> navAliases) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c

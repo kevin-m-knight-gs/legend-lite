@@ -25,13 +25,14 @@ final class CastNav {
 
     /** The cast TARGET class FQN when {@code drill} is a class-typed M2M
      * cast on a composed source — null otherwise. */
-    static @com.legend.Nullable String castTarget(ClassSource cs, TypedSpec drill) {
+    static @com.legend.Nullable String castTarget(ClassSource cs,
+            @com.legend.Nullable TypedSpec drill) {
         return unwrapToOne(drill) instanceof TypedNewInstanceCast nic
                 && cs.sourceClass() != null ? nic.classFqn() : null;
     }
 
     /** The cast's SOURCE expression (the upstream slot read). */
-    static TypedSpec castSource(TypedSpec drill) {
+    static TypedSpec castSource(@com.legend.Nullable TypedSpec drill) {
         return unwrapToOne(
                 ((TypedNewInstanceCast) unwrapToOne(drill)).source());
     }
@@ -40,7 +41,7 @@ final class CastNav {
      * target's composed source when the head is a cast (frame identity
      * guarded), else the slot target itself. */
     static ClassSource leafSource(ClassSources sources, ClassSource cs,
-            String castFqn, ClassSource target, String headKey) {
+            @com.legend.Nullable String castFqn, ClassSource target, String headKey) {
         if (castFqn == null) {
             return target;
         }
@@ -74,7 +75,8 @@ final class CastNav {
         return cur;
     }
 
-    private static TypedSpec unwrapToOne(TypedSpec v) {
+    private static @com.legend.Nullable TypedSpec unwrapToOne(
+            @com.legend.Nullable TypedSpec v) {
         return v instanceof TypedNativeCall c && c.args().size() == 1
                 && c.callee().qualifiedName().equals(
                         "meta::pure::functions::multiplicity::toOne")

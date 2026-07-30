@@ -309,9 +309,10 @@ public final class ClassSources {
      * declared TARGET set, this member's join-key expressions (over the
      * member row var), and — for navigate routes — the raw condition (the
      * child side extracts its own operands from it). */
-    record MixedRoute(String prop, String targetSetId,
+    record MixedRoute(String prop,
+            @com.legend.Nullable String targetSetId,
             List<TypedSpec> memberKeys,
-            com.legend.compiler.spec.typed.TypedLambda navCond) {}
+            com.legend.compiler.spec.typed.@com.legend.Nullable TypedLambda navCond) {}
 
     private List<MixedRoute> mixedMemberRoutes(ClassSource member,
             String mappingFqn) {
@@ -1104,7 +1105,7 @@ public final class ClassSources {
                 && ra.table().equals(rb.table());
     }
 
-    private static com.legend.compiler.spec.typed.TypedTableReference
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
             rootTableOf(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
             return tr;
@@ -1189,7 +1190,8 @@ public final class ClassSources {
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
-    String dispatch(String explicitMapping, String runtimeFqn,
+    String dispatch(@com.legend.Nullable String explicitMapping,
+            @com.legend.Nullable String runtimeFqn,
             java.util.List<String> chainMappings, String classFqn) {
         if (explicitMapping != null) {
             // MAPPING CHAIN (XStore leg slice 1): a class the explicit

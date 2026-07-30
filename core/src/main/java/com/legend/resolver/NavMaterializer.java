@@ -72,7 +72,7 @@ final class NavMaterializer {
     /** {@code parkedPreds}: filter-lifted preds that will apply to THIS
      * target — their DIRECT slot-alias reads (β-inlined qualifier bodies)
      * join the demand; property-path reads ride {@code tails}. */
-    @com.legend.Nullable NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
@@ -85,7 +85,7 @@ final class NavMaterializer {
      * chain joins ONCE PER OCCURRENCE CLASS (engine per-call join
      * identity: the projection read rides its own copy and OR-fans the
      * member arms — ROW semantics, unionalias_3 vs unionalias_2). */
-    @com.legend.Nullable NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
@@ -294,11 +294,17 @@ final class NavMaterializer {
                 pfm, tDemand, tNavs,
                 targetClassFqn, (alias, cls) ->
                         compositeByAlias.containsKey(alias)
-                                ? compositeByAlias.get(alias)
-                                : subPipeFor(temporal, t, alias, cls,
-                                        mappingFqn, subTails, midByAlias,
-                                        subMats, subClsByAlias, chainPrefix,
-                                        hopCtx));
+                                ? java.util.Objects.requireNonNull(
+                                        compositeByAlias.get(alias))
+                                : java.util.Objects.requireNonNull(
+                                        subPipeFor(temporal, t, alias, cls,
+                                                mappingFqn, subTails,
+                                                midByAlias, subMats,
+                                                subClsByAlias, chainPrefix,
+                                                hopCtx),
+                                        () -> "sub-navigation '" + alias
+                                                + "' has no materializable"
+                                                + " pipeline"));
         Map<String, Substitution.SubNav> subTree = new LinkedHashMap<>();
         for (var sm : subMats.entrySet()) {
             String prop = midByAlias.get(sm.getKey());
@@ -450,7 +456,7 @@ final class NavMaterializer {
                 // cannot stop THIS level's join. Leave the sub-step
                 // undemanded: the leaf read stays LOUD downstream.
                 String subCls = ((TypedGetAll)
-                        tNavSteps.get(subAlias).target()).classFqn();
+                        java.util.Objects.requireNonNull(tNavSteps.get(subAlias)).target()).classFqn();
                 ClassSource subT = sources.get(mappingFqn, subCls);
                 // TEMPORAL sub-target: liftable when its CHAIN-KEYED
                 // spec (explicit hop date) or propagated context can
@@ -588,7 +594,8 @@ final class NavMaterializer {
         for (var e : extraSubHeads.entrySet()) {
             String prop = e.getKey();
             String alias = e.getValue();
-            var step = tNavSteps.get(alias);
+            var step = java.util.Objects.requireNonNull(
+                    tNavSteps.get(alias));
             if (!(step.target() instanceof TypedGetAll xg)) {
                 continue;
             }
@@ -722,14 +729,14 @@ final class NavMaterializer {
             subTree.put(prop + "#p", new Substitution.SubNav(prefix2,
                     subCs.rowVar(), subCs.bindings(),
                     composeSubNavPrefixes(prefix2,
-                            subMats.get(na).subNavs())));
+                            java.util.Objects.requireNonNull(subMats.get(na)).subNavs())));
         }
         return pipe;
     }
 
     /** The materialized join carrying {@code prefix} (the first copy of a
      * split sub-step); null when the shape holds no such join. */
-    private static com.legend.compiler.spec.typed.TypedJoin joinWithPrefix(
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedJoin joinWithPrefix(
             TypedSpec pipe, String prefix) {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoin j
                 && j.prefix().map(prefix::equals).orElse(false)) {

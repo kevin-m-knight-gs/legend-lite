@@ -36,9 +36,11 @@ import java.util.List;
  * cross-dimension asks answer {@code null} (engine capability rule: a
  * business date never filters processing columns).
  */
-record TemporalContext(TypedSpec processing, TypedSpec business,
-                       TypedSpec rangeStart, TypedSpec rangeEnd,
-                       MilestoningStrategy rangeDim) {
+record TemporalContext(@com.legend.Nullable TypedSpec processing,
+                       @com.legend.Nullable TypedSpec business,
+                       @com.legend.Nullable TypedSpec rangeStart,
+                       @com.legend.Nullable TypedSpec rangeEnd,
+                       @com.legend.Nullable MilestoningStrategy rangeDim) {
 
     static final TemporalContext NONE =
             new TemporalContext(null, null, null, null, null);

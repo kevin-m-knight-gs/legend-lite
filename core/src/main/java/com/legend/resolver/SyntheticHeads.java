@@ -168,22 +168,24 @@ final class SyntheticHeads {
      * streams join as one union subselect). PLAIN/DATED heads pass
      * through.
      */
-    @com.legend.Nullable TypedSpec applyToPipe(String head, TypedSpec pipe,
+    TypedSpec applyToPipe(String head, TypedSpec pipe,
             java.util.function.BiFunction<TypedSpec, TypedLambda, TypedSpec> filter) {
         TypedLambda single = preds.get(head);
         if (single != null) {
             return filter.apply(pipe, single);
         }
         List<TypedLambda> branches = branchPreds.get(head);
-        if (branches == null) {
+        if (branches == null || branches.isEmpty()) {
+            // empty branch list = nothing parked (registration never
+            // stores an empty list; the old code returned NULL here)
             return pipe;
         }
-        TypedSpec out = null;
-        for (TypedLambda b : branches) {
+        TypedLambda b0 = branches.get(0);
+        TypedSpec out = b0 == null ? pipe : filter.apply(pipe, b0);
+        for (TypedLambda b : branches.subList(1, branches.size())) {
             TypedSpec member = b == null ? pipe : filter.apply(pipe, b);
-            out = out == null ? member
-                    : new com.legend.compiler.spec.typed.TypedConcatenate(
-                            out, member, member.info());
+            out = new com.legend.compiler.spec.typed.TypedConcatenate(
+                    out, member, member.info());
         }
         return out;
     }
