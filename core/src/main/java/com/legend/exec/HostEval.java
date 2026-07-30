@@ -13,6 +13,14 @@ import com.legend.compiler.spec.typed.TypedMatchRuntime;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedCopyInstance;
 import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedUserCall;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedIf;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCFloat;
+import com.legend.compiler.spec.typed.TypedCDecimal;
+import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -66,14 +74,44 @@ public final class HostEval {
      * this predicate is the fix's pin). The ROOT-position executeInDb
      * SETUP arm dispatches first in executeTyped. */
     public static boolean wantsHostEval(TypedSpec root) {
-        if (chainBottom(root) instanceof TypedNativeCall b
+        return wantsHostEval(root, Map.of());
+    }
+
+    /** Lets-aware dispatch: variables in the chain resolve through the
+     * enclosing (typed, unevaluated) let bindings. */
+    public static boolean wantsHostEval(TypedSpec root,
+            Map<String, TypedSpec> lets) {
+        TypedSpec bottom = chainBottom(root, lets);
+        if (bottom instanceof TypedNativeCall b
                 && (PlatformTypes.EXECUTE_IN_DB
                         .equals(b.callee().qualifiedName())
                         || PlatformTypes.isStoreNavFn(
                                 b.callee().qualifiedName()))) {
             return true;
         }
+        if (bottom instanceof TypedNewInstance ni
+                && hostConstruction(ni.classFqn())) {
+            return true;
+        }
         return containsFetchDb(root);
+    }
+
+    /** The ^Class(...) constructions the HOST channel owns — a CURATED
+     * set that grows deliberately per slice ("any native class" stole
+     * sqlDialectTranslation's 21 previously-passing constructions from
+     * the K path — the gate caught it). */
+    private static final java.util.Set<String> HOST_CONSTRUCTION_CLASSES =
+            java.util.Set.of(
+                    "meta::relational::metamodel::DynaFunction",
+                    "meta::relational::metamodel::Literal",
+                    "meta::relational::metamodel::Alias",
+                    "meta::relational::functions::pureToSqlQuery::metamodel"
+                            + "::FreeMarkerOperationHolder",
+                    "meta::relational::functions::pureToSqlQuery::metamodel"
+                            + "::VarPlaceHolder");
+
+    private static boolean hostConstruction(String classFqn) {
+        return HOST_CONSTRUCTION_CLASSES.contains(classFqn);
     }
 
     private static boolean containsFetchDb(TypedSpec root) {
@@ -102,14 +140,35 @@ public final class HostEval {
                     "meta::pure::functions::string::toString");
 
     /** Walk the primary source chain (property access sources, fold/map
-     * sources, READ-shaped collection-native first args) to the
-     * expression's root. */
+     * sources, READ-shaped collection-native first args, user-call and
+     * match receivers, let-bound variables) to the expression's root. */
     private static TypedSpec chainBottom(TypedSpec n) {
+        return chainBottom(n, Map.of());
+    }
+
+    private static TypedSpec chainBottom(TypedSpec n,
+            Map<String, TypedSpec> lets) {
         while (true) {
             switch (n) {
                 case TypedPropertyAccess pa -> n = pa.source();
                 case TypedFold f -> n = f.source();
                 case TypedMap m -> n = m.source();
+                case TypedUserCall uc -> {
+                    if (uc.args().isEmpty()) {
+                        return uc;
+                    }
+                    n = uc.args().get(0);
+                }
+                case TypedMatchRuntime mr -> n = mr.input();
+                case TypedCast tc -> n = tc.source();
+                case TypedLet l -> n = l.value();
+                case TypedVariable v -> {
+                    TypedSpec bound = lets.get(v.name());
+                    if (bound == null) {
+                        return v;
+                    }
+                    n = bound;
+                }
                 case TypedNativeCall nc -> {
                     String fqn = nc.callee().qualifiedName();
                     if (PlatformTypes.EXECUTE_IN_DB.equals(fqn)
@@ -226,16 +285,35 @@ public final class HostEval {
 
     private static final ThreadLocal<com.legend.compiler.element.ModelContext>
             CTX = new ThreadLocal<>();
+    private static final ThreadLocal<com.legend.compiler.spec.SpecCompiler>
+            SPECS = new ThreadLocal<>();
+    /** Enclosing LET bindings (typed, unevaluated) — resolved lazily on
+     * first variable read, memoized into the eval scope. */
+    private static final ThreadLocal<Map<String, TypedSpec>> LETS =
+            new ThreadLocal<>();
 
     /** Whole-expression entry: host value wrapped as an ExecutionResult. */
     public static ExecutionResult evalToResult(TypedSpec root,
             com.legend.compiler.element.ModelContext ctx)
             throws java.sql.SQLException {
+        return evalToResult(root, ctx, null, Map.of());
+    }
+
+    /** Full entry: model context (store/type navigation), spec compiler
+     * (user-function call frames), and the enclosing let bindings. */
+    public static ExecutionResult evalToResult(TypedSpec root,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.compiler.spec.SpecCompiler specs,
+            Map<String, TypedSpec> lets) throws java.sql.SQLException {
         CTX.set(ctx);
+        SPECS.set(specs);
+        LETS.set(lets);
         try {
             return evalToResult(root);
         } finally {
             CTX.remove();
+            SPECS.remove();
+            LETS.remove();
         }
     }
 
@@ -254,7 +332,23 @@ public final class HostEval {
             throws java.sql.SQLException {
         switch (node) {
             case TypedNativeCall nc -> {
-                String fqn = nc.callee().qualifiedName();
+                return evalNative(nc, scope);
+            }
+            case TypedMatchRuntime mr -> {
+                return evalMatchRuntime(mr, scope);
+            }
+            default -> {
+                return evalRest(node, scope);
+            }
+        }
+    }
+
+    /** Native-function arms — the collection/logic/string vocabulary the
+     * host channel implements (grows per wall, each loud). */
+    private static Object evalNative(TypedNativeCall nc,
+            Map<String, Object> scope) throws java.sql.SQLException {
+        String fqn = nc.callee().qualifiedName();
+        {
                 if (PlatformTypes.isFetchDbFn(fqn)) {
                     return fetch(nc, scope);
                 }
@@ -329,6 +423,57 @@ public final class HostEval {
                     case "meta::pure::functions::collection::size" -> {
                         return (long) asList(eval(nc.args().get(0), scope)).size();
                     }
+                    case "meta::pure::functions::boolean::and" -> {
+                        return Boolean.TRUE.equals(asList(
+                                eval(nc.args().get(0), scope)).get(0))
+                                && Boolean.TRUE.equals(asList(
+                                        eval(nc.args().get(1), scope)).get(0));
+                    }
+                    case "meta::pure::functions::boolean::or" -> {
+                        return Boolean.TRUE.equals(asList(
+                                eval(nc.args().get(0), scope)).get(0))
+                                || Boolean.TRUE.equals(asList(
+                                        eval(nc.args().get(1), scope)).get(0));
+                    }
+                    case "meta::pure::functions::boolean::not" -> {
+                        return !Boolean.TRUE.equals(asList(
+                                eval(nc.args().get(0), scope)).get(0));
+                    }
+                    case "meta::pure::functions::boolean::eq",
+                         "meta::pure::functions::boolean::equal" -> {
+                        return hostEquals(eval(nc.args().get(0), scope),
+                                eval(nc.args().get(1), scope));
+                    }
+                    case "meta::pure::functions::collection::in" -> {
+                        Object v = asList(eval(nc.args().get(0), scope)).get(0);
+                        for (Object x : asList(eval(nc.args().get(1), scope))) {
+                            if (hostEquals(v, x)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                    case "meta::pure::functions::collection::isEmpty" -> {
+                        return asList(eval(nc.args().get(0), scope)).isEmpty();
+                    }
+                    case "meta::pure::functions::collection::isNotEmpty" -> {
+                        return !asList(eval(nc.args().get(0), scope)).isEmpty();
+                    }
+                    case "meta::pure::functions::collection::slice" -> {
+                        List<Object> src = asList(eval(nc.args().get(0), scope));
+                        int lo = ((Number) asList(eval(
+                                nc.args().get(1), scope)).get(0)).intValue();
+                        int hi = ((Number) asList(eval(
+                                nc.args().get(2), scope)).get(0)).intValue();
+                        return new ArrayList<>(src.subList(
+                                Math.min(lo, src.size()),
+                                Math.min(hi, src.size())));
+                    }
+                    case "meta::pure::functions::string::toLower" -> {
+                        return String.valueOf(asList(eval(
+                                nc.args().get(0), scope)).get(0))
+                                .toLowerCase(java.util.Locale.ROOT);
+                    }
                     case "meta::pure::functions::collection::indexOf" -> {
                         List<Object> src = asList(eval(nc.args().get(0), scope));
                         Object v = eval(nc.args().get(1), scope);
@@ -360,7 +505,33 @@ public final class HostEval {
                     default -> throw new NotImplementedException(
                             "host-eval: native '" + fqn + "' has no host arm");
                 }
+        }
+    }
+
+    /** Runtime match dispatch — first arm whose declared type accepts
+     * the RUNTIME value (real pure Match semantics). */
+    private static Object evalMatchRuntime(TypedMatchRuntime mr,
+            Map<String, Object> scope) throws java.sql.SQLException {
+        Object in = eval(mr.input(), scope);
+        Object inOne = asList(in).size() == 1 ? asList(in).get(0) : in;
+        for (TypedMatchRuntime.Arm arm : mr.arms()) {
+            if (hostConforms(inOne, arm.typeFqn())) {
+                Map<String, Object> s2 = new LinkedHashMap<>(scope);
+                s2.put(arm.param(), inOne);
+                if (mr.extraParam().isPresent()) {
+                    s2.put(mr.extraParam().get(), eval(mr.extra().get(), scope));
+                }
+                return eval(arm.body(), s2);
             }
+        }
+        throw new IllegalStateException("host-eval: match — no arm"
+                + " accepts runtime type " + hostTypeFqn(inOne));
+    }
+
+    /** The non-native, non-match node arms. */
+    private static Object evalRest(TypedSpec node, Map<String, Object> scope)
+            throws java.sql.SQLException {
+        switch (node) {
             case TypedMap m -> {
                 List<Object> src = asList(eval(m.source(), scope));
                 TypedLambda fn = m.mapper();
@@ -372,23 +543,6 @@ public final class HostEval {
                             eval(fn.body().get(fn.body().size() - 1), s2)));
                 }
                 return out;
-            }
-            case TypedMatchRuntime mr -> {
-                Object in = eval(mr.input(), scope);
-                Object inOne = asList(in).size() == 1 ? asList(in).get(0) : in;
-                for (TypedMatchRuntime.Arm arm : mr.arms()) {
-                    if (hostConforms(inOne, arm.typeFqn())) {
-                        Map<String, Object> s2 = new LinkedHashMap<>(scope);
-                        s2.put(arm.param(), inOne);
-                        if (mr.extraParam().isPresent()) {
-                            s2.put(mr.extraParam().get(),
-                                    eval(mr.extra().get(), scope));
-                        }
-                        return eval(arm.body(), s2);
-                    }
-                }
-                throw new IllegalStateException("host-eval: match — no arm"
-                        + " accepts runtime type " + hostTypeFqn(inOne));
             }
             case TypedNewInstance ni -> {
                 java.util.LinkedHashMap<String, Object> props =
@@ -435,17 +589,94 @@ public final class HostEval {
                 return property(src, pa.property());
             }
             case TypedVariable v -> {
-                if (!scope.containsKey(v.name())) {
-                    throw new NotImplementedException(
-                            "host-eval: unbound variable '$" + v.name() + "'");
+                if (scope.containsKey(v.name())) {
+                    return scope.get(v.name());
                 }
-                return scope.get(v.name());
+                Map<String, TypedSpec> lets = LETS.get();
+                if (lets != null && lets.containsKey(v.name())) {
+                    Object val = eval(lets.get(v.name()), scope);
+                    scope.put(v.name(), val);
+                    return val;
+                }
+                throw new NotImplementedException(
+                        "host-eval: unbound variable '$" + v.name() + "'");
+            }
+            case TypedUserCall uc -> {
+                // CALL FRAME (recursion-safe — the SQL inliner is loud on
+                // cycles; the host channel just recurses the Java stack)
+                com.legend.compiler.spec.SpecCompiler specs = SPECS.get();
+                if (specs == null) {
+                    throw new NotImplementedException(
+                            "host-eval: no SpecCompiler bound for user call "
+                                    + uc.callee().qualifiedName());
+                }
+                Map<String, Object> frame = new LinkedHashMap<>();
+                for (int i = 0; i < uc.callee().parameters().size(); i++) {
+                    frame.put(uc.callee().parameters().get(i).name(),
+                            eval(uc.args().get(i), scope));
+                }
+                Object r = List.of();
+                for (TypedSpec st : specs.compile(uc.callee()).body()) {
+                    if (st instanceof TypedLet let) {
+                        r = eval(let.value(), frame);
+                        frame.put(let.name(), r);
+                    } else {
+                        r = eval(st, frame);
+                    }
+                }
+                return r;
+            }
+            case TypedLet let -> {
+                Object r = eval(let.value(), scope);
+                scope.put(let.name(), r);
+                return r;
             }
             case TypedCString s -> {
                 return s.value();
             }
             case TypedCInteger i -> {
                 return i.value();
+            }
+            case TypedCBoolean b -> {
+                return b.value();
+            }
+            case TypedCFloat fl -> {
+                return fl.value();
+            }
+            case TypedCDecimal dc -> {
+                return dc.value();
+            }
+            case TypedIf iff -> {
+                Object c = asList(eval(iff.condition(), scope)).get(0);
+                if (Boolean.TRUE.equals(c)) {
+                    return eval(iff.thenBranch(), scope);
+                }
+                return iff.elseBranch().isPresent()
+                        ? eval(iff.elseBranch().get(), scope) : List.of();
+            }
+            case TypedSlice sl -> {
+                List<Object> src = asList(eval(sl.source(), scope));
+                int lo = ((Number) asList(eval(sl.start(), scope)).get(0))
+                        .intValue();
+                int hi = ((Number) asList(eval(sl.stop(), scope)).get(0))
+                        .intValue();
+                return new ArrayList<>(src.subList(Math.min(lo, src.size()),
+                        Math.min(hi, src.size())));
+            }
+            case TypedFilter tf -> {
+                List<Object> src = asList(eval(tf.source(), scope));
+                TypedLambda fn = tf.predicate();
+                List<Object> out = new ArrayList<>();
+                for (Object x : src) {
+                    Map<String, Object> s2 = new LinkedHashMap<>(scope);
+                    s2.put(fn.parameters().get(0), x);
+                    Object keep = asList(eval(
+                            fn.body().get(fn.body().size() - 1), s2)).get(0);
+                    if (Boolean.TRUE.equals(keep)) {
+                        out.add(x);
+                    }
+                }
+                return out;
             }
             case TypedCollection c -> {
                 List<Object> out = new ArrayList<>(c.elements().size());
@@ -483,6 +714,11 @@ public final class HostEval {
                 default -> throw new NotImplementedException(
                         "host-eval: ResultSet property '" + prop + "'");
             };
+        }
+        if (src instanceof HostInstance hi) {
+            // an UNSET property reads as empty (pure [0..1] semantics)
+            Object v = hi.properties().get(prop);
+            return v == null ? List.of() : v;
         }
         if (src instanceof HostRow row) {
             return switch (prop) {

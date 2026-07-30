@@ -863,9 +863,16 @@ public final class Runner {
                 moduleRefs.add(ref);
             }
         }
+        // DEMAND-PULL retry (single-FILE vehicle — the transitive-closure
+        // probe regressed 1219->1200 and stays reverted): an 'unknown
+        // type/class X' typing failure whose simple name has EXACTLY ONE
+        // defining element pulls that element's file and retries, max 3
+        // hops (metamodel files chain).
+        List<String> fileOnly = new ArrayList<>();
+        for (int attempt = 0; ; attempt++) {
         try {
             com.legend.compiler.element.ModelContext ctx =
-                    moduleContextFor(moduleRefs, List.of());
+                    moduleContextFor(moduleRefs, fileOnly);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
@@ -895,6 +902,11 @@ public final class Runner {
                 return null;
             }
         } catch (Exception e) {
+            String pull = attempt < 3 ? unknownTypePull(e) : null;
+            if (pull != null && !fileOnly.contains(pull)) {
+                fileOnly.add(pull);
+                continue;
+            }
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[try-run] " + t.fqn() + " threw "
                         + e);
@@ -902,6 +914,35 @@ public final class Runner {
             }
             return null;
         }
+        }
+    }
+
+    /** The FQN to demand-pull for an 'unknown type/class X' failure —
+     * only when X's simple name has EXACTLY ONE defining element (an
+     * ambiguous name would poison resolution; it stays a wall). */
+    private String unknownTypePull(Exception e) {
+        String msg = String.valueOf(e.getMessage());
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("[Uu]nknown (?:type|class)[:]? '([\\w:]+)'")
+                .matcher(msg);
+        if (!m.find()) {
+            return null;
+        }
+        String name = m.group(1);
+        if (name.contains("::")) {
+            return elementSource.containsKey(name) ? name : null;
+        }
+        String only = null;
+        for (String fqn : elementSource.keySet()) {
+            int cut = fqn.lastIndexOf("::");
+            if (cut > 0 && fqn.substring(cut + 2).equals(name)) {
+                if (only != null) {
+                    return null;   // ambiguous simple name — wall stands
+                }
+                only = fqn;
+            }
+        }
+        return only;
     }
 
     /** The most-called function NAMESPACE of a no-execute body — the

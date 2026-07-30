@@ -34,7 +34,7 @@ in-process Alloy-shaped path).
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 |
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
-| sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
+| sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
 | tds/tests | 266 | 246 | 2 | 9 | 9 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2096** | 88 | 173 | 181 |
+| **total** | 2538 | **2105** | 88 | 173 | 172 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3113,11 +3113,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::EnumProcessingHolder => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::updateFunctionParamScope => Unknown type: 'FunctionType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::updateFunctionParamsScope => Unknown type: 'FunctionType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::toSQLQuery => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
@@ -3257,6 +3252,7 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantSlice => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantContains => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantRemoveDuplicates => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::findVariantType => Unknown type: 'meta::relational::metamodel::datatype::TypedSemiStructured' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processVariantInstanceOf => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processTo => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processToMany => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -3343,6 +3339,8 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processWindowColumns => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processProject => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processEquals => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::generateFreeMarkerOpSelectorForEnumParam => Unknown type: 'FreeMarkerOperationHolder' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::generateFreeMarkerForEnumParam => Unknown type: 'FreeMarkerOperationHolder' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::validateParamHasDataTypeReturnType => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::enumToStoreValue => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processEnumValue => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -3371,6 +3369,12 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::genericTypeToDataType => Unknown type: 'GenericType' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::getSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::FunctionParamScope$prop$resolveFunctionReferenceByVar => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbExtension => Unknown type: 'CoreDataType' is not a known primitive, class, or enum
+- pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator => Unknown type: 'CreateSchemaSQL' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::union::buildUnion => Unknown type: 'TemporalMilestoningContext' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processTDSSortSingular => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::processTDSSortColumns => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
@@ -3409,7 +3413,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::sqlQueryToStringPretty => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processCommitQuery => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::processUpsertSQLQuery => Unknown type: 'UpsertSQLQuery' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::functions::pureToSqlQuery::FunctionParamScope$prop$resolveFunctionReferenceByVar => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$variableDeclarationProcessor => Unknown type: 'VariableDeclaration' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$upsertSQLQueryProcessor => Unknown type: 'UpsertSQLQuery' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::functions::sqlQueryToString::DbConfig$prop$commitQueryProcessor => Unknown type: 'CommitQuery' is not a known primitive, class, or enum
@@ -3958,6 +3961,14 @@ in-process Alloy-shaped path).
 - sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig$prop$lambdaProcessor => Unknown type: 'RelationalLambda' is not a known primitive, class, or enum
 - sqlQueryToString meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - sqlQueryToString meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
+- sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'PreAndFinallyExecutionSQLQuery' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::metamodel::RelationDataSelectSqlQuery => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::metamodel::RelationData => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::metamodel::loadWith => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::functions::sqlQueryToString::DbConfig => Unknown type: 'RelationalLambdaParameter' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::mapping::dbSpecificProcessor => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
+- sqlQueryToString meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
 - sqlQueryToString/DDL duplicate Function::meta::relational::tests::ddl::testSetupDataSqlGeneration() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/DDL/testDDL.pure, kept sqlQueryToString/DDL/sibling-1.pure)
 - sqlQueryToString/DDL duplicate Function::meta::relational::tests::ddl::testSetupDataSqlGenerationWithDataAsString() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/DDL/testDDL.pure, kept sqlQueryToString/DDL/sibling-1.pure)
 - sqlQueryToString/DDL duplicate Function::meta::relational::tests::ddl::testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/DDL/testDDL.pure, kept sqlQueryToString/DDL/sibling-1.pure)
@@ -4102,6 +4113,10 @@ in-process Alloy-shaped path).
 - sqlQueryToString/dbSpecific/debugPrint meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - sqlQueryToString/dbSpecific/debugPrint meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - sqlQueryToString/dbSpecific/debugPrint meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder => Unknown type: 'Multiplicity' is not a known primitive, class, or enum
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::pureToSqlQuery::metamodel::RelationFunction => Unknown type: 'meta::pure::mapping::relation::RelationFunctionInstanceSetImplementation' is not a known primitive, class, or enum
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::lambdaProcessor => Unknown type: 'SqlGenerationContext' is not a known primitive, class, or enum
+- sqlQueryToString/dbSpecific/debugPrint meta::relational::functions::sqlQueryToString::debugPrint::processSemiStructuredArrayFlattenRelationForH2 => Unknown type: 'SqlGenerationContext' is not a known primitive, class, or enum
 - sqlQueryToString/testSuite duplicate Function::meta::relational::functions::sqlQueryToString::tests::createTable(,NameRef[name=String][0..1],NameRef[name=DatabaseType][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure, kept sqlQueryToString/testSuite/sibling-0.pure)
 - sqlQueryToString/testSuite duplicate Function::meta::relational::functions::sqlQueryToString::tests::getProccessedTempTableName(,NameRef[name=String][1],NameRef[name=String][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure, kept sqlQueryToString/testSuite/sibling-0.pure)
 - sqlQueryToString/testSuite duplicate Function::meta::relational::functions::sqlQueryToString::tests::getCreateTempTableSqlStatements(,NameRef[name=String][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/testSuite/testTempTableSqlStatements.pure, kept sqlQueryToString/testSuite/sibling-0.pure)
@@ -4117,6 +4132,9 @@ in-process Alloy-shaped path).
 - sqlQueryToString/testSuite meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - sqlQueryToString/testSuite meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - sqlQueryToString/testSuite meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
+- sqlQueryToString/testSuite meta::relational::metamodel::RelationDataSelectSqlQuery => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- sqlQueryToString/testSuite meta::relational::metamodel::RelationData => Unknown type: 'NamedRelation' is not a known primitive, class, or enum
+- sqlQueryToString/testSuite meta::relational::metamodel::loadWith => Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - tds/relation duplicate Function::meta::pure::tds::toRelation::testJoinUsing() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/relation/testTdsToRelation.pure, kept tds/relation/sibling-3.pure)
 - tds/relation duplicate Function::meta::pure::tds::toRelation::testJoinFunc() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tds/relation/testTdsToRelation.pure, kept tds/relation/sibling-3.pure)
 - tds/relation meta::relational::extension::RelationalExtension => Unknown type: 'meta::relational::metamodel::operation::Operation' is not a known primitive, class, or enum
@@ -8339,11 +8357,12 @@ in-process Alloy-shaped path).
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
-- 4x null
 - 4x in call to 'meta::relational::tests::postProcessor::runtimeWithTableReplace', argument 1: expected meta::external::query::sql::metamodel::Table, got meta::relational::metamodel::relation::Table
+- 3x null
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
+- 2x Index 0 out of bounds for length 0
 - 2x no overload of 'executionPlan' matches the argument types
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
@@ -8363,7 +8382,6 @@ in-process Alloy-shaped path).
 - 2x unknown function 'genericType'
 - 2x association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- 1x Conversion Error: Could not convert string 'settlementDateTime = TIMESTAMP'${GMTtoTZ( "[US/Arizona]" dt)}'' to INT32 |  | LINE 45: ...Time = ''${GMTtoTZ( "[US/Arizona]" dt)}''') - 1 IS NULL OR 'settlementDateTime = TIMESTAMP''${GMTtoTZ( "[US/Arizona... |                                                                        ^
 
 ### per-test outcomes (non-passing)
 
@@ -8390,7 +8408,7 @@ in-process Alloy-shaped path).
 - ERROR testDatabaseConnectionSQLPopulationLegacy [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - ERROR testDatabaseConnectionSQLPopulation [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - ERROR tdsJoinOneDBOneExpression [executionPlan/tests]: Index 0 out of bounds for length 0
-- ERROR tdsJoinTwoDBWithColumnMappedViaJoins [executionPlan/tests]: null
+- ERROR tdsJoinTwoDBWithColumnMappedViaJoins [executionPlan/tests]: Index 0 out of bounds for length 0
 - SHAPE twoDBRenameColumns [executionPlan/tests]: no verifying assertions
 - ERROR tdsJoinTwoDBExtend [executionPlan/tests]: null
 - ERROR tdsTwoJoinThreeDB [executionPlan/tests]: null
@@ -8593,15 +8611,6 @@ in-process Alloy-shaped path).
 - SHAPE testSetupDataSqlGeneration [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
 - SHAPE testSetupDataSqlGenerationWithDataAsString [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
 - SHAPE testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution]
-- SHAPE testSomeAST_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenJustCase_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseNestedByAnd_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseEqualBooleanLit_thenBothWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseEqualTrue_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseEqualYesNoLit_thenNoOp [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseNestedByNot_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseNestedByOr_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
-- SHAPE testWhenCaseNestedByGroup_thenIsWrapped [sqlQueryToString/dbSpecific/debugPrint]: no execute(|...) call
 - SHAPE testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::tests]
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension]
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension]

@@ -176,6 +176,11 @@ final class StatementExecutor {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }
+            ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
+            if (hosted != null) {
+                result = hosted;
+                continue;
+            }
             java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
             single.add(stmt);
             var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
@@ -421,6 +426,38 @@ final class StatementExecutor {
             plan = com.legend.plan.PlanEnumForm.apply(sel, rt);
         }
         return new EngineSql(plan, renderer.render(plan), body);
+    }
+
+    /** HOST channel BEFORE the inliner: recursive corpus functions over
+     * metamodel instances cannot β-inline (the inliner is loud on
+     * cycles) — the host evaluator runs them with real call frames.
+     * ROOT-position executeInDb stays a SETUP statement (the ambient-
+     * connection arm in executeTyped owns it — the same ordering that
+     * protects the post-inline hook); only VALUE-position reads route.
+     * Null = not host-routed. */
+    private static ExecutionResult hostChannel(TypedSpec bare,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
+            throws java.sql.SQLException {
+        boolean rootSetup = bare
+                instanceof com.legend.compiler.spec.typed.TypedNativeCall rnc
+                && com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTE_IN_DB.equals(rnc.callee().qualifiedName());
+        if (rootSetup) {
+            return null;
+        }
+        java.util.Map<String, TypedSpec> hostLets =
+                new java.util.LinkedHashMap<>();
+        for (TypedSpec lp : letPrefix) {
+            if (lp instanceof com.legend.compiler.spec.typed.TypedLet hl) {
+                hostLets.put(hl.name(), hl.value());
+            }
+        }
+        if (!com.legend.exec.HostEval.wantsHostEval(bare, hostLets)) {
+            return null;
+        }
+        return com.legend.exec.HostEval.evalToResult(
+                bare, env.ctx(), specs, hostLets);
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
