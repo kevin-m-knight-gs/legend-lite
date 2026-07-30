@@ -2674,6 +2674,24 @@ final class Scalars {
                             pureToString(st, new SqlExpr.StructGet(x, "second")),
                             new SqlExpr.StringLit(">")));
         }
+        // a SINGLE-scalar-column relation in scalar position IS its cell
+        // (the scalar-subquery collapse) — the cast is that cell's
+        // toString and stays; anything wider is fabrication
+        boolean scalarCell = t instanceof Type.RelationType rt
+                && rt.columns().size() == 1
+                && rt.dynamicColumns().isEmpty()
+                && rt.columns().get(0).type() instanceof Type.Primitive;
+        if ((t instanceof Type.RelationType && !scalarCell)
+                || t instanceof Type.FunctionType
+                || t instanceof Type.SchemaAlgebra
+                || (t instanceof Type.ClassType tc
+                        && !PlatformTypes.isAny(tc))) {
+            // engine parity: toString(any:Any[1]) TYPES over a relation or
+            // instance, but a blanket VARCHAR cast fabricates output the
+            // engine never produces — loud until modeled (TENET #10.1)
+            throw new com.legend.error.NotImplementedException(
+                    "toString over " + t + " is not modeled");
+        }
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 

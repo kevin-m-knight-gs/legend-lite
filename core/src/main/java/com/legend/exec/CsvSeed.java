@@ -123,6 +123,10 @@ public final class CsvSeed {
                 || t instanceof Type.PrecisionDecimal) {
             return "DECIMAL(38, 9)";
         }
-        return "VARCHAR";
+        if (t == Type.Primitive.STRING || t instanceof Type.EnumType) {
+            return "VARCHAR";
+        }
+        throw new com.legend.error.NotImplementedException(
+                "csv seed DDL type for " + t + " is not mapped");
     }
 }

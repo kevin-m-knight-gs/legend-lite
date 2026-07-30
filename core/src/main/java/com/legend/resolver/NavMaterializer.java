@@ -692,6 +692,9 @@ final class NavMaterializer {
                     mappingFqn, subTails, midByAlias, subMats,
                     subClsByAlias, chainPrefix, hopCtx);
             if (sub2 == null) {
+                // PROBE semantics, unlike the :297 requireNonNull: this
+                // loop scans candidate tails and a null sub-pipe means
+                // "not the liftable shape", not a broken invariant
                 continue;
             }
             if (System.getenv("LEGEND_LITE_SPLIT_TRACE") != null) {

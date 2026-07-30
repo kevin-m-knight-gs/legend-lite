@@ -1539,8 +1539,15 @@ public final class MappingNormalizer {
             String prop, ModelBuilder model) {
         TypeExpression dt = owner == null ? null
                 : findPropertyTypeDeep(owner, prop, model);
-        String castTo = dt instanceof TypeExpression.NameRef nr
-                ? nr.name() : "String";
+        if (!(dt instanceof TypeExpression.NameRef nr)) {
+            throw new NotImplementedException(
+                    "cannot type the null of property '" + prop + "'"
+                    + (owner == null ? " (unresolved owner class)"
+                            : " on '" + owner.qualifiedName() + "'")
+                    + " — declared type is "
+                    + (dt == null ? "unknown" : "non-nominal"));
+        }
+        String castTo = nr.name();
         return new AppliedFunction("cast", List.of(
                 new PureCollection(List.of()),
                 new TypeAnnotation.Named(
