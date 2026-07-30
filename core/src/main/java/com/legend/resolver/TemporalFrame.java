@@ -582,7 +582,7 @@ final class TemporalFrame {
     private static @com.legend.Nullable TypedSpec detachSpineJoin(TypedSpec pipe, String pfx,
             TypedJoin[] found) {
         if (pipe instanceof TypedJoin sj) {
-            if (sj.prefix().isPresent() && sj.prefix().get().equals(pfx)) {
+            if (sj.prefix().isPresent() && sj.prefix().orElseThrow().equals(pfx)) {
                 found[0] = sj;
                 return sj.left();
             }
@@ -1210,17 +1210,17 @@ final class TemporalFrame {
         TypedSpec win = inclusive
                 ? cmpCall("meta::pure::functions::boolean::and",
                         dateCmpCall("meta::pure::functions::boolean::lessThan",
-                                rcol.apply(fromCol), dExpr, boolT),
+                                rcol.apply(java.util.Objects.requireNonNull(fromCol)), dExpr, boolT),
                         dateCmpCall("meta::pure::functions::boolean::"
                                 + "greaterThanEqual",
-                                rcol.apply(thruCol), dExpr, boolT), boolT)
+                                rcol.apply(java.util.Objects.requireNonNull(thruCol)), dExpr, boolT), boolT)
                 : cmpCall("meta::pure::functions::boolean::and",
                         dateCmpCall("meta::pure::functions::boolean::"
                                 + "lessThanEqual",
-                                rcol.apply(fromCol), dExpr, boolT),
+                                rcol.apply(java.util.Objects.requireNonNull(fromCol)), dExpr, boolT),
                         dateCmpCall("meta::pure::functions::boolean::"
                                 + "greaterThan",
-                                rcol.apply(thruCol), dExpr, boolT), boolT);
+                                rcol.apply(java.util.Objects.requireNonNull(thruCol)), dExpr, boolT), boolT);
         if (nullTolerant) {
             // a DEFERRED sub-hop window rides the HEAD's LEFT-join ON —
             // an ABSENT sub row (its milestone column NULL) must not kill
@@ -1236,7 +1236,7 @@ final class TemporalFrame {
                     .findFirst().orElseThrow(() -> new IllegalStateException(
                             "resolver bug: no 1-arg isEmpty"));
             TypedSpec absent = new TypedNativeCall(isEmptyFn,
-                    List.of(rcol.apply(fromCol)), boolT);
+                    List.of(rcol.apply(java.util.Objects.requireNonNull(fromCol))), boolT);
             win = cmpCall("meta::pure::functions::boolean::or", win, absent,
                     boolT);
         }
@@ -1255,7 +1255,7 @@ final class TemporalFrame {
                     .findFirst().orElseThrow(() -> new IllegalStateException(
                             "resolver bug: no 1-arg isEmpty"));
             TypedSpec absent = new TypedNativeCall(isEmptyFn,
-                    List.of(rcol.apply(fromCol)), boolT);
+                    List.of(rcol.apply(java.util.Objects.requireNonNull(fromCol))), boolT);
             win = cmpCall("meta::pure::functions::boolean::or", win, absent,
                     boolT);
         }
@@ -1472,7 +1472,7 @@ final class TemporalFrame {
                             Type.Primitive.DATE_TIME,
                             Multiplicity.Bounded.ONE);
             cond = cmpCall("meta::pure::functions::boolean::equal",
-                    col.apply(thruCol),
+                    col.apply(java.util.Objects.requireNonNull(thruCol)),
                     new TypedCDate(
                             PureDateLiteral.parse(
                                     // INFINITY_DATE reaches here in both
@@ -1491,16 +1491,16 @@ final class TemporalFrame {
             // operators — from < d AND thru >= d
             cond = cmpCall("meta::pure::functions::boolean::and",
                     dateCmpCall("meta::pure::functions::boolean::lessThan",
-                            col.apply(fromCol), date, boolT),
+                            col.apply(java.util.Objects.requireNonNull(fromCol)), date, boolT),
                     dateCmpCall("meta::pure::functions::boolean::greaterThanEqual",
-                            col.apply(thruCol), date, boolT),
+                            col.apply(java.util.Objects.requireNonNull(thruCol)), date, boolT),
                     boolT);
         } else {
             cond = cmpCall("meta::pure::functions::boolean::and",
                     dateCmpCall("meta::pure::functions::boolean::lessThanEqual",
-                            col.apply(fromCol), date, boolT),
+                            col.apply(java.util.Objects.requireNonNull(fromCol)), date, boolT),
                     dateCmpCall("meta::pure::functions::boolean::greaterThan",
-                            col.apply(thruCol), date, boolT),
+                            col.apply(java.util.Objects.requireNonNull(thruCol)), date, boolT),
                     boolT);
         }
         TypedLambda pred = new TypedLambda(List.of(v),
@@ -1567,7 +1567,7 @@ final class TemporalFrame {
                     // rule this replaces (audit 14 F1: target-class
                     // governance left spec-less mids unstamped).
                     TemporalSpec midSpec = specs.get(midChain);
-                    MilestoningStrategy specDim = midPrefixToDim.get(j.prefix().get());
+                    MilestoningStrategy specDim = midPrefixToDim.get(j.prefix().orElseThrow());
                     // audit 23 #75: a chain spec that EXISTS but is not
                     // the single-date shape (range/pair or sweep) must
                     // not silently fall back to the ROOT context — the
@@ -1595,14 +1595,14 @@ final class TemporalFrame {
                     // CLASS's temporality (a non-temporal class mapped to a
                     // temporal table gets NO filter — corpus
                     // testMilestoningFiltersNotPropogated... golden)
-                    String bare = j.prefix().get().substring(0,
-                            j.prefix().get().length() - 1);
+                    String bare = j.prefix().orElseThrow().substring(0,
+                            j.prefix().orElseThrow().length() - 1);
                     // the spec registry keys by the DOTTED chain (drilled
                     // embedded heads) — the alias is the fallback (audit
                     // 13 B1: alias-keyed lookup silently root-dated
                     // explicitly-dated drilled chains)
                     String chainHead = navPrefixToChain
-                            .getOrDefault(j.prefix().get(), bare);
+                            .getOrDefault(j.prefix().orElseThrow(), bare);
                     // OUTER-ROW date ($o.product($o.orderDate)): the
                     // temporal predicate composes into the JOIN ON — both
                     // rows in scope (engine golden: on (fk=id and from_z
@@ -1880,16 +1880,16 @@ final class TemporalFrame {
         } else if (inclusive) {
             cond = cmpCall("meta::pure::functions::boolean::and",
                     dateCmpCall("meta::pure::functions::boolean::lessThan",
-                            col.apply(fromCol), end, boolT),
+                            col.apply(java.util.Objects.requireNonNull(fromCol)), end, boolT),
                     dateCmpCall("meta::pure::functions::boolean::greaterThanEqual",
-                            col.apply(thruCol), start, boolT),
+                            col.apply(java.util.Objects.requireNonNull(thruCol)), start, boolT),
                     boolT);
         } else {
             cond = cmpCall("meta::pure::functions::boolean::and",
                     dateCmpCall("meta::pure::functions::boolean::lessThanEqual",
-                            col.apply(fromCol), end, boolT),
+                            col.apply(java.util.Objects.requireNonNull(fromCol)), end, boolT),
                     dateCmpCall("meta::pure::functions::boolean::greaterThan",
-                            col.apply(thruCol), start, boolT),
+                            col.apply(java.util.Objects.requireNonNull(thruCol)), start, boolT),
                     boolT);
         }
         TypedLambda pred = new TypedLambda(List.of(v),

@@ -451,7 +451,7 @@ final class InnerDemand {
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> ops,
             java.util.List<com.legend.compiler.spec.typed.TypedLambda> terminals,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.TypedSpec> rawResolver) {
+                    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> rawResolver) {
         java.util.List<com.legend.compiler.spec.typed.TypedSpec> roots =
                 new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedSpec op : ops) {
@@ -466,7 +466,8 @@ final class InnerDemand {
         // rides OUTSIDE the resolved relation as a relation-level DISTINCT;
         // an unresolvable chain returns null and keeps its ordinary wall.
         java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                com.legend.compiler.spec.typed.TypedSpec> resolver = chain -> {
+                com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver =
+                chain -> {
             try {
                 if (chain instanceof com.legend.compiler.spec.typed
                         .TypedNativeCall dc
@@ -585,7 +586,7 @@ final class InnerDemand {
             Substitution.InQueryRead> inQueryReadsOver(
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> roots,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.TypedSpec> resolver) {
+                    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver) {
         java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
                 Substitution.InQueryRead> out = new java.util.IdentityHashMap<>();
         for (com.legend.compiler.spec.typed.TypedSpec r : roots) {
@@ -597,7 +598,7 @@ final class InnerDemand {
     private static void collectInQuery(
             com.legend.compiler.spec.typed.TypedSpec n,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.TypedSpec> resolver,
+                    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver,
             java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
                     Substitution.InQueryRead> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall tc

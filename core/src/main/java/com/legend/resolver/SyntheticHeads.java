@@ -1083,7 +1083,7 @@ final class SyntheticHeads {
             case TypedFilter f -> bottomVarOf(f.source());
             case TypedNativeCall c when c.args().size() == 1 ->
                     bottomVarOf(c.args().get(0));
-            default -> throw new IllegalStateException(
+            case null, default -> throw new IllegalStateException(
                     "resolver bug: liftable nav does not bottom at a variable");
         };
     }

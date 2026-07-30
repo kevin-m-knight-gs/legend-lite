@@ -1437,7 +1437,8 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         return a;
     }
 
-    private static @com.legend.Nullable Integer[] decimalOf(RelationalDataType t) {
+    private static Integer @com.legend.Nullable [] decimalOf(
+            RelationalDataType t) {
         if (t instanceof RelationalDataType.Decimal d) {
             return new Integer[]{d.precision(), d.scale()};
         }

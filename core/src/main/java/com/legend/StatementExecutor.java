@@ -1141,6 +1141,7 @@ final class StatementExecutor {
             case "Literal" -> {
                 TypedSpec v = ni.properties().get("value");
                 Object lit = switch (v) {
+                    case null -> null;
                     case com.legend.compiler.spec.typed.TypedCString c2 ->
                             c2.value();
                     case com.legend.compiler.spec.typed.TypedCInteger i2 ->

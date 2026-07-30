@@ -2781,6 +2781,7 @@ public final class MappingNormalizer {
                                                  String mainTable, Pipeline p,
                                                  ModelBuilder model, LegacyMappingDefinition md) {
         return switch (rcm.filter()) {
+            case null -> source;
             case FilterMapping.Direct direct ->
                     applyDirectFilter(source, rcm, rowBind, mainDb, mainTable, p,
                             model, direct, md);

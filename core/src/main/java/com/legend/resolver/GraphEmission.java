@@ -226,7 +226,7 @@ final class GraphEmission {
             ExprType info, boolean checked) {
         var rowType = (Type.RelationType)
                 pipeline.info().type();
-        UnaryOperator<TypedSpec> toRow = v -> new TypedVariable(
+        java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow = v -> new TypedVariable(
                 rowVar, new ExprType(rowType,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         List<TypedFuncCol> leaves = new ArrayList<>();
@@ -387,7 +387,7 @@ final class GraphEmission {
                         + " inside a graph child is not supported yet (H4b)");
             }
             TypedSpec body = Pipelines.rewriteRowReads(binding, cs.rowVar(),
-                    slotPrefixes, stripped, toRow);
+                    slotPrefixes, stripped, toRow::apply);
             // the leaf's RESULT type is the MODEL property's for the
             // DATE family: DateTime -> full instant, StrictDate -> bare,
             // abstract Date -> by the PHYSICAL value's precision (the
@@ -451,7 +451,7 @@ final class GraphEmission {
      * lowering treats them ASC and best-effort. */
     private List<TypedFuncCol> pkOrderKeys(ClassSource cs, TypedSpec pipeline,
             Type.RelationType rowType, String rowVar,
-            UnaryOperator<TypedSpec> toRow) {
+            java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
         List<TypedFuncCol> keys = new ArrayList<>();
         for (String pk : RelationalRootForm.primaryKeyColumns(
                 cs.classFqn(), pipeline, cs.mappingFqn(), ctx)) {
@@ -482,7 +482,7 @@ final class GraphEmission {
     private TypedSerializeGraph withChecked(TypedSerializeGraph node,
             ClassSource cs, Map<String, String> slotPrefixes,
             Set<String> stripped, String rowVar, Type.RelationType rowType,
-            StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+            StoreResolver.Context context, java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
         // CHECKED + ->subType patches: the engine's checked value carries
         // ONLY the subtype projection — base leaves/children drop
         // (RootSubType...Checked golden: {"value":{"coordinate":…,
@@ -510,7 +510,7 @@ final class GraphEmission {
             checkedConstraints(ClassSource cs,
             Map<String, String> slotPrefixes, Set<String> stripped,
             String rowVar, Type.RelationType rowType,
-            StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+            StoreResolver.Context context, java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
         java.util.List<TypedSerializeGraph.CheckedConstraint> out =
                 new ArrayList<>();
         java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
@@ -552,14 +552,14 @@ final class GraphEmission {
     private TypedFuncCol constraintFnCol(String name, String bodyFqn,
             ClassSource cs, Map<String, String> slotPrefixes,
             Set<String> stripped, String rowVar, Type.RelationType rowType,
-            StoreResolver.Context context, UnaryOperator<TypedSpec> toRow) {
+            StoreResolver.Context context, java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
         var cf = sources.compileSynthFn(bodyFqn);
         String thisVar = cf.signature().parameters().get(0).name();
         TypedSpec body = inlineThis(cf.body().get(cf.body().size() - 1),
                 thisVar, java.util.Map.of(), cs.bindings(), cs.classFqn(),
                 name, new SubqueryEnv(cs, context, rowVar, rowType));
         body = Pipelines.rewriteRowReads(body, cs.rowVar(), slotPrefixes,
-                stripped, toRow);
+                stripped, toRow::apply);
         return rowFnCol(name, body, rowVar, rowType);
     }
 
@@ -2490,7 +2490,7 @@ final class GraphEmission {
     private TypedSerializeGraph.SubTypePatch subTypePatch(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context, String rowVar,
             Type.RelationType rowType,
-            UnaryOperator<TypedSpec> toRow) {
+            java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
         List<TypedFuncCol> patch = new ArrayList<>();
         List<TypedSerializeGraph.Child> patchChildren = new ArrayList<>();
         for (TypedGraphTree sub : node.children()) {

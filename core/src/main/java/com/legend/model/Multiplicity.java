@@ -134,7 +134,7 @@ public sealed interface Multiplicity permits Multiplicity.Concrete, Multiplicity
     }
 
     /** {@code [lower..upper]}; pass {@code null} for unbounded upper. */
-    static Multiplicity range(int lower, Integer upper) {
+    static Multiplicity range(int lower, @com.legend.Nullable Integer upper) {
         return new Concrete(lower, upper);
     }
 

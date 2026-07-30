@@ -102,8 +102,8 @@ final class MatchChecker {
                         ? new ExprType(t.namedType(second.type()),
                                 second.multiplicity() != null
                                         ? Multiplicity.from(second.multiplicity())
-                                        : extra.get().info().multiplicity())
-                        : extra.get().info();
+                                        : extra.orElseThrow().info().multiplicity())
+                        : extra.orElseThrow().info();
                 scope = scope.with(second.name(), extraBound);
                 extraParam = Optional.of(second.name());
             }

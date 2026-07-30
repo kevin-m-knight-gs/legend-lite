@@ -203,6 +203,7 @@ final class LineageForm {
             return lf;
         }
         List<ValueSpecification> children = switch (n) {
+            case null -> List.of();
             case AppliedFunction af -> af.parameters();
             case AppliedProperty ap -> List.of(ap.receiver());
             case PureCollection pc -> pc.values();

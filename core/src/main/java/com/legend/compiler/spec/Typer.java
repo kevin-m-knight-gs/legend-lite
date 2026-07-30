@@ -1177,7 +1177,8 @@ final class Typer {
                     + String.join(" -> ", normalizing) + " -> " + key + ")");
         }
         LambdaFunction folded = SourceSubst.inlineLets(
-                new LambdaFunction(List.of(), chosen.body().get()));
+                new LambdaFunction(List.of(),
+                        chosen.body().orElseThrow()));
         if (folded == null) {
             throw new TypeInferenceException("NormalizeRequired function '"
                     + chosen.qualifiedName()
@@ -1269,7 +1270,8 @@ final class Typer {
         }
         TypedFunction chosen = cands.get(0);
         LambdaFunction folded = SourceSubst.inlineLets(
-                new LambdaFunction(List.of(), chosen.body().get()));
+                new LambdaFunction(List.of(),
+                        chosen.body().orElseThrow()));
         if (folded == null) {
             return null;
         }

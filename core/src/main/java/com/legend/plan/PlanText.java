@@ -168,7 +168,8 @@ public final class PlanText {
             var cd = td.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(strip(c.name())))
                     .findFirst().orElseThrow();
-            rc.append("(\"").append(aliasSpell.apply(c.table()))
+            rc.append("(\"").append(aliasSpell.apply(java.util.Objects.requireNonNull(
+                    c.table(), "resultColumns need a table-qualified column")))
                     .append("\".").append(c.name()).append(", ")
                     .append(spell(cd.dataType())).append(')');
         }

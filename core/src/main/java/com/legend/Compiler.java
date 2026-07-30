@@ -65,7 +65,7 @@ public final class Compiler {
      *              mappings, services, runtimes, ...).
      * @return the populated, queryable {@link ModelContext}.
      */
-    public static ModelContext compileModel(String model) {
+    public static ModelContext compileModel(@com.legend.Nullable String model) {
         Objects.requireNonNull(model, "model");
         ParsedModel parsed = ElementParser.parse(model);
         try {

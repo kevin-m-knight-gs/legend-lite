@@ -506,7 +506,7 @@ public sealed interface PureDateLiteral
         }
     }
 
-    private static void validateSubsecond(String subsecond) {
+    private static void validateSubsecond(@com.legend.Nullable String subsecond) {
         if (subsecond == null || subsecond.isEmpty()) {
             throw new IllegalArgumentException("subsecond cannot be null or empty");
         }

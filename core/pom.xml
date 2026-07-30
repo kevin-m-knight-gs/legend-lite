@@ -89,18 +89,21 @@
                                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
                                 <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
                                 <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
-                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=com.legend -XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable -XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull</arg>
+                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=com.legend -XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable -XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true</arg>
+                                <!-- JSpecify mode on JDK21 REQUIRES this arg; without it
+                                     NullAway 0.13.x hard-crashes (NULL_GATE_VERIFICATION G3) -->
+                                <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
                             </compilerArgs>
                             <annotationProcessorPaths>
                                 <path>
                                     <groupId>com.google.errorprone</groupId>
                                     <artifactId>error_prone_core</artifactId>
-                                    <version>2.41.0</version>
+                                    <version>2.50.0</version>
                                 </path>
                                 <path>
                                     <groupId>com.uber.nullaway</groupId>
                                     <artifactId>nullaway</artifactId>
-                                    <version>0.12.10</version>
+                                    <version>0.13.8</version>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>

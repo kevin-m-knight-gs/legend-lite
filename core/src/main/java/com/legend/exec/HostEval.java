@@ -519,7 +519,8 @@ public final class HostEval {
                 Map<String, Object> s2 = new LinkedHashMap<>(scope);
                 s2.put(arm.param(), inOne);
                 if (mr.extraParam().isPresent()) {
-                    s2.put(mr.extraParam().get(), eval(mr.extra().get(), scope));
+                    s2.put(mr.extraParam().orElseThrow(),
+                            eval(mr.extra().orElseThrow(), scope));
                 }
                 return eval(arm.body(), s2);
             }

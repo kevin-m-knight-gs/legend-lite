@@ -35,7 +35,7 @@ public final class Ddl {
     }
 
     public static String createTable(DatabaseDefinition.TableDefinition def,
-            String schema) {
+            @com.legend.Nullable String schema) {
         StringBuilder sb = new StringBuilder("Create Table ")
                 .append(qualify(schema, def.name())).append("(");
         boolean first = true;
@@ -116,7 +116,7 @@ public final class Ddl {
         return t instanceof RelationalDataType.Integer_ ? "INT" : spell(t);
     }
 
-    private static String qualify(String schema, String table) {
+    private static String qualify(@com.legend.Nullable String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
                 ? table : schema + "." + table;
     }
