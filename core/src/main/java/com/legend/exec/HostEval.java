@@ -215,7 +215,7 @@ public final class HostEval {
 
     /** STRUCTURAL equality over host values — the pure instance-graph
      * assertEquals semantics (debugPrint goldens compare trees). */
-    public static boolean hostEquals(Object a, Object b) {
+    public static boolean hostEquals(@com.legend.Nullable Object a, @com.legend.Nullable Object b) {
         if (a instanceof HostInstance x && b instanceof HostInstance y) {
             if (!x.classFqn().equals(y.classFqn())
                     || !x.properties().keySet()
@@ -303,7 +303,7 @@ public final class HostEval {
      * (user-function call frames), and the enclosing let bindings. */
     public static ExecutionResult evalToResult(TypedSpec root,
             com.legend.compiler.element.ModelContext ctx,
-            com.legend.compiler.spec.SpecCompiler specs,
+            com.legend.compiler.spec.@com.legend.Nullable SpecCompiler specs,
             Map<String, TypedSpec> lets) throws java.sql.SQLException {
         CTX.set(ctx);
         SPECS.set(specs);
@@ -854,7 +854,7 @@ public final class HostEval {
 
     /** A String[0..1] pattern argument: literal, empty collection (null =
      * match all), or an in-scope binding. */
-    private static String patternArg(TypedNativeCall nc, int i,
+    private static @com.legend.Nullable String patternArg(TypedNativeCall nc, int i,
             Map<String, Object> scope) throws java.sql.SQLException {
         Object v = eval(nc.args().get(i), scope);
         List<Object> l = asList(v);

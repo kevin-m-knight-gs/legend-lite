@@ -26,7 +26,8 @@ public sealed interface ExecutionResult {
     }
 
     /** Single scalar value: {@code 1 + 1} → 2. */
-    record Scalar(Object value, Type returnType) implements ExecutionResult {
+    record Scalar(@com.legend.Nullable Object value, Type returnType)
+            implements ExecutionResult {
         public Scalar {
             Objects.requireNonNull(returnType, "returnType");
         }

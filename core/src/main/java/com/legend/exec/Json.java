@@ -20,7 +20,7 @@ public final class Json {
         this.s = s;
     }
 
-    public static Object parse(String json) {
+    public static @com.legend.Nullable Object parse(String json) {
         Json p = new Json(json);
         p.ws();
         Object v = p.value();
@@ -45,7 +45,7 @@ public final class Json {
         return out;
     }
 
-    private Object value() {
+    private @com.legend.Nullable Object value() {
         char c = s.charAt(i);
         return switch (c) {
             case '{' -> obj();

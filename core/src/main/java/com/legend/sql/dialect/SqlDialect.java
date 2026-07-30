@@ -14,7 +14,8 @@ public interface SqlDialect {
     String render(SqlQuery query);
 
     /** JDBC cell value → canonical Java value for {@code type}. Default: identity. */
-    default Object normalize(Object jdbcValue, com.legend.sql.SqlType type) {
+    default @com.legend.Nullable Object normalize(@com.legend.Nullable Object jdbcValue,
+            com.legend.sql.@com.legend.Nullable SqlType type) {
         return jdbcValue;
     }
 

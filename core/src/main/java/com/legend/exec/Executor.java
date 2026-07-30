@@ -121,7 +121,7 @@ public final class Executor {
         }
     }
 
-    private static Object cell(ResultSet rs, SqlQuery plan,
+    private static @com.legend.Nullable Object cell(ResultSet rs, SqlQuery plan,
                                com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
                                boolean variantRoot)
             throws SQLException {
@@ -151,7 +151,8 @@ public final class Executor {
      * scale-0 decimal narrowing) were audited out: the kind must travel
      * FROM SQL, never be guessed after it.
      */
-    private static Object latticeKind(Object v, Type rootType, SqlQuery plan) {
+    private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v, Type rootType,
+            SqlQuery plan) {
         // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
         // Number collections return each element's pure PRINT FORM as text
         // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
@@ -187,7 +188,7 @@ public final class Executor {
      * results are NOT decoded (their contract is the JSON text itself); only
      * the Any root takes this path.
      */
-    private static Object decodeAny(Object v) {
+    private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
         // org.duckdb.JsonNode) or as text — matched by FULL class name so the
         // executor needs no driver import; the node's toString IS the JSON text.
@@ -273,7 +274,8 @@ public final class Executor {
      * wrong). Timestamp stays the carrier where it is faithful (AD years);
      * a BC value keeps its LocalDateTime.
      */
-    private static Object fetch(ResultSet rs, int i, com.legend.sql.SqlType type)
+    private static @com.legend.Nullable Object fetch(ResultSet rs, int i,
+            com.legend.sql.@com.legend.Nullable SqlType type)
             throws SQLException {
         Object o = rs.getObject(i);
         if (o instanceof java.sql.Timestamp) {
@@ -288,7 +290,8 @@ public final class Executor {
         return o;
     }
 
-    private static Object unwrap(Object v, com.legend.sql.SqlType type,
+    private static @com.legend.Nullable Object unwrap(@com.legend.Nullable Object v,
+            com.legend.sql.@com.legend.Nullable SqlType type,
                                  com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         if (v == null) {
             return null;
@@ -419,7 +422,7 @@ public final class Executor {
         }
     }
 
-    private static com.legend.sql.SqlType sqlTypeOf(SqlQuery plan, int index) {
+    private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
         List<OutputCol> outputs = plan.outputs();
         if (index >= outputs.size()) {
             if (hasPivot(plan)) {

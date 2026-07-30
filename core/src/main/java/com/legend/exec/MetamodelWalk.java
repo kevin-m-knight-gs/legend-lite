@@ -42,7 +42,7 @@ public final class MetamodelWalk {
             DatabaseDefinition.ViewDefinition.ViewColumnMapping vcm) {
     }
 
-    public record Rop(DatabaseDefinition db, ModelContext ctx,
+    public record Rop(@com.legend.Nullable DatabaseDefinition db, @com.legend.Nullable ModelContext ctx,
             RelationalOperation op) {
     }
 
@@ -85,9 +85,10 @@ public final class MetamodelWalk {
      * builder links hops in place. */
     public record JtnH(com.legend.model.DatabaseDefinition db,
             String joinName, RelationalOperation operation,
-            String joinType, Object aliasOverride, List<Object> children) {
+            @com.legend.Nullable String joinType, @com.legend.Nullable Object aliasOverride,
+            List<Object> children) {
 
-        public JtnH withAlias(Object alias) {
+        public @com.legend.Nullable JtnH withAlias(Object alias) {
             return new JtnH(db, joinName, operation, joinType, alias,
                     children);
         }
@@ -106,7 +107,8 @@ public final class MetamodelWalk {
             java.util.TreeMap<String, Object> props) {
     }
 
-    static NodeH node(String kind, Object... kv) {
+    static @com.legend.Nullable NodeH node(String kind,
+            @com.legend.Nullable Object... kv) {
         java.util.TreeMap<String, Object> m = new java.util.TreeMap<>();
         for (int i = 0; i < kv.length; i += 2) {
             m.put((String) kv[i], kv[i + 1]);
@@ -119,7 +121,7 @@ public final class MetamodelWalk {
      * sides agree: null/empty props drop; a one-element collection IS
      * its element (Pure multiplicity semantics); class-declared ctor
      * DEFAULTS materialize (FunctionCall.distinct = false). */
-    public static NodeH nodeOf(String kind,
+    public static @com.legend.Nullable NodeH nodeOf(String kind,
             java.util.TreeMap<String, Object> raw) {
         java.util.TreeMap<String, Object> m = new java.util.TreeMap<>();
         for (var e : raw.entrySet()) {
@@ -141,7 +143,7 @@ public final class MetamodelWalk {
     }
 
     /** {@code schema('name')} navigation over a Database handle. */
-    public static Object schema(Object recv, String name) {
+    public static @com.legend.Nullable Object schema(Object recv, String name) {
         if (recv instanceof Db d) {
             for (var s : d.db().schemas()) {
                 if (s.name().equals(name)) {
@@ -177,7 +179,7 @@ public final class MetamodelWalk {
     }
 
     /** {@code table('name')} navigation over a Schema handle. */
-    public static Object table(Object recv, String name) {
+    public static @com.legend.Nullable Object table(Object recv, String name) {
         if (recv instanceof Sch s) {
             for (var t : s.schema().tables()) {
                 if (t.name().equals(name)) {
@@ -211,14 +213,16 @@ public final class MetamodelWalk {
         }
     }
 
-    public static Object convertElement(Object recv) {
+    public static @com.legend.Nullable Object convertElement(
+            @com.legend.Nullable Object recv) {
         return convertElement(recv, ConvState.ROOT);
     }
 
     /** {@code convertElement} — the toPostgresModel element arms
      * (toPostgresModel.pure:82-116 + convertColumn:203 +
      * convertTableAliasName:785: alias names QUOTE). */
-    static Object convertElement(Object recv, ConvState st) {
+    static @com.legend.Nullable Object convertElement(@com.legend.Nullable Object recv,
+            ConvState st) {
         Object r = recv instanceof List<?> l && l.size() == 1
                 ? l.get(0) : recv;
         if (r instanceof TacH t) {
@@ -279,7 +283,7 @@ public final class MetamodelWalk {
 
     /** convertColumn (:203): a bare reference, wrapped as a
      * SingleColumn in select-items position. */
-    private static Object columnRef(List<String> parts, ConvState st) {
+    private static @com.legend.Nullable Object columnRef(List<String> parts, ConvState st) {
         Object ref = new QnrH(new QnH(parts));
         return st.processingSelect()
                 ? node("SingleColumn", "expression", ref) : ref;
@@ -288,7 +292,7 @@ public final class MetamodelWalk {
     /** Constructed-metamodel instances carried as generic NodeH handles
      * (placeholders, window columns, tabular functions, query-level
      * relations) — the toPostgresModel arms at :89-116. */
-    private static Object convertNodeKind(NodeH nh, ConvState st) {
+    private static @com.legend.Nullable Object convertNodeKind(NodeH nh, ConvState st) {
         return switch (nh.kind()) {
             case "VarPlaceHolder" -> node("InClauseVariablePlaceholder",
                     "name", nh.props().get("name"));
@@ -322,7 +326,7 @@ public final class MetamodelWalk {
     /** Engine convertSelectSQLQuery (toPostgresModel.pure:119-165): the
      * one ExtendedQuerySpecification build — CTEs hoist into a
      * QueryWithScope, and a NON-root select wraps as a TableSubquery. */
-    private static Object convertSelectSql(NodeH nh, ConvState st) {
+    private static @com.legend.Nullable Object convertSelectSql(NodeH nh, ConvState st) {
         ConvState inner = st.nested();
         Object from = null;
         if (nh.props().get("data") != null) {
@@ -413,13 +417,14 @@ public final class MetamodelWalk {
                         node("Query", "queryBody", query));
     }
 
-    private static Object optionalExpr(Object v, ConvState inner) {
+    private static @com.legend.Nullable Object optionalExpr(@com.legend.Nullable Object v,
+            ConvState inner) {
         List<Object> els = asList(v);
         return els.isEmpty() ? null
                 : convertElement(els.get(0), inner.expr());
     }
 
-    private static Long literalLong(Object v) {
+    private static @com.legend.Nullable Long literalLong(@com.legend.Nullable Object v) {
         Object r = v instanceof List<?> l && l.size() == 1 ? l.get(0) : v;
         return r instanceof Rop rop
                 && rop.op() instanceof RelationalOperation.Literal li
@@ -430,7 +435,7 @@ public final class MetamodelWalk {
      * left-nested LEFT joins; each child's relation is its alias
      * override (subselects) or the join's TARGET table aliased by the
      * table's own name. */
-    private static Object convertJoinTree(NodeH nh, ConvState st) {
+    private static @com.legend.Nullable Object convertJoinTree(NodeH nh, ConvState st) {
         Object rootAlias = nh.props().get("alias");
         Object acc = convertElement(rootAlias, st);
         if (acc == null) {
@@ -443,8 +448,9 @@ public final class MetamodelWalk {
                 parentTable, st);
     }
 
-    private static Object foldChildren(Object acc, List<Object> children,
-            String parentTable, ConvState st) {
+    private static @com.legend.Nullable Object foldChildren(
+            @com.legend.Nullable Object acc, List<Object> children,
+            @com.legend.Nullable String parentTable, ConvState st) {
         for (Object c : children) {
             if (!(c instanceof JtnH jt)) {
                 return null;
@@ -482,7 +488,8 @@ public final class MetamodelWalk {
     }
 
     /** convertJoinType (:240): LEFT_OUTER default. */
-    private static String sqlJoinType(String joinType) {
+    private static @com.legend.Nullable String sqlJoinType(
+            @com.legend.Nullable String joinType) {
         return switch (joinType == null ? "LEFT_OUTER" : joinType) {
             case "INNER" -> "INNER";
             case "RIGHT_OUTER" -> "RIGHT";
@@ -493,8 +500,8 @@ public final class MetamodelWalk {
 
     /** The join operation's table that is NOT the parent's — the
      * engine mapping compiler's join-target alias. */
-    private static String targetTable(RelationalOperation op,
-            String parentTable) {
+    private static @com.legend.Nullable String targetTable(RelationalOperation op,
+            @com.legend.Nullable String parentTable) {
         List<String> tables = new ArrayList<>();
         collectTables(op, tables);
         for (String t : tables) {
@@ -534,7 +541,7 @@ public final class MetamodelWalk {
     }
 
     /** A table (any schema, default included) as a Tbl handle. */
-    private static Object tableHandle(
+    private static @com.legend.Nullable Object tableHandle(
             com.legend.model.DatabaseDefinition db, String name) {
         for (var s : db.schemas()) {
             for (var t : s.tables()) {
@@ -553,7 +560,7 @@ public final class MetamodelWalk {
 
     /** Engine convertUnion (:867): queries convert under FRESH root
      * states, pairwise-folded, always subquery-wrapped. */
-    private static Object convertRelUnion(NodeH nh, boolean distinct) {
+    private static @com.legend.Nullable Object convertRelUnion(NodeH nh, boolean distinct) {
         Object acc = null;
         for (Object q : asList(nh.props().get("queries"))) {
             Object v = convertElement(q, ConvState.ROOT);
@@ -572,7 +579,7 @@ public final class MetamodelWalk {
      * string_agg (empty-string separator default); several concat with
      * the separator interleaved between prefix/suffix. Empty-string
      * literal prefix/suffix/separator count as absent (:833). */
-    private static Object convertJoinStrings(NodeH nh, ConvState st) {
+    private static @com.legend.Nullable Object convertJoinStrings(NodeH nh, ConvState st) {
         List<Object> strings = new ArrayList<>();
         for (Object s : asList(nh.props().get("strings"))) {
             Object v = convertElement(s, st.expr());
@@ -607,7 +614,8 @@ public final class MetamodelWalk {
                 "arguments", args);
     }
 
-    private static Object joinStringsArg(Object v) {
+    private static @com.legend.Nullable Object joinStringsArg(
+            @com.legend.Nullable Object v) {
         Object r = v instanceof List<?> l && l.size() == 1 ? l.get(0) : v;
         if (r == null) {
             return null;
@@ -624,7 +632,7 @@ public final class MetamodelWalk {
      * dyna func converts to a FunctionCall which gains a window of the
      * converted partitions + sort infos; ASC sorts NULLS LAST, DESC
      * NULLS FIRST. */
-    private static Object convertWindowColumn(NodeH nh) {
+    private static @com.legend.Nullable Object convertWindowColumn(NodeH nh) {
         Object f = convertElement(nh.props().get("func"));
         if (!(f instanceof NodeH fn) || !"FunctionCall".equals(fn.kind())
                 || !(nh.props().get("window") instanceof NodeH win)) {
@@ -671,7 +679,7 @@ public final class MetamodelWalk {
     }
 
     /** A [0..1]/[*] NodeH prop as a list (singletons store unwrapped). */
-    private static List<Object> asList(Object v) {
+    private static List<Object> asList(@com.legend.Nullable Object v) {
         if (v == null) {
             return List.of();
         }
@@ -687,7 +695,7 @@ public final class MetamodelWalk {
      * convertDynaFunction dispatch): literals to SQL literal nodes,
      * and/or to LogicalBinaryExpression, null-tests to predicates,
      * comparisons to ComparisonExpression, else FunctionCall. */
-    private static Object convertOp(RelationalOperation op) {
+    private static @com.legend.Nullable Object convertOp(RelationalOperation op) {
         return switch (op) {
             case RelationalOperation.Literal l -> switch (l.value()) {
                 case String str -> node("StringLiteral", "value", str);
@@ -775,13 +783,13 @@ public final class MetamodelWalk {
     }
 
     /** A Mapping ELEMENT reference as a metamodel handle, or null. */
-    public static Object mapping(ModelContext ctx, String fqn) {
+    public static @com.legend.Nullable Object mapping(ModelContext ctx, String fqn) {
 return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                 .orElse(null);
     }
 
     /** {@code rootClassMappingByClass} — the class's relational set. */
-    public static Object rootClassMappingByClass(Object recv,
+    public static @com.legend.Nullable Object rootClassMappingByClass(Object recv,
             String classFqn) {
         if (recv instanceof Mm m) {
             for (var cm : m.mapping().classMappings()) {
@@ -797,7 +805,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** Effective SET ID: explicit {@code [id]}, else the class FQN with
      * {@code ::} &rarr; {@code _} — the engine default (same rule as
      * MappingNormalizer.setIdOf; one line, kept package-local there). */
-    private static String setIdOf(
+    private static @com.legend.Nullable String setIdOf(
             com.legend.model.ClassMapping.Relational r) {
         return r.setId() != null ? r.setId()
                 : r.className().replace("::", "_");
@@ -805,12 +813,12 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
 
     /** {@code classMappingById} (real functions_Mapping.pure:74) —
      * includes walk first, then own class mappings, matched by set id. */
-    public static Object classMappingById(Object recv, String id) {
+    public static @com.legend.Nullable Object classMappingById(Object recv, String id) {
         return recv instanceof Mm m
                 ? classMappingByIdIn(m.ctx(), m.mapping(), id) : null;
     }
 
-    private static Object classMappingByIdIn(ModelContext ctx,
+    private static @com.legend.Nullable Object classMappingByIdIn(ModelContext ctx,
             com.legend.model.LegacyMappingDefinition mapping, String id) {
         for (var inc : mapping.includes()) {
             var im = ctx.findLegacyMapping(inc.mappingPath()).orElse(null);
@@ -823,7 +831,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         }
         for (var cm : mapping.classMappings()) {
             if (cm instanceof com.legend.model.ClassMapping.Relational r
-                    && setIdOf(r).equals(id)) {
+                    && java.util.Objects.equals(setIdOf(r), id)) {
                 return new Cm(ctx, mapping, r);
             }
         }
@@ -833,7 +841,8 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** {@code superMapping} (real functions_PropertyMappings
      * Implementation.pure:19) — the extends target, resolved by set id
      * in the set's PARENT (declaring) mapping. */
-    public static Object superMapping(Object recv) {
+    public static @com.legend.Nullable Object superMapping(
+            @com.legend.Nullable Object recv) {
         return recv instanceof Cm c && c.cm().extendsSetId() != null
                 ? classMappingByIdIn(c.ctx(), c.owner(),
                         c.cm().extendsSetId())
@@ -843,7 +852,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** {@code allSuperSetImplementations} (real engine mappingExtension
      * .pure:163) — the extends chain ROOT-FIRST, each hop resolved
      * against the QUERIED mapping {@code m}. */
-    public static Object allSuperSetImplementations(Object set, Object m) {
+    public static @com.legend.Nullable Object allSuperSetImplementations(Object set, Object m) {
         if (!(set instanceof Cm) || !(m instanceof Mm mm)) {
             return null;
         }
@@ -866,7 +875,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
      * {@code ~mainTable}, else the extends chain's (the relational
      * compiler populates extends sets from their super), else the one
      * table its property mappings read (the table-less inference). */
-    public static Object mainTable(Object recv) {
+    public static @com.legend.Nullable Object mainTable(@com.legend.Nullable Object recv) {
         if (!(recv instanceof Cm c)) {
             return null;
         }
@@ -885,7 +894,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         return null;
     }
 
-    private static Object tableHandle(ModelContext ctx, String dbFqn,
+    private static @com.legend.Nullable Object tableHandle(ModelContext ctx, String dbFqn,
             String tableName) {
         var dbh = database(ctx, dbFqn);
         if (!(dbh instanceof Db d)) {
@@ -911,7 +920,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
      * the engine's this-vs-super precedence table: groupBy beats
      * distinct beats user-declared PK, this before super at each rank;
      * no super = the set's own compiled primaryKey. */
-    public static Object resolvePrimaryKey(Object recv) {
+    public static @com.legend.Nullable Object resolvePrimaryKey(Object recv) {
         if (!(recv instanceof Cm c)) {
             return null;
         }
@@ -941,19 +950,19 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     }
 
     /** {@code resolveGroupBy} presence (real functions.pure:155). */
-    private static boolean resolveGroupBy(Object h) {
+    private static boolean resolveGroupBy(@com.legend.Nullable Object h) {
         return h instanceof Cm c && (!c.cm().groupBy().isEmpty()
                 || resolveGroupBy(superMapping(h)));
     }
 
     /** {@code resolveDistinct} (real functions.pure:167). */
-    private static boolean resolveDistinct(Object h) {
+    private static boolean resolveDistinct(@com.legend.Nullable Object h) {
         return h instanceof Cm c && (c.cm().distinct()
                 || resolveDistinct(superMapping(h)));
     }
 
     /** {@code resolveUserDefinedPrimaryKey} (real functions.pure:179). */
-    private static boolean resolveUserDefinedPrimaryKey(Object h) {
+    private static boolean resolveUserDefinedPrimaryKey(@com.legend.Nullable Object h) {
         return h instanceof Cm c && (!c.cm().primaryKey().isEmpty()
                 || resolveUserDefinedPrimaryKey(superMapping(h)));
     }
@@ -963,7 +972,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
      * else {@code ~groupBy} columns, else {@code ~distinct} = every
      * mapped column, else the main table's PRIMARY KEY. TableAliasColumn
      * handles; any non-column PK expression nulls (wall stands). */
-    private static Object primaryKeyOf(Cm c) {
+    private static @com.legend.Nullable Object primaryKeyOf(Cm c) {
         if (!(mainTable(c) instanceof Tbl t)) {
             return null;
         }
@@ -1011,7 +1020,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     }
 
     /** {@code propertyMappingsByPropertyName} — declaration order. */
-    public static Object propertyMappingsByName(Object recv, String name) {
+    public static @com.legend.Nullable Object propertyMappingsByName(Object recv, String name) {
         if (recv instanceof Cm c) {
             List<Object> out = new ArrayList<>();
             for (var pm : c.cm().propertyMappings()) {
@@ -1025,12 +1034,12 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     }
 
     /** A Database ELEMENT reference as a metamodel handle, or null. */
-    public static Object database(ModelContext ctx, String fqn) {
+    public static @com.legend.Nullable Object database(ModelContext ctx, String fqn) {
         return ctx.findDatabase(fqn).map(Db::new).orElse(null);
     }
 
     /** Property step over a handle; null = not a metamodel property. */
-    public static Object prop(Object recv, String prop) {
+    public static @com.legend.Nullable Object prop(Object recv, String prop) {
         if (recv instanceof Cm cmh && prop.equals("id")) {
             return setIdOf(cmh.cm());
         }
@@ -1113,7 +1122,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** A join-slot property mapping's RelationalOperationElementWithJoin
      * handle: the join chain as nested JoinTreeNode handles (each hop's
      * children carry the next). */
-    private static Object joinTreeOf(ModelContext ctx, String dbFqn,
+    private static @com.legend.Nullable Object joinTreeOf(ModelContext ctx, String dbFqn,
             List<com.legend.model.JoinChainElement> hops) {
         Object dbh = database(ctx, dbFqn);
         if (!(dbh instanceof Db d)) {
@@ -1142,7 +1151,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
             if (head == null) {
                 head = node2;
             } else {
-                tail.children().add(node2);
+                java.util.Objects.requireNonNull(tail).children().add(node2);
             }
             tail = node2;
         }
@@ -1150,7 +1159,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     }
 
     /** {@code schema->view('name')} navigation; null = not applicable. */
-    public static Object view(Object recv, String name) {
+    public static @com.legend.Nullable Object view(Object recv, String name) {
         if (recv instanceof Sch s) {
             for (var v : s.schema().views()) {
                 if (v.name().equals(name)) {
@@ -1164,7 +1173,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** {@code inferRelationalType} over a column expression handle —
      * the DECLARED SQL type the expression carries. Single-element
      * lists unwrap (pure toOne semantics ride the walk). */
-    public static Object infer(Object recv) {
+    public static @com.legend.Nullable Object infer(Object recv) {
         Object r = recv instanceof List<?> l && l.size() == 1
                 ? l.get(0) : recv;
         if (!(r instanceof Rop rop)) {
@@ -1174,7 +1183,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         return t == null ? null : new Dt(t);
     }
 
-    private static RelationalDataType inferOp(Rop env,
+    private static @com.legend.Nullable RelationalDataType inferOp(Rop env,
             RelationalOperation op) {
         return switch (op) {
             case RelationalOperation.ColumnRef c ->
@@ -1287,7 +1296,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
 
     /** The DYNAFUNCTION-to-SQL-node dispatch (engine convertDynaFunction
      * families) over already-converted argument nodes. */
-    private static Object dynaNode(String name, List<Object> args) {
+    private static @com.legend.Nullable Object dynaNode(String name, List<Object> args) {
         String nm = name.toLowerCase(java.util.Locale.ROOT);
         return switch (nm) {
             case "sqlnull" -> node("NullLiteral");
@@ -1325,7 +1334,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
 
     /** Engine dateTruncCall (toPostgresModel.pure): date_trunc over the
      * arg, cast back to the date column type. */
-    private static Object dateTrunc(String part, List<Object> args) {
+    private static @com.legend.Nullable Object dateTrunc(String part, List<Object> args) {
         List<Object> a = new ArrayList<>();
         a.add(node("StringLiteral", "value", part));
         a.addAll(args);
@@ -1386,8 +1395,9 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
      * types keep; DECIMAL beats int/double/float as-is; two decimals
      * widen to DECIMAL(maxIntDigits+maxScale, maxScale); DOUBLE beats
      * integers. Null operands pass the other side through. */
-    private static RelationalDataType safe(RelationalDataType a,
-            RelationalDataType b) {
+    private static @com.legend.Nullable RelationalDataType safe(
+            @com.legend.Nullable RelationalDataType a,
+            @com.legend.Nullable RelationalDataType b) {
         if (a == null) {
             return b;
         }
@@ -1427,7 +1437,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
         return a;
     }
 
-    private static Integer[] decimalOf(RelationalDataType t) {
+    private static @com.legend.Nullable Integer[] decimalOf(RelationalDataType t) {
         if (t instanceof RelationalDataType.Decimal d) {
             return new Integer[]{d.precision(), d.scale()};
         }
@@ -1440,7 +1450,8 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** The declared type of {@code table.column}: the op's OWN database
      * (mapping expressions carry it) via ctx, else the handle db —
      * searching declared schemas and the top-level default. */
-    private static RelationalDataType columnType(Rop env, String opDb,
+    private static @com.legend.Nullable RelationalDataType columnType(
+            Rop env, @com.legend.Nullable String opDb,
             String table, String column) {
         DatabaseDefinition db = env.db();
         if (opDb != null && env.ctx() != null) {
@@ -1488,7 +1499,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** {@code dataTypeToSqlText} — the ENGINE's spelling: {@code
      * DECIMAL(p, s)} with a space, {@code BIT} for booleans (distinct
      * from the plan-tuple spelling in PlanText.spell). */
-    public static Object sqlText(Object recv) {
+    public static @com.legend.Nullable Object sqlText(Object recv) {
         Object r = recv instanceof List<?> l && l.size() == 1
                 ? l.get(0) : recv;
         if (!(r instanceof Dt d)) {

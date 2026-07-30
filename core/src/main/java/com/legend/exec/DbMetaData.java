@@ -59,8 +59,10 @@ public final class DbMetaData {
         return m;
     }
 
-    public static HostResultSet fetch(String nativeFqn, String schemaPattern,
-            String tablePattern, String columnPattern, List<String> recorded)
+    public static HostResultSet fetch(String nativeFqn,
+            @com.legend.Nullable String schemaPattern,
+            @com.legend.Nullable String tablePattern, @com.legend.Nullable String columnPattern,
+            List<String> recorded)
             throws SQLException {
         int id = COUNTER.getAndIncrement();
         try (Connection h2 = DriverManager.getConnection(
