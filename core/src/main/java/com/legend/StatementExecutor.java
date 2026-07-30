@@ -949,18 +949,7 @@ final class StatementExecutor {
         if (n instanceof com.legend.compiler.spec.typed.TypedMap tm
                 && tm.mapper() instanceof com.legend.compiler.spec.typed
                         .TypedLambda tml) {
-            Object recvM = planWalk(tm.source(), specs, env);
-            if (recvM instanceof java.util.List<?> lm) {
-                java.util.List<Object> outM = new java.util.ArrayList<>();
-                for (Object e : lm) {
-                    Object v = walkMapBody(e, tml);
-                    if (v != null) {
-                        outM.add(v);
-                    }
-                }
-                return outM;
-            }
-            return null;
+            return walkMapOver(planWalk(tm.source(), specs, env), tml);
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && !c.args().isEmpty()) {
@@ -1060,6 +1049,11 @@ final class StatementExecutor {
                                 .rootClassMappingByClass(recv,
                                         cref.fullPath());
                     }
+                }
+                case "classMappingById", "superMapping",
+                        "allSuperSetImplementations", "mainTable",
+                        "resolvePrimaryKey" -> {
+                    return mappingNav(simple, recv, c, specs, env);
                 }
                 case "propertyMappingsByPropertyName" -> {
                     if (c.args().size() == 2 && c.args().get(1) instanceof
@@ -1415,6 +1409,58 @@ final class StatementExecutor {
                             com.legend.compiler.spec.typed.TypedCString mvn
                     ? com.legend.exec.MetamodelWalk.view(e, mvn.value())
                     : null;
+            case "mainTable" -> com.legend.exec.MetamodelWalk.mainTable(e);
+            case "resolvePrimaryKey" ->
+                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(e);
+            default -> null;
+        };
+    }
+
+    /** {@code ->map(x|...)} over walked handles; a single IS a [1]
+     * collection (pure semantics), so classMappingById's [0..1] result
+     * maps like the metamodel families' lists. */
+    private static Object walkMapOver(Object recvM,
+            com.legend.compiler.spec.typed.TypedLambda tml) {
+        if (recvM != null && !(recvM instanceof java.util.List)) {
+            recvM = java.util.List.of(recvM);
+        }
+        if (recvM instanceof java.util.List<?> lm) {
+            java.util.List<Object> outM = new java.util.ArrayList<>();
+            for (Object e : lm) {
+                Object v = walkMapBody(e, tml);
+                if (v != null) {
+                    outM.add(v);
+                }
+            }
+            return outM;
+        }
+        return null;
+    }
+
+    /** The extends-chain mapping-metamodel natives (classMappingById /
+     * superMapping / allSuperSetImplementations / mainTable /
+     * resolvePrimaryKey) — recv-dispatched to MetamodelWalk. */
+    private static Object mappingNav(String simple, Object recv,
+            com.legend.compiler.spec.typed.TypedNativeCall c,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        return switch (simple) {
+            case "classMappingById" -> c.args().size() == 2
+                    && c.args().get(1) instanceof
+                            com.legend.compiler.spec.typed.TypedCString mid
+                    ? com.legend.exec.MetamodelWalk.classMappingById(recv,
+                            mid.value())
+                    : null;
+            case "superMapping" ->
+                    com.legend.exec.MetamodelWalk.superMapping(recv);
+            case "allSuperSetImplementations" -> c.args().size() == 2
+                    ? com.legend.exec.MetamodelWalk
+                            .allSuperSetImplementations(recv,
+                                    planWalk(c.args().get(1), specs, env))
+                    : null;
+            case "mainTable" ->
+                    com.legend.exec.MetamodelWalk.mainTable(recv);
+            case "resolvePrimaryKey" ->
+                    com.legend.exec.MetamodelWalk.resolvePrimaryKey(recv);
             default -> null;
         };
     }

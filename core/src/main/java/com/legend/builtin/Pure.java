@@ -335,14 +335,29 @@ public final class Pure {
     // :61 + functions_PropertyMappingsImplementation.pure:74 +
     // relationalMapping.pure:46/66; the real intermediate parents
     // collapse to single inheritance — subsumption for casts only)
-    // root/id/parent ride SetImplementation in real mapping.pure (class
-    // and parent are REFERENCE values — declared Any/loose per the
-    // class-reference convention)
-    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[0..1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::metamodel::type::Any[0..1]; }");
-    public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::SetImplementation { class: meta::pure::metamodel::type::Any[0..1]; }");
+    // root/id/parent/superSetImplementationId ride SetImplementation in
+    // real mapping.pure (they are PropertyOwnerImplementation properties,
+    // mapping.pure:52-58 — lite flattens that parent; class and parent
+    // are REFERENCE values, declared Any/loose per the class-reference
+    // convention)
+    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[0..1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::metamodel::type::Any[0..1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
+    // Real mapping.pure:68 — a SIBLING of SetImplementation under
+    // PropertyOwnerImplementation (InstanceSetImplementation extends
+    // both); with the parent flattened into SetImplementation the chain
+    // collapses to single inheritance, subsumption preserved for the
+    // corpus's cast(@PropertyMappingsImplementation) sites
+    public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation {}");
+    public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation { class: meta::pure::metamodel::type::Any[0..1]; }");
     /** Real core/pure/router/store/cluster.pure:43. */
     public static final ClassDefinition CROSS_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::router::clustering::CrossSetImplementation extends meta::pure::mapping::InstanceSetImplementation { targetStore: meta::pure::store::Store[0..1]; varName: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition ROOT_RELATIONAL_SET_IMPL = nativeClass("native Class meta::relational::mapping::RootRelationalInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation {}");
+    // Real relational.pure:105 (userDefinedPrimaryKey/filter/distinct/
+    // groupBy/mainTableAlias omitted until a checker demands them) +
+    // relationalMapping.pure:26/46 — RootRelational keeps the real
+    // TWO-parent shape so mainTable(RelationalMappingSpecification[1])
+    // accepts the corpus's cast(@RootRelationalInstanceSetImplementation)
+    public static final ClassDefinition RELATIONAL_MAPPING_SPECIFICATION = nativeClass("native Class meta::relational::metamodel::RelationalMappingSpecification extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition RELATIONAL_INSTANCE_SET_IMPL = nativeClass("native Class meta::relational::mapping::RelationalInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation { primaryKey: meta::relational::metamodel::RelationalOperationElement[*]; }");
+    public static final ClassDefinition ROOT_RELATIONAL_SET_IMPL = nativeClass("native Class meta::relational::mapping::RootRelationalInstanceSetImplementation extends meta::relational::mapping::RelationalInstanceSetImplementation, meta::relational::metamodel::RelationalMappingSpecification {}");
     public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition RELATIONAL_PROPERTY_MAPPING = nativeClass("native Class meta::relational::mapping::RelationalPropertyMapping extends meta::pure::mapping::PropertyMapping { relationalOperationElement: meta::relational::metamodel::RelationalOperationElement[1]; }");
     // task #78 step-1 declarations (each cited to the REAL source; class
@@ -1248,6 +1263,16 @@ public final class Pure {
     public static final NativeFunctionDefinition CONVERT_SELECT_SQL_QUERY = signature("native function meta::relational::functions::toPostgresModel::convertSelectSqlQuery(select:meta::relational::metamodel::relation::SelectSQLQuery[1], state:meta::relational::functions::toPostgresModel::ModelConversionState[1]):meta::external::query::sql::metamodel::Query[1];");
     public static final NativeFunctionDefinition ROOT_CLASS_MAPPING_BY_CLASS = signature("native function meta::pure::mapping::rootClassMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[0..1];");
     public static final NativeFunctionDefinition PROPERTY_MAPPINGS_BY_NAME = signature("native function meta::pure::mapping::propertyMappingsByPropertyName(i:meta::pure::mapping::InstanceSetImplementation[1], propertyName:meta::pure::metamodel::type::String[1]):meta::pure::mapping::PropertyMapping[*];");
+    // Extends-chain navigation over the mapping metamodel (real
+    // functions_Mapping.pure:74, functions_PropertyMappingsImplementation
+    // .pure:19, engine mappingExtension.pure:163, platform_store_
+    // relational/functions.pure:277/:191 — ordinary pure there; typed
+    // natives here, evaluated K-side over the compiled model)
+    public static final NativeFunctionDefinition CLASS_MAPPING_BY_ID = signature("native function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:meta::pure::metamodel::type::String[1]):meta::pure::mapping::SetImplementation[0..1];");
+    public static final NativeFunctionDefinition SUPER_MAPPING = signature("native function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMappingsImplementation[0..1];");
+    public static final NativeFunctionDefinition ALL_SUPER_SET_IMPLEMENTATIONS = signature("native function meta::pure::mapping::allSuperSetImplementations(set:meta::pure::mapping::PropertyMappingsImplementation[1], m:meta::pure::mapping::Mapping[1]):meta::pure::mapping::PropertyMappingsImplementation[*];");
+    public static final NativeFunctionDefinition MAIN_TABLE = signature("native function meta::relational::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1];");
+    public static final NativeFunctionDefinition RESOLVE_PRIMARY_KEY = signature("native function meta::relational::mapping::resolvePrimaryKey(_this:meta::relational::mapping::RootRelationalInstanceSetImplementation[1]):meta::relational::metamodel::RelationalOperationElement[*];");
     public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");
     public static final NativeFunctionDefinition INFER_RELATIONAL_TYPE = signature("native function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1]):meta::relational::metamodel::datatype::DataType[0..1];");
     public static final NativeFunctionDefinition DATA_TYPE_TO_SQL_TEXT = signature("native function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):meta::pure::metamodel::type::String[1];");

@@ -761,7 +761,12 @@ public final class MetamodelWalk {
             com.legend.model.LegacyMappingDefinition mapping) {
     }
 
+    /** A class-mapping SET handle; {@code owner} is the mapping that
+     * DECLARES the set (the pure graph's {@code SetImplementation
+     * .parent}) — {@code superMapping} resolves the extends target
+     * there, not in the queried mapping. */
     public record Cm(ModelContext ctx,
+            com.legend.model.LegacyMappingDefinition owner,
             com.legend.model.ClassMapping.Relational cm) {
     }
 
@@ -782,11 +787,227 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
             for (var cm : m.mapping().classMappings()) {
                 if (cm instanceof com.legend.model.ClassMapping.Relational r
                         && r.className().equals(classFqn)) {
-                    return new Cm(m.ctx(), r);
+                    return new Cm(m.ctx(), m.mapping(), r);
                 }
             }
         }
         return null;
+    }
+
+    /** Effective SET ID: explicit {@code [id]}, else the class FQN with
+     * {@code ::} &rarr; {@code _} — the engine default (same rule as
+     * MappingNormalizer.setIdOf; one line, kept package-local there). */
+    private static String setIdOf(
+            com.legend.model.ClassMapping.Relational r) {
+        return r.setId() != null ? r.setId()
+                : r.className().replace("::", "_");
+    }
+
+    /** {@code classMappingById} (real functions_Mapping.pure:74) —
+     * includes walk first, then own class mappings, matched by set id. */
+    public static Object classMappingById(Object recv, String id) {
+        return recv instanceof Mm m
+                ? classMappingByIdIn(m.ctx(), m.mapping(), id) : null;
+    }
+
+    private static Object classMappingByIdIn(ModelContext ctx,
+            com.legend.model.LegacyMappingDefinition mapping, String id) {
+        for (var inc : mapping.includes()) {
+            var im = ctx.findLegacyMapping(inc.mappingPath()).orElse(null);
+            if (im != null) {
+                Object hit = classMappingByIdIn(ctx, im, id);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        for (var cm : mapping.classMappings()) {
+            if (cm instanceof com.legend.model.ClassMapping.Relational r
+                    && setIdOf(r).equals(id)) {
+                return new Cm(ctx, mapping, r);
+            }
+        }
+        return null;
+    }
+
+    /** {@code superMapping} (real functions_PropertyMappings
+     * Implementation.pure:19) — the extends target, resolved by set id
+     * in the set's PARENT (declaring) mapping. */
+    public static Object superMapping(Object recv) {
+        return recv instanceof Cm c && c.cm().extendsSetId() != null
+                ? classMappingByIdIn(c.ctx(), c.owner(),
+                        c.cm().extendsSetId())
+                : null;
+    }
+
+    /** {@code allSuperSetImplementations} (real engine mappingExtension
+     * .pure:163) — the extends chain ROOT-FIRST, each hop resolved
+     * against the QUERIED mapping {@code m}. */
+    public static Object allSuperSetImplementations(Object set, Object m) {
+        if (!(set instanceof Cm) || !(m instanceof Mm mm)) {
+            return null;
+        }
+        List<Object> out = new ArrayList<>();
+        Object cur = set;
+        while (cur instanceof Cm cc && cc.cm().extendsSetId() != null) {
+            Object sup = classMappingByIdIn(mm.ctx(), mm.mapping(),
+                    cc.cm().extendsSetId());
+            if (sup == null) {
+                break;
+            }
+            out.add(0, sup);
+            cur = sup;
+        }
+        return out;
+    }
+
+    /** {@code mainTable} (real platform functions.pure:277 —
+     * {@code mainTableAlias.relationalElement}): the set's own
+     * {@code ~mainTable}, else the extends chain's (the relational
+     * compiler populates extends sets from their super), else the one
+     * table its property mappings read (the table-less inference). */
+    public static Object mainTable(Object recv) {
+        if (!(recv instanceof Cm c)) {
+            return null;
+        }
+        var mt = c.cm().mainTable();
+        if (mt != null) {
+            return tableHandle(c.ctx(), mt.database(), mt.table());
+        }
+        if (c.cm().extendsSetId() != null) {
+            return mainTable(superMapping(recv));
+        }
+        for (var pm : c.cm().propertyMappings()) {
+            if (pm instanceof com.legend.model.PropertyMapping.Column col) {
+                return tableHandle(c.ctx(), col.database(), col.table());
+            }
+        }
+        return null;
+    }
+
+    private static Object tableHandle(ModelContext ctx, String dbFqn,
+            String tableName) {
+        var dbh = database(ctx, dbFqn);
+        if (!(dbh instanceof Db d)) {
+            return null;
+        }
+        for (var s : d.db().schemas()) {
+            for (var t : s.tables()) {
+                if (t.name().equals(tableName)) {
+                    return new Tbl(d.db(), s.name(), t);
+                }
+            }
+        }
+        var ds = defaultSchema(d.db());
+        for (var t : ds.tables()) {
+            if (t.name().equals(tableName)) {
+                return new Tbl(d.db(), ds.name(), t);
+            }
+        }
+        return null;
+    }
+
+    /** {@code resolvePrimaryKey} (real platform functions.pure:191) —
+     * the engine's this-vs-super precedence table: groupBy beats
+     * distinct beats user-declared PK, this before super at each rank;
+     * no super = the set's own compiled primaryKey. */
+    public static Object resolvePrimaryKey(Object recv) {
+        if (!(recv instanceof Cm c)) {
+            return null;
+        }
+        Object sup = superMapping(recv);
+        if (sup == null) {
+            return primaryKeyOf(c);
+        }
+        if (!c.cm().groupBy().isEmpty()) {
+            return primaryKeyOf(c);
+        }
+        if (resolveGroupBy(sup)) {
+            return resolvePrimaryKey(sup);
+        }
+        if (c.cm().distinct()) {
+            return primaryKeyOf(c);
+        }
+        if (resolveDistinct(sup)) {
+            return resolvePrimaryKey(sup);
+        }
+        if (!c.cm().primaryKey().isEmpty()) {
+            return primaryKeyOf(c);
+        }
+        if (resolveUserDefinedPrimaryKey(sup)) {
+            return resolvePrimaryKey(sup);
+        }
+        return primaryKeyOf(c);
+    }
+
+    /** {@code resolveGroupBy} presence (real functions.pure:155). */
+    private static boolean resolveGroupBy(Object h) {
+        return h instanceof Cm c && (!c.cm().groupBy().isEmpty()
+                || resolveGroupBy(superMapping(h)));
+    }
+
+    /** {@code resolveDistinct} (real functions.pure:167). */
+    private static boolean resolveDistinct(Object h) {
+        return h instanceof Cm c && (c.cm().distinct()
+                || resolveDistinct(superMapping(h)));
+    }
+
+    /** {@code resolveUserDefinedPrimaryKey} (real functions.pure:179). */
+    private static boolean resolveUserDefinedPrimaryKey(Object h) {
+        return h instanceof Cm c && (!c.cm().primaryKey().isEmpty()
+                || resolveUserDefinedPrimaryKey(superMapping(h)));
+    }
+
+    /** The set's COMPILED {@code primaryKey} property — the relational
+     * mapping compiler's population rule: user {@code ~primaryKey},
+     * else {@code ~groupBy} columns, else {@code ~distinct} = every
+     * mapped column, else the main table's PRIMARY KEY. TableAliasColumn
+     * handles; any non-column PK expression nulls (wall stands). */
+    private static Object primaryKeyOf(Cm c) {
+        if (!(mainTable(c) instanceof Tbl t)) {
+            return null;
+        }
+        List<RelationalOperation> ops;
+        if (!c.cm().primaryKey().isEmpty()) {
+            ops = c.cm().primaryKey();
+        } else if (!c.cm().groupBy().isEmpty()) {
+            ops = c.cm().groupBy();
+        } else if (c.cm().distinct()) {
+            ops = new ArrayList<>();
+            for (var pm : c.cm().propertyMappings()) {
+                if (pm instanceof com.legend.model.PropertyMapping
+                        .Column pc) {
+                    ops.add(new RelationalOperation.ColumnRef(
+                            pc.database(), pc.table(), pc.column()));
+                }
+            }
+        } else {
+            List<Object> out = new ArrayList<>();
+            for (var col : t.t().columns()) {
+                if (col.primaryKey()) {
+                    out.add(new TacH(t.t().name(), new ColH(col)));
+                }
+            }
+            return out;
+        }
+        List<Object> out = new ArrayList<>();
+        for (RelationalOperation op : ops) {
+            if (!(op instanceof RelationalOperation.ColumnRef cr)) {
+                return null;
+            }
+            DatabaseDefinition.ColumnDefinition col = null;
+            for (var tc : t.t().columns()) {
+                if (tc.name().equals(cr.column())) {
+                    col = tc;
+                    break;
+                }
+            }
+            if (col == null) {
+                return null;
+            }
+            out.add(new TacH(t.t().name(), new ColH(col)));
+        }
+        return out;
     }
 
     /** {@code propertyMappingsByPropertyName} — declaration order. */
@@ -810,6 +1031,12 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
 
     /** Property step over a handle; null = not a metamodel property. */
     public static Object prop(Object recv, String prop) {
+        if (recv instanceof Cm cmh && prop.equals("id")) {
+            return setIdOf(cmh.cm());
+        }
+        if (recv instanceof TacH tac && prop.equals("column")) {
+            return tac.column();
+        }
         if (recv instanceof Db d && prop.equals("schemas")) {
             List<Object> out = new ArrayList<>();
             for (var s : d.db().schemas()) {

@@ -463,7 +463,12 @@ class NativeFunctionTest {
         //     DefaultH2AuthenticationStrategy + TestDatabaseAuthentication-
         //     Strategy (the alloy connection forms corpus getConnection()/
         //     m2m2r runtime() helpers construct — connection.pure:29)
-        assertEquals(178, Pure.allNativeClasses().size(),
+        // 181: +PropertyMappingsImplementation (mapping.pure:68) +
+        //     RelationalMappingSpecification (relational.pure:105) +
+        //     RelationalInstanceSetImplementation (relationalMapping
+        //     .pure:26) — the extends-chain navigation hierarchy;
+        //     RootRelational keeps the real two-parent shape.
+        assertEquals(181, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -698,10 +703,15 @@ class NativeFunctionTest {
                     List.of("targetStore", "varName")),
                     java.util.Map.entry(
                     "meta::pure::mapping::SetImplementation",
-                    List.of("root", "id", "parent")),
+                    List.of("root", "id", "parent",
+                            "superSetImplementationId")),
                     java.util.Map.entry(
                     "meta::pure::mapping::InstanceSetImplementation",
                     List.of("class")),
+                    java.util.Map.entry(
+                    "meta::relational::mapping"
+                            + "::RelationalInstanceSetImplementation",
+                    List.of("primaryKey")),
                     // bridge batch 5: the query-level conversion surface
                     java.util.Map.entry(
                     "meta::external::query::sql::metamodel::QuerySpecification",
