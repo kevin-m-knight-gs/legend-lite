@@ -39,8 +39,8 @@ in-process Alloy-shaped path).
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
 | tds/tests | 266 | 246 | 2 | 9 | 9 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 |
-| tests | 39 | 17 | 2 | 0 | 20 |
-| tests/advanced | 68 | 47 | 2 | 6 | 13 |
+| tests | 39 | 25 | 3 | 0 | 11 |
+| tests/advanced | 68 | 47 | 2 | 7 | 12 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 30 | 6 | 4 | 10 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 |
-| **total** | 2538 | **2112** | 93 | 168 | 165 |
+| **total** | 2538 | **2120** | 94 | 169 | 155 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8425,16 +8425,8 @@ in-process Alloy-shaped path).
 - SHAPE testSQLNullWithinCaseTypeInference1 [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
 - SHAPE testJoinStringsTypeInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
 - SHAPE testExtractDBsWithSubstituition [tests]: no execute(|...) call [calls meta::relational::runtime]
-- FAIL testRelationalDatabaseMapper [tests]: assertEquals: expected select "root".ID as "pk_0", "root".NAME as "name" from snDB.productSchema.productTable as "root", got select "root".ID as "pk_0", "root".NAME as "name" from productSchema.productTable as "root"
-- SHAPE testRelationalSchemaMapper [tests]: no execute(|...) call
-- SHAPE testRelationalTableMapper [tests]: no execute(|...) call
-- SHAPE testRelationalDatabaseSchemaMapper [tests]: no execute(|...) call
-- SHAPE testRelationalDatabaseTableMapper [tests]: no execute(|...) call
-- SHAPE testRelationalSchemaTableMapper [tests]: no execute(|...) call
-- SHAPE testRelationalDatabaseSchemaTableMapper [tests]: no execute(|...) call
-- SHAPE testRelationalDefaultSchemaMapper [tests]: no execute(|...) call
-- SHAPE testRelationalMapperWithJoin [tests]: no execute(|...) call
-- SHAPE testRelationalMapperTwoDBs [tests]: no execute(|...) call
+- FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addre
+- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' a
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
 - SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
@@ -8455,7 +8447,7 @@ in-process Alloy-shaped path).
 - SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR relationalResultSourcingOfDateList [tests/advanced]: object-space expression node TypedLimit is not substitutable yet (H2 vocabulary): TypedLimit[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::distinct, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=s, type=TypeVar[name=T], 
-- SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: assert form 'assertEquals/2' is not supported yet
+- ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
 - FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
 - ERROR testProjectThroughAssociation [tests/injection]: auto-map mapper body node TypedFilter is not inlinable yet

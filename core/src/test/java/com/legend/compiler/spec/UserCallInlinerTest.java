@@ -120,14 +120,20 @@ class UserCallInlinerTest {
     }
 
     @Test
-    @DisplayName("recursion is LOUD with the cycle path")
+    @DisplayName("recursion DEFERS: the call stands and SQL-bound use is loud")
     void recursionIsLoud() {
+        // CONTRACT CHANGE (relationalMapper leg): a recursive call no
+        // longer throws at inline time — it STANDS (host call frames and
+        // the plan-config extraction consume standing calls). SQL-bound
+        // use still fails LOUDLY naming the function, at the resolver's
+        // TypedUserCall wall.
         var ex = assertThrows(Exception.class,
                 () -> run("m::Person.all()->filter(p|m::recurse($p.age) > 0)"
                         + "->project(~[name: p|$p.name])"));
-        assertTrue(ex.getMessage().contains("m::recurse/1")
-                        && ex.getMessage().toLowerCase().contains("recursion"),
-                "cycle named with fn/arity: " + ex.getMessage());
+        assertTrue(ex.getMessage().contains("m::recurse")
+                        && ex.getMessage().contains("TypedUserCall"),
+                "SQL-bound recursion walls naming the function: "
+                        + ex.getMessage());
     }
 
     @Test

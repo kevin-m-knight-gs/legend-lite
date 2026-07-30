@@ -390,7 +390,8 @@ final class StatementExecutor {
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
-                java.util.Map.of());
+                java.util.Map.of(),
+                java.util.function.UnaryOperator.identity());
     }
 
     /** The body form, with plan-TEMPLATE parameters: each named free
@@ -400,7 +401,8 @@ final class StatementExecutor {
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
-                    planParams) {
+                    planParams,
+            java.util.function.UnaryOperator<String> tableRenames) {
         java.util.List<TypedSpec> body =
                 new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(raw);
@@ -424,6 +426,12 @@ final class StatementExecutor {
                         instanceof com.legend.compiler.element.type.Type
                                 .RelationType rt) {
             plan = com.legend.plan.PlanEnumForm.apply(sel, rt);
+        }
+        // the runtime's relationalMapperPostProcessor renames (extracted
+        // structurally from the plan call's runtime argument)
+        if (plan instanceof com.legend.sql.SqlQuery p2) {
+            plan = com.legend.lowering.SqlPostProcessors.apply(p2,
+                    tableRenames);
         }
         return new EngineSql(plan, renderer.render(plan), body);
     }
@@ -528,7 +536,8 @@ final class StatementExecutor {
                     + " pending)");
         }
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
-                planDialect(dbType, quote, tz), java.util.Map.of());
+                planDialect(dbType, quote, tz), java.util.Map.of(),
+                java.util.function.UnaryOperator.identity());
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
                         mappingFqn, es.plan(), es.sql(),
@@ -620,7 +629,8 @@ final class StatementExecutor {
                     "plan: sequence terminal without a getAll root");
         }
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
-                env, planDialect(dbType, quote, timeZone), params);
+                env, planDialect(dbType, quote, timeZone), params,
+                java.util.function.UnaryOperator.identity());
         children.add(com.legend.plan.PlanText.single(env.ctx(), rootClass,
                 mappingFqn, es.plan(), es.sql(), java.util.List.of(term),
                 connName));
@@ -672,7 +682,8 @@ final class StatementExecutor {
         }
         EngineSql es = engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env,
-                planDialect(dbType, quote, timeZone), params);
+                planDialect(dbType, quote, timeZone), params,
+                java.util.function.UnaryOperator.identity());
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
@@ -1624,9 +1635,16 @@ final class StatementExecutor {
                     lam.parameters().get(i), many));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
+        // the runtime argument may carry relationalMapperPostProcessor
+        // renames — extracted structurally, applied over the lowered IR
+        java.util.function.UnaryOperator<String> mapperRenames =
+                ep.args().size() > 2
+                ? com.legend.plan.RelationalMapperRenames.extract(
+                        ep.args().get(2), specs, env.queryLets(), env.ctx())
+                : java.util.function.UnaryOperator.identity();
         EngineSql es = engineSql(java.util.List.of(term), pr.fullPath(),
                 specs, env, new com.legend.sql.dialect.EngineStyleH2(quote,
-                        tz), params);
+                        tz), params, mapperRenames);
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
                 java.util.List.of());

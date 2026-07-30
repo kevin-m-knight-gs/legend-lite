@@ -1684,6 +1684,12 @@ public final class Pure {
     // assertion vocabulary.
     public static final NativeFunctionDefinition ASSERT__BOOLEAN_1 = signature("native function meta::pure::functions::asserts::assert(condition:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT__BOOLEAN_1__STRING_1 = signature("native function meta::pure::functions::asserts::assert(condition:meta::pure::metamodel::type::Boolean[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    // Real essential/tests/fail.pure:17/:22 — always-throwing asserts;
+    // host evaluation stays loud-unknown, SQL lowering walls (a fail in
+    // a reachable branch is typed at the branch value's type — bottom
+    // spirit; see IfChecker.thunkBody)
+    public static final NativeFunctionDefinition FAIL = signature("native function meta::pure::functions::asserts::fail():meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition FAIL__STRING_1 = signature("native function meta::pure::functions::asserts::fail(message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::metamodel::type::Number[1], actual:meta::pure::metamodel::type::Number[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
 
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");

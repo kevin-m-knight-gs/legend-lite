@@ -79,6 +79,10 @@ class CodeShapeGuardrailTest {
             "StoreResolver.checkedEnvelope",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
+            // walk-scoped mode flag: inside a postprocessor-CONFIG
+            // property user calls stand for structural extraction —
+            // same lifecycle as a parser cursor, scoped to one rewrite
+            "UserCallInliner.configMode",
             // NormalizeRequired inline α-rename counter — same lifecycle as
             // UserCallInliner.fresh (fresh-name generation per compile)
             "Typer.nrFresh",

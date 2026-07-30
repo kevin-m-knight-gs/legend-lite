@@ -150,6 +150,15 @@ public final class SqlPostProcessors {
         if (map.isEmpty()) {
             return q;
         }
+        return apply(q, (java.util.function.UnaryOperator<String>)
+                n2 -> map.getOrDefault(n2, n2));
+    }
+
+    /** FUNCTION form — the relationalMapper channel resolves spellings
+     * per-name (db identity may need model lookups). Identity output =
+     * no rewrite. */
+    public static SqlQuery apply(SqlQuery q,
+            java.util.function.UnaryOperator<String> map) {
         return switch (q) {
             case SqlSelect s -> applySelect(s, map);
             case SqlUnion u -> new SqlUnion(u.branches().stream()
@@ -158,7 +167,8 @@ public final class SqlPostProcessors {
         };
     }
 
-    private static SqlSelect applySelect(SqlSelect s, Map<String, String> m) {
+    private static SqlSelect applySelect(SqlSelect s,
+            java.util.function.UnaryOperator<String> m) {
         return new SqlSelect(
                 s.projections().stream().map(p -> new SqlSelect.Projection(
                         expr(p.expr(), m), p.outputName())).toList(),
@@ -175,12 +185,14 @@ public final class SqlPostProcessors {
                 s.limit(), s.offset(), s.outputs());
     }
 
-    private static SqlSource source(SqlSource src, Map<String, String> m) {
+    private static SqlSource source(SqlSource src,
+            java.util.function.UnaryOperator<String> m) {
         return switch (src) {
-            case SqlSource.Table t -> m.containsKey(t.name())
-                    ? new SqlSource.Table(m.get(t.name()), t.alias(),
-                            t.outputs())
-                    : t;
+            case SqlSource.Table t -> {
+                String nn = m.apply(t.name());
+                yield nn.equals(t.name()) ? t
+                        : new SqlSource.Table(nn, t.alias(), t.outputs());
+            }
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(), expr(j.on(), m));
             case SqlSource.Subselect sub -> new SqlSource.Subselect(
@@ -189,7 +201,8 @@ public final class SqlPostProcessors {
         };
     }
 
-    private static SqlExpr expr(SqlExpr e, Map<String, String> m) {
+    private static SqlExpr expr(SqlExpr e,
+            java.util.function.UnaryOperator<String> m) {
         return switch (e) {
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
                     c.args().stream().map(a -> expr(a, m)).toList());

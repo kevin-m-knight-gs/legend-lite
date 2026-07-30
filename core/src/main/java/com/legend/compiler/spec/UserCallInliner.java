@@ -73,6 +73,9 @@ public final class UserCallInliner {
     public Map<String, TypedSpec> queryLets() {
         return queryLets;
     }
+    /** Inside a postprocessor-CONFIG property: user calls STAND
+     * (extraction reads them structurally); variables still substitute. */
+    private boolean configMode;
     private int fresh;
 
     public UserCallInliner(SpecCompiler specs) {
@@ -160,6 +163,9 @@ public final class UserCallInliner {
         for (TypedSpec a : call.args()) {
             args.add(rewrite(a, env));
         }
+        if (configMode) {
+            return new TypedUserCall(call.callee(), args, call.info());
+        }
         // signatureKey identifies the OVERLOAD — name/arity conflated two
         // same-arity overloads into a false recursion (audit).
         String key = call.callee().signatureKey();
@@ -202,6 +208,14 @@ public final class UserCallInliner {
                         call.info());
             }
             return reduced;
+        } catch (NotImplementedException e) {
+            // The body cannot β-reduce (a recursion cycle unwinding one
+            // level, a non-let intermediate statement) — the CALL STANDS
+            // with rewritten args. Channels that can run calls consume it
+            // (host call frames; the plan seam reads postprocessor config
+            // structurally); SQL lowering keeps its loud TypedUserCall
+            // frontier wall.
+            return new TypedUserCall(call.callee(), args, call.info());
         } finally {
             stack.pop();
             names.pop();
@@ -289,6 +303,36 @@ public final class UserCallInliner {
                 yield r instanceof TypedVariable rv
                         ? new TypedVariable(rv.name(), v.info())
                         : r;
+            }
+
+            // Postprocessor CONFIG is consumed STRUCTURALLY at the plan
+            // seam (mapper extraction reads schema()/getTable() call
+            // shapes) — inside the property, VARIABLES still substitute
+            // (the frame's bindings must reach the extraction) but USER
+            // CALLS STAND, so the corpus's recursive getSchema/getTable
+            // helpers never hit the recursion wall (the execute()-runtime
+            // orchestration-position rule, one property deeper).
+            case com.legend.compiler.spec.typed.TypedNewInstance ni
+                    when ni.properties().containsKey(
+                            "queryPostProcessorsWithParameter")
+                    && !configMode -> {
+                var props = new LinkedHashMap<String, TypedSpec>();
+                for (var pe : ni.properties().entrySet()) {
+                    if ("queryPostProcessorsWithParameter"
+                            .equals(pe.getKey())) {
+                        configMode = true;
+                        try {
+                            props.put(pe.getKey(),
+                                    rewrite(pe.getValue(), env));
+                        } finally {
+                            configMode = false;
+                        }
+                    } else {
+                        props.put(pe.getKey(), rewrite(pe.getValue(), env));
+                    }
+                }
+                yield new com.legend.compiler.spec.typed.TypedNewInstance(
+                        ni.classFqn(), props, ni.info());
             }
 
             // BINDERS — α-fresh inside inlined bodies (env non-empty),

@@ -144,8 +144,40 @@ final class IfChecker {
         }
         LambdaFunction folded = lam.body().size() == 1 ? lam : SourceSubst.inlineLets(lam);
         if (folded == null || folded.body().size() != 1) {
+            TypedSpec asFail = failThenValue(t, lam, env);
+            if (asFail != null) {
+                return asFail;
+            }
             throw new TypeInferenceException("expected a zero-parameter single-expression thunk");
         }
         return t.synth(folded.body().get(0), env);
+    }
+
+    /** The corpus's {@code | fail('...'); expr;} branch shape (toDDL
+     * getTable): {@code fail} ALWAYS throws, so the branch IS the fail
+     * call — emitted with the FINAL expression's static type (bottom
+     * spirit: the value is unreachable, the throw effect exact). Null =
+     * not this shape. */
+    private static TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
+        List<ValueSpecification> stmts = lam.body();
+        if (stmts.size() < 2) {
+            return null;
+        }
+        TypedSpec first = null;
+        for (int i = 0; i < stmts.size() - 1; i++) {
+            TypedSpec s = t.synth(stmts.get(i), env);
+            if (!(s instanceof com.legend.compiler.spec.typed.TypedNativeCall nc)
+                    || !"meta::pure::functions::asserts::fail"
+                            .equals(nc.callee().qualifiedName())) {
+                return null;
+            }
+            if (first == null) {
+                first = s;
+            }
+        }
+        TypedSpec last = t.synth(stmts.get(stmts.size() - 1), env);
+        var fail = (com.legend.compiler.spec.typed.TypedNativeCall) first;
+        return new com.legend.compiler.spec.typed.TypedNativeCall(
+                fail.callee(), fail.args(), last.info());
     }
 }
