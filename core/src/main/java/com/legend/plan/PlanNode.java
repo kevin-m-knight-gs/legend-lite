@@ -18,7 +18,7 @@ import java.util.List;
  *             {@code SQLExecutionNode}
  */
 public record PlanNode(String kind, List<PlanNode> children,
-                       String sqlQuery, List<Param> functionParameters) {
+                       @com.legend.Nullable String sqlQuery, List<Param> functionParameters) {
 
     public PlanNode {
         children = children == null ? List.of() : List.copyOf(children);

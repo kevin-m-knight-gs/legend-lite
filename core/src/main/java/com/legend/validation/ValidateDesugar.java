@@ -199,7 +199,9 @@ public final class ValidateDesugar {
             // beta-apply {t|...} over the concatenated violations
             tds = replaceVar(postTds.body()
                             .get(postTds.body().size() - 1),
-                    postTds.parameters().get(0).name(), tds);
+                    postTds.parameters().get(0).name(),
+                    java.util.Objects.requireNonNull(tds,
+                            "constraint validation without constraints"));
         }
         // engine parity note: the engine passes ^exeCtx(
         // addDriverTablePkForProject=true) to execute; that metamodel
@@ -368,7 +370,8 @@ public final class ValidateDesugar {
     private static ValueSpecification constraintProject(
             ValueSpecification chain,
             ClassDefinition.ConstraintDefinition c,
-            List<ValueSpecification> userCols, Object[] override) {
+            List<ValueSpecification> userCols,
+            Object @com.legend.Nullable [] override) {
         ValueSpecification body = c.expression();
         // engine negatedFunctionExpression: not(not(x)) collapses
         ValueSpecification negated = body instanceof AppliedFunction nf

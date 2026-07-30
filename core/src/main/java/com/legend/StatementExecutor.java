@@ -28,11 +28,12 @@ final class StatementExecutor {
     }
 
     /** The G½→H→I→J→K back half over a name-RESOLVED query AST. */
-    static ExecutionResult execute(
+    static @com.legend.Nullable ExecutionResult execute(
             com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, com.legend.sql.dialect.SqlDialect dialect,
+            @com.legend.Nullable String runtimeFqn,
+            com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            java.util.function.Consumer<String> rawSqlFailureSink)
+            java.util.function.@com.legend.Nullable Consumer<String> rawSqlFailureSink)
             throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
         ExecEnv env = new ExecEnv(ctx, runtimeFqn, dialect, connection,
@@ -48,17 +49,18 @@ final class StatementExecutor {
      * mixed-dialect bug), the driver runtime, the optional raw-SQL
      * failure sink, and the addDriverTablePkForProject execution option
      * (#45 — see {@link com.legend.validation.DriverPkOption}). */
-    record ExecEnv(ModelContext ctx, String runtimeFqn,
+    record ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            java.util.function.Consumer<String> rawSqlFailureSink,
+            @com.legend.Nullable java.util.function.Consumer<String> rawSqlFailureSink,
             boolean addDriverTablePk,
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace) {
-        ExecEnv(ModelContext ctx, String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                java.util.function.Consumer<String> rawSqlFailureSink,
+                @com.legend.Nullable java.util.function.Consumer<String>
+                        rawSqlFailureSink,
                 boolean addDriverTablePk,
                 java.util.Map<String, TypedSpec> queryLets) {
             // historical arity: no connection post-processor hooks
@@ -66,10 +68,11 @@ final class StatementExecutor {
                     addDriverTablePk, queryLets, java.util.Map.of());
         }
 
-        ExecEnv(ModelContext ctx, String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
-                java.util.function.Consumer<String> rawSqlFailureSink,
+                @com.legend.Nullable java.util.function.Consumer<String>
+                        rawSqlFailureSink,
                 boolean addDriverTablePk) {
             // run-scoped accumulator of inliner-consumed lets: graph-tree
             // date args keep their source spelling (the serialize key), so
@@ -93,7 +96,7 @@ final class StatementExecutor {
      * &alpha;-renaming needed). Value evaluation still ALWAYS lowers to
      * SQL; only the sequencing lives host-side.
      */
-    static ExecutionResult executeStatements(
+    static @com.legend.Nullable ExecutionResult executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
             SpecCompiler specs, ExecEnv env, java.util.Deque<String> frames)
             throws java.sql.SQLException {
@@ -232,7 +235,8 @@ final class StatementExecutor {
                             instanceof com.legend.compiler.spec.typed.TypedCString rt2) {
                 ExecutionResult r1 = planToString(rpi, specs, env);
                 result = new ExecutionResult.Scalar(
-                        String.valueOf(((ExecutionResult.Scalar) r1).value())
+                        String.valueOf(((ExecutionResult.Scalar)
+                                java.util.Objects.requireNonNull(r1)).value())
                                 .replace(rf.value(), rt2.value()),
                         com.legend.compiler.element.type.Type
                                 .Primitive.STRING);
@@ -246,7 +250,8 @@ final class StatementExecutor {
                             .equals(pwf.callee().qualifiedName())) {
                 ExecutionResult r0 = planToString(pwf, specs, env);
                 result = new ExecutionResult.Scalar(
-                        String.valueOf(((ExecutionResult.Scalar) r0).value())
+                        String.valueOf(((ExecutionResult.Scalar)
+                                java.util.Objects.requireNonNull(r0)).value())
                                 .replace("\n", "").replace(" ", ""),
                         com.legend.compiler.element.type.Type
                                 .Primitive.STRING);
@@ -346,7 +351,7 @@ final class StatementExecutor {
      * the engine-style dialect. H2 only — other DatabaseTypes throw until
      * their renderers exist. Never lowers, never touches the connection.
      */
-    private static ExecutionResult toSqlString(
+    private static @com.legend.Nullable ExecutionResult toSqlString(
             com.legend.compiler.spec.typed.TypedNativeCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         String db = typedEnumTail(call.args().get(2));
@@ -388,7 +393,8 @@ final class StatementExecutor {
     private static EngineSql engineSql(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer) {
+            ExecEnv env,
+            com.legend.sql.dialect.EngineStyleH2 renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
                 java.util.Map.of(),
                 java.util.function.UnaryOperator.identity());
@@ -399,7 +405,8 @@ final class StatementExecutor {
      * (value = string-typed, driving the freemarker quote template). */
     private static EngineSql engineSql(java.util.List<TypedSpec> raw,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env, com.legend.sql.dialect.EngineStyleH2 renderer,
+            ExecEnv env,
+            com.legend.sql.dialect.EngineStyleH2 renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
@@ -443,7 +450,7 @@ final class StatementExecutor {
      * connection arm in executeTyped owns it — the same ordering that
      * protects the post-inline hook); only VALUE-position reads route.
      * Null = not host-routed. */
-    private static ExecutionResult hostChannel(TypedSpec bare,
+    private static @com.legend.Nullable ExecutionResult hostChannel(TypedSpec bare,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
             throws java.sql.SQLException {
@@ -471,7 +478,7 @@ final class StatementExecutor {
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
      * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
      * com.legend.plan.PlanText owns the format). */
-    private static ExecutionResult planToString(
+    private static @com.legend.Nullable ExecutionResult planToString(
             com.legend.compiler.spec.typed.TypedNativeCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (!(call.args().get(0)
@@ -550,7 +557,7 @@ final class StatementExecutor {
 
     /** Pre-order search for the first {@code ->from(mapping, …)} in the
      * query tree — the branch-level context of cross-mapping queries. */
-    private static String firstFromMapping(
+    private static @com.legend.Nullable String firstFromMapping(
             com.legend.compiler.spec.typed.TypedSpec t) {
         if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
                 && fr.mapping().isPresent()) {
@@ -570,11 +577,11 @@ final class StatementExecutor {
      * (literal values = Constant nodes), and the terminal Relational
      * lowers with every open variable as a {@code ${name}} plan-template
      * parameter. */
-    private static ExecutionResult sequencePlan(
+    private static @com.legend.Nullable ExecutionResult sequencePlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env, boolean quote, String timeZone,
-            String connName, String dbType) {
+            ExecEnv env, boolean quote, @com.legend.Nullable String timeZone,
+            @com.legend.Nullable String connName, @com.legend.Nullable String dbType) {
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
@@ -650,11 +657,11 @@ final class StatementExecutor {
      * Relational nodes (bare-typed, alias-less select), and CLASS query
      * values as full Class-envelope Relational nodes — the engine's
      * three Allocation value forms. */
-    private static String allocationNode(
+    private static @com.legend.Nullable String allocationNode(
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
-            boolean quote, String timeZone, String dbType) {
+            boolean quote, @com.legend.Nullable String timeZone, @com.legend.Nullable String dbType) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -722,12 +729,12 @@ final class StatementExecutor {
                 inner);
     }
 
-    private static String multBracket(
+    private static @com.legend.Nullable String multBracket(
             com.legend.compiler.element.type.Multiplicity m) {
         return "[" + sizeRange(m) + "]";
     }
 
-    private static String sizeRange(
+    private static @com.legend.Nullable String sizeRange(
             com.legend.compiler.element.type.Multiplicity m) {
         if (m instanceof com.legend.compiler.element.type.Multiplicity
                 .Bounded b) {
@@ -764,7 +771,7 @@ final class StatementExecutor {
     /** The engine connection's timeZone, read off the RUNTIME argument
      * (an inline DatabaseConnection(timeZone='US/Arizona')). Null when
      * absent — the default-zone connection. */
-    private static String timeZoneOf(TypedSpec runtimeArg) {
+    private static @com.legend.Nullable String timeZoneOf(TypedSpec runtimeArg) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(runtimeArg);
         while (!work.isEmpty()) {
@@ -783,7 +790,7 @@ final class StatementExecutor {
     /** The runtime connection's plan spelling — the instance's own CLASS
      * simple name (exact-FQN dispatch) with its declared DatabaseType
      * ({@code DatabaseConnection(type = "DB2")}). */
-    private static String connectionNameOf(TypedSpec runtimeArg) {
+    private static @com.legend.Nullable String connectionNameOf(TypedSpec runtimeArg) {
         var ni = connectionInstanceOf(runtimeArg);
         if (ni == null) {
             return "TestDatabaseConnection(type = \"H2\")";
@@ -801,7 +808,7 @@ final class StatementExecutor {
 
     /** The FIRST connection instance under {@code runtimeArg} (exact-FQN
      * dispatch), or null. */
-    private static com.legend.compiler.spec.typed.TypedNewInstance
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNewInstance
             connectionInstanceOf(TypedSpec runtimeArg) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(runtimeArg);
@@ -822,7 +829,7 @@ final class StatementExecutor {
         return null;
     }
 
-    private static String dbTypeOf(
+    private static @com.legend.Nullable String dbTypeOf(
             com.legend.compiler.spec.typed.TypedNewInstance ni) {
         return ni.properties().get("type") instanceof
                 com.legend.compiler.spec.typed.TypedEnumValue ev
@@ -830,7 +837,7 @@ final class StatementExecutor {
     }
 
     /** The runtime connection's DatabaseType name ("H2" when absent). */
-    private static String databaseTypeOf(TypedSpec runtimeArg) {
+    private static @com.legend.Nullable String databaseTypeOf(TypedSpec runtimeArg) {
         var ni = connectionInstanceOf(runtimeArg);
         return ni == null ? "H2" : dbTypeOf(ni);
     }
@@ -839,7 +846,11 @@ final class StatementExecutor {
      * the plan goldens pin Composite to the DB2-family spelling
      * (paren-wrapped conjunctions, quoted boolean placeholders). */
     private static com.legend.sql.dialect.EngineStyleH2 planDialect(
-            String dbType, boolean quote, String tz) {
+            @com.legend.Nullable String dbType, boolean quote,
+            @com.legend.Nullable String tz) {
+        if (dbType == null) {
+            return new com.legend.sql.dialect.EngineStyleH2(quote, tz);
+        }
         return switch (dbType) {
             case "DB2", "Composite" ->
                     new com.legend.sql.dialect.EngineStyleDB2(quote, tz);
@@ -854,7 +865,7 @@ final class StatementExecutor {
      * executionPlan call; the value is the walked result (node, list,
      * param, scalar). Unknown steps return null — the chain falls back
      * to the ordinary pipeline and its own walls. */
-    private static Object planWalk(TypedSpec n,
+    private static @com.legend.Nullable Object planWalk(TypedSpec n,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ep
                 && com.legend.compiler.element.type.PlatformTypes
@@ -1096,7 +1107,7 @@ final class StatementExecutor {
     /** A constructed relational-op instance's HOST value: DynaFunction/
      * Literal/LiteralList convert structurally; walked sub-chains
      * contribute their own Rop ops; anything else nulls. */
-    private static com.legend.model.RelationalOperation constructOp(
+    private static com.legend.model.@com.legend.Nullable RelationalOperation constructOp(
             com.legend.compiler.spec.typed.TypedNewInstance ni,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         String simple = ni.classFqn().substring(
@@ -1185,7 +1196,7 @@ final class StatementExecutor {
     /** A constructed SQL-protocol/bridge node as a HOST record, or null
      * when the class is not a bridge node (relational ops fall through
      * to {@link #constructOp}). */
-    private static Object constructNode(
+    private static @com.legend.Nullable Object constructNode(
             com.legend.compiler.spec.typed.TypedNewInstance ni,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         String simple = ni.classFqn().substring(
@@ -1193,7 +1204,9 @@ final class StatementExecutor {
         switch (simple) {
             case "QualifiedName" -> {
                 return new com.legend.exec.MetamodelWalk.QnH(
-                        stringsOf(ni.properties().get("parts")));
+                        java.util.Objects.requireNonNull(
+                                stringsOf(ni.properties().get("parts")),
+                                "QualifiedName without parts"));
             }
             case "QualifiedNameReference" -> {
                 Object nm = ni.properties().get("name") instanceof
@@ -1303,7 +1316,7 @@ final class StatementExecutor {
     /** GENERIC SQL-protocol node: kind + converted ctor props (nested
      * instances recurse; collections map; enum values spell their
      * NAME; walked chains contribute their host values). */
-    private static Object genericNode(
+    private static @com.legend.Nullable Object genericNode(
             com.legend.compiler.spec.typed.TypedNewInstance ni,
             String simple, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env) {
@@ -1323,7 +1336,7 @@ final class StatementExecutor {
         return com.legend.exec.MetamodelWalk.nodeOf(simple, props);
     }
 
-    private static Object nodeValue(TypedSpec v,
+    private static @com.legend.Nullable Object nodeValue(TypedSpec v,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return switch (v) {
             case com.legend.compiler.spec.typed.TypedCString c ->
@@ -1374,7 +1387,8 @@ final class StatementExecutor {
     }
 
     /** String elements of a literal collection value. */
-    private static java.util.List<String> stringsOf(TypedSpec v) {
+    private static java.util.@com.legend.Nullable List<String> stringsOf(
+            @com.legend.Nullable TypedSpec v) {
         java.util.List<TypedSpec> els = v instanceof
                 com.legend.compiler.spec.typed.TypedCollection tc
                 ? tc.elements()
@@ -1390,7 +1404,7 @@ final class StatementExecutor {
 
     /** One constructor-argument op: nested instance, or a WALKED chain
      * whose value is already a relational-op handle. */
-    private static com.legend.model.RelationalOperation argOp(TypedSpec e,
+    private static com.legend.model.@com.legend.Nullable RelationalOperation argOp(TypedSpec e,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (e instanceof com.legend.compiler.spec.typed.TypedNewInstance nni) {
             return constructOp(nni, specs, env);
@@ -1406,7 +1420,7 @@ final class StatementExecutor {
     /** NARROW map-lambda body: one native call over the parameter
      * ({@code x|$x->view('name')}) — evaluated per element; null on any
      * other shape (the walk falls through to its walls). */
-    private static Object walkMapBody(Object e,
+    private static @com.legend.Nullable Object walkMapBody(Object e,
             com.legend.compiler.spec.typed.TypedLambda ml) {
         if (ml.body().size() != 1 || ml.parameters().isEmpty()
                 || !(ml.body().get(0) instanceof
@@ -1435,7 +1449,7 @@ final class StatementExecutor {
     /** {@code ->map(x|...)} over walked handles; a single IS a [1]
      * collection (pure semantics), so classMappingById's [0..1] result
      * maps like the metamodel families' lists. */
-    private static Object walkMapOver(Object recvM,
+    private static @com.legend.Nullable Object walkMapOver(@com.legend.Nullable Object recvM,
             com.legend.compiler.spec.typed.TypedLambda tml) {
         if (recvM != null && !(recvM instanceof java.util.List)) {
             recvM = java.util.List.of(recvM);
@@ -1456,7 +1470,7 @@ final class StatementExecutor {
     /** The extends-chain mapping-metamodel natives (classMappingById /
      * superMapping / allSuperSetImplementations / mainTable /
      * resolvePrimaryKey) — recv-dispatched to MetamodelWalk. */
-    private static Object mappingNav(String simple, Object recv,
+    private static @com.legend.Nullable Object mappingNav(String simple, Object recv,
             com.legend.compiler.spec.typed.TypedNativeCall c,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return switch (simple) {
@@ -1482,7 +1496,7 @@ final class StatementExecutor {
     }
 
     /** Property step, AUTO-MAPPING over lists (pure semantics). */
-    private static Object walkProp(Object recv, String prop) {
+    private static @com.legend.Nullable Object walkProp(Object recv, String prop) {
         Object mm = com.legend.exec.MetamodelWalk.prop(recv, prop);
         if (mm != null) {
             return mm;
@@ -1523,7 +1537,7 @@ final class StatementExecutor {
 
     /** filter lambda bodies the walk understands: instanceOf($n, X) and
      * {@code $p.name == 'lit'}. */
-    private static Object walkFilter(java.util.List<?> l,
+    private static @com.legend.Nullable Object walkFilter(java.util.List<?> l,
             com.legend.compiler.spec.typed.TypedLambda lam) {
         TypedSpec body = lam.body().get(lam.body().size() - 1);
         if (body instanceof com.legend.compiler.spec.typed.TypedNativeCall io
@@ -1570,7 +1584,7 @@ final class StatementExecutor {
     }
 
     /** The SIMPLE class name a type-valued argument refers to. */
-    private static String typeRefSimple(TypedSpec t) {
+    private static @com.legend.Nullable String typeRefSimple(TypedSpec t) {
         if (t instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr2) {
             String f = pr2.fullPath();
             return f.substring(f.lastIndexOf(':') + 1);
@@ -1666,7 +1680,7 @@ final class StatementExecutor {
                 java.util.List.of(fpvn, rel), null, java.util.List.of());
     }
 
-    private static String rootGetAllClass(java.util.List<TypedSpec> body) {
+    private static @com.legend.Nullable String rootGetAllClass(java.util.List<TypedSpec> body) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             TypedSpec t = work.poll();
@@ -1692,7 +1706,7 @@ final class StatementExecutor {
      * {@code Result.values} for a TDS query holds ONE TDS; for a class or
      * scalar root, values IS the collection), and the eager run's result. */
     record ExecFrame(TypedSpec chain, boolean relationRooted,
-            ExecutionResult result) {
+            @com.legend.Nullable ExecutionResult result) {
     }
 
     /** Envelope-read recognizers — generic natives identified by EXACT FQN
@@ -2023,7 +2037,7 @@ final class StatementExecutor {
      * is loud — the envelope holds one TDS. Class/scalar roots return null:
      * their at/toOne are REAL selections and the binding is an ordinary let.
      */
-    private static ExecFrame aliasFrame(TypedSpec rhs,
+    private static @com.legend.Nullable ExecFrame aliasFrame(TypedSpec rhs,
             java.util.Map<String, ExecFrame> execFrames) {
         TypedSpec cur = rhs;
         boolean badIndex = false;
@@ -2219,7 +2233,7 @@ final class StatementExecutor {
     }
 
     /** The frame behind a {@code <frameVar>.values} read; null otherwise. */
-    private static ExecFrame valuesFrame(TypedSpec n,
+    private static @com.legend.Nullable ExecFrame valuesFrame(TypedSpec n,
             java.util.Map<String, ExecFrame> execFrames) {
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
                 && pa.property().equals("values")
@@ -2233,7 +2247,7 @@ final class StatementExecutor {
     /** Splice a {@code .values} read (over a frame variable or an INLINE
      * execute call) into the underlying typed query chain; null when the
      * node is not a values read the frames can answer. */
-    private static TypedSpec spliceValuesRead(TypedSpec n,
+    private static @com.legend.Nullable TypedSpec spliceValuesRead(TypedSpec n,
             java.util.Map<String, ExecFrame> execFrames,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
         ExecFrame f = valuesFrame(n, execFrames);
@@ -2318,7 +2332,7 @@ final class StatementExecutor {
      * arguments as parameter lets (caller lets substituted in — the callee
      * body is otherwise closed) and run the body as a statement sequence.
      */
-    static ExecutionResult executeCallStatement(
+    static @com.legend.Nullable ExecutionResult executeCallStatement(
             com.legend.compiler.spec.typed.TypedUserCall call,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env,
             java.util.Deque<String> frames) throws java.sql.SQLException {
@@ -2628,7 +2642,8 @@ final class StatementExecutor {
         }
         ExecutionResult res = Executor.execute(
                 dialect.render(plan), plan,
-                collectionDeclared ? declaredInfo : root.info(),
+                collectionDeclared ? java.util.Objects.requireNonNull(declaredInfo)
+                        : root.info(),
                 collectionDeclared ? com.legend.exec.ResultShape.COLLECTION
                         : com.legend.exec.ResultShape.of(root),
                 connection, dialect);

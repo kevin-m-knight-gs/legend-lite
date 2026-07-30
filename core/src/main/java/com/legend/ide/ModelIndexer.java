@@ -72,11 +72,12 @@ public final class ModelIndexer {
                 continue;
             }
 
-            ElementKind kind = ElementKind.fromHeaderToken(t);
-            if (kind == null) {
+            ElementKind kind0 = ElementKind.fromHeaderToken(t);
+            if (kind0 == null) {
                 TokenStreamCursor.throwAt(tokens, pos,
                         "unsupported top-level keyword: " + t + " ('" + safeText(tokens, pos) + "')");
             }
+            ElementKind kind = java.util.Objects.requireNonNull(kind0);
 
             int elementStart = pos;
             int afterKeyword = pos + 1;

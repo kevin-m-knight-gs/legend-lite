@@ -137,7 +137,7 @@ public final class DriverPkAppend {
         return n;
     }
 
-    private static TypedTableReference deepestLeftScan(TypedSpec n) {
+    private static @com.legend.Nullable TypedTableReference deepestLeftScan(TypedSpec n) {
         if (n instanceof TypedTableReference tr) {
             return tr;
         }

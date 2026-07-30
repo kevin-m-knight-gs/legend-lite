@@ -71,7 +71,7 @@ public final class MetamodelWalk {
     public record CnH(String name) {
     }
 
-    public record TacH(String aliasName, Object column) {
+    public record TacH(String aliasName, @com.legend.Nullable Object column) {
     }
 
     /** A DynaFunction whose arguments MIX relational ops with walked
@@ -852,7 +852,8 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     /** {@code allSuperSetImplementations} (real engine mappingExtension
      * .pure:163) — the extends chain ROOT-FIRST, each hop resolved
      * against the QUERIED mapping {@code m}. */
-    public static @com.legend.Nullable Object allSuperSetImplementations(Object set, Object m) {
+    public static @com.legend.Nullable Object allSuperSetImplementations(
+            Object set, @com.legend.Nullable Object m) {
         if (!(set instanceof Cm) || !(m instanceof Mm mm)) {
             return null;
         }

@@ -42,7 +42,7 @@ public final class PlanText {
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            String connectionName) {
+            @com.legend.Nullable String connectionName) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn);
         return "Relational\n(\n"
@@ -137,7 +137,8 @@ public final class PlanText {
     }
 
     /** The scalar {@code type/resultSizeRange} pair at 2-space indent. */
-    public static String scalarTypeBlock(String typeName, String sizeRange) {
+    public static String scalarTypeBlock(String typeName,
+            @com.legend.Nullable String sizeRange) {
         return "  type = " + typeName + "\n"
                 + "  resultSizeRange = " + sizeRange + "\n";
     }
@@ -149,7 +150,7 @@ public final class PlanText {
      * form). Rendering stays in the root layer — the caller supplies the
      * alias-less SQL text and the post-render alias spelling. */
     public static String scalarRelational(ModelContext ctx, String dbFqn,
-            SqlSelect plan, String typeName, String sizeRange, String sql,
+            SqlSelect plan, String typeName, @com.legend.Nullable String sizeRange, String sql,
             java.util.function.UnaryOperator<String> aliasSpell) {
         StringBuilder rc = new StringBuilder();
         for (SqlSelect.Projection p : plan.projections()) {

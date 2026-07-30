@@ -234,7 +234,8 @@ public final class Compiler {
             }
             throw new com.legend.error.ModelException(e.phase(),
                     srcName + " " + com.legend.error.LegendCompileException
-                            .position(module.sourceTexts().get(srcName), off)
+                            .position(java.util.Objects.requireNonNull(
+                                    module.sourceTexts().get(srcName)), off)
                             + " " + e.getMessage(), e.element());
         }
     }
@@ -287,7 +288,8 @@ public final class Compiler {
      * &mdash; the caller-supplied-connection path) defaults to DuckDB, the
      * reference dialect.
      */
-    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx, String runtimeFqn) {
+    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn) {
         if (runtimeFqn == null) {
             return new com.legend.sql.dialect.DuckDb();
         }
@@ -347,7 +349,8 @@ public final class Compiler {
      * execution context in the query itself ({@code ->from(...)}) on this
      * overload; the 4-arg overload supplies a driver runtime.
      */
-    public static com.legend.exec.ExecutionResult execute(String model, String query,
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+            String model, String query,
             java.sql.Connection connection) throws java.sql.SQLException {
         return execute(model, query, null, connection);
     }
@@ -359,8 +362,10 @@ public final class Compiler {
      * resolves class queries against the runtime's mapping between G and
      * I; an explicit {@code from()} in the query always wins.
      */
-    public static com.legend.exec.ExecutionResult execute(String model, String query,
-            String runtimeFqn, java.sql.Connection connection) throws java.sql.SQLException {
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+            String model, String query,
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection) throws java.sql.SQLException {
         return execute(model, query, null, runtimeFqn, connection);
     }
 
@@ -371,8 +376,10 @@ public final class Compiler {
      * for a query written in an import-bearing section. A {@code null}
      * scope is the sectionless-query behavior.
      */
-    public static com.legend.exec.ExecutionResult execute(String model, String query,
-            com.legend.model.ImportScope imports, String runtimeFqn,
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+            String model, String query,
+            com.legend.model.@com.legend.Nullable ImportScope imports,
+            @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection) throws java.sql.SQLException {
         ModelContext ctx = compileModel(model);
         return executeResolved(
@@ -389,9 +396,10 @@ public final class Compiler {
      * TestBody's handle-splice path) comes through here; a second
      * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
      */
-    public static com.legend.exec.ExecutionResult executeResolved(
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
             com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, java.sql.Connection connection)
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection)
             throws java.sql.SQLException {
         return executeResolved(resolved, ctx, runtimeFqn, connection, null);
     }
@@ -432,10 +440,10 @@ public final class Compiler {
      * semantics: one dialect-incompatible INSERT must not abort the whole
      * seed; the caller's ledger feeds its emptiness guard). Null = throw.
      */
-    public static com.legend.exec.ExecutionResult executeResolved(
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
             com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, java.sql.Connection connection,
-            java.util.function.Consumer<String> rawSqlFailureSink)
+            @com.legend.Nullable String runtimeFqn, java.sql.Connection connection,
+            java.util.function.@com.legend.Nullable Consumer<String> rawSqlFailureSink)
             throws java.sql.SQLException {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn), connection,

@@ -124,7 +124,7 @@ public sealed interface PureDateLiteral
      * {@code substring(0, 10)} surgery, which mis-truncated any year not
      * exactly four digits: remediation T1.2.)
      */
-    default StrictDate strictDatePart() {
+    default @com.legend.Nullable StrictDate strictDatePart() {
         return switch (this) {
             case StrictDate d -> d;
             case DateWithHour d -> new StrictDate(d.year(), d.month(), d.day());

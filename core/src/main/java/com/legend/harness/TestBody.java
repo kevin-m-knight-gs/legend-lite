@@ -2570,7 +2570,8 @@ public final class TestBody {
                         execChains))) {
             joinSep = sep.value();
         }
-        return new Eval(r, endsInSort(orderView(spliced, execChains)),
+        return new Eval(java.util.Objects.requireNonNull(r, "spliced eval without a result"),
+                endsInSort(orderView(spliced, execChains)),
                 csv, joinSep, isFlatCellsRead(spliced));
     }
 
@@ -2602,7 +2603,7 @@ public final class TestBody {
      * ({@link Compiler#executeResolved}); an expression that reads an
      * execute() binding rides behind the forwarded statement PREFIX — the
      * platform's result frame owns the envelope splice (audit 19d B2). */
-    private static com.legend.exec.ExecutionResult evalSpliced(ValueSpecification expr,
+    private static com.legend.exec.@com.legend.Nullable ExecutionResult evalSpliced(ValueSpecification expr,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {

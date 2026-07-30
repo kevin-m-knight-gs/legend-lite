@@ -22,7 +22,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     public EngineStyleDB2() {
     }
 
-    public EngineStyleDB2(boolean quoteIdentifiers, String timeZone) {
+    public EngineStyleDB2(boolean quoteIdentifiers,
+            @com.legend.Nullable String timeZone) {
         super(quoteIdentifiers, timeZone);
     }
 
