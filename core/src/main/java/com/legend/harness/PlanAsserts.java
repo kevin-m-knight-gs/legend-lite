@@ -98,7 +98,7 @@ final class PlanAsserts {
         } catch (com.legend.error.NotImplementedException
                 | com.legend.error.LegendCompileException
                 | UnsupportedOperationException pw) {
-            return TestBody.UNSUPPORTED_MARKER;
+            return TestBody.unsupported("plan wall: " + pw.getMessage());
         }
     }
 
@@ -182,7 +182,7 @@ final class PlanAsserts {
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[plan-wall] " + pw);
             }
-            return TestBody.UNSUPPORTED_MARKER;
+            return TestBody.unsupported("plan wall: " + pw.getMessage());
         }
     }
 }

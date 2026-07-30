@@ -1330,7 +1330,13 @@ final class Typer {
 
         List<TypedFunction> candidates = functionCandidates(af);
         if (candidates.isEmpty()) {
-            throw new TypeInferenceException("unknown function '" + af.function() + "'");
+            // C0.5a: zero candidates means the name is NOT IN THE CATALOG
+            // (usually an unported platform function) — say so instead of
+            // implying the model called something malformed
+            throw new TypeInferenceException("unknown function '"
+                    + af.function() + "' — no function of this name in the"
+                    + " native or user catalog (unported platform function,"
+                    + " or a misspelling)");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes);
         return new Application(r.chosen(), args,

@@ -1063,7 +1063,8 @@ final class Substitution {
                     TypedSpec leafBinding = sub.bindings().get(leaf);
                     if (leafBinding == null) {
                         throw new MappingResolutionException("property '"
-                                + leaf + "' of nested navigation '" + hops
+                                + SyntheticHeads.realHead(leaf)
+                                + "' of nested navigation '" + hops
                                 + "' is not mapped in mapping '"
                                 + target.mappingFqn() + "'", target.classFqn());
                     }
@@ -1518,8 +1519,13 @@ final class Substitution {
                 // parent-alias column, never a join (V1 §D.4 semantics).
                 TypedSpec leafExpr = ctor.properties().get(leaf);
                 if (leafExpr == null) {
-                    throw new MappingResolutionException("property '" + leaf
-                            + "' of embedded '" + head + "' on class '"
+                    // C0.5b: name the REAL property, never our synthetic
+                    // #fN / dated identifiers (blaming users for internal
+                    // names was the audit's misattribution finding)
+                    throw new MappingResolutionException("property '"
+                            + SyntheticHeads.realHead(leaf)
+                            + "' of embedded '" + SyntheticHeads.realHead(head)
+                            + "' on class '"
                             + target.classFqn() + "' is not mapped in mapping '"
                             + target.mappingFqn() + "'", target.classFqn());
                 }
@@ -1620,7 +1626,8 @@ final class Substitution {
                         + "." + leaf + "' inside an exists/isEmpty predicate is"
                         + " not supported yet");
             }
-            throw new MappingResolutionException("property '" + leaf
+            throw new MappingResolutionException("property '"
+                    + SyntheticHeads.realHead(leaf)
                     + "' of class '" + a.targetClassFqn()
                     + "' is not mapped in mapping '" + target.mappingFqn() + "'",
                     a.targetClassFqn());

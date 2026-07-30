@@ -32,7 +32,12 @@ public final class Runner {
      * platform test root) — set by the runner harness; null = disabled. */
     public java.util.function.Function<String, java.nio.file.Path> classLookup;
 
-    public record Outcome(String test, Status status, String detail) {
+    public record Outcome(String test, Status status, String detail,
+            int sqlDiffs) {
+        /** Non-PASS / non-Ran outcomes carry no SQL-diff channel. */
+        public Outcome(String test, Status status, String detail) {
+            this(test, status, detail, 0);
+        }
     }
 
     public enum Status { PASS, FAIL, ERROR, SHAPE }
@@ -1079,9 +1084,10 @@ public final class Runner {
                 List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
                         ctx, conn);
                 seedFailures.addAll(failedSeeds);
-                if (System.getenv("LL_TMP_DEBUG") != null) {
-                    // wall-attribution marker: [plan-wall]/[walk] prints
-                    // that follow belong to THIS test
+                if (System.getenv("LL_TMP_DEBUG") != null
+                        || System.getenv("LL_ORD_COUNT") != null) {
+                    // wall-attribution marker: [plan-wall]/[walk]/[ord]
+                    // prints that follow belong to THIS test
                     System.err.println("[run] " + t.fqn());
                 }
                 com.legend.harness.TestBody.Outcome o = com.legend.harness.TestBody.run(
@@ -1130,7 +1136,15 @@ public final class Runner {
                 if (r.verified() == 0) {
                     yield new Outcome(fqn, Status.SHAPE, "no verifying assertions");
                 }
-                yield new Outcome(fqn, Status.PASS, r.verified() + " assert(s)");
+                // C0.2 (CORRECTNESS_REMEDIATION): a row-verified pass with
+                // golden-SQL divergences must SAY so — the pass count alone
+                // is not evidence of SQL parity
+                yield new Outcome(fqn, Status.PASS,
+                        r.verified() + " assert(s)"
+                                + (r.sqlDiffs().isEmpty() ? ""
+                                        : ", " + r.sqlDiffs().size()
+                                                + " advisory sql diff(s)"),
+                        r.sqlDiffs().size());
             }
         };
     }
@@ -1881,15 +1895,24 @@ public final class Runner {
         int error = 0;
         int shape = 0;
         Map<String, Integer> buckets = new LinkedHashMap<>();
-        sb.append("\n| family | tests | pass | fail | error | shape |\n|---|---|---|---|---|---|\n");
+        int diffPass = 0;
+        // sqldiff-pass column sits LAST: the regression gate's baseline
+        // parser reads the pass column POSITIONALLY (cells[3])
+        sb.append("\n| family | tests | pass | fail | error | shape | sqldiff-pass |\n|---|---|---|---|---|---|---|\n");
         for (var e : byFamily.entrySet()) {
             int p = 0;
             int f = 0;
             int er = 0;
             int sh = 0;
+            int dp = 0;
             for (Outcome o : e.getValue()) {
                 switch (o.status()) {
-                    case PASS -> p++;
+                    case PASS -> {
+                        p++;
+                        if (o.sqlDiffs() > 0) {
+                            dp++;
+                        }
+                    }
                     case FAIL -> f++;
                     case ERROR -> {
                         er++;
@@ -1902,13 +1925,16 @@ public final class Runner {
             fail += f;
             error += er;
             shape += sh;
+            diffPass += dp;
             sb.append("| ").append(e.getKey()).append(" | ").append(e.getValue().size())
                     .append(" | ").append(p).append(" | ").append(f).append(" | ")
-                    .append(er).append(" | ").append(sh).append(" |\n");
+                    .append(er).append(" | ").append(sh).append(" | ").append(dp)
+                    .append(" |\n");
         }
         sb.append("| **total** | ").append(pass + fail + error + shape).append(" | **")
                 .append(pass).append("** | ").append(fail).append(" | ")
-                .append(error).append(" | ").append(shape).append(" |\n");
+                .append(error).append(" | ").append(shape).append(" | ")
+                .append(diffPass).append(" |\n");
         sb.append("\n### mapping walls (dropped at assembly)\n\n");
         for (String w : walls) {
             sb.append("- ").append(w).append('\n');
@@ -1924,10 +1950,15 @@ public final class Runner {
             for (Outcome o : e.getValue()) {
                 if (o.status() != Status.PASS) {
                     String d = o.detail().replace("\n", "\\n");
+                    // C0.1: 300 chars destroyed the got-side of every long
+                    // SQL/plan diff (blocked 10 FAILs from diagnosis) —
+                    // FAIL rows keep the full diff up to 4000; ERROR/SHAPE
+                    // messages are short and bucketed
+                    int cap = o.status() == Status.FAIL ? 4000 : 300;
                     sb.append("- ").append(o.status()).append(' ')
                             .append(o.test().substring(o.test().lastIndexOf("::") + 2))
                             .append(" [").append(e.getKey()).append("]: ")
-                            .append(d, 0, Math.min(300, d.length()))
+                            .append(d, 0, Math.min(cap, d.length()))
                             .append('\n');
                 }
             }

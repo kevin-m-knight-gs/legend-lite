@@ -684,6 +684,25 @@ public final class TestBody {
     // ===== assert dispatch =====
 
     static final String UNSUPPORTED_MARKER = new String("unsupported");
+
+    /** C0.3 (CORRECTNESS_REMEDIATION): the marker is an IDENTITY sentinel,
+     * so the actual wall reason is lost by construction — 43 plan-renderer
+     * walls scored as generic 'assert form not supported' and the SHAPE
+     * bucket went unexamined. Wall sites that KNOW their reason set it
+     * here (via {@link #unsupported}); the two marker consumers read and
+     * CLEAR it. Best-effort: an unset reason keeps the generic message. */
+    static final ThreadLocal<String> UNSUPPORTED_REASON = new ThreadLocal<>();
+
+    static String unsupported(String reason) {
+        UNSUPPORTED_REASON.set(reason);
+        return UNSUPPORTED_MARKER;
+    }
+
+    private static String takeUnsupportedReason() {
+        String why = UNSUPPORTED_REASON.get();
+        UNSUPPORTED_REASON.remove();
+        return why;
+    }
     private static final String ADVISORY_MARKER = new String("advisory");
     private static final String NOT_TDG_MARKER = new String("not-tdg");
 
@@ -832,8 +851,10 @@ public final class TestBody {
     private static Outcome scoreAssert(AppliedFunction af, String failure,
             int[] counters, List<String> sqlDiffs, int executed) {
         if (failure == UNSUPPORTED_MARKER) {
+            String why = takeUnsupportedReason();
             return new Outcome.Unsupported("assert form '" + af.function()
-                    + "/" + af.parameters().size() + "' is not supported yet");
+                    + "/" + af.parameters().size() + "' is not supported yet"
+                    + (why == null ? "" : " — " + why));
         }
         if (failure == ADVISORY_MARKER) {
             counters[1]++;
@@ -2057,9 +2078,11 @@ public final class TestBody {
                                 imports, runtimeFqn, conn,
                                 unverifiable, Map.of(), java.util.Set.of());
                         if (failure == UNSUPPORTED_MARKER) {
+                            String why2 = takeUnsupportedReason();
                             return new Outcome.Unsupported(
                                     "assert form '" + af2.function()
-                                    + "' in a per-driver golden loop");
+                                    + "' in a per-driver golden loop"
+                                    + (why2 == null ? "" : " — " + why2));
                         }
                         if (failure == ADVISORY_MARKER) {
                             counters[1]++;
@@ -2853,12 +2876,7 @@ public final class TestBody {
             return false;
         }
         if (ordered) {
-            for (int i = 0; i < e.size(); i++) {
-                if (!rowEquals(e.get(i), a.get(i))) {
-                    return false;
-                }
-            }
-            return true;
+            return rowsPositional(e, a);
         }
         List<List<Object>> pool = new ArrayList<>(a);
         for (List<Object> row : e) {
@@ -2874,7 +2892,31 @@ public final class TestBody {
             }
             pool.remove(hit);
         }
+        // C0.4: a multiset pass the POSITIONAL compare would reject is a
+        // pass that depends on order leniency — countable per sweep
+        ordLeniency(() -> rowsPositional(e, a));
         return true;
+    }
+
+    private static boolean rowsPositional(List<List<Object>> e,
+            List<List<Object>> a) {
+        for (int i = 0; i < e.size(); i++) {
+            if (!rowEquals(e.get(i), a.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** C0.4 (CORRECTNESS_REMEDIATION): under {@code LL_ORD_COUNT}, emit an
+     * {@code [ord]} line when a comparison passed ONLY because of multiset
+     * row leniency — {@code strictHolds} is the order-strict re-check.
+     * Attribution: pair each line with the preceding {@code [run] <fqn>}.
+     * Measurement only; never changes the verdict. */
+    private static void ordLeniency(java.util.function.BooleanSupplier strictHolds) {
+        if (System.getenv("LL_ORD_COUNT") != null && !strictHolds.getAsBoolean()) {
+            System.err.println("[ord] order-leniency-dependent pass");
+        }
     }
 
     private static boolean rowEquals(List<Object> e, List<Object> a) {
@@ -3079,7 +3121,13 @@ public final class TestBody {
                 return false;
             }
         }
-        return pool.isEmpty() && dataLines == lines.size();
+        boolean ok = pool.isEmpty() && dataLines == lines.size();
+        if (ok) {
+            // the exact-string compare above already FAILED, so reaching a
+            // multiset success is order-leniency-dependent by construction
+            ordLeniency(() -> false);
+        }
+        return ok;
     }
 
     /** STRICT wire equality: integral kinds normalize; decimal by compareTo; no cross-kind. */
