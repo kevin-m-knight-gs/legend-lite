@@ -315,7 +315,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
     @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
             @com.legend.Nullable TypedLambda corr) {
         Set<String> names = new LinkedHashSet<>();
-        for (TypedSpec b : java.util.Objects.requireNonNull(corr).body()) {
+        for (TypedSpec b : java.util.Objects.requireNonNull(corr, "corr").body()) {
             collectVarNamesInto(b, names);
         }
         names.removeAll(corr.parameters());
@@ -511,7 +511,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
     private CorrAggSub chainedAggSubSource(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj) {
         TypedLambda cond = aj.condition();
-        String srcVar = java.util.Objects.requireNonNull(cond).parameters().get(0);
+        String srcVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
         Set<String> slots = Pipelines.slotAliases(cs.pipeline());
         Set<String> condSlots = new LinkedHashSet<>();
         for (TypedSpec b : cond.body()) {
@@ -730,8 +730,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             aj.targetSubNavs(),
                             pc == null ? Map.of() : pc.mat().slotPrefixes(),
                             pc == null ? Map.of() : pc.subNavs(),
-                            java.util.Objects.requireNonNull(corrRowVar),
-                            java.util.Objects.requireNonNull(corrJoinedRow));
+                            java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
+                            java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"));
             mapBody = mm.body().get(0);
             leafType = mapBody.info().type();
             leafMult = mapBody.info().multiplicity();
@@ -759,9 +759,9 @@ private static boolean referencesVar(TypedSpec n, String var) {
                         aj.target().rowVar(), corrTp,
                         v -> new com.legend.compiler.spec.typed
                                 .TypedVariable(
-                                        java.util.Objects.requireNonNull(rv),
+                                        java.util.Objects.requireNonNull(rv, "rv"),
                                         new ExprType(java.util.Objects
-                                                .requireNonNull(jr),
+                                                .requireNonNull(jr, "jr"),
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)));
             }
@@ -848,8 +848,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             aj.targetSubNavs(),
                             pc == null ? Map.of() : pc.mat().slotPrefixes(),
                             pc == null ? Map.of() : pc.subNavs(),
-                            java.util.Objects.requireNonNull(corrRowVar),
-                            java.util.Objects.requireNonNull(corrJoinedRow));
+                            java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
+                            java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"));
         }
         return new TypedAggCol(alias, map, reduce, orderLambda,
                 d.orderAsc());
@@ -1080,7 +1080,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             c.type(), c.multiplicity()));
                 }
                 Type.RelationType leftRow3 = new Type.RelationType(leftCols3);
-                String lp3 = java.util.Objects.requireNonNull(cond3).parameters().get(0);
+                String lp3 = java.util.Objects.requireNonNull(cond3, "cond3").parameters().get(0);
                 final String ppf = parentPrefix;
                 TypedSpec body3 = Pipelines.prefixColumns(
                         cond3.body().get(cond3.body().size() - 1), lp3, ppf,
@@ -1132,7 +1132,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
         if (alias == null) {
             return null;
         }
-        return java.util.Objects.requireNonNull(navSteps.get(alias)).target()
+        return java.util.Objects.requireNonNull(navSteps.get(alias), "navSteps.get(alias)").target()
                 instanceof com.legend.compiler.spec.typed.TypedGetAll g
                 ? sources.get(parent.mappingFqn(), g.classFqn()) : null;
     }

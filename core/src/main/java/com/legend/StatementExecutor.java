@@ -236,7 +236,7 @@ final class StatementExecutor {
                 ExecutionResult r1 = planToString(rpi, specs, env);
                 result = new ExecutionResult.Scalar(
                         String.valueOf(((ExecutionResult.Scalar)
-                                java.util.Objects.requireNonNull(r1)).value())
+                                java.util.Objects.requireNonNull(r1, "r1")).value())
                                 .replace(rf.value(), rt2.value()),
                         com.legend.compiler.element.type.Type
                                 .Primitive.STRING);
@@ -251,7 +251,7 @@ final class StatementExecutor {
                 ExecutionResult r0 = planToString(pwf, specs, env);
                 result = new ExecutionResult.Scalar(
                         String.valueOf(((ExecutionResult.Scalar)
-                                java.util.Objects.requireNonNull(r0)).value())
+                                java.util.Objects.requireNonNull(r0, "r0")).value())
                                 .replace("\n", "").replace(" ", ""),
                         com.legend.compiler.element.type.Type
                                 .Primitive.STRING);
@@ -2643,7 +2643,7 @@ final class StatementExecutor {
         }
         ExecutionResult res = Executor.execute(
                 dialect.render(plan), plan,
-                collectionDeclared ? java.util.Objects.requireNonNull(declaredInfo)
+                collectionDeclared ? java.util.Objects.requireNonNull(declaredInfo, "declaredInfo")
                         : root.info(),
                 collectionDeclared ? com.legend.exec.ResultShape.COLLECTION
                         : com.legend.exec.ResultShape.of(root),

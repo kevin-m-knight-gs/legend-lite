@@ -243,7 +243,7 @@ public final class TestDataGenerator {
             Map<String, List<String>> colMap, @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
         Located loc = locate(ctx, rel.db(), rel.table());
-        String tbl = java.util.Objects.requireNonNull(rel.table());
+        String tbl = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
         List<String> cols = java.util.Objects.requireNonNull(
                 colMap.get(loc.schema() + "\n" + tbl),
                 "no column map for " + tbl);
@@ -299,7 +299,7 @@ public final class TestDataGenerator {
             throws SQLException {
         child = expandIfView(ctx, child, parent.db());
         Located loc = locate(ctx, child.db(), child.table());
-        String ct = java.util.Objects.requireNonNull(child.table());
+        String ct = java.util.Objects.requireNonNull(child.table(), "child.table()");
         List<String> cols = java.util.Objects.requireNonNull(
                 colMap.get(loc.schema() + "\n" + ct),
                 "no column map for " + ct);
@@ -576,7 +576,7 @@ public final class TestDataGenerator {
         if (!ScanRelations.isView(ctx, r.db(), r.table())) {
             return r;
         }
-        String vt = java.util.Objects.requireNonNull(r.table());
+        String vt = java.util.Objects.requireNonNull(r.table(), "r.table()");
         ScanRelations.ViewExpansion ve =
                 ScanRelations.viewExpansion(ctx, r.db(), r.table());
         ScanRelations.Rel base = ve.tree();
@@ -884,7 +884,7 @@ public final class TestDataGenerator {
         List<String> temps = new ArrayList<>();
         try (Statement st = conn.createStatement()) {
             for (String key : exp.keySet()) {
-                String[][] e = java.util.Objects.requireNonNull(exp.get(key));
+                String[][] e = java.util.Objects.requireNonNull(exp.get(key), "exp.get(key)");
                 String[][] a = java.util.Objects.requireNonNull(act.get(key),
                         "assertTestData: actual data lacks " + key);
                 String table = key.substring(key.indexOf('\n') + 1);
@@ -1101,7 +1101,7 @@ public final class TestDataGenerator {
                 String sql = "select " + String.join(", ",
                         cols.stream().map(TestDataGenerator::q).toList())
                         + " from " + qualify(loc.schema(),
-                                java.util.Objects.requireNonNull(r.table()));
+                                java.util.Objects.requireNonNull(r.table(), "r.table()"));
                 out.append('\n')
                         .append("meta::relational::testDataGeneration::"
                                 + "createTableRowIdentifiers(")
@@ -1169,7 +1169,7 @@ public final class TestDataGenerator {
             @com.legend.Nullable MilestoningDates dates, Map<String, List<String>> colMap,
             StringBuilder out) {
         Located loc = locate(ctx, rel.db(), rel.table());
-        String tbl = java.util.Objects.requireNonNull(rel.table());
+        String tbl = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
         List<String> cols = java.util.Objects.requireNonNull(
                 colMap.get(loc.schema() + "\n" + tbl),
                 "no column map for " + tbl);
@@ -1250,7 +1250,7 @@ public final class TestDataGenerator {
                 .map(c -> "\"root\"." + c + " as \"" + c + "\"")
                 .collect(java.util.stream.Collectors.joining(", "))
                 + " from " + qualify(loc.schema(),
-                        java.util.Objects.requireNonNull(rel.table()))
+                        java.util.Objects.requireNonNull(rel.table(), "rel.table()"))
                 + " as \"root\" where " + where;
     }
 
@@ -1262,7 +1262,7 @@ public final class TestDataGenerator {
         // joins exactly ONE table by construction, so its group index is
         // always 0 (audit 25 — a multi-join child would need the full
         // group counter)
-        String ct = java.util.Objects.requireNonNull(child.table());
+        String ct = java.util.Objects.requireNonNull(child.table(), "child.table()");
         String alias = ct.toLowerCase(java.util.Locale.ROOT) + "_0";
         RelationalOperation op = child.cond() != null ? child.cond()
                 : findJoin(ctx, child.joinName(), child.db(), parent.db())

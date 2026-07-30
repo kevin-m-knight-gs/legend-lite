@@ -1551,7 +1551,7 @@ final class GraphEmission {
                         : hr.target().bindings().get(c.property());
                 if (fb != null
                         && !(fb.info().type() instanceof Type.ClassType)) {
-                    var hr2 = java.util.Objects.requireNonNull(hr);
+                    var hr2 = java.util.Objects.requireNonNull(hr, "hr");
                     e = scalarLeafSubquery(hr2.rel(), hr2.target().rowVar(),
                             hr2.targetRow(), c.property(), fb);
                 }
@@ -1986,7 +1986,7 @@ final class GraphEmission {
             targetRow = (Type.RelationType) targetPipeline.info().type();
             cond = nav.pairedPredicate().orElse(nav.predicate());
         }
-        String pVar = java.util.Objects.requireNonNull(cond).parameters().get(0);
+        String pVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(cb ->
                 toOneJoinEquals(
@@ -2118,7 +2118,7 @@ final class GraphEmission {
             };
             TypedSpec nested = navLeafSubquery(ih.target(),
                     new TypedPropertyAccess(
-                            java.util.Objects.requireNonNull(rebuiltHop),
+                            java.util.Objects.requireNonNull(rebuiltHop, "rebuiltHop"),
                             leaf.property(), leaf.info()),
                     iVar, context, iVar, ih.targetRow());
             if (nested == null) {
@@ -2504,7 +2504,7 @@ final class GraphEmission {
                         + (context.runtimeFqn() == null ? ""
                                 : context.runtimeFqn());
                 ClassSource subCs = sources.get(cs.mappingFqn(),
-                        java.util.Objects.requireNonNull(node.subTypeFqn()),
+                        java.util.Objects.requireNonNull(node.subTypeFqn(), "node.subTypeFqn()"),
                         target -> dispatch.apply(context, target), skey);
                 patchChildren.add(graphChild(subCs, sub, context,
                         rowVar, rowType,
@@ -2587,7 +2587,7 @@ final class GraphEmission {
                                 com.legend.compiler.element.type
                                         .Multiplicity.Bounded.ONE)));
         return new TypedSerializeGraph.SubTypePatch(
-                java.util.Objects.requireNonNull(node.subTypeFqn()),
+                java.util.Objects.requireNonNull(node.subTypeFqn(), "node.subTypeFqn()"),
                 patch, member, patchChildren);
     }
 

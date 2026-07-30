@@ -462,7 +462,7 @@ final class Typer {
                     for (int i = 1; i < af.parameters().size(); i++) {
                         dates.add(synth(af.parameters().get(i), env));
                     }
-                    var mprop = java.util.Objects.requireNonNull(prop);
+                    var mprop = java.util.Objects.requireNonNull(prop, "prop");
                     return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                             recv, base, dates, sweep,
                             new ExprType(mprop.type(), mprop.multiplicity()));
@@ -943,7 +943,7 @@ final class Typer {
                 acc = new AppliedFunction("rename", List.of(acc,
                         new ColSpec(stripQuotes(po), null, null),
                         new ColSpec(stripQuotes(java.util.Objects
-                                .requireNonNull(pn)), null, null)));
+                                .requireNonNull(pn, "pn")), null, null)));
             }
             return synth(acc, env);
     }
@@ -2289,7 +2289,7 @@ final class Typer {
                     ? bct.fqn() : null;
             if (tFqn != null && com.legend.compiler.element.Temporal
                     .strategyOf(ctx, tFqn) != null) {
-                var mbp = java.util.Objects.requireNonNull(bp);
+                var mbp = java.util.Objects.requireNonNull(bp, "bp");
                 return new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                         source, base, List.of(), true,
                         new ExprType(mbp.type(),

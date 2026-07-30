@@ -77,7 +77,7 @@ public final class ModelIndexer {
                 TokenStreamCursor.throwAt(tokens, pos,
                         "unsupported top-level keyword: " + t + " ('" + safeText(tokens, pos) + "')");
             }
-            ElementKind kind = java.util.Objects.requireNonNull(kind0);
+            ElementKind kind = java.util.Objects.requireNonNull(kind0, "kind0");
 
             int elementStart = pos;
             int afterKeyword = pos + 1;

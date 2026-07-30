@@ -568,7 +568,7 @@ final class NavMaterializer {
             com.legend.compiler.spec.typed.TypedLambda ajCond =
                     aj.onForm() != null
                     ? aj.onForm().condition()
-                    : java.util.Objects.requireNonNull(aj.condition());
+                    : java.util.Objects.requireNonNull(aj.condition(), "aj.condition()");
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
                     ajPipe, StoreResolver.leftKind(),
                     ajCond, java.util.Optional.of(aj.prefix()), null,

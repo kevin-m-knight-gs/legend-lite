@@ -2942,7 +2942,7 @@ public final class Lowerer {
                     cur = v;
                 }
             }
-            ps.add(new SqlSelect.Projection(Objects.requireNonNull(value), col.name()));
+            ps.add(new SqlSelect.Projection(Objects.requireNonNull(value, "value"), col.name()));
         }
         return new SqlSelect(ps, false,
                 src == null ? new SqlSource.Dual() : src, null, List.of(),

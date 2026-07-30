@@ -3357,7 +3357,7 @@ public final class TestBody {
     /** {@link #substitute} with the non-null passthrough asserted. */
     static ValueSpecification subst(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
-        return requireNonNull(substitute(v, lets));
+        return requireNonNull(substitute(v, lets), "substitute(v, lets)");
     }
 
     static @com.legend.Nullable ValueSpecification substitute(
@@ -3406,7 +3406,7 @@ public final class TestBody {
                         yield pf.parameters().get(1);
                     }
                 }
-                yield new AppliedProperty(java.util.Objects.requireNonNull(recv),
+                yield new AppliedProperty(java.util.Objects.requireNonNull(recv, "recv"),
                         ap3.property());
             }
             case PureCollection pc -> new PureCollection(

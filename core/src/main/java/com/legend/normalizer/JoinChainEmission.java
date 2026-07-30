@@ -348,7 +348,7 @@ final class JoinChainEmission {
             LambdaFunction condLambda = new LambdaFunction(List.of(s, t), List.of(cond));
 
             if (emitNavigate) {
-                ColSpec slot = new ColSpec(Objects.requireNonNull(slotAlias),
+                ColSpec slot = new ColSpec(Objects.requireNonNull(slotAlias, "slotAlias"),
                         new LambdaFunction(List.of(), List.of(new AppliedFunction(
                                 "getAll", List.of(new PackageableElementPtr(Objects
                                         .requireNonNull(targetClassFqn)))))), null);
@@ -493,7 +493,7 @@ final class JoinChainEmission {
                                 List.of(new PackageableElementPtr(hopDb), new CString(targetTable)));
                 // a VIEW hop carries the frame identity in the spare
                 // alias channel — the checker lifts it onto the slot
-                ColSpec slot = new ColSpec(java.util.Objects.requireNonNull(slotAlias),
+                ColSpec slot = new ColSpec(java.util.Objects.requireNonNull(slotAlias, "slotAlias"),
                         new LambdaFunction(List.of(), List.of(targetRel)),
                         null, viewTarget);
                 p.expr = new AppliedFunction("join",

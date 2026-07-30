@@ -318,7 +318,7 @@ public final class NameResolver {
      */
     public static ValueSpecification resolve(
             ValueSpecification vs, Scope scope) {
-        return Objects.requireNonNull(resolveVs(vs, scope));
+        return Objects.requireNonNull(resolveVs(vs, scope), "resolveVs(vs, scope)");
     }
 
     /**
@@ -710,7 +710,7 @@ public final class NameResolver {
             }
             case Realization.Inline inl -> {
                 List<ValueSpecification> body = resolveList(inl.body(),
-                        (x, sc) -> Objects.requireNonNull(resolveVs(x, sc)),
+                        (x, sc) -> Objects.requireNonNull(resolveVs(x, sc), "resolveVs(x, sc)"),
                         scope);
                 yield body == inl.body() ? inl
                         : new Realization.Inline(body);
@@ -1376,7 +1376,7 @@ public final class NameResolver {
     private static List<ValueSpecification> resolveVsList(
             List<ValueSpecification> list, Scope scope) {
         return resolveList(list,
-                (x, sc) -> Objects.requireNonNull(resolveVs(x, sc)), scope);
+                (x, sc) -> Objects.requireNonNull(resolveVs(x, sc), "resolveVs(x, sc)"), scope);
     }
 
     private static Variable resolveVariable(Variable v, Scope scope) {
@@ -1436,7 +1436,7 @@ public final class NameResolver {
         // qualifier CALL args (graph-tree synonymByType(ProductSynonymType
         // .CUSIP)) carry names too — un-resolved they reach the checker bare
         List<ValueSpecification> ra = resolveList(cs.args(),
-                (x, sc) -> Objects.requireNonNull(resolveVs(x, sc)), scope);
+                (x, sc) -> Objects.requireNonNull(resolveVs(x, sc), "resolveVs(x, sc)"), scope);
         return (r1 == fn1 && r2 == fn2 && ra == cs.args()) ? cs
                 : new ColSpec(cs.name(), r1, r2, cs.alias(), ra,
                         cs.qualified());
@@ -1505,7 +1505,7 @@ public final class NameResolver {
 
     private static List<TypeExpression> resolveTypeList(List<TypeExpression> types, Scope scope) {
         return resolveList(types,
-                (x, sc) -> Objects.requireNonNull(resolveType(x, sc)), scope);
+                (x, sc) -> Objects.requireNonNull(resolveType(x, sc), "resolveType(x, sc)"), scope);
     }
 
     private static List<PropertyDefinition> resolvePropertyList(List<PropertyDefinition> props, Scope scope) {

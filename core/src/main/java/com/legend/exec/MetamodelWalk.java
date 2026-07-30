@@ -1151,7 +1151,7 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
             if (head == null) {
                 head = node2;
             } else {
-                java.util.Objects.requireNonNull(tail).children().add(node2);
+                java.util.Objects.requireNonNull(tail, "tail").children().add(node2);
             }
             tail = node2;
         }

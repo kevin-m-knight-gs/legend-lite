@@ -216,8 +216,8 @@ final class TemporalFrame {
             TypedSpec dimDate = c.dateFor(dim);
             if (c.rangeAppliesTo(dim)) {
                 out = rangeScanPipe(out,
-                        java.util.Objects.requireNonNull(c.rangeStart()),
-                        java.util.Objects.requireNonNull(c.rangeEnd()), dim);
+                        java.util.Objects.requireNonNull(c.rangeStart(), "c.rangeStart()"),
+                        java.util.Objects.requireNonNull(c.rangeEnd(), "c.rangeEnd()"), dim);
             } else if (dimDate != null) {
                 // an OUTER-ROW context date ($o.orderDate) cannot stamp
                 // in-pipe (the read is out of scope) — the DEFERRED
@@ -264,8 +264,8 @@ final class TemporalFrame {
         }
         if (c.rangeAppliesTo(strat)) {
             return rangeMilestonedPipe(pipe,
-                    java.util.Objects.requireNonNull(c.rangeStart()),
-                    java.util.Objects.requireNonNull(c.rangeEnd()),
+                    java.util.Objects.requireNonNull(c.rangeStart(), "c.rangeStart()"),
+                    java.util.Objects.requireNonNull(c.rangeEnd(), "c.rangeEnd()"),
                     classFqn);
         }
         TypedSpec d = c.dateFor(strat);
@@ -1472,7 +1472,7 @@ final class TemporalFrame {
                             Type.Primitive.DATE_TIME,
                             Multiplicity.Bounded.ONE);
             cond = cmpCall("meta::pure::functions::boolean::equal",
-                    col.apply(java.util.Objects.requireNonNull(thruCol)),
+                    col.apply(java.util.Objects.requireNonNull(thruCol, "thruCol")),
                     new TypedCDate(
                             PureDateLiteral.parse(
                                     // INFINITY_DATE reaches here in both
@@ -2183,8 +2183,8 @@ final class TemporalFrame {
             }
             if (root.rangeAppliesTo(strat)) {
                 return rangeMilestonedPipe(pipe,
-                        java.util.Objects.requireNonNull(root.rangeStart()),
-                        java.util.Objects.requireNonNull(root.rangeEnd()),
+                        java.util.Objects.requireNonNull(root.rangeStart(), "root.rangeStart()"),
+                        java.util.Objects.requireNonNull(root.rangeEnd(), "root.rangeEnd()"),
                         target.classFqn());
             }
         }

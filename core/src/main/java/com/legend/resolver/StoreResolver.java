@@ -839,7 +839,7 @@ public final class StoreResolver {
                 : InnerDemand.navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
             return flattenNavSlot(src, alias, java.util.Objects
-                    .requireNonNull(navSteps.get(alias)),
+                    .requireNonNull(navSteps.get(alias), "navSteps.get(alias)"),
                     heads, provOut, belowOps, context, rowPreserving);
         }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
@@ -1705,7 +1705,7 @@ public final class StoreResolver {
                         + " the chain prefix pre-prefixing assumes joined-row"
                         + " reads (audit 14 B-F7)");
             }
-            String pv = java.util.Objects.requireNonNull(cond).parameters().get(0);
+            String pv = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
             TypedSpec cbody = Pipelines.prefixColumns(
                     cond.body().get(cond.body().size() - 1), pv,
                     chain.prefix(), v -> v);
@@ -1910,7 +1910,7 @@ public final class StoreResolver {
                         aj.prefix() + c.name(), c.type(), c.multiplicity()));
             }
             withJoins = new TypedJoin(withJoins,
-                    joinTarget, leftKind(), java.util.Objects.requireNonNull(joinCond),
+                    joinTarget, leftKind(), java.util.Objects.requireNonNull(joinCond, "joinCond"),
                     Optional.of(aj.prefix()),
                     ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
@@ -1954,7 +1954,7 @@ public final class StoreResolver {
             // ID_0/ID_1) — group by ALL split columns, join back on OR
             // of same-name pairs (engine unionBase model, task #27 U4)
             List<String> keyCols2 = CorrelatedSubselects
-                    .expandSplitKeys(java.util.Objects.requireNonNull(keyCols), keyRow);
+                    .expandSplitKeys(java.util.Objects.requireNonNull(keyCols, "keyCols"), keyRow);
             boolean splitKeys = !keyCols2.equals(keyCols);
             keyCols = keyCols2;
             CorrelatedSubselects.ParentCopy pc = cas.pc();
@@ -1986,7 +1986,7 @@ public final class StoreResolver {
                     new ArrayList<>();
             int ord = 0;
             var targetRowType = new ExprType(java.util.Objects
-                    .requireNonNull(aj).targetRow(),
+                    .requireNonNull(aj, "aj").targetRow(),
                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
             for (AggDemand d : entry.getValue()) {
                 String alias = "agg_" + ord++;
@@ -2023,7 +2023,7 @@ public final class StoreResolver {
                                     withJoins.info().type(), subRow,
                             splitKeys);
             withJoins = new TypedJoin(withJoins,
-                    sub, leftKind(), java.util.Objects.requireNonNull(backCond),
+                    sub, leftKind(), java.util.Objects.requireNonNull(backCond, "backCond"),
                     Optional.of(prefix), null,
                     new ExprType(
                             new Type.RelationType(cols),
@@ -2504,7 +2504,7 @@ public final class StoreResolver {
         final Context canonCtx = context;
         synthetics.setCanonicalizer(nn -> corrSubs.subTypeNavCastCanon(nn,
                 fqn -> dispatch(canonCtx, fqn),
-                java.util.Objects.requireNonNull(isNotEmptyCallee())));
+                java.util.Objects.requireNonNull(isNotEmptyCallee(), "isNotEmptyCallee()")));
         top = synthetics.liftFilteredHeads(top);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —
@@ -3116,7 +3116,7 @@ public final class StoreResolver {
                 out.add(leaf);
             } else {
                 for (List<String> pth : lambdaHeads(
-                        java.util.Objects.requireNonNull(mapper))) {
+                        java.util.Objects.requireNonNull(mapper, "mapper"))) {
                     out.add(pth.get(0));
                 }
             }

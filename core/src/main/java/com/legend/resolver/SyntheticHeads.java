@@ -694,9 +694,9 @@ final class SyntheticHeads {
             renamed = new TypedMilestonedAccess(
                     ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
         } else {
-            var hp = (TypedPropertyAccess) java.util.Objects.requireNonNull(headNode);
+            var hp = (TypedPropertyAccess) java.util.Objects.requireNonNull(headNode, "headNode");
             renamed = new TypedPropertyAccess(
-                    java.util.Objects.requireNonNull(hp).source(), synth, hp.info());
+                    java.util.Objects.requireNonNull(hp, "hp").source(), synth, hp.info());
         }
         return new TypedPropertyAccess(
                 renamed, leafRead.property(), leafRead.info());
@@ -1070,7 +1070,7 @@ final class SyntheticHeads {
                             .toList(),
                     l.info());
         }
-        return rebuildChildren(java.util.Objects.requireNonNull(n),
+        return rebuildChildren(java.util.Objects.requireNonNull(n, "n"),
                 c -> alphaNormalize(c, env, counter));
     }
 

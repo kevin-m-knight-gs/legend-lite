@@ -1375,7 +1375,7 @@ final class Substitution {
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
                     java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
-                    java.util.Objects.requireNonNull(subTypeLeafRead(pa));
+                    java.util.Objects.requireNonNull(subTypeLeafRead(pa), "subTypeLeafRead(pa)");
             case TypedVariable v when v.name().equals(target.userVar()) ->
                     throw new NotImplementedException(
                             "object-space use of the instance variable '$" + v.name()
