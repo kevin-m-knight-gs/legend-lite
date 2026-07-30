@@ -20,7 +20,8 @@ import java.util.List;
  * @param imports  accumulated import scope
  */
 public record ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                          String source, java.util.Map<String, Integer> elementOffsets,
+                          @com.legend.Nullable String source,
+                          java.util.Map<String, Integer> elementOffsets,
                           java.util.Map<String, ImportScope> elementImports,
                           java.util.Map<String, String> elementSources) {
 
@@ -44,7 +45,8 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
      * FQN &rarr; source unit name) so errors attribute to the right FILE.
      */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                       String source, java.util.Map<String, Integer> elementOffsets,
+                       @com.legend.Nullable String source,
+                       java.util.Map<String, Integer> elementOffsets,
                        java.util.Map<String, ImportScope> elementImports) {
         this(elements, imports, source, elementOffsets, elementImports,
                 java.util.Map.of());
@@ -60,7 +62,8 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
      * simple name ambiguous).
      */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                       String source, java.util.Map<String, Integer> elementOffsets) {
+                       @com.legend.Nullable String source,
+                       java.util.Map<String, Integer> elementOffsets) {
         this(elements, imports, source, elementOffsets, java.util.Map.of());
     }
 

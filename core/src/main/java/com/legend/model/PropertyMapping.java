@@ -105,7 +105,8 @@ public sealed interface PropertyMapping
      * — a constant, or a computed expression). Parsed faithfully; resolution
      * is a loud wall until the enum-decode path learns expressions.
      */
-    record EnumeratedExpression(String propertyName, String enumMappingId,
+    record EnumeratedExpression(String propertyName,
+                                @com.legend.Nullable String enumMappingId,
                                 RelationalOperation expression)
             implements PropertyMapping {
         public EnumeratedExpression {
@@ -114,7 +115,8 @@ public sealed interface PropertyMapping
         }
     }
 
-    record EnumeratedColumn(String propertyName, String enumMappingId,
+    record EnumeratedColumn(String propertyName,
+                            @com.legend.Nullable String enumMappingId,
                             String database, String table, String column)
             implements PropertyMapping {
         public EnumeratedColumn {
@@ -142,7 +144,7 @@ public sealed interface PropertyMapping
      *                      member dispatch reads THIS field.
      */
     record Join(String propertyName, String database, List<JoinChainElement> joins,
-                String targetSetId)
+                @com.legend.Nullable String targetSetId)
             implements PropertyMapping {
         public Join {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
@@ -177,7 +179,7 @@ public sealed interface PropertyMapping
     record JoinTerminalColumn(String propertyName, String database,
                               List<JoinChainElement> joins,
                               RelationalOperation terminalColumn,
-                              String enumMappingId, boolean enumMapped)
+                              @com.legend.Nullable String enumMappingId, boolean enumMapped)
             implements PropertyMapping {
 
         public JoinTerminalColumn(String propertyName, String database,

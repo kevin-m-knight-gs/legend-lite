@@ -85,8 +85,9 @@ public sealed interface AssociationMapping permits AssociationMapping.Relational
         }
 
         /** One {@code prop[srcSet, tgtSet]: expr} line. */
-        public record XStoreProperty(String propertyName, String sourceSetId,
-                String targetSetId, ValueSpecification expression) {
+        public record XStoreProperty(String propertyName,
+                @com.legend.Nullable String sourceSetId,
+                @com.legend.Nullable String targetSetId, ValueSpecification expression) {
         }
     }
 

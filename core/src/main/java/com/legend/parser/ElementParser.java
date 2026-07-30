@@ -1334,12 +1334,20 @@ public final class ElementParser implements TokenStreamCursor {
                     expect(TokenType.BRACE_CLOSE);
                     specification = switch (specType) {
                         case "InMemory" -> new ConnectionSpecification.InMemory();
-                        case "LocalFile" -> new ConnectionSpecification.LocalFile(props.get("path"));
+                        case "LocalFile" -> new ConnectionSpecification.LocalFile(java.util.Objects.requireNonNull(
+                                props.get("path"),
+                                "LocalFile connection requires 'path'"));
                         case "Static" -> new ConnectionSpecification.StaticDatasource(
-                                props.get("host"),
-                                props.containsKey("port") ? Integer.parseInt(props.get("port")) : 0,
-                                props.get("database"));
-                        case "LocalH2" -> new ConnectionSpecification.LocalH2(props.get("url"));
+                                java.util.Objects.requireNonNull(props.get("host"),
+                                        "Static datasource requires 'host'"),
+                                props.containsKey("port") ? Integer.parseInt(
+                                        java.util.Objects.requireNonNull(props.get("port"))) : 0,
+                                java.util.Objects.requireNonNull(props.get("database"),
+                                        "Static datasource requires"
+                                        + " 'database'"));
+                        case "LocalH2" -> new ConnectionSpecification.LocalH2(java.util.Objects.requireNonNull(
+                                props.get("url"),
+                                "LocalH2 connection requires 'url'"));
                         default -> throw error("unknown specification flavor '" + specType
                                 + "' (expected InMemory / LocalFile / LocalH2 / Static)");
                     };
@@ -1356,7 +1364,12 @@ public final class ElementParser implements TokenStreamCursor {
                         case "NoAuth" -> new AuthenticationSpec.NoAuth();
                         case "DefaultH2" -> new AuthenticationSpec.DefaultH2();
                         case "UsernamePassword" -> new AuthenticationSpec.UsernamePassword(
-                                props.get("username"), props.get("passwordVaultRef"));
+                                java.util.Objects.requireNonNull(props.get("username"),
+                                        "UsernamePassword auth requires"
+                                        + " 'username'"),
+                                java.util.Objects.requireNonNull(props.get("passwordVaultRef"),
+                                        "UsernamePassword auth requires"
+                                        + " 'passwordVaultRef'"));
                         default -> throw error("unknown auth flavor '" + authType
                                 + "' (expected NoAuth / DefaultH2 / UsernamePassword)");
                     };
@@ -1383,7 +1396,12 @@ public final class ElementParser implements TokenStreamCursor {
             authentication = new AuthenticationSpec.NoAuth();
         }
 
-        return new ConnectionDefinition(qualifiedName, storeName, dbType, specification, authentication);
+        return new ConnectionDefinition(qualifiedName, storeName,
+                java.util.Objects.requireNonNull(dbType, "RelationalDatabaseConnection '"
+                        + qualifiedName + "' missing 'type:'"),
+                java.util.Objects.requireNonNull(specification, "RelationalDatabaseConnection '"
+                        + qualifiedName + "' missing 'specification:'"),
+                authentication);
     }
 
     // ============================================================

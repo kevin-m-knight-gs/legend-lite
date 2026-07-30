@@ -53,8 +53,8 @@ import java.util.Objects;
  */
 public record Variable(
         String name,
-        TypeExpression type,
-        Multiplicity multiplicity) implements ValueSpecification {
+        @com.legend.Nullable TypeExpression type,
+        @com.legend.Nullable Multiplicity multiplicity) implements ValueSpecification {
 
     public Variable {
         Objects.requireNonNull(name, "name");

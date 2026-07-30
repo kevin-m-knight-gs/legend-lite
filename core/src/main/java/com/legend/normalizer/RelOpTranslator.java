@@ -526,8 +526,12 @@ final class RelOpTranslator {
                           + "JoinNav inside association predicates or join "
                           + "conditions is not supported.");
                 }
-                String alias = pipeline.slotFor(jn.chain());
-                ValueSpecification subRow = new AppliedProperty(rowBindOrNull, alias);
+                String alias = java.util.Objects.requireNonNull(pipeline.slotFor(jn.chain()),
+                        "no pipeline slot for join chain");
+                ValueSpecification subRow = new AppliedProperty(
+                        java.util.Objects.requireNonNull(rowBindOrNull,
+                                "slot navigation without a row binding"),
+                        alias);
                 if (jn.terminal() == null) yield subRow;
                 String terminalTable = pipeline.targetTable(alias);
                 Map<String, ValueSpecification> innerScope = new LinkedHashMap<>(tableScope);

@@ -2513,7 +2513,9 @@ final class GraphEmission {
                 continue;
             }
             String col = com.legend.model.ClassMapping.subTypeColumn(
-                    node.subTypeFqn(), sub.property());
+                    java.util.Objects.requireNonNull(node.subTypeFqn(),
+                            "subtype node without a class"),
+                    sub.property());
             Type.Column rc = rowType.columns().stream()
                     .filter(c -> c.name().equals(col))
                     .findFirst().orElse(null);
@@ -2561,7 +2563,8 @@ final class GraphEmission {
                                             .Multiplicity.Bounded.ONE))));
         }
         String mcol = com.legend.model.ClassMapping.subTypeColumn(
-                node.subTypeFqn(),
+                java.util.Objects.requireNonNull(node.subTypeFqn(),
+                        "subtype node without a class"),
                 com.legend.model.ClassMapping.memberWitness());
         Type.Column mrc = rowType.columns().stream()
                 .filter(c -> c.name().equals(mcol))

@@ -68,7 +68,7 @@ public record DatabaseDefinition(
 
     /** A table with ordered column declarations. */
     public record TableDefinition(String name, List<ColumnDefinition> columns,
-            Milestoning milestoning) {
+            @com.legend.Nullable Milestoning milestoning) {
 
         /** Without a milestoning block. */
         public TableDefinition(String name, List<ColumnDefinition> columns) {
@@ -91,18 +91,19 @@ public record DatabaseDefinition(
          * {@code %latest} fetches (milestoning.pure getInfinityDate assert),
          * so it must be captured, never defaulted.
          */
-        public record Milestoning(Business business, Processing processing) {
+        public record Milestoning(@com.legend.Nullable Business business,
+                @com.legend.Nullable Processing processing) {
 
             /** {@code business(BUS_FROM=.., BUS_THRU=.. [,THRU_IS_INCLUSIVE=..][,INFINITY_DATE=..])} or {@code business(BUS_SNAPSHOT_DATE=..)}. */
-            public record Business(String from, String thru,
-                    boolean thruIsInclusive, String snapshotDate,
-                    String infinityDate) {
+            public record Business(@com.legend.Nullable String from, @com.legend.Nullable String thru,
+                    boolean thruIsInclusive, @com.legend.Nullable String snapshotDate,
+                    @com.legend.Nullable String infinityDate) {
             }
 
             /** {@code processing(PROCESSING_IN=.., PROCESSING_OUT=.. [,OUT_IS_INCLUSIVE=..][,INFINITY_DATE=..])} or {@code processing(PROCESSING_SNAPSHOT_DATE=..)}. */
-            public record Processing(String in, String out,
-                    boolean outIsInclusive, String snapshotDate,
-                    String infinityDate) {
+            public record Processing(@com.legend.Nullable String in, @com.legend.Nullable String out,
+                    boolean outIsInclusive, @com.legend.Nullable String snapshotDate,
+                    @com.legend.Nullable String infinityDate) {
             }
         }
     }
@@ -151,7 +152,7 @@ public record DatabaseDefinition(
      */
     public record ViewDefinition(
             String name,
-            FilterMapping filter,
+            @com.legend.Nullable FilterMapping filter,
             List<RelationalOperation> groupByColumns,
             boolean distinct,
             List<ViewColumnMapping> columnMappings) {
@@ -173,7 +174,7 @@ public record DatabaseDefinition(
          */
         public record ViewColumnMapping(
                 String name,
-                String targetSetId,
+                @com.legend.Nullable String targetSetId,
                 RelationalOperation expression,
                 boolean primaryKey) {
             public ViewColumnMapping {

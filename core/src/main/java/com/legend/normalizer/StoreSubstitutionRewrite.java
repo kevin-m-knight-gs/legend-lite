@@ -49,7 +49,8 @@ final class StoreSubstitutionRewrite {
                 r.extendsSetId(), r.root(),
                 r.mainTable() == null ? null
                         : new LegacyMappingDefinition.TableReference(
-                                db(r.mainTable().database(), m),
+                                java.util.Objects.requireNonNull(
+                                        db(r.mainTable().database(), m)),
                                 r.mainTable().table()),
                 r.filter() == null ? null : filter(r.filter(), m),
                 r.distinct(),
@@ -59,7 +60,8 @@ final class StoreSubstitutionRewrite {
                 r.sourceUrl(), r.propertyTargetSets());
     }
 
-    private static @com.legend.Nullable String db(String database, Map<String, String> m) {
+    private static @com.legend.Nullable String db(
+            @com.legend.Nullable String database, Map<String, String> m) {
         return database == null ? null : m.getOrDefault(database, database);
     }
 
@@ -78,7 +80,7 @@ final class StoreSubstitutionRewrite {
         return switch (p) {
             case FilterPointer.Local l -> l;
             case FilterPointer.Cross c ->
-                    new FilterPointer.Cross(db(c.db(), m), c.name());
+                    new FilterPointer.Cross(java.util.Objects.requireNonNull(db(c.db(), m)), c.name());
         };
     }
 
@@ -92,21 +94,24 @@ final class StoreSubstitutionRewrite {
     private static PropertyMapping pm(PropertyMapping p, Map<String, String> m) {
         return switch (p) {
             case PropertyMapping.Column c -> new PropertyMapping.Column(
-                    c.propertyName(), db(c.database(), m), c.table(), c.column());
+                    c.propertyName(), java.util.Objects.requireNonNull(db(c.database(), m)),
+                    c.table(), c.column());
             case PropertyMapping.EnumeratedExpression e ->
                     new PropertyMapping.EnumeratedExpression(e.propertyName(),
                             e.enumMappingId(), op(e.expression(), m));
             case PropertyMapping.EnumeratedColumn e ->
                     new PropertyMapping.EnumeratedColumn(e.propertyName(),
-                            e.enumMappingId(), db(e.database(), m), e.table(),
+                            e.enumMappingId(), java.util.Objects.requireNonNull(db(e.database(), m)),
+                            e.table(),
                             e.column());
             case PropertyMapping.Join j -> new PropertyMapping.Join(
-                    j.propertyName(), db(j.database(), m),
+                    j.propertyName(), java.util.Objects.requireNonNull(db(j.database(), m)),
                     j.joins().stream().map(c -> chain(c, m)).toList(),
                     j.targetSetId());
             case PropertyMapping.JoinTerminalColumn j ->
                     new PropertyMapping.JoinTerminalColumn(j.propertyName(),
-                            db(j.database(), m),
+                            
+                            java.util.Objects.requireNonNull(db(j.database(), m)),
                             j.joins().stream().map(c -> chain(c, m)).toList(),
                             op(j.terminalColumn(), m), j.enumMappingId(),
                             j.enumMapped());

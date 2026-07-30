@@ -170,7 +170,8 @@ final class Typer {
                     List<String> names = new ArrayList<>();
                     List<Type.Param> params = new ArrayList<>();
                     for (Variable pv : lf.parameters()) {
-                        Type pt = namedType(pv.type());
+                        Type pt = namedType(java.util.Objects.requireNonNull(pv.type(),
+                                "lambda parameter without a declared type"));
                         Multiplicity pm = pv.multiplicity() == null
                                 ? Multiplicity.Bounded.ONE
                                 : Multiplicity.from(pv.multiplicity());
@@ -276,7 +277,9 @@ final class Typer {
                 && literalColName(af.parameters().get(1)) != null
                 && synth(af.parameters().get(0), env).info().type()
                         instanceof Type.RelationType) {
-            String colRef = literalColName(af.parameters().get(1));
+            String colRef = java.util.Objects.requireNonNull(
+                    literalColName(af.parameters().get(1)),
+                    "TDS cell read requires a literal column name");
             TypedSpec cell = synth(new AppliedProperty(
                     af.parameters().get(0), colRef), env);
             // getNullableString returns String[0..1] (tds.pure:82/112) —
@@ -302,7 +305,10 @@ final class Typer {
             return synth(new AppliedFunction(
                     af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
                     List.of(new AppliedProperty(af.parameters().get(0),
-                            literalColName(af.parameters().get(1))))), env);
+                            java.util.Objects.requireNonNull(
+                                    literalColName(af.parameters().get(1)),
+                                    "TDS null test requires a literal column"
+                                    + " name")))), env);
         }
         // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
         // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;

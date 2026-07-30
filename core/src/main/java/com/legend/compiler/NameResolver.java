@@ -390,7 +390,7 @@ public final class NameResolver {
                 TypeExpression l = resolveType(sa.left(), scope);
                 TypeExpression r = resolveType(sa.right(), scope);
                 yield (l == sa.left() && r == sa.right()) ? sa
-                        : new TypeExpression.SchemaAlgebra(l, sa.op(), r);
+                        : new TypeExpression.SchemaAlgebra(nn(l), sa.op(), nn(r));
             }
         };
     }
@@ -399,14 +399,14 @@ public final class NameResolver {
             TypeExpression.TypedParameter p, Scope scope) {
         TypeExpression t = resolveType(p.type(), scope);
         return t == p.type() ? p
-                : new TypeExpression.TypedParameter(t, p.multiplicity());
+                : new TypeExpression.TypedParameter(nn(t), p.multiplicity());
     }
 
     private static TypeExpression.Column resolveColumn(
             TypeExpression.Column c, Scope scope) {
         TypeExpression t = resolveType(c.type(), scope);
         return t == c.type() ? c
-                : new TypeExpression.Column(c.name(), t, c.multiplicity());
+                : new TypeExpression.Column(c.name(), nn(t), c.multiplicity());
     }
 
     /**
@@ -522,7 +522,8 @@ public final class NameResolver {
         if (type == p.type() && stereotypes == p.stereotypes() && taggedValues == p.taggedValues()) {
             return p;
         }
-        return new PropertyDefinition(p.name(), type, p.multiplicity(), stereotypes, taggedValues);
+        return new PropertyDefinition(p.name(), nn(type),
+                p.multiplicity(), stereotypes, taggedValues);
     }
 
     private static DerivedPropertyDefinition resolveDerivedProperty(
@@ -533,14 +534,15 @@ public final class NameResolver {
         if (params == dp.parameters() && realization == dp.realization() && type == dp.type()) {
             return dp;
         }
-        return new DerivedPropertyDefinition(dp.name(), params, realization, type, dp.multiplicity());
+        return new DerivedPropertyDefinition(dp.name(), params, realization,
+                nn(type), dp.multiplicity());
     }
 
     private static ParameterDefinition resolveParameter(
             ParameterDefinition p, Scope scope) {
         TypeExpression type = resolveType(p.type(), scope);
         return type == p.type() ? p
-                : new ParameterDefinition(p.name(), type, p.multiplicity());
+                : new ParameterDefinition(p.name(), nn(type), p.multiplicity());
     }
 
     private static ConstraintDefinition resolveConstraint(
@@ -576,7 +578,8 @@ public final class NameResolver {
             AssociationEndDefinition end, Scope scope) {
         TypeExpression target = resolveType(end.targetClass(), scope);
         return target == end.targetClass() ? end
-                : new AssociationEndDefinition(end.propertyName(), target, end.multiplicity());
+                : new AssociationEndDefinition(end.propertyName(), nn(target),
+                        end.multiplicity());
     }
 
     private static FunctionDefinition resolveFunction(
@@ -595,7 +598,8 @@ public final class NameResolver {
             return fd;
         }
         return new FunctionDefinition(fd.qualifiedName(), fd.typeParameters(),
-                fd.multiplicityParameters(), params, returnType, fd.returnMultiplicity(),
+                fd.multiplicityParameters(), params, nn(returnType),
+                fd.returnMultiplicity(),
                 body, stereotypes, taggedValues);
     }
 
@@ -612,7 +616,8 @@ public final class NameResolver {
             return nfd;
         }
         return new NativeFunctionDefinition(nfd.qualifiedName(), nfd.typeParameters(),
-                nfd.multiplicityParameters(), params, returnType, nfd.returnMultiplicity(),
+                nfd.multiplicityParameters(), params, nn(returnType),
+                nfd.returnMultiplicity(),
                 stereotypes, taggedValues);
     }
 
@@ -620,7 +625,8 @@ public final class NameResolver {
             FunctionDefinition.ParameterDefinition p, Scope scope) {
         TypeExpression type = resolveType(p.type(), scope);
         return type == p.type() ? p
-                : new FunctionDefinition.ParameterDefinition(p.name(), type, p.multiplicity());
+                : new FunctionDefinition.ParameterDefinition(p.name(), nn(type),
+                        p.multiplicity());
     }
 
     // =================================================================
@@ -842,7 +848,7 @@ public final class NameResolver {
                     yield p;
                 }
                 yield new ClassMapping.Pure(className, p.setId(), p.extendsSetId(),
-                        p.root(), sourceClass, filter, bindings);
+                        p.root(), nn(sourceClass), filter, bindings);
             }
         };
     }
@@ -850,7 +856,7 @@ public final class NameResolver {
     private static ClassMapping.Pure.PropertyBinding resolvePropertyBinding(
             ClassMapping.Pure.PropertyBinding b, Scope scope) {
         ValueSpecification expr = resolveVs(b.expression(), scope);
-        return expr == b.expression() ? b : b.withExpression(expr);
+        return expr == b.expression() ? b : b.withExpression(nn(expr));
     }
 
     private static List<ClassMapping.Pure.PropertyBinding> resolvePropertyBindings(
@@ -878,7 +884,7 @@ public final class NameResolver {
                 ValueSpecification lam = resolveVs(mj.lambda(), scope);
                 yield name.equals(mj.associationName()) && lam == mj.lambda()
                         ? mj : new AssociationMapping.ModelJoin(name,
-                                (com.legend.model.spec.LambdaFunction) lam);
+                                (com.legend.model.spec.LambdaFunction) nn(lam));
             }
             case AssociationMapping.Cross x -> {
                 String name = resolveName(x.associationName(), scope);
@@ -888,7 +894,7 @@ public final class NameResolver {
                             return e == xp.expression() ? xp
                                     : new AssociationMapping.Cross.XStoreProperty(
                                             xp.propertyName(), xp.sourceSetId(),
-                                            xp.targetSetId(), e);
+                                            xp.targetSetId(), nn(e));
                         }, scope);
                 yield name.equals(x.associationName()) && props == x.propertyMappings2()
                         ? x : new AssociationMapping.Cross(name, props);
@@ -900,7 +906,8 @@ public final class NameResolver {
             AssociationPropertyMapping apm, Scope scope) {
         PropertyMapping body = resolvePropertyMapping(apm.body(), scope);
         return body == apm.body() ? apm
-                : new AssociationPropertyMapping(apm.sourceSetId(), apm.targetSetId(), body);
+                : new AssociationPropertyMapping(apm.sourceSetId(),
+                        apm.targetSetId(), nn(body));
     }
 
     private static List<AssociationPropertyMapping> resolveAssocPropMappingList(
@@ -949,12 +956,12 @@ public final class NameResolver {
                 yield (db.equals(jtc.database()) && joins == jtc.joins()
                         && term == jtc.terminalColumn()) ? jtc
                         : new PropertyMapping.JoinTerminalColumn(jtc.propertyName(),
-                                db, joins, term, jtc.enumMappingId(), jtc.enumMapped());
+                                db, joins, nn(term), jtc.enumMappingId(), jtc.enumMapped());
             }
             case PropertyMapping.Expression e -> {
                 RelationalOperation expr = resolveRelOp(e.expression(), scope);
                 yield expr == e.expression() ? e
-                        : new PropertyMapping.Expression(e.propertyName(), expr);
+                        : new PropertyMapping.Expression(e.propertyName(), nn(expr));
             }
             case PropertyMapping.Embedded e -> {
                 List<PropertyMapping> subs = resolvePropertyMappingList(
@@ -969,14 +976,14 @@ public final class NameResolver {
                 PropertyMapping fb = resolvePropertyMapping(oe.fallback(), scope);
                 yield (emb == oe.embedded() && fb == oe.fallback()) ? oe
                         : new PropertyMapping.OtherwiseEmbedded(oe.propertyName(),
-                                emb, oe.fallbackSetId(), fb);
+                                emb, oe.fallbackSetId(), nn(fb));
             }
             case PropertyMapping.LocalProperty lp -> {
                 TypeExpression type = resolveType(lp.type(), scope);
                 PropertyMapping body = resolvePropertyMapping(lp.body(), scope);
                 yield (type == lp.type() && body == lp.body()) ? lp
-                        : new PropertyMapping.LocalProperty(lp.propertyName(), type,
-                                lp.multiplicity(), body);
+                        : new PropertyMapping.LocalProperty(lp.propertyName(), nn(type),
+                                lp.multiplicity(), nn(body));
             }
         };
     }
@@ -1029,7 +1036,8 @@ public final class NameResolver {
     private static ViewColumnMapping resolveViewColumn(ViewColumnMapping c, Scope scope) {
         RelationalOperation expr = resolveRelOp(c.expression(), scope);
         return expr == c.expression() ? c
-                : new ViewColumnMapping(c.name(), c.targetSetId(), expr, c.primaryKey());
+                : new ViewColumnMapping(c.name(), c.targetSetId(), nn(expr),
+                        c.primaryKey());
     }
 
     private static List<ViewColumnMapping> resolveViewColumns(
@@ -1039,7 +1047,7 @@ public final class NameResolver {
 
     private static JoinDefinition resolveJoin(JoinDefinition j, Scope scope) {
         RelationalOperation op = resolveRelOp(j.operation(), scope);
-        return op == j.operation() ? j : new JoinDefinition(j.name(), op);
+        return op == j.operation() ? j : new JoinDefinition(j.name(), nn(op));
     }
 
     private static List<JoinDefinition> resolveJoins(
@@ -1049,7 +1057,8 @@ public final class NameResolver {
 
     private static FilterDefinition resolveFilter(FilterDefinition f, Scope scope) {
         RelationalOperation cond = resolveRelOp(f.condition(), scope);
-        return cond == f.condition() ? f : new FilterDefinition(f.name(), cond);
+        return cond == f.condition() ? f
+                : new FilterDefinition(f.name(), nn(cond));
     }
 
     private static List<FilterDefinition> resolveFilters(
@@ -1084,7 +1093,7 @@ public final class NameResolver {
                 && Objects.equals(runtimeRef, sd.runtimeRef())) {
             return sd;
         }
-        return new ServiceDefinition(sd.qualifiedName(), sd.pattern(), body,
+        return new ServiceDefinition(sd.qualifiedName(), sd.pattern(), nn(body),
                 sd.documentation(), mappingRef, runtimeRef, sd.testSuitesSource());
     }
 
@@ -1117,10 +1126,12 @@ public final class NameResolver {
                 yield fp == d.filter() ? d : new FilterMapping.Direct(fp);
             }
             case FilterMapping.JoinMediated jm -> {
-                String src = resolveName(jm.sourceDb(), scope);
+                String sdb = jm.sourceDb();
+                String src = sdb == null ? null : resolveName(sdb, scope);
                 List<JoinChainElement> joins = resolveJoinChain(jm.joins(), scope);
                 FilterPointer fp = resolveFilterPointer(jm.filter(), scope);
-                if (src.equals(jm.sourceDb()) && joins == jm.joins() && fp == jm.filter()) yield jm;
+                if (Objects.equals(src, jm.sourceDb()) && joins == jm.joins()
+                        && fp == jm.filter()) yield jm;
                 // joinType MUST ride the rebuild (the compat-ctor
                 // field-wipe family: this exact line silently dropped the
                 // (INNER) annotation and un-walled wrong rows)
@@ -1143,8 +1154,12 @@ public final class NameResolver {
 
     private static JoinChainElement resolveJoinChainElement(
             JoinChainElement jce, Scope scope) {
-        String db = resolveName(jce.databaseName(), scope);
-        return db.equals(jce.databaseName()) ? jce
+        String jdb = jce.databaseName();
+        if (jdb == null) {
+            return jce;
+        }
+        String db = resolveName(jdb, scope);
+        return db.equals(jdb) ? jce
                 : new JoinChainElement(jce.joinName(), jce.joinType(), db, jce.includeSelf());
     }
 
@@ -1194,25 +1209,27 @@ public final class NameResolver {
                 RelationalOperation l = resolveRelOp(c.left(), scope);
                 RelationalOperation r = resolveRelOp(c.right(), scope);
                 yield (l == c.left() && r == c.right()) ? c
-                        : new RelationalOperation.Comparison(l, c.op(), r);
+                        : new RelationalOperation.Comparison(nn(l), c.op(), nn(r));
             }
             case RelationalOperation.BooleanOp b -> {
                 RelationalOperation l = resolveRelOp(b.left(), scope);
                 RelationalOperation r = resolveRelOp(b.right(), scope);
                 yield (l == b.left() && r == b.right()) ? b
-                        : new RelationalOperation.BooleanOp(l, b.op(), r);
+                        : new RelationalOperation.BooleanOp(nn(l), b.op(), nn(r));
             }
             case RelationalOperation.IsNull n -> {
                 RelationalOperation o = resolveRelOp(n.operand(), scope);
-                yield o == n.operand() ? n : new RelationalOperation.IsNull(o);
+                yield o == n.operand() ? n : new RelationalOperation.IsNull(nn(o));
             }
             case RelationalOperation.IsNotNull n -> {
                 RelationalOperation o = resolveRelOp(n.operand(), scope);
-                yield o == n.operand() ? n : new RelationalOperation.IsNotNull(o);
+                yield o == n.operand() ? n
+                        : new RelationalOperation.IsNotNull(nn(o));
             }
             case RelationalOperation.Group g -> {
                 RelationalOperation inner = resolveRelOp(g.inner(), scope);
-                yield inner == g.inner() ? g : new RelationalOperation.Group(inner);
+                yield inner == g.inner() ? g
+                        : new RelationalOperation.Group(nn(inner));
             }
             case RelationalOperation.ArrayLiteral al -> {
                 List<RelationalOperation> els = resolveRelOpList(al.elements(), scope);
@@ -1299,7 +1316,7 @@ public final class NameResolver {
             case AppliedProperty ap -> {
                 ValueSpecification receiver = resolveVs(ap.receiver(), scope);
                 yield receiver == ap.receiver() ? ap
-                        : new AppliedProperty(receiver, ap.property());
+                        : new AppliedProperty(nn(receiver), ap.property());
             }
             case LambdaFunction lf -> resolveLambda(lf, scope);
             case Variable v -> resolveVariable(v, scope);
@@ -1328,7 +1345,7 @@ public final class NameResolver {
                         && src == nic.src()) {
                     yield nic;
                 }
-                yield new NewInstanceCast(className, typeArgs, src,
+                yield new NewInstanceCast(className, typeArgs, nn(src),
                         nic.targetSetId());
             }
             case PureCollection coll -> {
@@ -1397,7 +1414,7 @@ public final class NameResolver {
             if (r == ke.value()) {
                 out.put(e.getKey(), ke);
             } else {
-                out.put(e.getKey(), ke.withValue(r));
+                out.put(e.getKey(), ke.withValue(nn(r)));
                 changed = true;
             }
         }
@@ -1430,7 +1447,7 @@ public final class NameResolver {
         return switch (ta) {
             case TypeAnnotation.Named named -> {
                 TypeExpression t = resolveType(named.type(), scope);
-                yield t == named.type() ? named : new TypeAnnotation.Named(t);
+                yield t == named.type() ? named : new TypeAnnotation.Named(nn(t));
             }
             case TypeAnnotation.Wildcard ignored -> ta;
             case TypeAnnotation.RelationShape shape -> {
@@ -1454,6 +1471,12 @@ public final class NameResolver {
     @FunctionalInterface
     private interface Resolver<T> {
         T apply(T node, Scope scope);
+    }
+
+    /** The passthrough invariant, asserted: a non-null input resolved
+     * a non-null output (every resolve* is null-in-null-out). */
+    private static <T> T nn(@com.legend.Nullable T v) {
+        return Objects.requireNonNull(v, "resolver passthrough");
     }
 
     /**

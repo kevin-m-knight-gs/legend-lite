@@ -143,9 +143,9 @@ public sealed interface TypeAnnotation
          *                     when absent
          */
         public record Column(
-                String name,
+                @com.legend.Nullable String name,
                 TypeAnnotation type,
-                Multiplicity multiplicity) {
+                @com.legend.Nullable Multiplicity multiplicity) {
             public Column {
                 Objects.requireNonNull(type, "type");
             }

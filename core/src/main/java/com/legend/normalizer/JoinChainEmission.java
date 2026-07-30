@@ -256,7 +256,8 @@ final class JoinChainEmission {
      * {@link Pipeline#aliasToTargetTable}.
      */
     static void emitJoinChain(Pipeline p, List<JoinChainElement> hops,
-                                     String chainDb, @com.legend.Nullable String propName,
+                                     @com.legend.Nullable String chainDb,
+                                     @com.legend.Nullable String propName,
                                      @com.legend.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
                                      ModelBuilder model, LegacyMappingDefinition md,
@@ -284,8 +285,7 @@ final class JoinChainEmission {
             List<String> pathKey = emitNavigate ? null : List.copyOf(prefixPath);
             String navAlias = emitNavigate
                     ? mintNavSlotAlias(p, model, mainDb, mainTable, Objects
-                            .requireNonNull(propName, "nav hop needs propName"))
-                    : null;
+                            .requireNonNull(propName, "nav hop needs propName")) : null;
             if (emitNavigate) {
                 if (p.aliasToTargetTable.containsKey(navAlias)) {
                     prevTable = p.aliasToTargetTable.get(navAlias);
@@ -348,10 +348,10 @@ final class JoinChainEmission {
             LambdaFunction condLambda = new LambdaFunction(List.of(s, t), List.of(cond));
 
             if (emitNavigate) {
-                ColSpec slot = new ColSpec(slotAlias,
+                ColSpec slot = new ColSpec(Objects.requireNonNull(slotAlias),
                         new LambdaFunction(List.of(), List.of(new AppliedFunction(
-                                "getAll", List.of(new PackageableElementPtr(targetClassFqn))))),
-                        null);
+                                "getAll", List.of(new PackageableElementPtr(Objects
+                                        .requireNonNull(targetClassFqn)))))), null);
                 // The condition speaks TABLE-row scope while the slot's
                 // thunk is the CLASS extent — spell the target's table row
                 // into the call so the cond lambda's T types (the same
@@ -493,7 +493,7 @@ final class JoinChainEmission {
                                 List.of(new PackageableElementPtr(hopDb), new CString(targetTable)));
                 // a VIEW hop carries the frame identity in the spare
                 // alias channel — the checker lifts it onto the slot
-                ColSpec slot = new ColSpec(slotAlias,
+                ColSpec slot = new ColSpec(java.util.Objects.requireNonNull(slotAlias),
                         new LambdaFunction(List.of(), List.of(targetRel)),
                         null, viewTarget);
                 p.expr = new AppliedFunction("join",
@@ -620,7 +620,7 @@ final class JoinChainEmission {
         return model.isMappedClass(tgt) ? tgt : null;
     }
 
-    record JoinNavSpec(List<JoinChainElement> chain, String chainDb) {}
+    record JoinNavSpec(List<JoinChainElement> chain, @com.legend.Nullable String chainDb) {}
 
     static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
                                                    List<JoinNavSpec> out) {
@@ -797,8 +797,10 @@ final class JoinChainEmission {
     static ValueSpecification innerFilteredSource(
             ClassMapping.Relational rcm, FilterMapping.JoinMediated jm,
             ModelBuilder model, LegacyMappingDefinition md) {
-        String mainDb = rcm.mainTable().database();
-        String mainTable = rcm.mainTable().table();
+        var jmMain = java.util.Objects.requireNonNull(rcm.mainTable(),
+                "join-mediated filter on a set without ~mainTable");
+        String mainDb = jmMain.database();
+        String mainTable = jmMain.table();
         Variable r = new Variable("irow");
         // NOTE (leg 4, sweep-bisected): threading the class's backingView
         // here converts the view-to-view (INNER) ~filter pair BUT breaks

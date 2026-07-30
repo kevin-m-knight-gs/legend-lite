@@ -155,7 +155,8 @@ final class UnionSynthesis {
     }
 
     static int memberOrdinalOf(List<String> memberIds,
-            LegacyMappingDefinition md, ModelBuilder model, String setId) {
+            LegacyMappingDefinition md, ModelBuilder model,
+            @com.legend.Nullable String setId) {
         int direct = memberIds.indexOf(setId);
         if (direct >= 0) {
             return direct;
@@ -775,8 +776,10 @@ final class UnionSynthesis {
                         mr.propertyMappings(), mr.sourceUrl(),
                         mr.propertyTargetSets());
             }
+            var mrMain = java.util.Objects.requireNonNull(mr.mainTable(),
+                    "union member set without ~mainTable");
             DatabaseDefinition.ViewDefinition memberView = model.findView(
-                    mr.mainTable().database(), mr.mainTable().table()).orElse(null);
+                    mrMain.database(), mrMain.table()).orElse(null);
             if (memberView != null) {
                 // VIEW-backed member set: the view expands as the member
                 // thread's SOURCE SUBSELECT (engine unionOfViews golden —
@@ -1038,7 +1041,9 @@ final class UnionSynthesis {
                     ValueSpecification read;
                     if (en.getKey() == ordinal) {
                         read = new AppliedProperty(new AppliedProperty(
-                                pp.rowBind(), ch.keyAlias()), key.getKey());
+                                pp.rowBind(), java.util.Objects.requireNonNull(ch.keyAlias(),
+                                        "lift chain without a key alias")),
+                                key.getKey());
                     } else {
                         // view-aware: chained lifts land on VIEW mid tables
                         // too (unionOfViewsToViewToUnion)
@@ -1400,8 +1405,9 @@ final class UnionSynthesis {
                 mergeable = false;
                 break;
             }
-            String srcT = ((ClassMapping.Relational)
-                    members.get(ordsPre.get(k2)[0])).mainTable().table();
+            String srcT = java.util.Objects.requireNonNull(((ClassMapping.Relational)
+                    members.get(ordsPre.get(k2)[0])).mainTable(),
+                    "union member set without ~mainTable").table();
             String tgtT = MappingNormalizer.determineTargetTable(jd0.operation(), srcT,
                     hop0.joinName(), prop, 1, md.qualifiedName());
             Set<String> cols0 = new TreeSet<>();
@@ -1707,8 +1713,9 @@ final class UnionSynthesis {
                 }
                 int memberOrd = ords.get(k)[0];
                 PropertyMapping.Join j = js.get(k);
-                String srcTable = ((ClassMapping.Relational)
-                        members.get(memberOrd)).mainTable().table();
+                String srcTable = java.util.Objects.requireNonNull(((ClassMapping.Relational)
+                        members.get(memberOrd)).mainTable(),
+                        "union member set without ~mainTable").table();
                 // MID hops (all but the last): physical join steps around
                 // the owning member's thread (engine: mids join INSIDE the
                 // thread; the final hop is the union-level navigation)
@@ -1938,7 +1945,8 @@ final class UnionSynthesis {
             return;     // routes into Relation(~func) members have no
                         // physical key table (loud at navigation if demanded)
         }
-        String memberTable = routedMember.mainTable().table();
+        String memberTable = java.util.Objects.requireNonNull(routedMember.mainTable(),
+                "routed member set without ~mainTable").table();
         if (!uniform && j.joins().size() > 1 && chainsSink != null) {
             List<LiftMidStep> steps = inboundArmSteps(j, j.propertyName(),
                     memberTable, md, model);

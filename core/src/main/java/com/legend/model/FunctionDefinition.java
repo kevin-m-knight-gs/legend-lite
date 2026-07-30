@@ -72,7 +72,7 @@ public record FunctionDefinition(
         List<ValueSpecification> body,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
-        Synthesized synthesizedFrom) implements PackageableElement, Function {
+        @com.legend.Nullable Synthesized synthesizedFrom) implements PackageableElement, Function {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

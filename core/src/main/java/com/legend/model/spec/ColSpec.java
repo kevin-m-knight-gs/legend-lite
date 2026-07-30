@@ -55,9 +55,9 @@ import java.util.Objects;
  */
 public record ColSpec(
         String name,
-        LambdaFunction function1,
-        LambdaFunction function2,
-        String alias,
+        @com.legend.Nullable LambdaFunction function1,
+        @com.legend.Nullable LambdaFunction function2,
+        @com.legend.Nullable String alias,
         List<ValueSpecification> args,
         boolean qualified) implements ColumnInstance {
 
@@ -69,21 +69,23 @@ public record ColSpec(
     /** Historical arity: parenthesized-ness follows the args (the graph
      * parser passes the flag explicitly — {@code synonyms()} is
      * qualified with zero args). */
-    public ColSpec(String name, LambdaFunction function1,
-            LambdaFunction function2, String alias,
-            List<ValueSpecification> args) {
-        this(name, function1, function2, alias, args,
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
+            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+            @com.legend.Nullable List<ValueSpecification> args) {
+        this(name, function1, function2, alias,
+                args == null ? List.of() : args,
                 args != null && !args.isEmpty());
     }
 
     /** Graph-path arity without call args. */
-    public ColSpec(String name, LambdaFunction function1,
-            LambdaFunction function2, String alias) {
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
+            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias) {
         this(name, function1, function2, alias, List.of());
     }
 
     /** Un-aliased canonical arity (every non-graph colspec). */
-    public ColSpec(String name, LambdaFunction function1, LambdaFunction function2) {
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
+            @com.legend.Nullable LambdaFunction function2) {
         this(name, function1, function2, null, List.of());
     }
 
@@ -93,7 +95,7 @@ public record ColSpec(
     }
 
     /** Mapped-only convenience: {@code ~name:fn}. */
-    public ColSpec(String name, LambdaFunction function1) {
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1) {
         this(name, function1, null, null);
     }
 }

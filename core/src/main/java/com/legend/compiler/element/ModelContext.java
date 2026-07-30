@@ -174,14 +174,14 @@ public interface ModelContext {
     /** The full store definition — DDL derivation (the harness's model-
      * driven seeding) enumerates a module's databases through this. */
     default Optional<com.legend.model.DatabaseDefinition>
-            findDatabase(String dbFqn) {
+            findDatabase(@com.legend.Nullable String dbFqn) {
         return Optional.empty();
     }
 
     /** A join by name, INCLUDE-CLOSURE aware (real Legend: Database
      * MyDb ( include db ) resolves db's joins; own definitions win). */
     default Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
-            findJoinDefinition(String dbFqn, String joinName) {
+            findJoinDefinition(@com.legend.Nullable String dbFqn, String joinName) {
         return Optional.empty();
     }
 

@@ -1720,8 +1720,9 @@ final class TemporalFrame {
     }
 
     /** The pipe's TOP row carries the milestone columns the block needs. */
-    private static boolean pipeRowHasMilestoneCols(TypedSpec pipe, String fromCol,
-            String thruCol, String snapCol) {
+    private static boolean pipeRowHasMilestoneCols(TypedSpec pipe,
+            @com.legend.Nullable String fromCol,
+            @com.legend.Nullable String thruCol, @com.legend.Nullable String snapCol) {
         if (!(pipe.info().type()
                 instanceof Type.RelationType row)) {
             return false;

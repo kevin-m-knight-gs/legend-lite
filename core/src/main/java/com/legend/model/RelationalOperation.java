@@ -90,7 +90,8 @@ public sealed interface RelationalOperation
      *                     never {@code null}
      * @param column       the column name; never {@code null}
      */
-    record ColumnRef(String databaseName, String table, String column) implements RelationalOperation {
+    record ColumnRef(@com.legend.Nullable String databaseName, String table,
+            String column) implements RelationalOperation {
         public ColumnRef {
             Objects.requireNonNull(table, "Table cannot be null");
             Objects.requireNonNull(column, "Column cannot be null");
@@ -197,9 +198,9 @@ public sealed interface RelationalOperation
      *                     marker; {@code null} when omitted
      */
     record JoinNavigation(
-            String databaseName,
+            @com.legend.Nullable String databaseName,
             List<JoinChainElement> chain,
-            RelationalOperation terminal) implements RelationalOperation {
+            @com.legend.Nullable RelationalOperation terminal) implements RelationalOperation {
         public JoinNavigation {
             Objects.requireNonNull(chain, "Chain cannot be null");
             if (chain.isEmpty()) throw new IllegalArgumentException("Join chain cannot be empty");

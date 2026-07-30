@@ -22,8 +22,8 @@ import java.util.Objects;
  */
 public record JoinChainElement(
         String joinName,
-        JoinType joinType,
-        String databaseName,
+        @com.legend.Nullable JoinType joinType,
+        @com.legend.Nullable String databaseName,
         boolean includeSelf) {
 
     public JoinChainElement {

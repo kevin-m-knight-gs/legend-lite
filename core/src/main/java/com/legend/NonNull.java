@@ -11,6 +11,7 @@ import java.lang.annotation.Target;
  * already the default, so this appears rarely; see {@link Nullable}).
  */
 @Retention(RetentionPolicy.CLASS)
-@Target({ElementType.TYPE_USE})
+@Target({ElementType.TYPE_USE, ElementType.FIELD, ElementType.METHOD,
+        ElementType.PARAMETER, ElementType.RECORD_COMPONENT})
 public @interface NonNull {
 }

@@ -94,7 +94,7 @@ final class M2mRouteGuards {
      * engine-default id is the class FQN with '_' for '::' (short name
      * accepted too — includes-era corpora spell it either way).
      */
-    private static boolean setIdMatches(ClassMapping cm, String id) {
+    private static boolean setIdMatches(ClassMapping cm, @com.legend.Nullable String id) {
         if (id == null) {
             return false;
         }

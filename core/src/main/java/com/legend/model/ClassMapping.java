@@ -75,7 +75,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      * cast class's column PREFIX it belongs to (audit 23 B4 — key matching
      * through the contract, never substring surgery). Null when not a
      * witness key. */
-    static String witnessPrefixOf(String key) {
+    static @com.legend.Nullable String witnessPrefixOf(String key) {
         String tail = "___" + memberWitness();
         return isSubTypeColumn(key) && key.endsWith(tail)
                 ? key.substring(0, key.length() - memberWitness().length())
@@ -139,16 +139,16 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Relational(
             String className,
-            String setId,
-            String extendsSetId,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId,
             boolean root,
-            LegacyMappingDefinition.TableReference mainTable,
-            FilterMapping filter,
+            @com.legend.Nullable LegacyMappingDefinition.TableReference mainTable,
+            @com.legend.Nullable FilterMapping filter,
             boolean distinct,
             List<RelationalOperation> groupBy,
             List<RelationalOperation> primaryKey,
             List<PropertyMapping> propertyMappings,
-            String sourceUrl,
+            @com.legend.Nullable String sourceUrl,
             java.util.Map<String, String> propertyTargetSets) implements ClassMapping {
 
         // NO short overload: a defaulted propertyTargetSets silently dropped
@@ -210,11 +210,11 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Pure(
             String className,
-            String setId,
-            String extendsSetId,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId,
             boolean root,
             String sourceClass,
-            ValueSpecification filter,
+            @com.legend.Nullable ValueSpecification filter,
             List<PropertyBinding> propertyBindings) implements ClassMapping {
 
         public Pure {
@@ -248,8 +248,10 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
          * @param local         {@code +prop: Type[m]:} mapping-local property
          *                      (engine keeps it DISTINCT from class properties)
          */
-        public record PropertyBinding(String propertyName, ValueSpecification expression,
-                String sourceSetId, String targetSetId, boolean explode, boolean local) {
+        public record PropertyBinding(String propertyName,
+                ValueSpecification expression,
+                @com.legend.Nullable String sourceSetId, @com.legend.Nullable String targetSetId,
+                boolean explode, boolean local) {
             public PropertyBinding {
                 Objects.requireNonNull(propertyName, "Property name cannot be null");
                 Objects.requireNonNull(expression, "Property binding expression cannot be null");
@@ -277,8 +279,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Union(
             String className,
-            String setId,
-            String extendsSetId,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId,
             boolean root,
             List<String> memberSetIds) implements ClassMapping {
         public Union {
@@ -296,8 +298,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Inheritance(
             String className,
-            String setId,
-            String extendsSetId,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId,
             boolean root) implements ClassMapping {
         public Inheritance {
             Objects.requireNonNull(className, "Class name cannot be null");
@@ -325,8 +327,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record RelationFunction(
             String className,
-            String setId,
-            String extendsSetId,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId,
             boolean root,
             String funcRef,
             List<Col> columns) implements ClassMapping {
@@ -337,21 +339,22 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         }
 
         /** One {@code property: COLUMN} binding. */
-        public record Col(String property, String column, boolean local,
-                String enumMappingId, List<Col> embedded, String inlineSetId) {
+        public record Col(String property, @com.legend.Nullable String column, boolean local,
+                @com.legend.Nullable String enumMappingId, List<Col> embedded,
+                @com.legend.Nullable String inlineSetId) {
             public Col {
                 embedded = embedded == null ? List.of() : List.copyOf(embedded);
             }
 
             /** An EMBEDDED block ({@code prop ( sub: COL, ... )}). */
-            public Col(String property, String column, boolean local,
-                    String enumMappingId, List<Col> embedded) {
+            public Col(String property, @com.legend.Nullable String column, boolean local,
+                    @com.legend.Nullable String enumMappingId, List<Col> embedded) {
                 this(property, column, local, enumMappingId, embedded, null);
             }
 
             /** Enum-decoded column binding (no embedded block). */
-            public Col(String property, String column, boolean local,
-                    String enumMappingId) {
+            public Col(String property, @com.legend.Nullable String column, boolean local,
+                    @com.legend.Nullable String enumMappingId) {
                 this(property, column, local, enumMappingId, List.of(), null);
             }
 

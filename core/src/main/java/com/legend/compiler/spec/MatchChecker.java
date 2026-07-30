@@ -142,7 +142,8 @@ final class MatchChecker {
         Optional<String> extraParam = Optional.empty();
         for (LambdaFunction branch : branches) {
             Variable param = branch.parameters().get(0);
-            Type branchType = t.namedType(param.type());
+            Type branchType = t.namedType(java.util.Objects.requireNonNull(
+                    param.type(), "match branch parameter requires a type"));
             Multiplicity bound = param.multiplicity() != null
                     ? Multiplicity.from(param.multiplicity())
                     : input.info().multiplicity();
@@ -280,7 +281,8 @@ final class MatchChecker {
             LambdaFunction branch, Env env,
             @com.legend.Nullable Multiplicity boundOverride) {
         Variable param = branch.parameters().get(0);
-        Type branchType = t.namedType(param.type());
+        Type branchType = t.namedType(java.util.Objects.requireNonNull(
+                param.type(), "match branch parameter requires a type"));
         Multiplicity bound = boundOverride != null ? boundOverride
                 : param.multiplicity() != null
                         ? Multiplicity.from(param.multiplicity())

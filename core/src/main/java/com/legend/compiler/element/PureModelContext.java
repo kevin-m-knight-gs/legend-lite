@@ -321,13 +321,13 @@ public final class PureModelContext implements ModelContext {
 
     @Override
     public Optional<com.legend.model.DatabaseDefinition>
-            findDatabase(String dbFqn) {
+            findDatabase(@com.legend.Nullable String dbFqn) {
         return model.findDatabase(dbFqn);
     }
 
     @Override
     public Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
-            findJoinDefinition(String dbFqn, String joinName) {
+            findJoinDefinition(@com.legend.Nullable String dbFqn, String joinName) {
         return model.findJoin(dbFqn, joinName);
     }
 

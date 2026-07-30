@@ -602,7 +602,10 @@ public final class MappingNormalizer {
      * lookup dropped routes to included sets). Own definitions win.
      */
     static @com.legend.Nullable ClassMapping findSetById(LegacyMappingDefinition md,
-            ModelBuilder model, String setId) {
+            ModelBuilder model, @com.legend.Nullable String setId) {
+        if (setId == null) {
+            return null;
+        }
         for (ClassMapping cm : md.classMappings()) {
             if (setId.equals(setIdOf(cm))) {
                 return cm;
@@ -1018,7 +1021,8 @@ public final class MappingNormalizer {
                         false, false));
                 continue;
             }
-            ValueSpecification read = new AppliedProperty(row, c.column());
+            ValueSpecification read = new AppliedProperty(row, java.util.Objects.requireNonNull(
+                    c.column(), "column read on an embedded ~func col"));
             if (c.enumMappingId() != null) {
                 // enum-decoded column: the same source-value decode chain
                 // every other enum-mapped read synthesizes
@@ -1508,8 +1512,10 @@ public final class MappingNormalizer {
             ClassMapping.Relational routedMember, String col,
             LegacyMappingDefinition md, ModelBuilder model) {
         // view-aware: routed members can be VIEW-backed (unionOfViews)
-        String kind = ViewRelation.columnPureKind(routedMember.mainTable().database(),
-                routedMember.mainTable().table(), col, model);
+        var rmMain = java.util.Objects.requireNonNull(routedMember.mainTable(),
+                "routed member set without ~mainTable");
+        String kind = ViewRelation.columnPureKind(rmMain.database(),
+                rmMain.table(), col, model);
         if (kind == null) {
             throw new NotImplementedException(
                     "union navigation key column '" + col + "' of table '"
@@ -1570,8 +1576,10 @@ public final class MappingNormalizer {
                     rcm.propertyMappings(), rcm.sourceUrl(),
                     rcm.propertyTargetSets());
         }
+        var vMain = java.util.Objects.requireNonNull(rcm.mainTable(),
+                "table-backed set without ~mainTable");
         DatabaseDefinition.ViewDefinition view = model.findView(
-                rcm.mainTable().database(), rcm.mainTable().table()).orElse(null);
+                vMain.database(), vMain.table()).orElse(null);
         if (view != null) {
             return synthViewBackedMapping(md, rcm, view, model);
         }
@@ -1737,7 +1745,8 @@ public final class MappingNormalizer {
                                                             ClassMapping.Relational rcm,
                                                             ModelBuilder model) {
         ValueSpecification source = new AppliedFunction("sourceUrl",
-                List.of(new CString(rcm.sourceUrl())));
+                List.of(new CString(java.util.Objects.requireNonNull(rcm.sourceUrl(),
+                        "sourceUrl-backed set without a source url"))));
         Variable rowBind = new Variable("row");
         ClassDefinition cd = model.findClass(rcm.className()).orElseThrow(() ->
                 new ModelException(LegendCompileException.Phase.NORMALIZE, "JSON-source mapping references unknown class '"
@@ -1792,7 +1801,8 @@ public final class MappingNormalizer {
                                                             ClassMapping.Relational rcm,
                                                             DatabaseDefinition.ViewDefinition view,
                                                             ModelBuilder model) {
-        String mainDb = rcm.mainTable().database();
+        String mainDb = java.util.Objects.requireNonNull(rcm.mainTable(),
+                "view-backed set without ~mainTable").database();
         // Leg 4 (feature map §5): a view reached as a relation is an
         // IDENTITY-CARRYING FRAME — a row-defining subselect as pipeline
         // SOURCE (~filter/~groupBy/~distinct inside), PMs read view
@@ -1954,7 +1964,8 @@ public final class MappingNormalizer {
         }
         String dbFqn = switch (direct.filter()) {
             case FilterPointer.Cross c -> c.db();
-            case FilterPointer.Local l -> rcm.mainTable().database();
+            case FilterPointer.Local l -> java.util.Objects.requireNonNull(rcm.mainTable(),
+                    "local filter on a set without ~mainTable").database();
         };
         DatabaseDefinition.FilterDefinition fd = model.findFilter(dbFqn, direct.filter().name())
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
@@ -2096,8 +2107,10 @@ public final class MappingNormalizer {
             return synthTableBackedParts(md, noFilter, model, backingView, innerSrc);
         }
 
-        String mainDb    = rcm.mainTable().database();
-        String mainTable = canonicalTable(rcm.mainTable().table());
+        var mMain = java.util.Objects.requireNonNull(rcm.mainTable(),
+                "relational set without ~mainTable");
+        String mainDb    = mMain.database();
+        String mainTable = canonicalTable(mMain.table());
         Variable rowBind = new Variable("row");
 
         // Query-parser parity (H1): the database is a PackageableElementPtr,
@@ -2971,7 +2984,7 @@ public final class MappingNormalizer {
      * in turn; no match yields {@code []}.
      */
     static ValueSpecification translateEnumeratedSource(
-            String propertyName, String enumMappingId, ValueSpecification sourceRead,
+            String propertyName, @com.legend.Nullable String enumMappingId, ValueSpecification sourceRead,
             LegacyMappingDefinition md, String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
         List<EnumerationMapping> ems = enumerationMappingsWithIncludes(md, model);
@@ -3268,9 +3281,11 @@ public final class MappingNormalizer {
 
     private static ValueSpecification buildNewInstance(@com.legend.Nullable String classFqn,
                                                       Map<String, KeyExpression> fields) {
+        String fqnNN = java.util.Objects.requireNonNull(classFqn,
+                "instance construction without a target class");
         return new AppliedFunction("new", List.of(
-                new PackageableElementPtr(classFqn),
-                new NewInstance(classFqn, List.of(),
+                new PackageableElementPtr(fqnNN),
+                new NewInstance(fqnNN, List.of(),
                         Collections.unmodifiableMap(new LinkedHashMap<>(fields)))));
     }
 

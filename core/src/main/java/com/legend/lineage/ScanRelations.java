@@ -890,7 +890,7 @@ public final class ScanRelations {
     }
 
     private static void assignFilter(ModelContext ctx, Node root, Node at,
-            String dbName, com.legend.model.FilterPointer ptr) {
+            @com.legend.Nullable String dbName, com.legend.model.FilterPointer ptr) {
         String fdb = ptr instanceof com.legend.model.FilterPointer.Cross c
                 ? c.db() : dbName;
         DatabaseDefinition db = ctx.findDatabase(fdb).orElseThrow(() ->
@@ -1392,18 +1392,19 @@ public final class ScanRelations {
      * condition columns to its node; returns the DEEPEST node. */
     private static Node joinChain(ModelContext ctx,
             @com.legend.Nullable LegacyMappingDefinition md,
-            Node parent, String db, List<JoinChainElement> joins) {
+            Node parent, @com.legend.Nullable String db, List<JoinChainElement> joins) {
         return joinChain(ctx, md, parent, db, joins, "");
     }
 
     private static Node joinChain(ModelContext ctx,
             @com.legend.Nullable LegacyMappingDefinition md,
-            Node parent, String db, List<JoinChainElement> joins,
+            Node parent, @com.legend.Nullable String db, List<JoinChainElement> joins,
             String keySuffix) {
         Node cur = parent;
         for (JoinChainElement el : joins) {
             final Node at = cur;
-            String dbName = el.databaseName() != null ? el.databaseName() : db;
+            String edb = el.databaseName();
+            String dbName = edb != null ? edb : db;
             DatabaseDefinition.JoinDefinition jd = joinDef(ctx, dbName,
                     el.joinName());
             Set<String> tables = new LinkedHashSet<>();
@@ -1435,7 +1436,9 @@ public final class ScanRelations {
                     .filter(Objects::nonNull).findFirst().orElse(null);
             Node child = at.children.computeIfAbsent(
                     other + "(" + el.joinName() + ")" + keySuffix,
-                    k -> new Node(otherDb, otherSchema, other, el.joinName()));
+                    k -> new Node(java.util.Objects.requireNonNull(otherDb,
+                            "join edge without a database"),
+                            otherSchema, other, el.joinName()));
             boolean selfJoin = java.util.Objects.equals(at.table,
                     child.table);
             for (RelationalOperation.ColumnRef r : refs) {
@@ -1686,7 +1689,7 @@ public final class ScanRelations {
     }
 
     private static DatabaseDefinition.JoinDefinition joinDef(ModelContext ctx,
-            String dbName, String joinName) {
+            @com.legend.Nullable String dbName, String joinName) {
         // include-closure aware (Database DB2 ( include DB1 ) resolves
         // DB1's joins — the quoted-columns-for-views tdg family)
         return ctx.findJoinDefinition(dbName, joinName)

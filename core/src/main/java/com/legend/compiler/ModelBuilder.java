@@ -767,7 +767,10 @@ public final class ModelBuilder {
     }
 
     /** O(1). Returns {@link DatabaseDefinition} for {@code fqn}, if any. */
-    public Optional<DatabaseDefinition> findDatabase(String fqn) {
+    public Optional<DatabaseDefinition> findDatabase(@com.legend.Nullable String fqn) {
+        if (fqn == null) {
+            return Optional.empty();
+        }
         DatabaseDefinition exact = idGet(databases, symbols.resolveId(fqn));
         if (exact != null) {
             return Optional.of(exact);
@@ -852,14 +855,18 @@ public final class ModelBuilder {
      * {@code filters} and {@code multiGrainFilters} (the shapes are
      * structurally identical).
      */
-    public Optional<FilterDefinition> findFilter(String dbFqn, String filterName) {
+    public Optional<FilterDefinition> findFilter(@com.legend.Nullable String dbFqn,
+            String filterName) {
         return findFilter(dbFqn, filterName, new java.util.HashSet<>());
     }
 
     /** Include-closure aware, mirroring {@link #findJoin}: an including
      * database resolves the included database's filters. Own wins. */
-    private Optional<FilterDefinition> findFilter(String dbFqn,
+    private Optional<FilterDefinition> findFilter(@com.legend.Nullable String dbFqn,
             String filterName, java.util.Set<String> seen) {
+        if (dbFqn == null) {
+            return Optional.empty();
+        }
         if (!seen.add(dbFqn)) {
             return Optional.empty();
         }
@@ -886,15 +893,20 @@ public final class ModelBuilder {
      * O(1). Returns the {@link JoinDefinition} named {@code joinName}
      * inside database {@code dbFqn}, if any.
      */
-    public Optional<JoinDefinition> findJoin(String dbFqn, String joinName) {
+    public Optional<JoinDefinition> findJoin(@com.legend.Nullable String dbFqn,
+            String joinName) {
         return findJoin(dbFqn, joinName, new java.util.HashSet<>());
     }
 
     /** Include-closure aware (real Legend: Database MyDb ( include db )
      * resolves db's joins — the store-substitution corpus family,
      * testSubtypeMapping.pure:170-172). Own definitions win. */
-    private Optional<JoinDefinition> findJoin(String dbFqn, String joinName,
+    private Optional<JoinDefinition> findJoin(@com.legend.Nullable String dbFqn,
+            String joinName,
             java.util.Set<String> seen) {
+        if (dbFqn == null) {
+            return Optional.empty();
+        }
         if (!seen.add(dbFqn)) {
             return Optional.empty();
         }

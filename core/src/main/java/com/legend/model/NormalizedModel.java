@@ -93,7 +93,9 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
         Map<String, List<String>> byOwner = new LinkedHashMap<>();
         for (PackageableElement el : elements) {
             if (el instanceof FunctionDefinition fd && fd.isSynthesized()) {
-                byOwner.computeIfAbsent(fd.synthesizedFrom().ownerFqn(), k -> new ArrayList<>())
+                byOwner.computeIfAbsent(java.util.Objects.requireNonNull(
+                        fd.synthesizedFrom()).ownerFqn(),
+                        k -> new ArrayList<>())
                         .add(fd.qualifiedName());
             }
         }

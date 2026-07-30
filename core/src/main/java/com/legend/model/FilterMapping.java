@@ -49,10 +49,10 @@ public sealed interface FilterMapping permits FilterMapping.Direct, FilterMappin
      * {@code joins} starting in {@code sourceDb}, then apply {@code filter}.
      */
     record JoinMediated(
-            String sourceDb,
+            @com.legend.Nullable String sourceDb,
             List<JoinChainElement> joins,
             FilterPointer filter,
-            String joinType) implements FilterMapping {
+            @com.legend.Nullable String joinType) implements FilterMapping {
 
         /** Default join type (engine: LEFT OUTER navigation semantics). */
         public JoinMediated(String sourceDb, List<JoinChainElement> joins,

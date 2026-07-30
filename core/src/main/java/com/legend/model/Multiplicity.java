@@ -60,7 +60,8 @@ public sealed interface Multiplicity permits Multiplicity.Concrete, Multiplicity
      * @param upperBound maximum cardinality, {@code null} for
      *                   unbounded ({@code *}); otherwise {@code >= lowerBound}
      */
-    record Concrete(int lowerBound, Integer upperBound) implements Multiplicity {
+    record Concrete(int lowerBound, @com.legend.Nullable Integer upperBound)
+            implements Multiplicity {
 
         public Concrete {
             if (lowerBound < 0) {

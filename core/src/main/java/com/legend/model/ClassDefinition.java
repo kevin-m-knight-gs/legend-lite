@@ -176,7 +176,8 @@ public record ClassDefinition(
      * @param expression parsed expression AST that must evaluate to true
      */
     public record ConstraintDefinition(String name, Realization realization,
-            ValueSpecification message, String enforcementLevel) {
+            @com.legend.Nullable ValueSpecification message,
+            @com.legend.Nullable String enforcementLevel) {
         public ConstraintDefinition {
             Objects.requireNonNull(name, "Constraint name cannot be null");
             Objects.requireNonNull(realization, "Constraint realization cannot be null");

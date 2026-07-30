@@ -56,7 +56,7 @@ public record LegacyMappingDefinition(
         List<ClassMapping> classMappings,
         List<AssociationMapping> associationMappings,
         List<EnumerationMapping> enumerationMappings,
-        String testSuitesSource)
+        @com.legend.Nullable String testSuitesSource)
         implements PackageableElement {
 
     public LegacyMappingDefinition {

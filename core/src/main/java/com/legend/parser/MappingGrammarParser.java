@@ -1116,7 +1116,7 @@ final class MappingGrammarParser {
         // Branch by what follows the optional [DB].
         if (p.peek() == TokenType.AT) {
             // Join navigation: @J1 > @J2 ( | terminalColumn )?
-            requirePropertyMappingDb(propName, db, "join navigation");
+            db = requirePropertyMappingDb(propName, db, "join navigation");
             List<JoinChainElement> joins = p.relationalGrammar.parseJoinChain(db);
             if (p.match(TokenType.PIPE)) {
                 RelationalOperation terminal = p.relationalGrammar.parseDbAtomicOperation(db);
@@ -1148,7 +1148,7 @@ final class MappingGrammarParser {
                 && p.peek() != TokenType.STRING
                 && p.peek(1) != TokenType.DOT && p.peek(1) != TokenType.PAREN_OPEN
                 && p.peek(1) != TokenType.ARROW) {
-            requirePropertyMappingDb(propName, db, "scoped column reference");
+            db = requirePropertyMappingDb(propName, db, "scoped column reference");
             String column = p.relationalGrammar.parseColumnIdentifier();
             if (enumMappingId != null || anonymousEnumMapping) {
                 return new PropertyMapping.EnumeratedColumn(propName, enumMappingId,
@@ -1159,7 +1159,7 @@ final class MappingGrammarParser {
         // We peek a couple of p.tokens ahead to distinguish a simple
         // TABLE.COL column read from a function call / expression.
         if (looksLikeBareColumnRef()) {
-            requirePropertyMappingDb(propName, db, "column reference");
+            db = requirePropertyMappingDb(propName, db, "column reference");
             String tablePart = p.relationalGrammar.parseRelationalIdentifier();
             // Support SCHEMA.TABLE.COL — collapse first two into the table
             // string, matching engine's TablePtr handling.
@@ -1238,13 +1238,14 @@ final class MappingGrammarParser {
      * the main table supplies it implicitly; in association-mapping context
      * the user must write {@code [db::DB]}.
      */
-    void requirePropertyMappingDb(String propName, @com.legend.Nullable String db,
-            String kind) {
+    String requirePropertyMappingDb(String propName,
+            @com.legend.Nullable String db, String kind) {
         if (db == null) {
             throw p.error("property mapping '" + propName + "': " + kind
                     + " requires a database. Write `[db::DB] ...` "
                     + "or place the mapping inside a class mapping with ~mainTable.");
         }
+        return db;
     }
 
     /**

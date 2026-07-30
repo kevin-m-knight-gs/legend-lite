@@ -284,7 +284,8 @@ final class ViewRelation {
                 : view.columnMappings()) {
             declared.add(vc.name());
         }
-        String viewName = rcm.mainTable().table();
+        String viewName = java.util.Objects.requireNonNull(rcm.mainTable(),
+                "view-backed set without ~mainTable").table();
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (!pmReadsViewColumns(pm, declared, viewName, model)) {
                 return false;
@@ -452,7 +453,9 @@ final class ViewRelation {
             if (first == null) {
                 first = jn.chain().get(0);
             }
-            RelOpTranslator.collectTablesIn(jn.terminal(), terminals);
+            if (jn.terminal() != null) {
+                RelOpTranslator.collectTablesIn(jn.terminal(), terminals);
+            }
         }
         if (first == null) {
             return null;

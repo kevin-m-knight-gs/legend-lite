@@ -29,8 +29,8 @@ import java.util.Objects;
  *                    {@code body.propertyName()} carries the property name)
  */
 public record AssociationPropertyMapping(
-        String sourceSetId,
-        String targetSetId,
+        @com.legend.Nullable String sourceSetId,
+        @com.legend.Nullable String targetSetId,
         PropertyMapping body) {
 
     public AssociationPropertyMapping {

@@ -505,7 +505,8 @@ public interface TokenStreamCursor {
                     ? TypeExpression.Op.UNION
                     : (match(TokenType.MINUS) ? TypeExpression.Op.DIFFERENCE : null);
             TypeExpression right = parseType();
-            result = new TypeExpression.SchemaAlgebra(result, op, right);
+            result = new TypeExpression.SchemaAlgebra(result,
+                    java.util.Objects.requireNonNull(op, "schema algebra without +/-"), right);
         }
         if (match(TokenType.SUBSET)) {
             TypeExpression superSet = parseType();

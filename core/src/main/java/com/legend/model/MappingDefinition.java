@@ -35,7 +35,7 @@ public record MappingDefinition(
         List<ClassBinding> classBindings,
         List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
-        String testSuitesSource,
+        @com.legend.Nullable String testSuitesSource,
         java.util.Map<String, String> routedTargetSets)
         implements PackageableElement {
 
@@ -45,7 +45,7 @@ public record MappingDefinition(
             List<ClassBinding> classBindings,
             List<AssociationBinding> associationBindings,
             List<EnumerationMapping> enumerationMappings,
-            String testSuitesSource) {
+            @com.legend.Nullable String testSuitesSource) {
         this(qualifiedName, includes, classBindings, associationBindings,
                 enumerationMappings, testSuitesSource, java.util.Map.of());
     }
@@ -80,8 +80,8 @@ public record MappingDefinition(
     public record ClassBinding(
             String classFqn,
             Kind kind,
-            String setId,
-            String extendsSetId,
+            @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId,
             boolean root,
             Realization realization,
             List<String> primaryKeyColumns) {
@@ -94,16 +94,17 @@ public record MappingDefinition(
         }
 
         /** Pre-~primaryKey compat: no declared object-identity columns. */
-        public ClassBinding(String classFqn, Kind kind, String setId,
-                            String extendsSetId, boolean root,
+        public ClassBinding(String classFqn, Kind kind, @com.legend.Nullable String setId,
+                            @com.legend.Nullable String extendsSetId, boolean root,
                             Realization realization) {
             this(classFqn, kind, setId, extendsSetId, root, realization,
                     List.of());
         }
 
         /** Convenience: a function-ref binding (Door 1 / post-lift). */
-        public ClassBinding(String classFqn, Kind kind, String setId,
-                            String extendsSetId, boolean root, String functionFqn) {
+        public ClassBinding(String classFqn, Kind kind, @com.legend.Nullable String setId,
+                            @com.legend.Nullable String extendsSetId, boolean root,
+                            String functionFqn) {
             this(classFqn, kind, setId, extendsSetId, root, new Realization.Ref(functionFqn));
         }
 

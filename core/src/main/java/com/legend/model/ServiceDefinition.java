@@ -58,10 +58,10 @@ public record ServiceDefinition(
         String qualifiedName,
         String pattern,
         ValueSpecification functionBody,
-        String documentation,
-        String mappingRef,
-        String runtimeRef,
-        String testSuitesSource)
+        @com.legend.Nullable String documentation,
+        @com.legend.Nullable String mappingRef,
+        @com.legend.Nullable String runtimeRef,
+        @com.legend.Nullable String testSuitesSource)
         implements PackageableElement {
 
     public ServiceDefinition {

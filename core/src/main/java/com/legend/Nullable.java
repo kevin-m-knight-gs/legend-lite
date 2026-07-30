@@ -17,6 +17,7 @@ import java.lang.annotation.Target;
  * on a field/return/parameter is an HONEST declared sentinel, not a licence.
  */
 @Retention(RetentionPolicy.CLASS)
-@Target({ElementType.TYPE_USE})
+@Target({ElementType.TYPE_USE, ElementType.FIELD, ElementType.METHOD,
+        ElementType.PARAMETER, ElementType.RECORD_COMPONENT})
 public @interface Nullable {
 }

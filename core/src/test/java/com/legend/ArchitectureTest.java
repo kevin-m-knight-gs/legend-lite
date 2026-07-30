@@ -201,14 +201,24 @@ final class ArchitectureTest {
      * <strong>Invariant 6 — the pipeline's actual layer walls</strong>
      * (audit 15: all measured true, now pinned).
      */
+    /** The nullness vocabulary (com.legend.Nullable/NonNull) is values-tier:
+     * every layer may carry the annotations without breaching its wall. */
+    private static final com.tngtech.archunit.base.DescribedPredicate<
+            com.tngtech.archunit.core.domain.JavaClass> NULLNESS_ANNOTATIONS =
+            com.tngtech.archunit.core.domain.JavaClass.Predicates
+                    .belongToAnyOf(com.legend.Nullable.class,
+                            com.legend.NonNull.class);
+
     @Test
     void sqlLayerIsFullyStandalone() {
         // stronger than Invariant 3's blacklist: sql depends on NOTHING
         // in com.legend outside itself (measured true — keep it so)
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
             .that().resideInAPackage("com.legend.sql..")
-            .should().onlyDependOnClassesThat()
-            .resideInAnyPackage("com.legend.sql..", "java..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.sql..", "java..")
+                            .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6a: com.legend.sql depends only on itself and the JDK")
             .check(CORE_PROD_CLASSES);
     }
@@ -265,9 +275,12 @@ final class ArchitectureTest {
     void modelIsPureData() {
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
             .that().resideInAnyPackage("com.legend.model..")
-            .should().onlyDependOnClassesThat().resideInAnyPackage(
-                    "com.legend.model..", "com.legend.values",
-                    "com.legend.error", "java..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.model..",
+                                    "com.legend.values",
+                                    "com.legend.error", "java..")
+                            .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6j: com.legend.model depends only on values/error"
               + " and the JDK — producers and consumers both sit above it")
             .check(CORE_PROD_CLASSES);
@@ -330,11 +343,16 @@ final class ArchitectureTest {
     void loweringDependencySurfaceIsPinned() {
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
             .that().resideInAPackage("com.legend.lowering")
-            .should().onlyDependOnClassesThat().resideInAnyPackage(
-                    "com.legend.lowering", "com.legend.compiler.spec.typed",
-                    "com.legend.compiler.element", "com.legend.compiler.element.type",
-                    "com.legend.builtin", "com.legend.sql..", "com.legend.values",
-                    "com.legend.error", "java..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.lowering",
+                                    "com.legend.compiler.spec.typed",
+                                    "com.legend.compiler.element",
+                                    "com.legend.compiler.element.type",
+                                    "com.legend.builtin", "com.legend.sql..",
+                                    "com.legend.values",
+                                    "com.legend.error", "java..")
+                            .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
               + "nothing else, ever")
             .check(CORE_PROD_CLASSES);
