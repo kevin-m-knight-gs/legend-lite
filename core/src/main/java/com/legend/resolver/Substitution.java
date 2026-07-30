@@ -1539,6 +1539,12 @@ final class Substitution {
                 return assocLeaf(head, leaf);
             }
             if (inner instanceof TypedNewInstanceCast) {
+                // H5c cast-nav: the head registered as an UPSTREAM
+                // association hop whose AssocSub carries the cast
+                // target's COMPOSED bindings — dispatch like any assoc
+                if (target.assocs().containsKey(head)) {
+                    return assocLeaf(head, leaf);
+                }
                 throw new NotImplementedException("navigation '$" + target.userVar()
                         + "." + head + "." + leaf + "' crosses a MODEL-TO-MODEL"
                         + " cast binding — not supported yet (H5c)");

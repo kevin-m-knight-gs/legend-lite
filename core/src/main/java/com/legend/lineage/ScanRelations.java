@@ -551,6 +551,11 @@ public final class ScanRelations {
      * underscores. Loud when the class maps ambiguously. */
     public static String[] rootImpl(ModelContext ctx, String mappingFqn,
             String classFqn) {
+        return rootImpl(ctx, mappingFqn, classFqn, 0);
+    }
+
+    private static String[] rootImpl(ModelContext ctx, String mappingFqn,
+            String classFqn, int depth) {
         LegacyMappingDefinition md = mapping(ctx, mappingFqn);
         for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
             for (ClassMapping.Relational r : allClassMappings(m)) {
@@ -561,6 +566,21 @@ public final class ScanRelations {
                             : r.className().replace("::", "_");
                     return new String[]{name, setId, mainDbOf(r),
                             mainTableOf(r)};
+                }
+            }
+        }
+        // an M2M (Pure) set: the physical identity follows ~src to the
+        // UPSTREAM class's relational set (the H5 collapse — the plan's
+        // db/table identity is the composed source's; max 4 hops, the
+        // corpus chains twice)
+        if (depth < 4) {
+            for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
+                for (com.legend.model.ClassMapping cm : m.classMappings()) {
+                    if (cm instanceof ClassMapping.Pure pm
+                            && typeMatches(pm.className(), classFqn)) {
+                        return rootImpl(ctx, mappingFqn, pm.sourceClass(),
+                                depth + 1);
+                    }
                 }
             }
         }

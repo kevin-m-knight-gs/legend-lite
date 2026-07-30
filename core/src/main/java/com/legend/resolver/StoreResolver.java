@@ -1326,6 +1326,9 @@ public final class StoreResolver {
         Map<String, List<List<String>>> navTails =
                 new LinkedHashMap<>();
         Map<String, String> navHeadByAlias = new LinkedHashMap<>();
+        // H5c: heads whose binding is a class-typed M2M cast — the
+        // AssocSub's bindings swap to the cast target's composed source
+        Map<String, String> castHeads = new LinkedHashMap<>();
         // SECOND identities on one physical slot (date-fingerprinted /
         // filter-lifted synthetic heads beside the base): the slot
         // materializes once for the FIRST identity; every other identity
@@ -1386,11 +1389,20 @@ public final class StoreResolver {
                     break;
                 }
             }
+            // H5c cast-nav (CastNav): a class-typed M2M binding
+            // (^Target($src.slot)) demands the UPSTREAM navigate slot
+            String castFqn = CastNav.castTarget(cs, drill);
+            if (castFqn != null) {
+                drill = CastNav.castSource(drill);
+            }
             String alias = InnerDemand.navSlotAlias(drill, cs.rowVar(), navSteps.keySet());
             if (alias == null) {
                 continue;
             }
             String headKey = String.join(".", path.subList(0, mid));
+            if (castFqn != null) {
+                castHeads.putIfAbsent(headKey, castFqn);
+            }
             // a lifted head's predicate reads are TAILS too: they pull the
             // target's own slots exactly like demanded leaves
             List<List<String>> predTails =
@@ -1506,9 +1518,18 @@ public final class StoreResolver {
             // gates) are absent: their reads stay loud.
             Map<String, Substitution.SubNav> subNavs =
                     navMats.get(alias).subNavs();
-            assocs.put(navHeadByAlias.getOrDefault(alias, alias),
+            // H5c cast head: leaves resolve through the CAST TARGET's
+            // composed (M2M) bindings — the same frame (rowVar identity
+            // guarded, the graph channel's m2mAssocChild rule); a raw
+            // source-column read would silently take the wrong column
+            // whenever the M2M binding renames
+            String headKey9 = navHeadByAlias.getOrDefault(alias, alias);
+            ClassSource leafSource = CastNav.leafSource(sources, cs,
+                    castHeads.get(headKey9), target, headKey9);
+            assocs.put(headKey9,
                     new Substitution.AssocSub(alias + "_",
-                    target.rowVar(), target.bindings(), target.classFqn(),
+                    leafSource.rowVar(), leafSource.bindings(),
+                    leafSource.classFqn(),
                     Pipelines.slotAliases(target.pipeline()),
                     navMats.get(alias).slotPrefixes(), null, null,
                     temporal.milestoneColumnsOf(target.pipeline(), target.classFqn()),
@@ -2254,7 +2275,8 @@ public final class StoreResolver {
             int effectiveSize = path.size();
             if (path.size() >= 2
                     && path.get(path.size() - 2).equals("milestoning")) {
-                String hopCls = classAtHop(cs, path, path.size() - 2);
+                String hopCls = CastNav.classAtHop(ctx, cs, path,
+                        path.size() - 2);
                 if (hopCls != null
                         && com.legend.compiler.element.Temporal
                                 .strategyOf(ctx, hopCls) != null
@@ -3055,19 +3077,6 @@ public final class StoreResolver {
      * shape) — the path is NOT bare-demanded, so no row explosion. */
     /** The class FQN reached after {@code upto} property hops from the
      * source class; null when any hop is not a class-typed property. */
-    private String classAtHop(ClassSource cs, List<String> path, int upto) {
-        String cur = cs.classFqn();
-        for (int i = 0; i < upto; i++) {
-            var pr = ctx.findProperty(cur,
-                    SyntheticHeads.realHead(path.get(i))).orElse(null);
-            if (pr == null || !(pr.type() instanceof Type.ClassType ct)) {
-                return null;
-            }
-            cur = ct.fqn();
-        }
-        return cur;
-    }
-
     record AggDemand(TypedNativeCall node,
             String leaf, TypedLambda mapper,
             TypedLambda orderKey, boolean orderAsc) {
