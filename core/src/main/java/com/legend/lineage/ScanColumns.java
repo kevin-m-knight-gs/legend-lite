@@ -82,7 +82,8 @@ public final class ScanColumns {
                     if (!root && g instanceof SqlExpr.Column gc
                             && s.projections().stream().anyMatch(p ->
                                     p.expr() instanceof SqlExpr.Column pc
-                                    && pc.table().equals(gc.table())
+                                    && java.util.Objects.equals(
+                                            pc.table(), gc.table())
                                     && pc.name().equals(gc.name()))) {
                         continue;
                     }
@@ -134,7 +135,9 @@ public final class ScanColumns {
                 collectEnv(j.right(), outer, env, out);
                 Map<String, Resolver> onEnv = new LinkedHashMap<>(outer);
                 onEnv.putAll(env);
-                use(j.on(), onEnv, JOIN, out);
+                if (j.on() != null) {
+                    use(j.on(), onEnv, JOIN, out);
+                }
             }
             case SqlSource.Subselect s -> {
                 env.put(s.alias(), subResolver(s.inner(), outer, out));

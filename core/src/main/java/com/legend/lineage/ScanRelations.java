@@ -63,23 +63,24 @@ public final class ScanRelations {
 
     private static final class Node {
         final String db;          // defining database (view detection)
-        final String schema;      // qualifying schema, null = unqualified
-        final String table;
-        final String joinName;    // null on the root table node
+        final @com.legend.Nullable String schema;   // qualifying schema, null = unqualified
+        final @com.legend.Nullable String table;
+        final @com.legend.Nullable String joinName; // null on the root table node
         final Set<String> cols = new TreeSet<>();
         final TreeMap<String, Node> children = new TreeMap<>();
         // SYNTHETIC edge condition (tableToTDS ->join lambdas — no named
         // store join exists); null on model-join edges
-        RelationalOperation cond;
+        @com.legend.Nullable RelationalOperation cond;
         // a BARE tableToTDS side (no project): the whole table is the
         // demand — string retention must not narrow it
         boolean keepAll;
 
-        Node(String db, String table, String joinName) {
+        Node(String db, @com.legend.Nullable String table, @com.legend.Nullable String joinName) {
             this(db, null, table, joinName);
         }
 
-        Node(String db, String schema, String table, String joinName) {
+        Node(String db, @com.legend.Nullable String schema, @com.legend.Nullable String table,
+                @com.legend.Nullable String joinName) {
             this.db = db;
             this.schema = schema;
             this.table = table;
@@ -149,12 +150,12 @@ public final class ScanRelations {
      * columns. Views are NOT expanded here (treeString expands them at
      * print time); the consumer sees the view node itself.
      */
-    public record Rel(String db, String table, String joinName,
-            RelationalOperation cond, List<String> cols,
+    public record Rel(String db, @com.legend.Nullable String table, @com.legend.Nullable String joinName,
+            @com.legend.Nullable RelationalOperation cond, List<String> cols,
             List<Rel> children) {
 
         /** Model-join edge (no synthetic condition). */
-        public Rel(String db, String table, String joinName,
+        public Rel(String db, @com.legend.Nullable String table, @com.legend.Nullable String joinName,
                 List<String> cols, List<Rel> children) {
             this(db, table, joinName, null, cols, children);
         }
@@ -182,7 +183,9 @@ public final class ScanRelations {
             LegacyMappingDefinition md = mapping(ctx, mappingFqn);
             for (ClassMapping.Relational cm : rootClassMappings(ctx, md,
                     rootClassFqn(query))) {
-                Node r = new Node(mainDbOf(cm), mainTableOf(cm), null);
+                Node r = new Node(java.util.Objects.requireNonNull(
+                        mainDbOf(cm), "root set without a main db"),
+                        mainTableOf(cm), null);
                 foldClassFilter(ctx, r, cm);
                 roots.add(r);
             }
@@ -349,7 +352,8 @@ public final class ScanRelations {
             throw new NotImplementedException("scanRelations: tableToTDS"
                     + " join condition must compare left and right sides");
         }
-        Node parent = byTable.get(l[0]);
+        Node parent = java.util.Objects.requireNonNull(byTable.get(l[0]),
+                "tds join condition references unseeded table " + l[0]);
         parent.cols.add(l[1]);
         right.cols.add(r);
         right.cond = new RelationalOperation.Comparison(
@@ -361,7 +365,7 @@ public final class ScanRelations {
     }
 
     /** {@code $v.getX('COL')} -> [varName, COL]. */
-    private static String[] tdsColRead(ValueSpecification v) {
+    private static String @com.legend.Nullable [] tdsColRead(ValueSpecification v) {
         if (v instanceof AppliedFunction af
                 && af.function().substring(af.function().lastIndexOf(':') + 1)
                         .startsWith("get")
@@ -595,7 +599,8 @@ public final class ScanRelations {
     }
 
     /** Whether {@code name} is a VIEW of {@code db} (include closure). */
-    public static boolean isView(ModelContext ctx, String db, String name) {
+    public static boolean isView(ModelContext ctx, String db,
+            @com.legend.Nullable String name) {
         return db != null && findView(ctx, db, name) != null;
     }
 
@@ -613,18 +618,21 @@ public final class ScanRelations {
     /** A view's tdg expansion: the internal tree plus the seed (main)
      * table identity and the PLAIN column-mapped view-column &rarr;
      * base-column map (join-navigated columns are absent). */
-    public record ViewExpansion(Rel tree, String db, String mainTable,
+    public record ViewExpansion(Rel tree, String db,
+            @com.legend.Nullable String mainTable,
             java.util.Map<String, String> colToBase) {
     }
 
     public static ViewExpansion viewExpansion(ModelContext ctx, String db,
-            String viewName) {
+            @com.legend.Nullable String viewName) {
         DatabaseDefinition.ViewDefinition vd = findView(ctx, db, viewName);
         if (vd == null) {
             throw new NotImplementedException("scanRelations: view '"
                     + viewName + "' not found in '" + db + "'");
         }
-        Node root = expandView(ctx, db, vd, true);
+        Node root = java.util.Objects.requireNonNull(
+                expandView(ctx, db, vd, true),
+                "view '" + viewName + "' has no column-mapped seed table");
         java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
                 : vd.columnMappings()) {
@@ -709,7 +717,9 @@ public final class ScanRelations {
         for (List<Seg> p : paths) {
             if (roots.isEmpty()) {
                 for (ClassMapping.Relational cm : rootCms) {
-                    Node r = new Node(mainDbOf(cm), mainTableOf(cm), null);
+                    Node r = new Node(java.util.Objects.requireNonNull(
+                            mainDbOf(cm), "root set without a main db"),
+                            mainTableOf(cm), null);
                     roots.add(r);
                     foldClassFilter(ctx, r, cm);
                 }
@@ -722,7 +732,7 @@ public final class ScanRelations {
     }
 
     private static List<ClassMapping.Relational> rootClassMappings(
-            ModelContext ctx, LegacyMappingDefinition md, String classFqn) {
+            ModelContext ctx, LegacyMappingDefinition md, @com.legend.Nullable String classFqn) {
         List<ClassMapping.Relational> hits = new ArrayList<>();
         for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
             for (ClassMapping.Relational r : allClassMappings(m)) {
@@ -761,14 +771,17 @@ public final class ScanRelations {
             // tables — every column mapping expression plus the view
             // filter's join web (the engine's view internals)
             sb.append("  ".repeat(depth + 1)).append("root\n");
-            print(sb, expandView(ctx, n.db, vd), depth + 2, ctx);
+            Node inner = expandView(ctx, n.db, vd);
+            if (inner != null) {
+                print(sb, inner, depth + 2, ctx);
+            }
         }
     }
 
     /** The view's INTERNAL tree: plain column expressions seed the root
      * table and its columns; JoinNavigation expressions and the view
      * ~filter fold their join chains off it. */
-    private static Node expandView(ModelContext ctx, String dbName,
+    private static @com.legend.Nullable Node expandView(ModelContext ctx, String dbName,
             DatabaseDefinition.ViewDefinition vd) {
         return expandView(ctx, dbName, vd, false);
     }
@@ -777,7 +790,7 @@ public final class ScanRelations {
      * OWN child chain even when a prefix repeats (the engine's tdg
      * nestedViewTree fetches per web — testSimpleViewRoot pins 5 sqls);
      * the treeString printer keeps the merged form. */
-    private static Node expandView(ModelContext ctx, String dbName,
+    private static @com.legend.Nullable Node expandView(ModelContext ctx, String dbName,
             DatabaseDefinition.ViewDefinition vd, boolean perWebChildren) {
         Node root = null;
         List<RelationalOperation.ColumnRef> plainRefs = new ArrayList<>();
@@ -793,7 +806,7 @@ public final class ScanRelations {
                 root = new Node(r.databaseName() != null ? r.databaseName()
                         : dbName, bare(r.table()), null);
             }
-            if (!bare(r.table()).equals(root.table)) {
+            if (!java.util.Objects.equals(bare(r.table()), root.table)) {
                 throw new NotImplementedException("scanRelations: view '"
                         + vd.name() + "' columns span tables '" + root.table
                         + "' and '" + r.table() + "'");
@@ -867,7 +880,7 @@ public final class ScanRelations {
             List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
             columnRefs(jn.terminal(), refs);
             for (RelationalOperation.ColumnRef r : refs) {
-                if (bare(r.table()).equals(at.table)) {
+                if (java.util.Objects.equals(bare(r.table()), at.table)) {
                     at.cols.add(r.column());
                 } else {
                     assignByTable(root, List.of(r));
@@ -907,7 +920,7 @@ public final class ScanRelations {
 
     private static boolean assignOne(Node n,
             RelationalOperation.ColumnRef r) {
-        if (bare(r.table()).equals(n.table)) {
+        if (java.util.Objects.equals(bare(r.table()), n.table)) {
             n.cols.add(r.column());
             return true;
         }
@@ -919,8 +932,8 @@ public final class ScanRelations {
         return false;
     }
 
-    private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
-            String dbName, String name) {
+    private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
+            String dbName, @com.legend.Nullable String name) {
         return findView(ctx, dbName, null, name);
     }
 
@@ -928,14 +941,14 @@ public final class ScanRelations {
      * name across schemas with DIFFERENT bodies (the ViewSchema
      * AltID_View corpus model) — a schema-blind first-match expanded the
      * wrong one. */
-    private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
-            String dbName, String schema, String name) {
+    private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
+            String dbName, @com.legend.Nullable String schema, @com.legend.Nullable String name) {
         return findView(ctx, dbName, schema, name,
                 new java.util.LinkedHashSet<>());
     }
 
-    private static DatabaseDefinition.ViewDefinition findView(ModelContext ctx,
-            String dbName, String schema, String name, Set<String> seen) {
+    private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
+            String dbName, @com.legend.Nullable String schema, @com.legend.Nullable String name, Set<String> seen) {
         if (!seen.add(dbName)) {
             return null;
         }
@@ -1033,7 +1046,7 @@ public final class ScanRelations {
      * and EMBEDDED sub-hops (which continue on the SAME node). */
     private static void dispatchPms(ModelContext ctx,
             LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
-            Seg.Prop prop, Seg.SubType st, List<PropertyMapping> pms,
+            Seg.Prop prop, Seg.@com.legend.Nullable SubType st, List<PropertyMapping> pms,
             List<Seg> path, int next, boolean tdgMode) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
@@ -1140,7 +1153,7 @@ public final class ScanRelations {
      * the walked child (same table/edge) and its own sub-walk. */
     private static void unionSiblings(ModelContext ctx,
             LegacyMappingDefinition md, Node parent, Node child,
-            ClassMapping.Relational walked, Seg.SubType st, List<Seg> path,
+            ClassMapping.Relational walked, Seg.@com.legend.Nullable SubType st, List<Seg> path,
             int next) {
         List<ClassMapping.Relational> sets;
         try {
@@ -1168,7 +1181,7 @@ public final class ScanRelations {
             } catch (NotImplementedException e) {
                 continue;
             }
-            if (!mt2.equals(child.table)) {
+            if (!java.util.Objects.equals(mt2, child.table)) {
                 continue;
             }
             String key = child.table + "(" + child.joinName + ")[set" + k
@@ -1186,7 +1199,7 @@ public final class ScanRelations {
      * function-ref binding). */
     private record Derived(List<List<Seg>> results, List<List<Seg>> sides) {}
 
-    private static Derived derivedChains(ModelContext ctx,
+    private static @com.legend.Nullable Derived derivedChains(ModelContext ctx,
             ClassMapping.Relational cm, String prop) {
         com.legend.model.ClassDefinition cd = classDef(ctx, cm.className());
         if (cd == null) {
@@ -1227,7 +1240,7 @@ public final class ScanRelations {
         return null;
     }
 
-    private static List<Seg> qualifierResultChain(ValueSpecification b,
+    private static @com.legend.Nullable List<Seg> qualifierResultChain(ValueSpecification b,
             java.util.Map<String, List<Seg>> scope) {
         ValueSpecification cur = b;
         while (cur instanceof AppliedFunction af && !af.parameters().isEmpty()
@@ -1292,7 +1305,7 @@ public final class ScanRelations {
     /** {@link #chainOf} restricted to roots IN SCOPE, prefixed by the
      * root's own chain; null when the root var is unscoped (a qualifier
      * parameter) or the node is not a chain. */
-    private static List<Seg> scopedChainOf(ValueSpecification n,
+    private static @com.legend.Nullable List<Seg> scopedChainOf(ValueSpecification n,
             java.util.Map<String, List<Seg>> scope) {
         String root = rootVarOf(n);
         if (root == null || !scope.containsKey(root)) {
@@ -1307,7 +1320,7 @@ public final class ScanRelations {
         return full;
     }
 
-    private static String rootVarOf(ValueSpecification n) {
+    private static @com.legend.Nullable String rootVarOf(ValueSpecification n) {
         return switch (n) {
             case Variable v -> v.name();
             case AppliedProperty ap -> rootVarOf(ap.receiver());
@@ -1318,7 +1331,7 @@ public final class ScanRelations {
     }
 
     /** The parsed class definition for an as-written class spelling. */
-    private static com.legend.model.ClassDefinition classDef(ModelContext ctx,
+    private static com.legend.model.@com.legend.Nullable ClassDefinition classDef(ModelContext ctx,
             String written) {
         var direct = ctx.findClassDefinition(written);
         if (direct.isPresent()) {
@@ -1377,12 +1390,14 @@ public final class ScanRelations {
 
     /** Fold a join chain under {@code parent}, assigning each side's
      * condition columns to its node; returns the DEEPEST node. */
-    private static Node joinChain(ModelContext ctx, LegacyMappingDefinition md,
+    private static Node joinChain(ModelContext ctx,
+            @com.legend.Nullable LegacyMappingDefinition md,
             Node parent, String db, List<JoinChainElement> joins) {
         return joinChain(ctx, md, parent, db, joins, "");
     }
 
-    private static Node joinChain(ModelContext ctx, LegacyMappingDefinition md,
+    private static Node joinChain(ModelContext ctx,
+            @com.legend.Nullable LegacyMappingDefinition md,
             Node parent, String db, List<JoinChainElement> joins,
             String keySuffix) {
         Node cur = parent;
@@ -1411,17 +1426,18 @@ public final class ScanRelations {
                                 + "' carries no {target} side");
                     });
             String otherDb = refs.stream()
-                    .filter(r -> bare(r.table()).equals(other))
+                    .filter(r -> other.equals(bare(r.table())))
                     .map(RelationalOperation.ColumnRef::databaseName)
                     .filter(Objects::nonNull).findFirst().orElse(dbName);
             String otherSchema = refs.stream()
-                    .filter(r -> bare(r.table()).equals(other))
+                    .filter(r -> other.equals(bare(r.table())))
                     .map(r -> schemaOf(r.table()))
                     .filter(Objects::nonNull).findFirst().orElse(null);
             Node child = at.children.computeIfAbsent(
                     other + "(" + el.joinName() + ")" + keySuffix,
                     k -> new Node(otherDb, otherSchema, other, el.joinName()));
-            boolean selfJoin = at.table.equals(child.table);
+            boolean selfJoin = java.util.Objects.equals(at.table,
+                    child.table);
             for (RelationalOperation.ColumnRef r : refs) {
                 if (selfJoin) {
                     // SELF-join: both operand columns exist on both sides
@@ -1430,9 +1446,9 @@ public final class ScanRelations {
                     // Tree pins parent ID + child MANAGERID)
                     at.cols.add(r.column());
                     child.cols.add(r.column());
-                } else if (bare(r.table()).equals(at.table)) {
+                } else if (java.util.Objects.equals(bare(r.table()), at.table)) {
                     at.cols.add(r.column());
-                } else if (bare(r.table()).equals(child.table)) {
+                } else if (java.util.Objects.equals(bare(r.table()), child.table)) {
                     child.cols.add(r.column());
                 } else {
                     throw new NotImplementedException("scanRelations: join '"
@@ -1461,7 +1477,7 @@ public final class ScanRelations {
      * expressions never carry a target side). */
     private static void columnRefs(RelationalOperation op,
             List<RelationalOperation.ColumnRef> out,
-            List<String> targetCols) {
+            @com.legend.Nullable List<String> targetCols) {
         switch (op) {
             case RelationalOperation.ColumnRef cr -> out.add(cr);
             case RelationalOperation.TargetColumnRef tr -> {
@@ -1549,7 +1565,8 @@ public final class ScanRelations {
     }
 
     private static ClassMapping.Relational classMappingFor(ModelContext ctx,
-            LegacyMappingDefinition md, String classFqn, String setId) {
+            LegacyMappingDefinition md, @com.legend.Nullable String classFqn,
+            @com.legend.Nullable String setId) {
         List<ClassMapping.Relational> hits = new ArrayList<>();
         for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
             for (ClassMapping.Relational r : allClassMappings(m)) {
@@ -1572,7 +1589,7 @@ public final class ScanRelations {
      * table. */
     /** The declared class of a property (deep through supers), null when
      * unresolvable — the join-target disambiguator. */
-    private static String propertyTargetClass(ModelContext ctx,
+    private static @com.legend.Nullable String propertyTargetClass(ModelContext ctx,
             ClassMapping.Relational cm, String prop) {
         java.util.ArrayDeque<String> q = new java.util.ArrayDeque<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
@@ -1606,7 +1623,7 @@ public final class ScanRelations {
 
     private static ClassMapping.Relational targetCm(ModelContext ctx,
             LegacyMappingDefinition md, PropertyMapping.Join j,
-            String fromTable, String targetClassHint) {
+            @com.legend.Nullable String fromTable, @com.legend.Nullable String targetClassHint) {
         if (j.targetSetId() != null) {
             return classMappingFor(ctx, md, null, j.targetSetId());
         }
@@ -1631,7 +1648,8 @@ public final class ScanRelations {
                 } catch (NotImplementedException e) {
                     continue;
                 }
-                if (mt.equals(bare(r.table())) && !hits.contains(cm)) {
+                if (mt != null && mt.equals(bare(r.table()))
+                        && !hits.contains(cm)) {
                     hits.add(cm);
                 }
             }
@@ -1639,7 +1657,8 @@ public final class ScanRelations {
         // prefer sets on OTHER tables — but a SELF-JOIN's target IS the
         // from-table, so never empty the candidate list
         List<ClassMapping.Relational> nonSelf = hits.stream()
-                .filter(cm -> !mainTableOf(cm).equals(bare(fromTable)))
+                .filter(cm -> !java.util.Objects.equals(mainTableOf(cm),
+                        bare(fromTable)))
                 .toList();
         if (!nonSelf.isEmpty()) {
             hits = new ArrayList<>(nonSelf);
@@ -1678,9 +1697,12 @@ public final class ScanRelations {
 
     /** As-written vs resolved class spellings: exact first, then an
      * unambiguous tail match (mapping models keep source spellings). */
-    private static boolean typeMatches(String written, String fqn) {
+    private static boolean typeMatches(String written, @com.legend.Nullable String fqn) {
         if (Objects.equals(written, fqn)) {
             return true;
+        }
+        if (fqn == null) {
+            return false;
         }
         String wt = written.contains("::")
                 ? written.substring(written.lastIndexOf("::") + 2) : written;
@@ -1693,7 +1715,7 @@ public final class ScanRelations {
     /** The set's main table — explicit {@code ~mainTable}, else IMPLIED
      * by the first column property mapping (engine grammar: mainTable is
      * 0..1). */
-    private static String mainTableOf(ClassMapping.Relational cm) {
+    private static @com.legend.Nullable String mainTableOf(ClassMapping.Relational cm) {
         if (cm.mainTable() != null) {
             return bare(cm.mainTable().table());
         }
@@ -1707,7 +1729,7 @@ public final class ScanRelations {
                 + " implied by a column mapping)");
     }
 
-    private static String mainDbOf(ClassMapping.Relational cm) {
+    private static @com.legend.Nullable String mainDbOf(ClassMapping.Relational cm) {
         if (cm.mainTable() != null) {
             return cm.mainTable().database();
         }
@@ -1719,13 +1741,13 @@ public final class ScanRelations {
         return null;
     }
 
-    private static String bare(String table) {
+    private static @com.legend.Nullable String bare(@com.legend.Nullable String table) {
         return table != null && table.contains(".")
                 ? table.substring(table.lastIndexOf('.') + 1) : table;
     }
 
     /** The qualifying schema of {@code Schema.Table}, null when bare. */
-    private static String schemaOf(String table) {
+    private static @com.legend.Nullable String schemaOf(@com.legend.Nullable String table) {
         return table != null && table.contains(".")
                 ? table.substring(0, table.lastIndexOf('.')) : null;
     }
@@ -1734,7 +1756,7 @@ public final class ScanRelations {
     // Query-side extraction
     // ------------------------------------------------------------------
 
-    private static String rootClassFqn(ValueSpecification n) {
+    private static @com.legend.Nullable String rootClassFqn(ValueSpecification n) {
         if (n instanceof AppliedFunction af) {
             if ("getAll".equals(af.function()) && !af.parameters().isEmpty()
                     && af.parameters().get(0)
@@ -1839,7 +1861,7 @@ public final class ScanRelations {
             "greaterThanEqual", "plus", "minus", "times", "divide",
             "and", "or", "in", "startsWith", "endsWith");
 
-    private static List<Seg> chainOf(ValueSpecification n) {
+    private static @com.legend.Nullable List<Seg> chainOf(ValueSpecification n) {
         if (n instanceof Variable) {
             return new ArrayList<>();
         }
