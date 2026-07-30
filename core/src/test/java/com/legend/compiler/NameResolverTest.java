@@ -223,7 +223,7 @@ class NameResolverTest {
         var ex = assertThrows(com.legend.error.ModelException.class,
                 () -> resolveOne(cd, two, ambig));
         assertEquals("x::Sub", ex.element());
-        assertTrue(ex.getMessage().contains("ambiguous"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("ambiguous"), ex.getMessage());
     }
 
     @Test

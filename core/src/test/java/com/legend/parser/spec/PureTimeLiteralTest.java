@@ -85,14 +85,14 @@ class PureTimeLiteralTest {
     void timeWithSubsecond_constructor_rejectsEmptySubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureTimeLiteral.TimeWithSubsecond(10, 30, 45, ""));
-        assertTrue(ex.getMessage().contains("subsecond"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     @Test
     void timeWithSubsecond_constructor_rejectsNonDigitSubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureTimeLiteral.TimeWithSubsecond(10, 30, 45, "12a"));
-        assertTrue(ex.getMessage().contains("subsecond"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     // ----- round-trip --------------------------------------------------

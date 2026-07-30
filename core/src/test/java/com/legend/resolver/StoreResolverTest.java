@@ -73,7 +73,7 @@ class StoreResolverTest {
     void noContextIsLoud() {
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
                 () -> resolve("m::Person.all()->project(~[name: p|$p.name])", null));
-        assertTrue(e.getMessage().contains("execution context"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("execution context"), e.getMessage());
     }
 
     @Test
@@ -100,7 +100,7 @@ class StoreResolverTest {
                 "test::C", List.of(), false, info);
         var e = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> StoreResolver.assertNoStoreOnlyEscapees(escapee));
-        assertTrue(e.getMessage().contains("test::C"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("test::C"), e.getMessage());
         assertTrue(e.getMessage().contains("resolver"), e.getMessage());
     }
 }

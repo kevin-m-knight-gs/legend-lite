@@ -91,7 +91,7 @@ class CompileFunctionTest {
     void returnTypeMismatchFailsLoudly() {
         TypeInferenceException ex = assertThrows(TypeInferenceException.class, () -> compile(
                 "function test::mismatch(a: Integer[1]): String[1] { $a + 1 }", "test::mismatch"));
-        assertTrue(ex.getMessage().contains("String") && ex.getMessage().contains("Integer"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("String") && String.valueOf(ex.getMessage()).contains("Integer"),
                 "Error must mention both the declared return type and the actual body type. Got: "
                         + ex.getMessage());
     }

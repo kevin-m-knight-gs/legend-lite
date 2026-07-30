@@ -130,7 +130,7 @@ class UserCallInlinerTest {
         var ex = assertThrows(Exception.class,
                 () -> run("m::Person.all()->filter(p|m::recurse($p.age) > 0)"
                         + "->project(~[name: p|$p.name])"));
-        assertTrue(ex.getMessage().contains("m::recurse")
+        assertTrue(String.valueOf(ex.getMessage()).contains("m::recurse")
                         && ex.getMessage().contains("TypedUserCall"),
                 "SQL-bound recursion walls naming the function: "
                         + ex.getMessage());

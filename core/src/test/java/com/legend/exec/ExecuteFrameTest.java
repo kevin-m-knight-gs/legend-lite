@@ -112,7 +112,7 @@ class ExecuteFrameTest {
                         + "|m::Person.all()->project([p|$p.name], ['name']),"
                         + " m::M, m::RT, []);\n"
                         + "$r.values->at(1);}"));
-        assertTrue(ex.getMessage().contains("at(k>0)"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("at(k>0)"), ex.getMessage());
     }
 
     @Test

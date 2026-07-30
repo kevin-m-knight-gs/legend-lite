@@ -3793,7 +3793,7 @@ class MappingNormalizerTest {
         com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("model::Person"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("model::Person"),
                 () -> "Expected duplicate-mapping error to name the class; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("multiple ClassMappings"),
                 () -> "Expected error to mention 'multiple ClassMappings'; got: " + ex.getMessage());
@@ -3996,7 +3996,7 @@ class MappingNormalizerTest {
         com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("Circular M2M"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("Circular M2M"),
                 () -> "Expected circular-M2M diagnostic; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("model::A") && ex.getMessage().contains("model::B"),
                 () -> "Expected both classes named in the cycle; got: " + ex.getMessage());
@@ -4706,7 +4706,7 @@ class MappingNormalizerTest {
         com.legend.error.ModelException ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.ModelException.class,
                 () -> normalizeViaPipeline(parsed));
-        assertTrue(ex.getMessage().contains("nope"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("nope"),
                 () -> "Expected the unknown parent set id to be named; got: " + ex.getMessage());
     }
 

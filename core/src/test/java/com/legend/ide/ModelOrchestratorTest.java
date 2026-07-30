@@ -122,7 +122,7 @@ final class ModelOrchestratorTest {
                 ModelOrchestrator.UnknownFqnException.class,
                 () -> orch.resolve("my::DoesNotExist"));
         assertEquals("my::DoesNotExist", ex.fqn());
-        assertTrue(ex.getMessage().contains("my::DoesNotExist"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("my::DoesNotExist"),
                 () -> "message should mention the missing FQN, got: " + ex.getMessage());
     }
 

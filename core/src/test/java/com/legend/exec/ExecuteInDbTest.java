@@ -147,7 +147,7 @@ class ExecuteInDbTest {
                 () -> Compiler.execute(SETUP_MODEL, CONN_LET
                         + "let rs = meta::relational::metamodel::execute::executeInDb("
                         + "'select 1;', $c, 0, 1000);\nlet n = $rs;\ntrue;}", conn));
-        assertTrue(ex.getMessage().contains("executeInDb result binding"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("executeInDb result binding"),
                 ex.getMessage());
     }
 

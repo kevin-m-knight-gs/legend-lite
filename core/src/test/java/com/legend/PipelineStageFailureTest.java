@@ -103,7 +103,7 @@ class PipelineStageFailureTest {
                         + " name: T.X } *test::P[s2] extends [nope]: Relational {"
                         + " ~mainTable [test::DB] T name: T.X } )",
                 "1 + 1");
-        assertTrue(ex.getMessage().startsWith("[3:"),
+        assertTrue(String.valueOf(ex.getMessage()).startsWith("[3:"),
                 () -> "expected the mapping's [line:col] prefix, got: " + ex.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals("test::M", ex.element());
     }

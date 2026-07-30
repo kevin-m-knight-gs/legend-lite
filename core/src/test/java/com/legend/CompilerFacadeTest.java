@@ -70,7 +70,7 @@ class CompilerFacadeTest {
         // an unknown one still says how to fix it.
         Exception ex = assertThrows(Exception.class,
                 () -> Compiler.compileQuery(MODEL, "Nobody.all()"));
-        assertTrue(ex.getMessage().contains("fully qualified"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"),
                 "the error must say how to fix it; got: " + ex.getMessage());
     }
 
@@ -112,7 +112,7 @@ class CompilerFacadeTest {
                         () -> Compiler.compile(pgModel,
                                 "test::Person.all()->project(~[name: p|$p.name])",
                                 "test::RT"));
-        assertTrue(ex.getMessage().contains("Postgres"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("Postgres"),
                 "the error must name the undeclared dialect: " + ex.getMessage());
     }
 }

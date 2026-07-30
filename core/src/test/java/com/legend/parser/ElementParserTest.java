@@ -504,7 +504,7 @@ final class ElementParserTest {
         // TEXT, which is what a user can act on.
         ParseException e = assertThrows(ParseException.class,
                 () -> ElementParser.parse("Measure my::M ( )"));
-        assertTrue(e.getMessage().toLowerCase().contains("unsupported"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
         assertTrue(e.getMessage().contains("Measure"),
                 () -> "error should name the offending text, got: " + e.getMessage());
@@ -515,7 +515,7 @@ final class ElementParserTest {
         // 'name: String[1]' followed immediately by '}' — expected SEMI_COLON, got BRACE_CLOSE.
         ParseException e = assertThrows(ParseException.class,
                 () -> ElementParser.parse("Class P { name: String[1] }"));
-        assertTrue(e.getMessage().contains("SEMI_COLON"),
+        assertTrue(String.valueOf(e.getMessage()).contains("SEMI_COLON"),
                 () -> "expected SEMI_COLON in message, got: " + e.getMessage());
     }
 
@@ -538,7 +538,7 @@ final class ElementParserTest {
         assertEquals(3, e.line(), "line should point to the offending token");
         assertTrue(e.column() >= 6 && e.column() <= 8,
                 () -> "column should be near start of 'String' (~7), got " + e.column());
-        assertTrue(e.getMessage().startsWith("[3:"),
+        assertTrue(String.valueOf(e.getMessage()).startsWith("[3:"),
                 () -> "formatted message should embed [line:col], got: " + e.getMessage());
     }
 
@@ -720,13 +720,13 @@ final class ElementParserTest {
     void associationMustHaveExactlyTwoEnds() {
         ParseException one = assertThrows(ParseException.class,
                 () -> ElementParser.parse("Association A { only: B[1]; }"));
-        assertTrue(one.getMessage().contains("exactly 2"),
+        assertTrue(String.valueOf(one.getMessage()).contains("exactly 2"),
                 () -> "expected 'exactly 2' in message, got: " + one.getMessage());
 
         ParseException three = assertThrows(ParseException.class,
                 () -> ElementParser.parse(
                         "Association A { a: B[1]; b: C[1]; c: D[1]; }"));
-        assertTrue(three.getMessage().contains("exactly 2"));
+        assertTrue(String.valueOf(three.getMessage()).contains("exactly 2"));
     }
 
     // ===============================================================
@@ -754,7 +754,7 @@ final class ElementParserTest {
     void enumEmptyBodyFailsLoudly() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> ElementParser.parse("Enum my::S {}"));
-        assertTrue(ex.getMessage().contains("at least one value"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("at least one value"));
     }
 
     // ===============================================================
@@ -1176,7 +1176,7 @@ final class ElementParserTest {
         ParseException ex = assertThrows(ParseException.class,
                 () -> ElementParser.parse(
                         "native function my::oops(x: Integer[1]): Integer[1]"));
-        assertTrue(ex.getMessage().toLowerCase().contains("semi")
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("semi")
                         || ex.getMessage().contains(";")
                         || ex.getMessage().toLowerCase().contains("expected"),
                 () -> "expected diagnostic to reference missing ';' but got: " + ex.getMessage());
@@ -1333,7 +1333,7 @@ final class ElementParserTest {
                   auth: NoAuth {};
                 }
                 """));
-        assertTrue(ex.getMessage().contains("MariaDB"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("MariaDB"),
                 () -> "should name the unknown type, got: " + ex.getMessage());
     }
 
@@ -1350,7 +1350,7 @@ final class ElementParserTest {
                   futureKey: 'value';
                 }
                 """));
-        assertTrue(ex.getMessage().contains("futureKey")
+        assertTrue(String.valueOf(ex.getMessage()).contains("futureKey")
                         && ex.getMessage().toLowerCase().contains("unknown"),
                 () -> "should name the offending key, got: " + ex.getMessage());
     }
@@ -1396,7 +1396,7 @@ final class ElementParserTest {
     void runtimeRejectsUnknownTopLevelKey() {
         ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse(
                 "Runtime my::R { mappings: [my::M]; futureKey: foo; }"));
-        assertTrue(ex.getMessage().contains("futureKey"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("futureKey"));
     }
 
     @Test
@@ -1486,7 +1486,7 @@ final class ElementParserTest {
     void serviceRejectsUnknownTopLevelKey() {
         ParseException ex = assertThrows(ParseException.class, () -> ElementParser.parse(
                 "Service my::S { pattern: '/x'; futureKey: 'value'; }"));
-        assertTrue(ex.getMessage().contains("futureKey"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("futureKey"));
     }
 
     // ===============================================================
@@ -1619,7 +1619,7 @@ final class ElementParserTest {
     void databaseRejectsUnknownTopLevelElement() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> ElementParser.parse("Database s::Db ( Foo X ( ) )"));
-        assertTrue(ex.getMessage().contains("Foo"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("Foo"),
                 () -> "should name unknown element, got: " + ex.getMessage());
     }
 
@@ -1694,7 +1694,7 @@ final class ElementParserTest {
                 () -> ElementParser.parse(
                         "Database s::Db ( Table T_PERSON ( IS_ACTIVE INTEGER ) "
                         + "Filter ActiveFilter(IS_ACTIVE = 1) )"));
-        assertTrue(ex.getMessage().contains("Missing table or alias for column 'IS_ACTIVE'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("Missing table or alias for column 'IS_ACTIVE'"),
                 () -> "expected engine-parity error message, got: " + ex.getMessage());
     }
 
@@ -1812,7 +1812,7 @@ final class ElementParserTest {
                 () -> ElementParser.parse(
                         "Database s::Db ( Table T ( X INTEGER ) Join J(T.X = T.X) "
                         + "View V ( ~filter @J | F  a: T.X ) )"));
-        assertTrue(ex.getMessage().contains("[DB]"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("[DB]"),
                 () -> "expected error about missing [DB] qualifier, got: " + ex.getMessage());
     }
 
@@ -1823,7 +1823,7 @@ final class ElementParserTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new FilterMapping.JoinMediated(
                         "s::Db", List.of(), new FilterPointer.Local("F")));
-        assertTrue(ex.getMessage().contains("at least one join hop"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("at least one join hop"),
                 () -> "JoinMediated must reject empty joins; got: " + ex.getMessage());
     }
 
@@ -2003,7 +2003,7 @@ final class ElementParserTest {
                       + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
                       + "  *model::Firm:   Relational { acme::funcs::firmMapping } "
                       + ")"));
-        assertTrue(ex.getMessage().contains(
+        assertTrue(String.valueOf(ex.getMessage()).contains(
                         "Mapping 'my::M' mixes legacy DSL bodies with function-form bindings"),
                 () -> "expected the exact mix-rejection message; got: " + ex.getMessage());
     }
@@ -2018,7 +2018,7 @@ final class ElementParserTest {
                       + "  *model::Firm:   Relational { acme::funcs::firmMapping } "
                       + "  *model::Person: Relational { ~mainTable [db::DB] PERSON firstName: PERSON.FIRST_NAME } "
                       + ")"));
-        assertTrue(ex.getMessage().contains(
+        assertTrue(String.valueOf(ex.getMessage()).contains(
                         "Mapping 'my::M' mixes legacy DSL bodies with function-form bindings"),
                 () -> "expected the exact mix-rejection message; got: " + ex.getMessage());
     }
@@ -2201,7 +2201,7 @@ final class ElementParserTest {
                         + "~mainTable [db::DB] PERSON "
                         + "~primaryKey([db::DB]PERSON.ID) "
                         + "} )"));
-        assertTrue(ex.getMessage().contains("~primaryKey"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("~primaryKey"),
                 () -> "error must name the offending clause, got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("out of order"),
                 () -> "error must say 'out of order', got: " + ex.getMessage());
@@ -2217,7 +2217,7 @@ final class ElementParserTest {
                         + "~distinct "
                         + "~mainTable [db::DB] PERSON "
                         + "} )"));
-        assertTrue(ex.getMessage().contains("~distinct"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("~distinct"),
                 () -> "want duplicated-clause diagnostic, got: " + ex.getMessage());
     }
 
@@ -2422,7 +2422,7 @@ final class ElementParserTest {
         ParseException e = assertThrows(ParseException.class, () ->
                 ElementParser.parse(
                         "Mapping my::M ( *model::Person: Relational { firstName: PERSON.FIRST_NAME } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("~maintable"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("~maintable"),
                 () -> "expected error about missing ~mainTable, got: " + e.getMessage());
     }
 
@@ -2432,7 +2432,7 @@ final class ElementParserTest {
         ParseException e = assertThrows(ParseException.class, () ->
                 ElementParser.parse(
                         "Mapping my::M ( *model::P: SomethingElse { x: 1 } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("unsupported"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' message, got: " + e.getMessage());
     }
 
@@ -2511,7 +2511,7 @@ final class ElementParserTest {
                 ElementParser.parse(
                         "Mapping my::M ( my::A: Relational { AssociationMapping ( "
                         + "firm: BARE_NAME ) } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("missing table or alias"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("missing table or alias"),
                 () -> "expected bare-id rejection, got: " + e.getMessage());
     }
 
@@ -2589,7 +2589,7 @@ final class ElementParserTest {
                 ElementParser.parse(
                         "Mapping my::M ( my::A: Relational { AssociationMapping ( "
                         + "firm: @SomeJoin ) } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("requires a database"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("requires a database"),
                 () -> "expected db-required error, got: " + e.getMessage());
     }
 
@@ -2742,7 +2742,7 @@ final class ElementParserTest {
                 ElementParser.parse(
                         "Mapping my::M ( "
                         + "model::S: EnumerationMapping Mid { X: [] } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("at least one source value"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("at least one source value"),
                 () -> "expected empty-brackets error, got: " + e.getMessage());
     }
 
@@ -2751,7 +2751,7 @@ final class ElementParserTest {
         ParseException e = assertThrows(ParseException.class, () ->
                 ElementParser.parse(
                         "Mapping my::M ( *model::S: EnumerationMapping Mid { X: 'x' } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("enumeration"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("enumeration"),
                 () -> "expected enumeration-related error, got: " + e.getMessage());
     }
 
@@ -2912,7 +2912,7 @@ final class ElementParserTest {
                 ElementParser.parse(
                         "Mapping my::M ( *model::P: Pure { "
                         + "name: $src.name } )"));
-        assertTrue(e.getMessage().contains("SRC"),
+        assertTrue(String.valueOf(e.getMessage()).contains("SRC"),
                 () -> "expected ~src required error, got: " + e.getMessage());
     }
 
@@ -2924,7 +2924,7 @@ final class ElementParserTest {
                         + "~src model::Raw "
                         + "name: , other: $src.x "
                         + "} )"));
-        assertTrue(e.getMessage().toLowerCase().contains("empty body"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("empty body"),
                 () -> "expected empty-body error, got: " + e.getMessage());
     }
 
@@ -3188,7 +3188,7 @@ final class ElementParserTest {
                         + "testSuites: [ A: {} ] "
                         + "testSuites: [ B: {} ] "
                         + ")"));
-        assertTrue(e.getMessage().toLowerCase().contains("duplicate"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("duplicate"),
                 () -> "expected duplicate-testSuites error, got: " + e.getMessage());
     }
 

@@ -131,7 +131,7 @@ class ClassSourceTest {
             """);
         MappingResolutionException e = assertThrows(MappingResolutionException.class,
                 () -> c.sources().get("m::M", "m::Q"));
-        assertTrue(e.getMessage().contains("m::Q"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("m::Q"), e.getMessage());
         assertTrue(e.getMessage().contains("m::M"), e.getMessage());
     }
 

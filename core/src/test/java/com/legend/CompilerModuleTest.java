@@ -61,7 +61,7 @@ class CompilerModuleTest {
                         new Compiler.ModelSource("shared.pure", shared),
                         new Compiler.ModelSource("a.pure", a),
                         new Compiler.ModelSource("b.pure", b))));
-        assertTrue(ex.getMessage().contains("Target"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("Target"), ex.getMessage());
         assertTrue(ex.getMessage().contains("b.pure"),
                 () -> "error must name the offending FILE, got: " + ex.getMessage());
     }
@@ -105,7 +105,7 @@ class CompilerModuleTest {
         ModelException strict = assertThrows(ModelException.class,
                 () -> Compiler.compileModel(List.of(
                         new Compiler.ModelSource("m.pure", src))));
-        assertTrue(strict.getMessage().contains("Missing"), strict.getMessage());
+        assertTrue(String.valueOf(strict.getMessage()).contains("Missing"), strict.getMessage());
     }
 
     @Test
@@ -135,7 +135,7 @@ class CompilerModuleTest {
                 () -> Compiler.compileModel(List.of(
                         new Compiler.ModelSource("good.pure", good),
                         new Compiler.ModelSource("bad.pure", bad))));
-        assertTrue(ex.getMessage().contains("bad.pure"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("bad.pure"),
                 () -> "error must name the offending file, got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("[1:"),
                 () -> "error must carry the position, got: " + ex.getMessage());

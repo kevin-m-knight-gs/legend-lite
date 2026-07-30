@@ -231,7 +231,7 @@ class ResolveNavigationTest {
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("navigation head"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("navigation head"), e.getMessage());
     }
 
     @Test
@@ -335,7 +335,7 @@ class ResolveNavigationTest {
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("H4"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("H4"), e.getMessage());
 
         var ctx2 = Compiler.compileModel(MODEL);
         SpecCompiler specs2 = new SpecCompiler(ctx2);
@@ -344,7 +344,7 @@ class ResolveNavigationTest {
         var e2 = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class,
                 () -> new StoreResolver(ctx2, specs2).resolve(body2, null));
-        assertTrue(e2.getMessage().contains("H4"), e2.getMessage());
+        assertTrue(String.valueOf(e2.getMessage()).contains("H4"), e2.getMessage());
     }
 
     // ---- M-H3c: to-many navigation in filter position = correlated EXISTS ----

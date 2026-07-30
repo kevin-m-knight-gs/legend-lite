@@ -289,35 +289,35 @@ class PureDateLiteralTest {
     void strictDate_constructor_validatesMonth() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureDateLiteral.StrictDate(2024, 13, 1));
-        assertTrue(ex.getMessage().contains("month"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("month"), ex.getMessage());
     }
 
     @Test
     void strictDate_constructor_validatesDayForMonth() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureDateLiteral.StrictDate(2024, 4, 31));
-        assertTrue(ex.getMessage().contains("day"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("day"), ex.getMessage());
     }
 
     @Test
     void dateWithSubsecond_constructor_rejectsNullSubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, null));
-        assertTrue(ex.getMessage().contains("subsecond"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     @Test
     void dateWithSubsecond_constructor_rejectsEmptySubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, ""));
-        assertTrue(ex.getMessage().contains("subsecond"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     @Test
     void dateWithSubsecond_constructor_rejectsNonDigitSubsecond() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, "12a"));
-        assertTrue(ex.getMessage().contains("subsecond"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
     // ----- toEngineString round-trip -----------------------------------

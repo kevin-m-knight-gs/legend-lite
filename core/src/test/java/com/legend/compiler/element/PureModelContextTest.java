@@ -146,7 +146,7 @@ class PureModelContextTest {
                 "Class model::Bad { x: not::a::RealType[1]; }");
         com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> PureModelContext.from(asNormalized(parsed)));
-        assertTrue(ex.getMessage().contains("Unknown type"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("Unknown type"));
         assertTrue(ex.getMessage().contains("not::a::RealType"));
     }
 
@@ -162,7 +162,7 @@ class PureModelContextTest {
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; "
                       + "  fullName() { model::funcs::missing }: String[1]; }"));
-        assertTrue(ex.getMessage().contains("binds to unknown function"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("binds to unknown function"),
                 () -> "got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("derived property 'fullName' of model::Person"),
                 () -> "error names the user-facing site, not the $-FQN; got: " + ex.getMessage());
@@ -176,7 +176,7 @@ class PureModelContextTest {
         com.legend.error.ModelException ex = assertThrows(com.legend.error.ModelException.class,
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person [adult: model::funcs::missingPredicate] { age: Integer[1]; }"));
-        assertTrue(ex.getMessage().contains("binds to unknown function")
+        assertTrue(String.valueOf(ex.getMessage()).contains("binds to unknown function")
                         && ex.getMessage().contains("constraint 'adult' of model::Person"),
                 () -> "got: " + ex.getMessage());
     }
@@ -219,7 +219,7 @@ class PureModelContextTest {
                 () -> com.legend.Compiler.compileModel(
                         "Class model::Person { name: String[1]; } "
                       + "Mapping my::M ( *model::Person: Pure { my::funcs::missing } )"));
-        assertTrue(ex.getMessage().contains("class binding for 'model::Person'")
+        assertTrue(String.valueOf(ex.getMessage()).contains("class binding for 'model::Person'")
                         && ex.getMessage().contains("unknown function"),
                 () -> "got: " + ex.getMessage());
     }
@@ -258,7 +258,7 @@ class PureModelContextTest {
                         "Class model::Person { age: Integer[1]; } "
                       + "function my::funcs::wrong(p: model::Person[1]): String[1] { 'x' } "
                       + "Class model::P2 [adult: my::funcs::wrong] { x: Integer[1]; }"));
-        assertTrue(ex.getMessage().contains("constraint 'adult' of model::P2")
+        assertTrue(String.valueOf(ex.getMessage()).contains("constraint 'adult' of model::P2")
                         && ex.getMessage().contains("returning Boolean[1]"),
                 () -> "got: " + ex.getMessage());
     }
@@ -271,7 +271,7 @@ class PureModelContextTest {
                         "Class model::Person { name: String[1]; } "
                       + "function my::funcs::notAClass(): String[1] { 'x' } "
                       + "Mapping my::M ( *model::Person: Pure { my::funcs::notAClass } )"));
-        assertTrue(ex.getMessage().contains("class binding for 'model::Person'")
+        assertTrue(String.valueOf(ex.getMessage()).contains("class binding for 'model::Person'")
                         && ex.getMessage().contains("(): Class[*]"),
                 () -> "got: " + ex.getMessage());
     }

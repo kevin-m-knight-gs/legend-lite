@@ -73,7 +73,7 @@ class AuditRound5Test {
     void runtimeDateComponentGuard() {
         Exception e = assertThrows(Exception.class,
                 () -> scalar("|date(2016, [13]->at(0))"));
-        assertTrue(e.getMessage().contains("Invalid month: 13"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("Invalid month: 13"), e.getMessage());
     }
 
     @Test
@@ -103,7 +103,7 @@ class AuditRound5Test {
     void copyValidatesMultiplicity() {
         Exception e = assertThrows(Exception.class, () -> Compiler.compileQuery(MODEL,
                 "|let p = ^test::P(name='a'); ^$p(name = ['x', 'y']);"));
-        assertTrue(e.getMessage().contains("multiplicity"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains("multiplicity"), e.getMessage());
     }
 
     @Test

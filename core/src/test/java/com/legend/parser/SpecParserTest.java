@@ -140,7 +140,7 @@ final class SpecParserTest {
         // them silently; unimplemented until a corpus file demands them)
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("'a\\u0041b'"));
-        assertTrue(ex.getMessage().contains("octal/unicode"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("octal/unicode"),
                 () -> "want octal/unicode-escape error, got: " + ex.getMessage());
     }
 
@@ -237,7 +237,7 @@ final class SpecParserTest {
     void dollarWithoutIdentifierRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$"));
-        assertTrue(ex.getMessage().toLowerCase().contains("expected identifier"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("expected identifier"),
                 () -> "want identifier-after-dollar error, got: " + ex.getMessage());
     }
 
@@ -281,7 +281,7 @@ final class SpecParserTest {
         // keeps test corpora byte-comparable.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("[1, 2,]"));
-        assertTrue(ex.getMessage().toLowerCase().contains("trailing comma"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing comma"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
     }
 
@@ -292,7 +292,7 @@ final class SpecParserTest {
         // Pin the exact wording so it must be a missing-close error.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("[1, 2"));
-        assertTrue(ex.getMessage().contains("expected ']'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected ']'"),
                 () -> "want missing-close error, got: " + ex.getMessage());
     }
 
@@ -307,7 +307,7 @@ final class SpecParserTest {
         // different unsupported-token error fails this test.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("->"));
-        assertTrue(ex.getMessage().contains("unsupported expression token"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("unsupported expression token"),
                 () -> "want unsupported-token error, got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("ARROW"),
                 () -> "error should name the ARROW token type, got: " + ex.getMessage());
@@ -320,7 +320,7 @@ final class SpecParserTest {
         // surfaces here.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse(""));
-        assertTrue(ex.getMessage().contains("end of input"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("end of input"),
                 () -> "want end-of-input error, got: " + ex.getMessage());
     }
 
@@ -332,7 +332,7 @@ final class SpecParserTest {
         // is a C.4 feature).
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("1 2"));
-        assertTrue(ex.getMessage().toLowerCase().contains("trailing"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing"),
                 () -> "want trailing-tokens error, got: " + ex.getMessage());
     }
 
@@ -515,7 +515,7 @@ final class SpecParserTest {
     void dotWithoutPropertyNameRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$x."));
-        assertTrue(ex.getMessage().contains("expected property name"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected property name"),
                 () -> "want missing-property-name error, got: " + ex.getMessage());
     }
 
@@ -527,7 +527,7 @@ final class SpecParserTest {
         // still source-located) phrase.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$x->"));
-        assertTrue(ex.getMessage().contains("expected type name"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected type name"),
                 () -> "want missing-identifier error, got: " + ex.getMessage());
     }
 
@@ -537,7 +537,7 @@ final class SpecParserTest {
         // call-parens is malformed.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$x->foo"));
-        assertTrue(ex.getMessage().contains("expected '(' after arrow-call"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected '(' after arrow-call"),
                 () -> "want missing-paren error, got: " + ex.getMessage());
     }
 
@@ -549,7 +549,7 @@ final class SpecParserTest {
         // we want refactor-time crosswire bugs to fail here.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("fn(1, 2"));
-        assertTrue(ex.getMessage().contains("close argument list"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("close argument list"),
                 () -> "want missing-close error, got: " + ex.getMessage());
     }
 
@@ -557,7 +557,7 @@ final class SpecParserTest {
     void trailingCommaInArgListRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("fn(1, 2,)"));
-        assertTrue(ex.getMessage().contains("trailing comma"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
     }
 
@@ -568,7 +568,7 @@ final class SpecParserTest {
         // tests cover disjoint code paths.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("(42"));
-        assertTrue(ex.getMessage().contains("close parenthesised expression"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("close parenthesised expression"),
                 () -> "want missing-close error, got: " + ex.getMessage());
     }
 
@@ -1024,7 +1024,7 @@ final class SpecParserTest {
     void newInstanceMissingEqualsRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("^Foo(x 5)"));
-        assertTrue(ex.getMessage().contains("expected '='"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected '='"),
                 () -> "want missing-equals error, got: " + ex.getMessage());
     }
 
@@ -1035,7 +1035,7 @@ final class SpecParserTest {
         // trailing-comma errors, all of which contain "trailing comma".
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("^Foo(x=1,)"));
-        assertTrue(ex.getMessage().contains("^NewInstance binding list"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("^NewInstance binding list"),
                 () -> "want NewInstance-specific trailing-comma error, got: "
                         + ex.getMessage());
     }
@@ -1152,7 +1152,7 @@ final class SpecParserTest {
                 () -> SpecParser.parse("^$existing($src)"));
         // We don't pin the exact error text; the key contract is that
         // this does NOT parse to a NewInstanceCast.
-        assertTrue(ex.getMessage().contains("^NewInstance")
+        assertTrue(String.valueOf(ex.getMessage()).contains("^NewInstance")
                         || ex.getMessage().contains("property name"),
                 () -> "want a NewInstance binding-shape error, got: "
                         + ex.getMessage());
@@ -1278,7 +1278,7 @@ final class SpecParserTest {
         // would be the signal that the change happened.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("1 + let x = 2"));
-        assertTrue(ex.getMessage().toLowerCase().contains("trailing"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing"),
                 () -> "want trailing-tokens error (LET absorbed as identifier, "
                         + "subsequent 'x' is trailing), got: " + ex.getMessage());
     }
@@ -1287,7 +1287,7 @@ final class SpecParserTest {
     void letMissingVariableNameRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("let = 5"));
-        assertTrue(ex.getMessage().contains("variable name after 'let'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("variable name after 'let'"),
                 () -> "want missing-var-name error, got: " + ex.getMessage());
     }
 
@@ -1295,7 +1295,7 @@ final class SpecParserTest {
     void letMissingEqualsRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("let x 5"));
-        assertTrue(ex.getMessage().contains("expected '=' after 'let x'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected '=' after 'let x'"),
                 () -> "want missing-equals error, got: " + ex.getMessage());
     }
 
@@ -1712,7 +1712,7 @@ final class SpecParserTest {
                 () -> SpecParser.parse("{p: Integer | $p}"));
         // Error comes from the shared TypeExpressionParser when its
         // parseMultiplicity sees a non-'[' token after the type.
-        assertTrue(ex.getMessage().contains("BRACKET_OPEN"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("BRACKET_OPEN"),
                 () -> "want missing-multiplicity error, got: " + ex.getMessage());
     }
 
@@ -1721,7 +1721,7 @@ final class SpecParserTest {
         // 'p: T[1..]' \u2014 missing upper bound after '..'.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: T[1..] | $p}"));
-        assertTrue(ex.getMessage().contains("after '..' in multiplicity"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("after '..' in multiplicity"),
                 () -> "want missing-upper-bound error, got: " + ex.getMessage());
     }
 
@@ -1759,7 +1759,7 @@ final class SpecParserTest {
         // '|' legally OPENS the multiplicity-argument section and '$p'
         // rejects there — still a loud error, never a silent truncation
         // of the type name.
-        assertTrue(ex.getMessage().contains("multiplicity argument"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("multiplicity argument"),
                 () -> "want unterminated-type-args error, got: " + ex.getMessage());
     }
 
@@ -1772,7 +1772,7 @@ final class SpecParserTest {
         // as ZERO_MANY or PURE_ONE would fail this test.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: T[] | $p}"));
-        assertTrue(ex.getMessage().contains("multiplicity bound or parameter"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("multiplicity bound or parameter"),
                 () -> "want empty-multiplicity error, got: " + ex.getMessage());
     }
 
@@ -1787,7 +1787,7 @@ final class SpecParserTest {
         // diagnostic content so the user gets a useful error.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p: T[5..3] | $p}"));
-        assertTrue(ex.getMessage().contains("upper bound")
+        assertTrue(String.valueOf(ex.getMessage()).contains("upper bound")
                         && ex.getMessage().contains(">= lower bound"),
                 () -> "want bound-order error, got: " + ex.getMessage());
     }
@@ -1796,7 +1796,7 @@ final class SpecParserTest {
     void lambdaMissingPipeRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p $p}"));
-        assertTrue(ex.getMessage().contains("expected '|'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected '|'"),
                 () -> "want missing-pipe error, got: " + ex.getMessage());
     }
 
@@ -1804,7 +1804,7 @@ final class SpecParserTest {
     void lambdaMissingCloseBraceRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{p | $p"));
-        assertTrue(ex.getMessage().contains("expected '}'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected '}'"),
                 () -> "want missing-close-brace error, got: " + ex.getMessage());
     }
 
@@ -1814,7 +1814,7 @@ final class SpecParserTest {
         // one statement.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("{| }"));
-        assertTrue(ex.getMessage().contains("at least one statement"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("at least one statement"),
                 () -> "want empty-body error, got: " + ex.getMessage());
     }
 
@@ -1986,7 +1986,7 @@ final class SpecParserTest {
         // trailing-comma cases.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("~[a, b,]"));
-        assertTrue(ex.getMessage().contains("ColSpec array"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("ColSpec array"),
                 () -> "want ColSpec-array trailing-comma error, got: "
                         + ex.getMessage());
     }
@@ -1998,7 +1998,7 @@ final class SpecParserTest {
         // consume to EOF.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("~[a, b"));
-        assertTrue(ex.getMessage().contains("']'")
+        assertTrue(String.valueOf(ex.getMessage()).contains("']'")
                         && ex.getMessage().contains("ColSpec array"),
                 () -> "want ColSpec-array close-bracket error, got: "
                         + ex.getMessage());
@@ -2057,7 +2057,7 @@ final class SpecParserTest {
         // \u2014 e.g. '~123' or '~+'. Pin the error phrase.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("~123"));
-        assertTrue(ex.getMessage().contains("column name after '~'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("column name after '~'"),
                 () -> "want missing-column-name error, got: " + ex.getMessage());
     }
 
@@ -2164,7 +2164,7 @@ final class SpecParserTest {
         // covers '~name:42' but not '~name:<EOF>'.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("~name:"));
-        assertTrue(ex.getMessage().contains("expected lambda")
+        assertTrue(String.valueOf(ex.getMessage()).contains("expected lambda")
                         && ex.getMessage().contains("column spec"),
                 () -> "want EOF-after-colon error, got: " + ex.getMessage());
     }
@@ -2403,7 +2403,7 @@ final class SpecParserTest {
         // e.g. '@123' or '@*'. Pin the error phrase.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("@123"));
-        assertTrue(ex.getMessage().contains("type name after '@'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("type name after '@'"),
                 () -> "want missing-type-name error, got: " + ex.getMessage());
     }
 
@@ -2414,7 +2414,7 @@ final class SpecParserTest {
         // silently consume to EOF.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("@Relation<(a:Integer"));
-        assertTrue(ex.getMessage().contains("')'")
+        assertTrue(String.valueOf(ex.getMessage()).contains("')'")
                         && ex.getMessage().contains("@Relation"),
                 () -> "want unterminated-relation error, got: "
                         + ex.getMessage());
@@ -2427,7 +2427,7 @@ final class SpecParserTest {
         // ColSpec-array trailing-comma errors.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("@Relation<(a:Integer,)>"));
-        assertTrue(ex.getMessage().contains("trailing comma")
+        assertTrue(String.valueOf(ex.getMessage()).contains("trailing comma")
                         && ex.getMessage().contains("@Relation"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
     }
@@ -2439,7 +2439,7 @@ final class SpecParserTest {
         // consumption.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("@Relation<(a Integer)>"));
-        assertTrue(ex.getMessage().contains("':'")
+        assertTrue(String.valueOf(ex.getMessage()).contains("':'")
                         && ex.getMessage().contains("@Relation"),
                 () -> "want missing-colon error, got: " + ex.getMessage());
     }
@@ -2452,7 +2452,7 @@ final class SpecParserTest {
                 () -> SpecParser.parse("@List<Integer"));
         // parseTypeArguments delegates the closing '>' check directly;
         // the missing token surfaces as a 'close type arguments' error.
-        assertTrue(ex.getMessage().contains("close type arguments"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("close type arguments"),
                 () -> "want unterminated-generics error, got: "
                         + ex.getMessage());
     }
@@ -2538,7 +2538,7 @@ final class SpecParserTest {
         // the grammar only admits INTEGER or STRING literals here.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$x[$i]"));
-        assertTrue(ex.getMessage().contains("integer or string"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("integer or string"),
                 () -> "want bracket-index error, got: " + ex.getMessage());
     }
 
@@ -2547,7 +2547,7 @@ final class SpecParserTest {
         // '$x[0' \u2014 missing ']'.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("$x[0"));
-        assertTrue(ex.getMessage().contains("']'"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("']'"),
                 () -> "want unterminated-bracket error, got: " + ex.getMessage());
     }
 
@@ -2615,7 +2615,7 @@ final class SpecParserTest {
         // non-date value doesn't silently flow through to type-check.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("Person.all(42)"));
-        assertTrue(ex.getMessage().contains("milestoning"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("milestoning"),
                 () -> "want milestoning error, got: " + ex.getMessage());
     }
 
@@ -2826,7 +2826,7 @@ final class SpecParserTest {
         // db and table. Engine-lite throws; we match.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("#>{no_table}#"));
-        assertTrue(ex.getMessage().contains("db.TABLE"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("db.TABLE"),
                 () -> "want table-reference error, got: " + ex.getMessage());
     }
 
@@ -2852,7 +2852,7 @@ final class SpecParserTest {
         // Engine-lite throws; we match.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("#x{content}#"));
-        assertTrue(ex.getMessage().contains("DSL"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("DSL"),
                 () -> "want unknown-DSL error, got: " + ex.getMessage());
     }
 
@@ -2896,7 +2896,7 @@ final class SpecParserTest {
         // copy-with-update context.
         ParseException ex = assertThrows(ParseException.class,
                 () -> SpecParser.parse("^$(foo=1)"));
-        assertTrue(ex.getMessage().contains("copy-with-update"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("copy-with-update"),
                 () -> "want copy-with-update error, got: " + ex.getMessage());
     }
 

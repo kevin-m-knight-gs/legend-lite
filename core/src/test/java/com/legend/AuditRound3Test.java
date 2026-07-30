@@ -49,21 +49,21 @@ class AuditRound3Test {
                         "|test::f()", c);
             }
         });
-        assertTrue(ex.getMessage().contains("at least one"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("at least one"), ex.getMessage());
     }
 
     @Test
     @DisplayName("audit: multi-if consumes ONLY exact pair() — a user fn ending in 'pair' is not hijacked")
     void multiIfPairIsExactName() {
         var ex = rejects("|if([test::repair(|true, |'a')], |'b')");
-        assertTrue(ex.getMessage().contains("pair(|cond, |value)"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("pair(|cond, |value)"), ex.getMessage());
     }
 
     @Test
     @DisplayName("audit: multi-if condition must be Boolean[1] — a [0..1] condition is loud")
     void multiIfConditionMultiplicity() {
         var ex = rejects("|if([pair(|[true]->first(), |'a')], |'b')");
-        assertTrue(ex.getMessage().contains("Boolean[1]"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("Boolean[1]"), ex.getMessage());
     }
 
     @Test
@@ -81,7 +81,7 @@ class AuditRound3Test {
                 + " {a,b|$a.id==$b.id}, 'r')");
         assertTrue(ex instanceof com.legend.compiler.spec.TypeInferenceException,
                 ex.getClass().getName());
-        assertTrue(ex.getMessage().contains("duplicate column 'r_id'"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("duplicate column 'r_id'"), ex.getMessage());
     }
 
     @Test
@@ -102,7 +102,7 @@ class AuditRound3Test {
         // Two same-simple-name classes: ambiguous — loud with the hint.
         var ex = assertThrows(Exception.class, () -> Compiler.compileQuery(
                 MODEL + "Class other::A { z: Integer[1]; }\n", "A.all()"));
-        assertTrue(ex.getMessage().contains("fully qualified"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"), ex.getMessage());
     }
 
     @Test
@@ -186,7 +186,7 @@ class AuditRound3Test {
     void unknownDatePatternTokenIsLoud() {
         var ex = assertThrows(Exception.class,
                 () -> scalar("|format('%t{MMM}', [%2014-03-05])"));
-        assertTrue(ex.getMessage().contains("unsupported date-format token"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("unsupported date-format token"),
                 ex.getMessage());
     }
 
@@ -195,7 +195,7 @@ class AuditRound3Test {
     void addOutOfBoundsIsLoud() throws Exception {
         var ex = assertThrows(Exception.class,
                 () -> scalar("|[1,2]->meta::pure::functions::collection::add(9, 99)"));
-        assertTrue(ex.getMessage().contains("index out of bounds"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("index out of bounds"), ex.getMessage());
         assertEquals("a", scalar(
                 "|['a','b']->meta::pure::functions::collection::add(1, 'c')").toString());
     }
@@ -205,7 +205,7 @@ class AuditRound3Test {
     void corrMismatchedLengthsIsLoud() throws Exception {
         var ex = assertThrows(Exception.class,
                 () -> scalar("|meta::pure::functions::math::corr([1.0,2.0,3.0],[2.0,4.0])"));
-        assertTrue(ex.getMessage().contains("differ in length"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage()).contains("differ in length"), ex.getMessage());
         assertEquals(1.0, ((Number) scalar(
                 "|meta::pure::functions::math::corr([1.0,2.0,3.0],[2.0,4.0,6.0])"))
                 .doubleValue(), 1e-9);

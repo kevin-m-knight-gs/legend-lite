@@ -257,7 +257,7 @@ class ModelBuilderTest {
         com.legend.error.ModelException ex = assertThrows(
                 com.legend.error.ModelException.class,
                 () -> ModelBuilder.from(parsed));
-        assertTrue(ex.getMessage().contains("model::Person"),
+        assertTrue(String.valueOf(ex.getMessage()).contains("model::Person"),
                 () -> "Error should name the duplicated class; got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("pkg::M"),
                 () -> "Error should name the mapping; got: " + ex.getMessage());

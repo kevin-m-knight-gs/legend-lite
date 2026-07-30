@@ -239,7 +239,7 @@ class LowerRelationTest {
                 () -> sqlOf("#>{test::DB.T_PERSON}#->filter(x|"
                         + "['a','b']->removeAllOptimized(['a'])->size() > 1)"));
         org.junit.jupiter.api.Assertions.assertTrue(
-                ex.getMessage().contains("removeAllOptimized"),
+                String.valueOf(ex.getMessage()).contains("removeAllOptimized"),
                 "error names the overload; got: " + ex.getMessage());
     }
 

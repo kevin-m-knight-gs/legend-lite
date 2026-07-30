@@ -276,7 +276,7 @@ class ResolveUnionTest {
                         + "->filter(p|$p.firmD.legalName == 'FirmD-X')"
                         + "->project([p|$p.lastName], ['name'])"
                         + "->from(u::MD, u::RT)"));
-        assertTrue(bare.getMessage().contains("milestoning date"), bare.getMessage());
+        assertTrue(String.valueOf(bare.getMessage()).contains("milestoning date"), bare.getMessage());
         // DATED access lifts and point-filters the navigate target
         // (single-dimension temporal unions are ungated; only BITEMPORAL
         // unions stay loud — the hybrid capability-mix rung)

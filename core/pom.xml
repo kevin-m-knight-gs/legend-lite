@@ -60,7 +60,15 @@
                  resolver; normalizer/exec/harness AFTER their T4.1/T4.2/V3.1
                  restructures — do not annotate code scheduled for deletion.
 
-                 MAIN sources only (default-compile): test code keeps its
+                 MAIN sources only (default-compile) — MEASURED decision, not
+                 an oversight (NULL_GATE_VERIFICATION §6.2, re-verified
+                 2026-07-30): gating tests surfaced 286 findings of which
+                 ~123 were getMessage() assertion derefs (now hardened via
+                 String.valueOf) and the rest are the test idiom itself —
+                 fixture derefs ARE the assertions, dummy builders pass null
+                 deliberately. The known test-only signature holes (G3.1:
+                 Multiplicity.range, Ddl schema, compileModel) are closed
+                 in main. Test code otherwise keeps its
                  looser discipline until the gate has proven itself.
 
                  The forked-compiler -J flags below are the - -add-exports
