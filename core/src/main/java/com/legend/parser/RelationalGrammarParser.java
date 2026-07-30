@@ -354,7 +354,7 @@ final class RelationalGrammarParser {
      * {@code @}, we're on the join-mediated path; otherwise it's a direct
      * filter reference.
      */
-    FilterMapping parseViewFilterClause(String dbScope) {
+    FilterMapping parseViewFilterClause(@com.legend.Nullable String dbScope) {
         String firstDb = null;
         if (p.peek() == TokenType.BRACKET_OPEN) {
             p.advance();
@@ -419,7 +419,7 @@ final class RelationalGrammarParser {
      * with capability drift):
      * <pre>  (joinType)? @Join ( '&gt;' (joinType)? ('[' db ']')? @Join )*  </pre>
      */
-    List<JoinChainElement> parseJoinChain(String defaultDb) {
+    List<JoinChainElement> parseJoinChain(@com.legend.Nullable String defaultDb) {
         List<JoinChainElement> chain = new ArrayList<>();
         JoinType firstJoinType = optionalJoinType();
         p.expect(TokenType.AT);
@@ -429,7 +429,8 @@ final class RelationalGrammarParser {
     }
 
     /** The {@code ('&gt;' (type)? ([db])? @Join)*} hop loop shared by all chain forms. */
-    void parseJoinChainHops(List<JoinChainElement> chain, String defaultDb) {
+    void parseJoinChainHops(List<JoinChainElement> chain,
+            @com.legend.Nullable String defaultDb) {
         while (p.match(TokenType.GREATER_THAN)) {
             JoinType joinType = optionalJoinType();
             String hopDb = defaultDb;
@@ -444,7 +445,7 @@ final class RelationalGrammarParser {
     }
 
     /** {@code (INNER)}-style parenthesised join type, if present. */
-    JoinType optionalJoinType() {
+    @com.legend.Nullable JoinType optionalJoinType() {
         if (p.peek() != TokenType.PAREN_OPEN) {
             return null;
         }
@@ -475,7 +476,7 @@ final class RelationalGrammarParser {
     // ============================================================
 
     /** {@code dbOperation: dbJoinOperation | dbBooleanOperation}. */
-    RelationalOperation parseDbOperation(String dbScope) {
+    RelationalOperation parseDbOperation(@com.legend.Nullable String dbScope) {
         if (p.peek() == TokenType.AT
                 || (p.peek() == TokenType.BRACKET_OPEN && lookAheadIsJoin())) {
             return parseDbJoinOperation(dbScope);
@@ -484,7 +485,7 @@ final class RelationalGrammarParser {
     }
 
     /** {@code dbBooleanOperation: dbAtomicOperation (("and" | "or") dbOperation)?}. */
-    RelationalOperation parseDbBooleanOperation(String dbScope) {
+    RelationalOperation parseDbBooleanOperation(@com.legend.Nullable String dbScope) {
         RelationalOperation left = parseDbAtomicOperation(dbScope);
         if (!p.atEnd() && p.isIdentifierToken(p.peek())
                 && (p.peek() == TokenType.RELATIONAL_AND || p.peek() == TokenType.RELATIONAL_OR)) {
@@ -501,7 +502,7 @@ final class RelationalGrammarParser {
      *                         | targetColumn | literal
      *                         (comparison | IS_NULL | IS_NOT_NULL)?}.
      */
-    RelationalOperation parseDbAtomicOperation(String dbScope) {
+    RelationalOperation parseDbAtomicOperation(@com.legend.Nullable String dbScope) {
         RelationalOperation expr;
 
         if (p.peek() == TokenType.PAREN_OPEN) {
@@ -649,7 +650,8 @@ final class RelationalGrammarParser {
      * with the receiver as its first argument (engine's method-call spelling
      * in mapping operations).
      */
-    RelationalOperation parseArrowChain(RelationalOperation receiver, String dbScope) {
+    RelationalOperation parseArrowChain(RelationalOperation receiver,
+            @com.legend.Nullable String dbScope) {
         RelationalOperation expr = receiver;
         while (!p.atEnd() && p.peek() == TokenType.ARROW) {
             p.advance();
@@ -669,7 +671,7 @@ final class RelationalGrammarParser {
         return expr;
     }
 
-    RelationalOperation parseDbFunctionArg(String dbScope) {
+    RelationalOperation parseDbFunctionArg(@com.legend.Nullable String dbScope) {
         // '@Type' in ARGUMENT position is a TYPE REFERENCE (get(col,'k',@String))
         // — a bare join navigation never terminates at ',' or ')'.
         if (p.peek() == TokenType.AT) {
@@ -684,7 +686,7 @@ final class RelationalGrammarParser {
         return parseDbFunctionArgTail(dbScope);
     }
 
-    RelationalOperation parseDbFunctionArgTail(String dbScope) {
+    RelationalOperation parseDbFunctionArgTail(@com.legend.Nullable String dbScope) {
         // R4.4 prerequisite: distinguish [db]@joinName (a self-qualified
         // JoinNavigation) from [a, b, c] (an array literal). Without the
         // lookahead, every '[' was consumed as array-literal opening and
@@ -711,7 +713,7 @@ final class RelationalGrammarParser {
     /**
      * {@code dbJoinOperation: ([DB])? @joinName ( '>' ( '(' joinType ')' )? ([DB])? @joinName )* ( '|' dbBooleanOperation )?}.
      */
-    RelationalOperation parseDbJoinOperation(String dbScope) {
+    RelationalOperation parseDbJoinOperation(@com.legend.Nullable String dbScope) {
         String dbName = null;
         if (p.peek() == TokenType.BRACKET_OPEN) {
             p.advance();

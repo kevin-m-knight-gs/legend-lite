@@ -146,10 +146,10 @@ public final class ElementParser implements TokenStreamCursor {
      * null (Database context), bare identifiers throw per D-7. Set/cleared
      * around mapping-body parsing in {@link #parseRelationalClassMappingBody}.
      */
-    LegacyMappingDefinition.TableReference currentMappingScope;
+    LegacyMappingDefinition.@com.legend.Nullable TableReference currentMappingScope;
 
     /** {@code prop[setId]} routings of the class mapping being parsed. */
-    java.util.Map<String, String> currentTargetSets;
+    java.util.@com.legend.Nullable Map<String, String> currentTargetSets;
 
     /**
      * An active {@code scope([db]path)(...)} block (real mapping grammar):
@@ -157,9 +157,9 @@ public final class ElementParser implements TokenStreamCursor {
      * single-segment scopes prefix dotted refs as a schema. Resolution is
      * deferred to each use site — no store lookup at parse time.
      */
-    record ScopeBlock(String db, String path) { }
+    record ScopeBlock(@com.legend.Nullable String db, @com.legend.Nullable String path) { }
 
-    ScopeBlock currentScopeBlock;
+    @com.legend.Nullable ScopeBlock currentScopeBlock;
 
     /** Grammar-section parsers sharing this parser's cursor and scope state. */
     final MappingGrammarParser mappingGrammar = new MappingGrammarParser(this);
@@ -702,7 +702,7 @@ public final class ElementParser implements TokenStreamCursor {
     /** The bare level name of a parsed ~enforcementLevel value —
      * {@code Error} / {@code Warn} spellings arrive as refs or enum-style
      * accesses; the projection wants the simple name. */
-    private static String enforcementLevelName(ValueSpecification lv) {
+    private static @com.legend.Nullable String enforcementLevelName(ValueSpecification lv) {
         if (lv instanceof com.legend.model.spec.PackageableElementPtr p) {
             String f = p.fullPath();
             return f.contains("::") ? f.substring(f.lastIndexOf("::") + 2) : f;

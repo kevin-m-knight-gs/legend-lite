@@ -366,7 +366,8 @@ public final class SpecParser implements TokenStreamCursor {
      * reads to EOF). A trailing {@code ;} before the terminator is
      * silently permitted, matching engine.
      */
-    private List<ValueSpecification> parseCodeBlockUntil(TokenType terminator) {
+    private List<ValueSpecification> parseCodeBlockUntil(
+            @com.legend.Nullable TokenType terminator) {
         List<ValueSpecification> stmts = new ArrayList<>();
         if (atTerminator(terminator)) {
             return stmts;
@@ -382,7 +383,7 @@ public final class SpecParser implements TokenStreamCursor {
         return stmts;
     }
 
-    private boolean atTerminator(TokenType terminator) {
+    private boolean atTerminator(@com.legend.Nullable TokenType terminator) {
         if (atEnd()) {
             return true; // EOF terminates
         }

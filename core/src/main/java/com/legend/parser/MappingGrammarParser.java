@@ -464,7 +464,7 @@ final class MappingGrammarParser {
     /** The non-XStore tail of a mapping element (guardrail split; the
      * branch order is unchanged). */
     private void parseMappingElementRest(MappingAccum accum, String elementPath,
-            String setId, String extendsSetId, boolean root) {
+            @com.legend.Nullable String setId, @com.legend.Nullable String extendsSetId, boolean root) {
         // ModelJoin ASSOCIATION mapping: one typed lambda over the two ends
         if (p.isIdentifierToken(p.peek()) && "ModelJoin".equals(p.text())) {
             p.advance();
@@ -542,7 +542,7 @@ final class MappingGrammarParser {
      * mapping-local {@code +prop: Type[m]: COL} (XStore association keys).
      */
     ClassMapping.RelationFunction parseRelationFunctionBody(String className,
-            String setId, String extendsSetId, boolean root) {
+            @com.legend.Nullable String setId, @com.legend.Nullable String extendsSetId, boolean root) {
         p.expect(TokenType.TILDE);
         String kw = p.parseIdentifier();
         if (!"func".equals(kw)) {
@@ -768,7 +768,8 @@ final class MappingGrammarParser {
      * identifier-resolution layer.
      */
     ClassMapping parseRelationalClassMappingBody(
-            String className, String setId, String extendsSetId, boolean root) {
+            String className, @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId, boolean root) {
 
         FilterMapping filter = null;
         boolean distinct = false;
@@ -884,7 +885,7 @@ final class MappingGrammarParser {
     }
 
     /** {@code scope([db] path[.path2]) ( propertyMappings )} — see {@link ElementParser.ScopeBlock}. */
-    void parseScopeBlock(LegacyMappingDefinition.TableReference mainTable,
+    void parseScopeBlock(LegacyMappingDefinition.@com.legend.Nullable TableReference mainTable,
                                  List<PropertyMapping> out) {
         p.advance();   // 'scope'
         p.expect(TokenType.PAREN_OPEN);
@@ -961,7 +962,8 @@ final class MappingGrammarParser {
      * body alone → Embedded). The colon-introduced forms fall through
      * to {@link #parsePropertyMappingBody}.
      */
-    PropertyMapping parsePropertyMapping(LegacyMappingDefinition.TableReference mainTable) {
+    PropertyMapping parsePropertyMapping(
+            LegacyMappingDefinition.@com.legend.Nullable TableReference mainTable) {
         if (p.peek() == TokenType.PLUS) {
             return parseLocalPropertyMapping(mainTable);
         }
@@ -1008,7 +1010,7 @@ final class MappingGrammarParser {
      * The leading {@code +} has not yet been consumed.
      */
     PropertyMapping parseLocalPropertyMapping(
-            LegacyMappingDefinition.TableReference mainTable) {
+            LegacyMappingDefinition.@com.legend.Nullable TableReference mainTable) {
         p.expect(TokenType.PLUS);
         String propName = p.parseIdentifier();
         p.expect(TokenType.COLON);
@@ -1033,7 +1035,7 @@ final class MappingGrammarParser {
      * {@code mainTable} threads through unchanged.
      */
     PropertyMapping parseEmbeddedPropertyMapping(
-            String propName, LegacyMappingDefinition.TableReference mainTable) {
+            String propName, LegacyMappingDefinition.@com.legend.Nullable TableReference mainTable) {
         p.expect(TokenType.PAREN_OPEN);
         if (p.peek() == TokenType.PAREN_CLOSE) {
             // Inline embedded: propName() Inline[setId]
@@ -1080,7 +1082,8 @@ final class MappingGrammarParser {
      * presence/absence of ScopeInfo.
      */
     PropertyMapping parsePropertyMappingBody(
-            String propName, LegacyMappingDefinition.TableReference mainTable) {
+            String propName,
+            LegacyMappingDefinition.@com.legend.Nullable TableReference mainTable) {
         // Optional EnumerationMapping prefix:
         //   prop: EnumerationMapping enumId : ...
         //   prop: EnumerationMapping : ...        (ANONYMOUS — resolved by
@@ -1235,7 +1238,8 @@ final class MappingGrammarParser {
      * the main table supplies it implicitly; in association-mapping context
      * the user must write {@code [db::DB]}.
      */
-    void requirePropertyMappingDb(String propName, String db, String kind) {
+    void requirePropertyMappingDb(String propName, @com.legend.Nullable String db,
+            String kind) {
         if (db == null) {
             throw p.error("property mapping '" + propName + "': " + kind
                     + " requires a database. Write `[db::DB] ...` "
@@ -1399,7 +1403,8 @@ final class MappingGrammarParser {
      * {@link ClassMapping.Pure#filter()} / {@link ClassMapping.Pure.PropertyBinding#expression()}.
      */
     ClassMapping parsePureClassMappingBody(
-            String className, String setId, String extendsSetId, boolean root) {
+            String className, @com.legend.Nullable String setId,
+            @com.legend.Nullable String extendsSetId, boolean root) {
         p.expect(TokenType.SRC_CMD);
         String sourceClass = p.parseQualifiedName();
 
