@@ -96,6 +96,51 @@ final class NullSemantics {
                         SqlExpr.Call.of(SqlFn.IS_NULL, right)))));
     }
 
+    /** Engine isEqualsFromFilter (dbExtension.pure:926-930): equality
+     * of two NULLABLE COLUMNS is NULL-SAFE — pure empty==empty is TRUE
+     * ({@code a = b OR (a is null AND b is null)}, the
+     * testConsistencyWithNulls col-to-col golden). Approximated by
+     * operand shape (both plain columns, both optional operands) — the
+     * engine's callingFromFilter flag has no analog at this layer; the
+     * corpus goldens referee. Anything else stays the bare EQUAL. */
+    /** FILTER-position marker — the engine's {@code callingFromFilter}
+     * config flag (dbExtension.pure:928): the null-safe equal arm fires
+     * ONLY under a filter predicate; join conditions and projections
+     * keep the bare EQUAL (a null-safe JOIN key would MATCH null rows —
+     * the graphFetch regression the gate caught). Static ThreadLocal per
+     * the EngineTextBoundary precedent. */
+    private static final ThreadLocal<Boolean> FILTER_POS =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    public interface Scope extends AutoCloseable {
+        @Override
+        void close();
+    }
+
+    public static Scope enterFilter() {
+        boolean prev = FILTER_POS.get();
+        FILTER_POS.set(Boolean.TRUE);
+        return () -> FILTER_POS.set(prev);
+    }
+
+    static SqlExpr equalNullArms(
+            com.legend.compiler.spec.typed.TypedNativeCall n,
+            java.util.List<SqlExpr> ops) {
+        if (FILTER_POS.get()
+                && ops.size() == 2
+                && ops.get(0) instanceof SqlExpr.Column
+                && ops.get(1) instanceof SqlExpr.Column
+                && isOptional(n.args().get(0).info().multiplicity())
+                && isOptional(n.args().get(1).info().multiplicity())) {
+            return new SqlExpr.Call(SqlFn.OR, List.of(
+                    new SqlExpr.Call(SqlFn.EQUAL, ops),
+                    new SqlExpr.Group(new SqlExpr.Call(SqlFn.AND, List.of(
+                            SqlExpr.Call.of(SqlFn.IS_NULL, ops.get(0)),
+                            SqlExpr.Call.of(SqlFn.IS_NULL, ops.get(1)))))));
+        }
+        return new SqlExpr.Call(SqlFn.EQUAL, ops);
+    }
+
     private static boolean isSqlLiteral(SqlExpr e) {
         return e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit
                 || e instanceof SqlExpr.FloatLit || e instanceof SqlExpr.DecimalLit

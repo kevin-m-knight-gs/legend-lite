@@ -110,7 +110,9 @@ final class Scalars {
                     if (inv != null) {
                         return inv;
                     }
-                    return new SqlExpr.Call(SqlFn.EQUAL, args);
+                    // nullable col-vs-col equality is NULL-SAFE (engine
+                    // isEqualsFromFilter; task #62's equal-side arm)
+                    return NullSemantics.equalNullArms(n, args);
                 });
             }
         }

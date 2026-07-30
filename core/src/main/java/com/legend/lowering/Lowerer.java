@@ -1168,6 +1168,11 @@ public final class Lowerer {
         SqlSelect src = relation(f.source());
         boolean windowRef = false;
         SqlExpr predicate = null;
+        // the PREDICATE lowers in filter position (NullSemantics
+        // null-safe equal arm — engine callingFromFilter); the SOURCE
+        // above lowered OUTSIDE the boundary (its join conditions keep
+        // bare equality — a null-safe join key would match null rows)
+        try (var ignored = NullSemantics.enterFilter()) {
         if (tryPredicate(src, f.predicate()) instanceof Resolution.Resolved r) {
             predicate = r.expr();
         } else if (src.groupBy().isEmpty()) {
@@ -1182,6 +1187,7 @@ public final class Lowerer {
         if (predicate == null) {
             src = isolate(src);
             predicate = predicateOrThrow(src, f.predicate(), "filter");
+        }
         }
         Fold.FilterSlot slot = Fold.filterSlot(src, windowRef);
         if (slot == Fold.FilterSlot.ISOLATE) {

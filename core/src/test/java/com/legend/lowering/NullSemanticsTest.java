@@ -62,6 +62,24 @@ class NullSemanticsTest {
     }
 
     @Test
+    @DisplayName("col-vs-col == is NULL-SAFE: both-null rows are EQUAL (pure empty==empty)")
+    void colToColEqualNullSafe() throws SQLException {
+        // FAILS-BEFORE (functions/tests testConsistencyWithNulls
+        // col-to-col): SQL 'street = street' yields NULL for the
+        // null-street row and DROPS it; pure empty==empty is TRUE —
+        // engine isEqualsFromFilter emits 'a = b OR (a is null AND
+        // b is null)' (dbExtension.pure:926/:947). All 3 rows satisfy
+        // street == street.
+        assertEquals(List.of("a", "b", "c"),
+                names("|m::A.all()->filter(a|$a.street == $a.street)"
+                        + "->project([a|$a.name], ['name'])"));
+        // and the partition contract holds: == plus != covers all rows
+        assertEquals(List.of(),
+                names("|m::A.all()->filter(a|$a.street != $a.street)"
+                        + "->project([a|$a.name], ['name'])"));
+    }
+
+    @Test
     @DisplayName("partition contract: pred + notPred == all (null operands land on the NOT side)")
     void partitionContract() throws SQLException {
         assertEquals(List.of("c"),

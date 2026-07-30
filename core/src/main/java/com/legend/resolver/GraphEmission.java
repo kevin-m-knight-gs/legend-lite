@@ -1277,9 +1277,13 @@ final class GraphEmission {
                 .stream().filter(f -> f.parameters().size() == 2).toList();
         var orFns = ctx.findFunction("meta::pure::functions::boolean::or")
                 .stream().filter(f -> f.parameters().size() == 2).toList();
-        if (eqFns.size() != 1 || andFns.size() != 1 || orFns.size() != 1) {
+        var toOneFns = ctx.findFunction(
+                "meta::pure::functions::multiplicity::toOne")
+                .stream().filter(f -> f.parameters().size() == 1).toList();
+        if (eqFns.size() != 1 || andFns.size() != 1 || orFns.size() != 1
+                || toOneFns.size() != 1) {
             throw new IllegalStateException("resolver bug: expected one 2-arg"
-                    + " equal/and/or in the catalog");
+                    + " equal/and/or and one 1-arg toOne in the catalog");
         }
         ExprType boolInfo = new ExprType(Type.Primitive.BOOLEAN, one);
         String pv = "u_pr";
@@ -1294,11 +1298,21 @@ final class GraphEmission {
                 Type.Column kc = mixedKeyColumn(tRow, keyName);
                 mixedKeyColumn(parentRowType, keyName);   // parent carries it
                 ExprType ki = new ExprType(kc.type(), kc.multiplicity());
+                // conform-by-emission toOne: the OTHER arms' keys are NULL
+                // by construction and must NEVER pair (the contract above)
+                // — a bare optional==optional would take the null-safe
+                // filter-equal arm (NullSemantics.equalNullArms) and match
+                // every same-arm NULL pair (2 XStoreUnion wrong-rows)
+                ExprType kOne = new ExprType(kc.type(), one);
                 TypedSpec eq = new TypedNativeCall(eqFns.get(0), List.of(
-                        new TypedPropertyAccess(new TypedVariable(pv, pInfo),
-                                keyName, ki),
-                        new TypedPropertyAccess(new TypedVariable(tv, tInfo),
-                                keyName, ki)), boolInfo);
+                        new TypedNativeCall(toOneFns.get(0), List.of(
+                                new TypedPropertyAccess(
+                                        new TypedVariable(pv, pInfo),
+                                        keyName, ki)), kOne),
+                        new TypedNativeCall(toOneFns.get(0), List.of(
+                                new TypedPropertyAccess(
+                                        new TypedVariable(tv, tInfo),
+                                        keyName, ki)), kOne)), boolInfo);
                 pairCond = pairCond == null ? eq : new TypedNativeCall(
                         andFns.get(0), List.of(pairCond, eq), boolInfo);
             }
