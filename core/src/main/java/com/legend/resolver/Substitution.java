@@ -908,6 +908,59 @@ final class Substitution {
                 }
             }
         }
+        // FILTER-POSITION pierced-toOne EQUALITY folds into EXISTS: the
+        // engine LEFT JOINs with the inner filter in the ON clause and
+        // compares in the outer WHERE — join multiplication collapses at
+        // the PK-dedup reader, so the OBSERVABLE semantics is
+        // ∃(assoc-cond AND inner-filter AND leaf-compare). The strict
+        // scalar subquery raises on >1 match where the engine never does
+        // (LEG1 doc: filterFunctionExpressionWithOrConditionOnRightTable).
+        // PROJECTION position keeps the scalar subquery (row-stable).
+        // EQUAL only: notEqual/ordering carry per-operator null
+        // compensation (audit 23 B2) and stay on the strict path.
+        if (n instanceof TypedNativeCall cmp && target.filterPosition()
+                && Pure.nativeNamed("equal", cmp.callee().signatureKey())
+                && cmp.args().size() == 2) {
+            int side = -1;
+            for (int i = 0; i < 2; i++) {
+                if (cmp.args().get(i) instanceof TypedPropertyAccess pp
+                        && filteredNavLeafRead(pp) != null) {
+                    side = i;
+                    break;
+                }
+            }
+            if (side >= 0) {
+                TypedSpec rel = java.util.Objects.requireNonNull(
+                        filteredNavLeafRead((TypedPropertyAccess)
+                                cmp.args().get(side)));
+                if (rel.info().type() instanceof Type.RelationType rt
+                        && rt.columns().size() == 1) {
+                    Type.Column leaf = rt.columns().get(0);
+                    ExprType boolOne = new ExprType(Type.Primitive.BOOLEAN,
+                            Multiplicity.Bounded.ONE);
+                    TypedSpec leafRead = new TypedPropertyAccess(
+                            new TypedVariable("_exfold",
+                                    new ExprType(rt, Multiplicity.Bounded.ONE)),
+                            leaf.name(),
+                            new ExprType(leaf.type(), Multiplicity.Bounded.ONE));
+                    TypedSpec other = rewrite(cmp.args().get(1 - side));
+                    TypedSpec inner = new TypedNativeCall(cmp.callee(),
+                            side == 0 ? List.of(leafRead, other)
+                                    : List.of(other, leafRead), boolOne);
+                    TypedLambda pred = new TypedLambda(List.of("_exfold"),
+                            List.of(inner),
+                            new ExprType(new Type.FunctionType(
+                                    List.of(new Type.Param(rt,
+                                            Multiplicity.Bounded.ONE)),
+                                    new Type.Param(Type.Primitive.BOOLEAN,
+                                            Multiplicity.Bounded.ONE)),
+                                    Multiplicity.Bounded.ONE));
+                    return new TypedNativeCall(neCallee(),
+                            List.of(new TypedFilter(rel, pred, rel.info())),
+                            cmp.info());
+                }
+            }
+        }
         // NEGATION ISOLATION over a to-many crossing (AUDIT 9 — the engine
         // testInNegated golden is `NOT X OR <read> IS NULL` over a bare
         // LEFT JOIN with per-row duplicate parents; the crossing itself

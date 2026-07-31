@@ -40,7 +40,7 @@ in-process Alloy-shaped path).
 | tds/tests | 266 | 246 | 2 | 9 | 9 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
 | tests | 39 | 25 | 3 | 0 | 11 | 0 |
-| tests/advanced | 68 | 58 | 2 | 6 | 2 | 16 |
+| tests/advanced | 68 | 59 | 2 | 5 | 2 | 17 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2156** | 76 | 164 | 142 | 291 |
+| **total** | 2538 | **2157** | 76 | 163 | 142 | 292 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8102,7 +8102,6 @@ in-process Alloy-shaped path).
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
 - 2x Binder Error: subqueries in lambda expressions are not supported
-- 2x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x unknown function 'alloyConfig' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 2x unknown function 'parseJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -8119,6 +8118,7 @@ in-process Alloy-shaped path).
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 1x unknown class 'ExecutionOptionContext' in ^ExecutionOptionContext(…)
 - 1x Index 0 out of bounds for length 0
+- 1x scalar lowering not yet implemented for TypedSerializeGraph
 
 ### per-test outcomes (non-passing)
 
@@ -8379,8 +8379,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinStringsTypeInference [tests]: no execute(|...) call [calls meta::relational::functions::typeInference]
 - SHAPE testExtractDBsWithSubstituition [tests]: no execute(|...) call [calls meta::relational::runtime]
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select (select "t2".NAME as "name" from snDBDefault.default.personTable as "t1" left outer join snDBDefault.default.addressTable as "t2" on ("t2".ID = "t1".ADDRESSID) where "root".ID = "t1".FIRMID and "t1".LASTNAME = 'Smith') as "address" from snDBDefault.default.firmTableNew as "root"
-- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", (select "t2".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t2" where ("t2".ID <> 1 or "t2".ID is null) and "t2".PRODID = "root".ID and "t2".TYPE = 'CUSIP') as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" where (select "t1".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t1" where ("t1".ID <> 1 or "t1".ID is null) and "t1".PRODID = "root".ID and "t1".TYPE = 'CUSIP') = 'CUSIP1'
-- ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
+- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", (select "t3".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t3" where ("t3".ID <> 1 or "t3".ID is null) and "t3".PRODID = "root".ID and "t3".TYPE = 'CUSIP') as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select distinct "synonymtablenew_1".PRODID from snDB.productSchemaNewDB.synonymTableNew as "synonymtablenew_1" where ("synonymtablenew_1".ID <> 1 or "synonymtablenew_1".ID is null) and "synonymtablenew_1".TYPE = 'CUSIP' and "synonymtablenew_1".NAME = 'CUSIP1') as "synonymtablenew_0" on ("root".ID = "synonymtablenew_0".PRODID) where "synonymtablenew_0".PRODID is not null
 - FAIL testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR isolationTest [tests/advanced]: multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[product, group]; head binding=TypedPropertyAccess]

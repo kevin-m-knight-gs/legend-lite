@@ -24,13 +24,13 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    5  functions/tests/projection  ::  other
 -    5  functions/tests/projection  ::  rows-differ
 -    5  tds/tests  ::  other
--    5  tests/advanced  ::  other
 -    5  tests/query  ::  other
 -    4  graphFetch/tests  ::  typer
 -    4  graphFetch/tests  ::  platform-surface
 -    4  milestoning/tests  ::  other
 -    4  postprocessor/tests  ::  harness-shape
 -    4  testDataGeneration/tests  ::  rows-differ
+-    4  tests/advanced  ::  other
 -    4  tests/mapping/enumeration  ::  rows-differ
 -    4  tests/mapping/inheritance  ::  normalize(mapping)
 -    4  validation/tests  ::  other
@@ -137,7 +137,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 -   64  row-assert  ::  ERROR
 -   44  row-assert  ::  SHAPE
--   36  golden-sql+row-assert  ::  ERROR
+-   35  golden-sql+row-assert  ::  ERROR
 -   29  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
 -   25  row-assert+plan-assert  ::  SHAPE
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  291  Test
+-  290  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -444,7 +444,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests | testRelationalExtension.pure | testTranslateDbType | harness-shape | row-assert | Test | no execute(\|...) call [calls meta::relational::metamodel::datatype] |
 | FAIL | tests | testRelationalMapper.pure | testRelationalMapperTwoDBs | rows-differ | row-assert | Test | assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.prod |
 | FAIL | tests | testRelationalMapper.pure | testRelationalMapperWithJoin | rows-differ | row-assert | Test | assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableN |
-| ERROR | tests/advanced | testFilterWithQualifiedProperties.pure | filterFunctionExpressionWithOrConditionOnRightTable | other | golden-sql+row-assert | Test | Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subquer |
 | FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedCorrelated | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
 | FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedOnClause | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
 | ERROR | tests/advanced | testForcedSelfJoin.pure | isolationTest | resolve | row-assert | Test | multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported |
