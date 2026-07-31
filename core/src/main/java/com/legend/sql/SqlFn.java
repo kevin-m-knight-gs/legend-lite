@@ -16,6 +16,11 @@ public enum SqlFn {
     PLUS, MINUS, TIMES, DIVIDE, MOD, REM, NEGATE, ABS,
     // Null / membership
     IS_NULL, IS_NOT_NULL, IN, COALESCE,
+    // parseInteger: 64-bit SEMANTICS everywhere (PCT pins Long.MIN/MAX);
+    // a semantic entry (not a bare Cast) so the engine-style dialect can
+    // spell its golden 'integer' while execution casts BIGINT (the
+    // per-dynafunction origin tag audit 19 F3 called for)
+    PARSE_INT,
     // Strings
     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
     // Lists — SEMANTIC operations (encodings are the dialect's: DuckDB uses

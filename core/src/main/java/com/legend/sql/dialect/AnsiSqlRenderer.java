@@ -482,6 +482,8 @@ public class AnsiSqlRenderer implements SqlDialect {
                     listCall(c.fn(), a);
             case LIST_EXISTS -> listExists(a);
             case LIST_FOR_ALL -> listForAll(a);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> "CAST(" + expr(a.get(0), 0) + " AS BIGINT)";
             case VARIANT_ELEMENTS -> variantElements(a);
             case VARIANT_GET -> variantGet(a);
             // Not a spelling row, not a coded rule: LOUD. Exhaustiveness is

@@ -526,15 +526,21 @@ final class StatementExecutor {
                         + ep.args().get(1).getClass().getSimpleName());
             }
         }
-        boolean quote = hasRuntimeArg
-                && quoteIdentifiersOf(ep.args().get(2));
-        String tz = hasRuntimeArg
-                ? timeZoneOf(ep.args().get(2)) : null;
-        String connName = hasRuntimeArg
-                ? connectionNameOf(ep.args().get(2))
+        // connection FLAGS ride instance properties; a testRuntime(true)
+        // HELPER call carries them inside its body — inline once so the
+        // property walkers see the constructed connection (the
+        // quoteIdentifiers-flag goldens' testRuntime(quote) idiom)
+        TypedSpec rtArg = hasRuntimeArg
+                ? new com.legend.compiler.spec.UserCallInliner(specs)
+                        .inlineBody(java.util.List.of(ep.args().get(2)))
+                        .get(0)
+                : null;
+        boolean quote = rtArg != null && quoteIdentifiersOf(rtArg);
+        String tz = rtArg != null ? timeZoneOf(rtArg) : null;
+        String connName = rtArg != null
+                ? connectionNameOf(rtArg)
                 : "TestDatabaseConnection(type = \"H2\")";
-        String dbType = hasRuntimeArg
-                ? databaseTypeOf(ep.args().get(2)) : "H2";
+        String dbType = rtArg != null ? databaseTypeOf(rtArg) : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
             return sequencePlan(lam, mappingFqn, specs, env, quote, tz,
                     connName, dbType);
@@ -762,13 +768,77 @@ final class StatementExecutor {
             TypedSpec t = work.poll();
             if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
                     && ni.properties().get("quoteIdentifiers")
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCBoolean b2) {
-                return b2.value();
+                            instanceof TypedSpec qv) {
+                Boolean b2 = staticBool(qv);
+                if (b2 != null) {
+                    return b2;
+                }
+            }
+            // the PLATFORM-NATIVE testRuntime(quoteIdentifiers:Boolean[1])
+            // overload (relationalSetUp.pure:1223 is the corpus contract;
+            // the user body is platform-suppressed, so the flag rides the
+            // call's own argument)
+            if (t instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                    && nc.callee().qualifiedName().equals(
+                            "meta::external::store::relational::tests::testRuntime")
+                    && nc.args().size() == 1
+                    && nc.args().get(0) instanceof
+                            com.legend.compiler.spec.typed.TypedCBoolean fb) {
+                return fb.value();
             }
             work.addAll(t.children());
         }
         return false;
+    }
+
+    /** Bounded constant-fold of the corpus connection-builder idiom
+     * ({@code if($q->isEmpty(), |false, |$q->toOne())} over an INLINED
+     * literal — relationalSetUp.pure testDatabaseConnection). Null =
+     * not statically known; never guesses. */
+    private static @com.legend.Nullable Boolean staticBool(TypedSpec t) {
+        return switch (t) {
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> b.value();
+            case com.legend.compiler.spec.typed.TypedNativeCall nc
+                    when nc.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                    && nc.args().size() >= 1 -> staticBool(nc.args().get(0));
+            case com.legend.compiler.spec.typed.TypedIf i -> {
+                Boolean empt = staticIsEmpty(i.condition());
+                if (empt == null) {
+                    yield null;
+                }
+                TypedSpec branch = empt ? i.thenBranch()
+                        : i.elseBranch().orElse(null);
+                if (branch instanceof
+                        com.legend.compiler.spec.typed.TypedLambda l
+                        && !l.body().isEmpty()) {
+                    branch = l.body().get(l.body().size() - 1);
+                }
+                yield branch == null ? null : staticBool(branch);
+            }
+            default -> null;
+        };
+    }
+
+    /** {@code isEmpty(x)} over a statically known operand; null else. */
+    private static @com.legend.Nullable Boolean staticIsEmpty(TypedSpec cond) {
+        if (!(cond instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && nc.callee().qualifiedName().equals(
+                "meta::pure::functions::collection::isEmpty")
+                && nc.args().size() == 1)) {
+            return null;
+        }
+        TypedSpec x = nc.args().get(0);
+        if (x instanceof com.legend.compiler.spec.typed.TypedCollection c) {
+            return c.elements().isEmpty();
+        }
+        // any scalar LITERAL is a one-element collection: not empty
+        if (x instanceof com.legend.compiler.spec.typed.TypedCBoolean
+                || x instanceof com.legend.compiler.spec.typed.TypedCString
+                || x instanceof com.legend.compiler.spec.typed.TypedCInteger) {
+            return false;
+        }
+        return null;
     }
 
     /** The engine connection's timeZone, read off the RUNTIME argument
@@ -1627,10 +1697,15 @@ final class StatementExecutor {
             throw new com.legend.error.NotImplementedException(
                     "plan walk: executionPlan argument shapes pending");
         }
-        boolean quote = ep.args().size() > 2
-                && quoteIdentifiersOf(ep.args().get(2));
-        String tz = ep.args().size() > 2
-                ? timeZoneOf(ep.args().get(2)) : null;
+        // same helper-call inlining as planToString: testRuntime(true)
+        // carries the connection flags inside its body
+        TypedSpec rtArg2 = ep.args().size() > 2
+                ? new com.legend.compiler.spec.UserCallInliner(specs)
+                        .inlineBody(java.util.List.of(ep.args().get(2)))
+                        .get(0)
+                : null;
+        boolean quote = rtArg2 != null && quoteIdentifiersOf(rtArg2);
+        String tz = rtArg2 != null ? timeZoneOf(rtArg2) : null;
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>

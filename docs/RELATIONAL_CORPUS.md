@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 | 1 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 52 | 16 | 11 | 31 | 0 |
+| executionPlan/tests | 110 | 53 | 15 | 11 | 31 | 0 |
 | functions/tests | 258 | 227 | 8 | 18 | 5 | 92 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 132 | 6 | 14 | 3 | 1 |
@@ -66,7 +66,7 @@ in-process Alloy-shaped path).
 | tests/mapping/relation | 93 | 90 | 3 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 67 | 5 | 1 | 1 | 1 |
+| tests/mapping/sqlFunction | 74 | 70 | 2 | 1 | 1 | 1 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 | 2 |
 | tests/mapping/union | 124 | 117 | 0 | 6 | 1 | 6 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2136** | 84 | 166 | 152 | 317 |
+| **total** | 2538 | **2140** | 80 | 166 | 152 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8176,8 +8176,7 @@ in-process Alloy-shaped path).
 - SHAPE testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'executionPlan' matches the argument types
 - SHAPE testGraphFetchH2TempTableStrategy [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown type 'StoreMappingGlobalGraphFetchExecutionNode' in @StoreMappingGlobalGraphFetchExecutionNode
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown type 'StoreMappingGlobalGraphFetchExecutionNode' in @StoreMappingGlobalGraphFetchExecutionNode
-- FAIL testTypedTDSWithEnum [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type", "root"."NAME" as "name" from "productSchema"."synonymTable" as "root", got select "root".TYPE as "type", "root".NAME as "name" from productSchema.synonymTable as "root"
-- FAIL testTypedTDSWithEnumFilter [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root" where "root"."TYPE" = 'CUSIP', got select * from (select case when "root".TYPE = 'CUSIP' then 'CUSIP' else case when "root".TYPE = 'ISIN' then 'ISIN' else NULL end end as "type" from productSchema.synonymTable as "root") as "synonymtable_0" where "synonymtable_0"."type" = 'CUSIP'
+- FAIL testTypedTDSWithEnumFilter [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root" where "root"."TYPE" = 'CUSIP', got select * from (select case when "root"."TYPE" = 'CUSIP' then 'CUSIP' else case when "root"."TYPE" = 'ISIN' then 'ISIN' else NULL end end as "type" from "productSchema"."synonymTable" as "root") as "synonymtable_0" where "synonymtable_0"."type" = 'CUSIP'
 - FAIL testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert did not hold (false)
 - SHAPE planProjectWithDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planProjectWithDerivedProperty1 [executionPlan/tests]: no execute(|...) call
@@ -8470,9 +8469,6 @@ in-process Alloy-shaped path).
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc
 - FAIL testToSQLStringParseDecimalExecutioninH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
 - FAIL testToSQLStringParseDecimalSQLCompilationinH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
-- FAIL testToSQLStringParseIntegerinH2 [tests/mapping/sqlFunction]: assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTable as "root", got select cast("root".string2Integer as bigint) as "parseInteger" from dataTable as "root"
-- FAIL testToSQLStringParseIntegerinComposite [tests/mapping/sqlFunction]: assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTable as "root", got select cast("root".string2Integer as bigint) as "parseInteger" from dataTable as "root"
-- FAIL testToSQLStringParseIntegerinDB2 [tests/mapping/sqlFunction]: assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTable as "root", got select cast("root".string2Integer as bigint) as "parseInteger" from dataTable as "root"
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, OrgName3], got [11, OrgName3]
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]

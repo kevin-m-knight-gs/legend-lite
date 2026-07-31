@@ -960,6 +960,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case ADD_INTERVAL -> "dateadd("
                     + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
                     + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+            // engine h2 parseInteger dynaFn golden spelling; execution
+            // dialects keep the 64-bit BIGINT cast
+            case PARSE_INT -> "cast(" + expr(a.get(0), 0) + " as integer)";
             case CHR -> "char(" + expr(a.get(0), 0) + ")";
             case LENGTH -> "char_length(" + expr(a.get(0), 0) + ")";
             case REVERSE_STRING -> "legend_h2_extension_reverse_string("

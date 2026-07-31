@@ -1992,10 +1992,13 @@ final class Scalars {
         }
         family(SqlFn.IS_DISTINCT, "isDistinct");
         // parseInteger is 64-BIT (PCT pins Long.MIN/MAX round-trips) —
-        // BIGINT execution; the engine-H2 golden TEXT says 'integer' and
-        // needs a per-dynafunction origin tag to respell without touching
-        // semantics (audit 19 F3 — the text diff stays an honest FAIL).
-        castFamily("parseInteger", Type.Primitive.INTEGER);
+        // the SqlFn.PARSE_INT semantic entry lets each dialect spell it:
+        // BIGINT cast in execution, the golden 'integer' in engine style
+        // (the per-dynafunction origin tag audit 19 F3 called for).
+        for (String f : Pure.nativeKeysAt("parseInteger")) {
+            RULES.put(f, (n, args) ->
+                    SqlExpr.Call.of(SqlFn.PARSE_INT, args.get(0)));
+        }
         castFamily("parseFloat", Type.Primitive.FLOAT);
         castFamily("toFloat", Type.Primitive.FLOAT);
         // parseDecimal accepts the 'd'/'D' Pure-literal suffix ('3.14159d');

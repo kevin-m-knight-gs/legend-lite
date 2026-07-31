@@ -105,7 +105,7 @@ class SpellingsTest {
             SqlFn.UNNEST,
             SqlFn.VARIANT_ELEMENTS,
             SqlFn.VARIANT_GET,
-            SqlFn.XOR);
+            SqlFn.XOR, SqlFn.PARSE_INT);
 
     @Test
     @DisplayName("every SqlFn is classified: spelling DATA or coded rule")
