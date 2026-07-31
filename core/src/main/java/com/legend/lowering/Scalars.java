@@ -2029,9 +2029,14 @@ final class Scalars {
                     return new SqlExpr.Cast(new SqlExpr.StringLit(clean),
                             new SqlType.Decimal(38, literalScale(clean)));
                 }
+                // NON-LITERAL (column) argument: the scale of the string
+                // is runtime data SQL cannot carry — the engine's OWN
+                // 1-arg contract is a hardcoded decimal(5, 2)
+                // (h2Extension2_1_214.pure transformParseDecimalH2), and
+                // its goldens round through it (123.450021 -> 123.45).
                 return new SqlExpr.Cast(
                         SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")),
-                        PureSql.type(Type.Primitive.DECIMAL));
+                        new SqlType.Decimal(5, 2));
             });
         }
         castFamily("parseBoolean", Type.Primitive.BOOLEAN);

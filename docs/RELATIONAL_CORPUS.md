@@ -66,7 +66,7 @@ in-process Alloy-shaped path).
 | tests/mapping/relation | 93 | 90 | 3 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 70 | 2 | 1 | 1 | 1 |
+| tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 1 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 | 2 |
 | tests/mapping/union | 124 | 117 | 0 | 6 | 1 | 6 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2140** | 80 | 166 | 152 | 317 |
+| **total** | 2538 | **2142** | 78 | 166 | 152 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8467,8 +8467,6 @@ in-process Alloy-shaped path).
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc
-- FAIL testToSQLStringParseDecimalExecutioninH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
-- FAIL testToSQLStringParseDecimalSQLCompilationinH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, OrgName3], got [11, OrgName3]
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
