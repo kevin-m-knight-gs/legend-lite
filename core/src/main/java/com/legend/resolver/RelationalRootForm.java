@@ -93,8 +93,22 @@ public final class RelationalRootForm {
         // relational form — the engine's enum transform is host-side
         // object assembly, never part of this SELECT (plan goldens spell
         // "root".TYPE with the column's own dataType)
+        com.legend.compiler.element.MilestoningStrategy strat =
+                g.classFqn() == null ? null
+                        : com.legend.compiler.element.Temporal
+                                .strategyOf(ctx, g.classFqn());
         for (TypedFuncCol leaf : g.leaves()) {
-            cols.add(enumRawColumn(leaf).orElse(leaf));
+            TypedFuncCol c = enumRawColumn(leaf).orElse(leaf);
+            // GENERATED temporal date leaves spell the engine's alias
+            // literals in the FLAT form (milestoning.pure
+            // getProcessingDateAliasLiteral/getBusinessDateAliasLiteral:
+            // 'k_processingDate'/'k_businessDate'); the JSON envelope
+            // keeps the property name.
+            if (strat != null && com.legend.compiler.element.Temporal
+                    .isGeneratedDateProperty(c.name(), strat)) {
+                c = new TypedFuncCol("k_" + c.name(), c.fn());
+            }
+            cols.add(c);
         }
         // sortBy PATH ALIASES materialize as o_<alias> sort-key columns
         // (engine buildColumnNameOutOfPath — the flat form projects the

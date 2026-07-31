@@ -55,6 +55,51 @@ public final class Temporal {
     private Temporal() {
     }
 
+    /** Whether {@code prop} names a GENERATED temporal date property
+     * under {@code strat} — the two spellings live HERE once (shared by
+     * the graph envelope's implicit tree and the flat form's k_ carrier
+     * rename). */
+    public static boolean isGeneratedDateProperty(String prop,
+            MilestoningStrategy strat) {
+        return "businessDate".equals(prop)
+                        && strat != MilestoningStrategy.PROCESSING
+                || "processingDate".equals(prop)
+                        && strat != MilestoningStrategy.BUSINESS;
+    }
+
+    /**
+     * Whether ANY extent fetched by the (PRE-resolution) query body is
+     * temporally stamped &mdash; the engine's exists-form gate
+     * ({@code shouldBuildExistsPredicate}, pureToSQLQuery:6149): a
+     * milestoned extent is select-wrapped at exists-build time, so the
+     * engine keeps the correlated EXISTS predicate; the join-distinct
+     * rewrite (ExistsJoinForm) applies only over plain-table extents.
+     */
+    public static boolean anyTemporalGetAll(
+            java.util.List<? extends com.legend.compiler.spec.typed.TypedSpec> body,
+            ModelContext ctx) {
+        for (var b : body) {
+            if (anyTemporalGetAll(b, ctx)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean anyTemporalGetAll(
+            com.legend.compiler.spec.typed.TypedSpec n, ModelContext ctx) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll g
+                && strategyOf(ctx, g.classFqn()) != null) {
+            return true;
+        }
+        for (var c : n.children()) {
+            if (anyTemporalGetAll(c, ctx)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * The class's milestoning strategy ({@code <<temporal.businesstemporal>>}
      * etc., inherited through superclasses), or {@code null} for a

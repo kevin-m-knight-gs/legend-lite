@@ -93,9 +93,25 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 if (!(s.from() instanceof SqlSource.Dual)) {
                     planSource(s.from(), rootScope, groups);
                 }
+                // correlated EXISTS subqueries join the SAME group
+                // numbering (engine reAliasQuery walks filter operations:
+                // golden "certificationtable_0" inside the exists)
+                if (s.where() != null) {
+                    planExprSubqueries(s.where(), groups);
+                }
             }
             case SqlUnion u -> u.branches().forEach(
                     b -> planQuery(b, groups, true));
+        }
+    }
+
+    private void planExprSubqueries(SqlExpr e, Map<String, Integer> groups) {
+        if (e instanceof SqlExpr.Exists ex) {
+            planQuery(ex.subquery(), groups, false);
+            return;
+        }
+        for (SqlExpr c : e.children()) {
+            planExprSubqueries(c, groups);
         }
     }
 
@@ -542,9 +558,48 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * scoped to it (same lifecycle as frameDepth). */
     private int anonDistinctDepth;
 
+    /** engine spells the CORRELATED exists form 'exists (select 1
+     * from ...)' (buildExistsPredicate emission) — lowercase keyword,
+     * literal-1 projection regardless of the subquery's own columns
+     * (testProcessingTemporalPropertyQuery golden). */
+    private String correlatedExistsSpelling(SqlSelect xs) {
+        return "exists (" + inline(xs.withProjections(
+                java.util.List.of(new SqlSelect.Projection(
+                        new SqlExpr.IntLit(1), null)),
+                java.util.List.of())) + ")";
+    }
+
+    /** engine text: an arithmetic op with a MIXED-OPERATOR composite
+     * operand wraps itself (testProp3 golden (((1.0*q)/basis)*rate) —
+     * TIMES over DIVIDE); SAME-operator chains stay flat (golden
+     * quantity + quantity + 3), lone ops stay bare (AGE * AGE).
+     * parentPrec >= 7 = the base renderer already wraps. */
+    private static boolean mixedOperandArithmetic(SqlExpr.Call ac,
+            int parentPrec) {
+        return parentPrec < 7
+                && (ac.fn() == com.legend.sql.SqlFn.PLUS
+                        || ac.fn() == com.legend.sql.SqlFn.MINUS
+                        || ac.fn() == com.legend.sql.SqlFn.TIMES)
+                && ac.args().stream().anyMatch(x -> {
+                    SqlExpr u = x instanceof SqlExpr.Group g ? g.inner() : x;
+                    return u instanceof SqlExpr.Call cc
+                            && cc.fn() != ac.fn()
+                            && (cc.fn() == com.legend.sql.SqlFn.PLUS
+                                    || cc.fn() == com.legend.sql.SqlFn.MINUS
+                                    || cc.fn() == com.legend.sql.SqlFn.TIMES
+                                    || cc.fn() == com.legend.sql.SqlFn.DIVIDE);
+                });
+    }
+
     @Override
     protected String projection(SqlSelect.Projection p) {
-        String e = expr(p.expr(), 0);
+        // engine text spells a PROJECTED date constant as a PLAIN string
+        // ('2015-10-16' as "k_processingDate" —
+        // testProcessingTemporalPropertyQuery golden); COMPARISON
+        // positions keep the typed DATE'...' literal
+        String e = p.expr() instanceof SqlExpr.DateLit dl
+                ? "'" + dl.iso() + "'"
+                : expr(p.expr(), 0);
         if (frameDepth > 0 && p.outputName() != null) {
             // engine view SQL: '"root".ORDER_ID as ORDER_ID' — always
             // aliased, unquoted
@@ -574,24 +629,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.FloatLit f) {
             return String.valueOf(f.value());
         }
-        // engine text: an arithmetic op with a MIXED-OPERATOR composite
-        // operand wraps itself (testProp3 golden (((1.0*q)/basis)*rate) —
-        // TIMES over DIVIDE); SAME-operator chains stay flat (golden
-        // quantity + quantity + 3), lone ops stay bare (AGE * AGE).
-        // parentPrec >= 7 = the base renderer already wraps.
-        if (e instanceof SqlExpr.Call ac && parentPrec < 7
-                && (ac.fn() == com.legend.sql.SqlFn.PLUS
-                        || ac.fn() == com.legend.sql.SqlFn.MINUS
-                        || ac.fn() == com.legend.sql.SqlFn.TIMES)
-                && ac.args().stream().anyMatch(x -> {
-                    SqlExpr u = x instanceof SqlExpr.Group g ? g.inner() : x;
-                    return u instanceof SqlExpr.Call cc
-                            && cc.fn() != ac.fn()
-                            && (cc.fn() == com.legend.sql.SqlFn.PLUS
-                                    || cc.fn() == com.legend.sql.SqlFn.MINUS
-                                    || cc.fn() == com.legend.sql.SqlFn.TIMES
-                                    || cc.fn() == com.legend.sql.SqlFn.DIVIDE);
-                })) {
+        if (e instanceof SqlExpr.Exists xx
+                && xx.subquery() instanceof SqlSelect xs) {
+            return correlatedExistsSpelling(xs);
+        }
+        if (e instanceof SqlExpr.Call ac
+                && mixedOperandArithmetic(ac, parentPrec)) {
             return "(" + super.expr(e, 0) + ")";
         }
         if (e instanceof SqlExpr.PlanParam p) {

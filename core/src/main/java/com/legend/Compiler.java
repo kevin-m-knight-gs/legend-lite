@@ -270,14 +270,18 @@ public final class Compiler {
         java.util.List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(SpecParser.parse(query)));
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
+        boolean temporalRoot = com.legend.compiler.element.Temporal
+                .anyTemporalGetAll(body, ctx);
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtime);                          // Phase H
         TypedSpec root = body.get(body.size() - 1);
-        String sql = dialectOf(ctx, runtime)
-                .render(new com.legend.lowering.Lowerer(
-                        t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                        f -> ctx.findClass(f).isPresent())
-                        .withEngineExistsJoinForm().lower(body));
+        com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent());
+        if (!temporalRoot) {
+            planLw = planLw.withEngineExistsJoinForm();
+        }
+        String sql = dialectOf(ctx, runtime).render(planLw.lower(body));
         return new com.legend.exec.QueryPlan(sql, root.info(),
                 com.legend.exec.ResultShape.of(root));
     }
@@ -424,15 +428,20 @@ public final class Compiler {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
+        boolean temporalRoot = com.legend.compiler.element.Temporal
+                .anyTemporalGetAll(body, ctx);
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);
         if (relationalRootForm) {
             body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
         }
-        return new com.legend.lowering.Lowerer(
+        com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent())
-                .withEngineExistsJoinForm().lower(body);
+                f -> ctx.findClass(f).isPresent());
+        if (!temporalRoot) {
+            lw = lw.withEngineExistsJoinForm();
+        }
+        return lw.lower(body);
     }
 
     /**

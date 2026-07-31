@@ -431,13 +431,18 @@ final class StatementExecutor {
         java.util.List<TypedSpec> body =
                 new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(raw);
+        boolean temporalRoot = com.legend.compiler.element.Temporal
+                .anyTemporalGetAll(body, env.ctx());
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .resolve(body, env.runtimeFqn(), mappingFqn, chainMappings);
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
-                f -> env.ctx().findClass(f).isPresent()).withEngineExistsJoinForm();
+                f -> env.ctx().findClass(f).isPresent());
+        if (!temporalRoot) {
+            lw = lw.withEngineExistsJoinForm();
+        }
         planParams.values().forEach(lw::bindPlanParam);
         com.legend.sql.SqlQuery plan; // ENGINE-TEXT: wire coercions read bare
         try (var ignored = com.legend.lowering.EngineTextBoundary.enter()) {
