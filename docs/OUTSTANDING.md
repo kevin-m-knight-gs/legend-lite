@@ -39,7 +39,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  functions/tests/projection  ::  harness-shape
 -    3  graphFetch/tests  ::  normalize(mapping)
 -    3  milestoning/tests  ::  resolve
--    3  milestoning/tests  ::  rows-differ
 -    3  modelToModelToRelational  ::  rows-differ
 -    3  modelToModelToRelational/milestoned  ::  typer
 -    3  postprocessor/tests  ::  other
@@ -66,6 +65,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  functions/tests/projection  ::  lower
 -    2  helperFunctions/tests  ::  harness-shape
 -    2  lineage/scanColumns  ::  other
+-    2  milestoning/tests  ::  rows-differ
 -    2  modelJoins  ::  rows-differ
 -    2  modelToModelToRelational/milestoned  ::  normalize(mapping)
 -    2  modelToModelToRelational/milestoned  ::  harness-shape
@@ -141,8 +141,8 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   29  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
 -   25  row-assert+plan-assert  ::  SHAPE
--   20  golden-sql+row-assert  ::  FAIL
 -   20  golden-sql+row-assert  ::  SHAPE
+-   19  golden-sql+row-assert  ::  FAIL
 -   13  row-assert+plan-assert  ::  ERROR
 -   13  ?  ::  SHAPE
 -   12  row-assert+plan-assert+graph  ::  SHAPE
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  293  Test
+-  292  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -346,7 +346,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | milestoning/tests | testBusinessDateMilestoning.pure | testDateFunctionInMilestonedProperty | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | milestoning/tests | testBusinessDateMilestoning.pure | testDateFunctionInMilestonedPropertyWithMilestonedEntity | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testExecutionPlanForQueryWithVariableRundateWithinLambda | rows-differ | golden-sql+row-assert+plan-assert | Test | assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::milestoning::Prod |
-| FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Mart |
 | FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty | other | golden-sql+row-assert | Test | sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns | resolve | golden-sql+row-assert | Test | in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::mi |
 | SHAPE | milestoning/tests | testBusinessDateMilestoning.pure | testQueryOfMilestonedTypeUsingLatestWithFilterInMapping | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |

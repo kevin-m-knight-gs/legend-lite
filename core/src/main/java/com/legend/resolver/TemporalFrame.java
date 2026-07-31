@@ -2285,7 +2285,31 @@ final class TemporalFrame {
                     j.kind(), j.condition(), j.prefix(), j.frameName(),
                     j.info());
         }
-        return n;
+        // SLOT form of the same rule (the view-propagation golden): an
+        // UNEXPANDED slot's raw table target stamps by its own blocks —
+        // the STAMP filter rides the slot and relocates onto the join
+        // ON at expansion (onFormRelocate), landing the engine's
+        // per-table-alias condition inside the view frame
+        if (n instanceof com.legend.compiler.spec.typed.TypedJoinSlot js
+                && js.target() instanceof TypedTableReference) {
+            TypedSpec st = stampByOwnBlocks(js.target(), c,
+                    "slot join target");
+            return st == js.target() ? js
+                    : new com.legend.compiler.spec.typed.TypedJoinSlot(
+                            filterMilestonedJoinTargets(js.source(), c),
+                            js.alias(), st, js.condition(), js.frameName(),
+                            js.info());
+        }
+        // generic descent: slots nest under filters/maps in the pipe
+        java.util.List<TypedSpec> kids = n.children();
+        java.util.List<TypedSpec> mapped = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec m = filterMilestonedJoinTargets(k, c);
+            changed |= m != k;
+            mapped.add(m);
+        }
+        return changed ? n.withChildren(mapped) : n;
     }
 
     /** Any table scan in the pipeline carrying a SNAPSHOT milestoning block. */
