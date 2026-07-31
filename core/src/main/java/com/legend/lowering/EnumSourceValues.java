@@ -29,7 +29,22 @@ final class EnumSourceValues {
         SqlExpr lit = b instanceof SqlExpr.StringLit ? b
                 : a instanceof SqlExpr.StringLit ? a : null;
         if (lit == null) {
-            return null;
+            // BOTH sides decode chains over the SAME enum table (C1.4:
+            // if($p.type == $q.type, ...) with one shared enum mapping):
+            // equal names iff equal SOURCE values — compare the raw
+            // sources, never the decoded strings (engine parity: the
+            // engine holds raw columns here and compares them directly)
+            List<SqlExpr.Case.When> fa =
+                    com.legend.sql.DecodeShapes.flattenDecode(a).orElse(null);
+            List<SqlExpr.Case.When> fb =
+                    com.legend.sql.DecodeShapes.flattenDecode(b).orElse(null);
+            if (fa == null || fb == null || !sameDecodeTable(fa, fb)) {
+                return null;
+            }
+            SqlExpr sa = com.legend.sql.DecodeShapes.sourceExpr(a).orElse(null);
+            SqlExpr sb = com.legend.sql.DecodeShapes.sourceExpr(b).orElse(null);
+            return sa == null || sb == null ? null
+                    : SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, sa, sb);
         }
         SqlExpr chain = lit == b ? a : b;
         List<SqlExpr.Case.When> flat =
@@ -37,17 +52,43 @@ final class EnumSourceValues {
         if (flat == null) {
             return null;
         }
+        // MULTIPLE branches may decode to the same name (CONTRACT from
+        // FTC and FTO — C1.4): the inversion is the OR of their source
+        // conditions, never a bail-out (bailing kept the decoded-name
+        // compare, which matches nothing). A name NO branch produces
+        // can never compare equal (engine spells '0 = 1').
         SqlExpr match = null;
         String want = ((SqlExpr.StringLit) lit).value();
         for (var w : flat) {
             if (((SqlExpr.StringLit) w.then()).value().equals(want)) {
-                if (match != null) {
-                    return null;   // ambiguous decode — keep the compare
-                }
-                match = w.condition();
+                match = match == null ? w.condition()
+                        : SqlExpr.Call.of(com.legend.sql.SqlFn.OR,
+                                match, w.condition());
             }
         }
-        return match;
+        return match != null ? match : new SqlExpr.BoolLit(false);
+    }
+
+    /** Same (source literal -> name) rows, in order — one enum mapping
+     * emitted twice. Source EXPRESSIONS may differ (two columns). */
+    private static boolean sameDecodeTable(List<SqlExpr.Case.When> a,
+            List<SqlExpr.Case.When> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (!(a.get(i).condition() instanceof SqlExpr.Call ca
+                    && ca.fn() == com.legend.sql.SqlFn.EQUAL
+                    && ca.args().size() == 2
+                    && b.get(i).condition() instanceof SqlExpr.Call cb
+                    && cb.fn() == com.legend.sql.SqlFn.EQUAL
+                    && cb.args().size() == 2
+                    && ca.args().get(1).equals(cb.args().get(1))
+                    && a.get(i).then().equals(b.get(i).then()))) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

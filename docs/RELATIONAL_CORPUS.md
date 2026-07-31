@@ -49,7 +49,7 @@ in-process Alloy-shaped path).
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
 | tests/mapping/embedded | 63 | 55 | 1 | 7 | 0 | 0 |
-| tests/mapping/enumeration | 26 | 16 | 5 | 2 | 3 | 0 |
+| tests/mapping/enumeration | 26 | 17 | 4 | 2 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
 | tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2134** | 86 | 166 | 152 | 317 |
+| **total** | 2538 | **2135** | 85 | 166 | 152 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8437,7 +8437,6 @@ in-process Alloy-shaped path).
 - ERROR testEnumInRelation [tests/mapping/enumeration]: unknown type 'meta::pure::metamodel::relation::TDS' in @meta::pure::metamodel::relation::TDS
 - SHAPE testEnumMappings [tests/mapping/enumeration]: no execute(|...) call
 - SHAPE testEnumMappingsWithInclude [tests/mapping/enumeration]: no execute(|...) call
-- FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - FAIL testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true]
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]

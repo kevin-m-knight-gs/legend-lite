@@ -560,7 +560,9 @@ public final class Lowerer {
             SqlExpr e = k.fn().isPresent()
                     ? scalar(last(k.fn().get()), (v, name) -> resolveOrThrow(base, name))
                     : resolveOrThrow(base, k.column());
-            keys.add(e);
+            // an enum-DECODE key groups on its RAW source (C1.4, engine
+            // parity); the projection keeps the decoded name
+            keys.add(com.legend.sql.DecodeShapes.sourceExpr(e).orElse(e));
             // a self-aliased key drops the alias (view-frame goldens) —
             // EXCEPT reads of a union frame's outputs, which keep it
             // ("unionalias_0"."lastName" as "lastName")

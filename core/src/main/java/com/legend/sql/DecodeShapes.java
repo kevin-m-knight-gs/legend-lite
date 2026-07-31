@@ -43,7 +43,9 @@ public final class DecodeShapes {
     }
 
     /** The ONE source expression every branch condition compares
-     * ({@code src = literal}); empty otherwise. */
+     * ({@code src = literal}, or an OR of such equalities — the
+     * multi-source-value branch: {@code src = 'FTC' OR src = 'FTO'});
+     * empty otherwise. */
     public static Optional<SqlExpr> sourceExpr(SqlExpr e) {
         Optional<List<SqlExpr.Case.When>> flat = flattenDecode(e);
         if (flat.isEmpty()) {
@@ -51,11 +53,10 @@ public final class DecodeShapes {
         }
         SqlExpr src = null;
         for (var w : flat.get()) {
-            if (!(w.condition() instanceof SqlExpr.Call cc)
-                    || cc.fn() != SqlFn.EQUAL || cc.args().size() != 2) {
+            SqlExpr left = conditionSource(w.condition());
+            if (left == null) {
                 return Optional.empty();
             }
-            SqlExpr left = cc.args().get(0);
             if (src == null) {
                 src = left;
             } else if (!src.equals(left)) {
@@ -63,6 +64,27 @@ public final class DecodeShapes {
             }
         }
         return Optional.ofNullable(src);
+    }
+
+    /** The shared LHS of an equality (or OR-tree of equalities over the
+     * SAME lhs); null when the condition is any other shape. */
+    private static @com.legend.Nullable SqlExpr conditionSource(SqlExpr cond) {
+        if (cond instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL
+                && c.args().size() == 2) {
+            return c.args().get(0);
+        }
+        if (cond instanceof SqlExpr.Call o && o.fn() == SqlFn.OR) {
+            SqlExpr src = null;
+            for (SqlExpr arm : o.args()) {
+                SqlExpr a = conditionSource(arm);
+                if (a == null || (src != null && !src.equals(a))) {
+                    return null;
+                }
+                src = a;
+            }
+            return src;
+        }
+        return null;
     }
 
     /** {@link #sourceExpr} narrowed to a raw store COLUMN. */
