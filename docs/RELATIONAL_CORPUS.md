@@ -53,7 +53,7 @@ in-process Alloy-shaped path).
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
 | tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 |
-| tests/mapping/groupBy | 10 | 8 | 0 | 2 | 0 | 4 |
+| tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 4 |
 | tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 |
 | tests/mapping/inheritance | 47 | 38 | 0 | 9 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2132** | 86 | 168 | 152 | 317 |
+| **total** | 2538 | **2134** | 86 | 166 | 152 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8443,8 +8443,6 @@ in-process Alloy-shaped path).
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: assertSameElements: expected [no, yes, no], got [no, no, no]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
-- ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
-- ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: Binder Error: Values list "t3" does not have a column named "PRODUCT_ID" |  | LINE 13: ) AS t3 ON t1.k1__PRODUCT_ID = t3.PRODUCT_ID |                                         ^
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
 - ERROR testGetAll [tests/mapping/inheritance]: unknown function 'genericType' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)

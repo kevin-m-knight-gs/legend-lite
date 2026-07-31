@@ -464,6 +464,12 @@ final class Pipelines {
                                 b, leftParam, prefixes, stripped,
                                 UnaryOperator.identity())).toList(),
                         condLam.info());
+                // GROUPED target (C1.7): the grouped derived table
+                // projects its KEY OUTPUT names (k<i>__<base> / claimed
+                // PM names), never the physical columns — target-side
+                // condition reads rename through the key map, symmetric
+                // to the normalizer's source-side renameGroupedNavCond.
+                cond = renameGroupedTargetReads(cond, targetPipeline);
                 Type.RelationType leftRow = (Type.RelationType) left.info().type();
                 Type.RelationType rightRow =
                         (Type.RelationType) targetPipeline.info().type();
@@ -682,6 +688,70 @@ final class Pipelines {
                     a.reduce(), a.orderKey(), a.orderAsc()));
         }
         return new TypedGroupBy(gSrc, gKeys, gAggs, g.info());
+    }
+
+    /**
+     * TARGET-SIDE grouped rename (C1.7): a navigation INTO a ~groupBy
+     * class binds on the grouped pipeline's OUTPUT columns. The key map
+     * recovers from the grouped keys' extraction lambdas (a bare
+     * physical read named to the key's output column); a condition read
+     * of a NON-KEY physical column is loud — a grouped set cannot be
+     * navigated on a non-key (the same rule the normalizer's source-side
+     * renameGroupedNavCond enforces). Non-grouped targets pass through.
+     */
+    private static TypedLambda renameGroupedTargetReads(TypedLambda cond,
+            TypedSpec targetPipeline) {
+        if (cond.parameters().size() != 2) {
+            return cond;
+        }
+        TypedSpec top = targetPipeline;
+        while (top instanceof TypedFilter f) {
+            top = f.source();
+        }
+        if (!(top instanceof TypedGroupBy g)) {
+            return cond;
+        }
+        Map<String, String> names = new LinkedHashMap<>();
+        Set<String> outputs = new LinkedHashSet<>();
+        for (TypedGroupBy.GroupKey k : g.keys()) {
+            outputs.add(k.column());
+            if (k.fn().isPresent() && k.fn().get().body().size() == 1
+                    && k.fn().get().body().get(0)
+                            instanceof TypedPropertyAccess pa
+                    && pa.source() instanceof
+                            com.legend.compiler.spec.typed.TypedVariable) {
+                names.put(pa.property(), k.column());
+            }
+        }
+        String tv = cond.parameters().get(1);
+        return new TypedLambda(cond.parameters(),
+                cond.body().stream().map(b ->
+                        renameTargetReads(b, tv, names, outputs)).toList(),
+                cond.info());
+    }
+
+    private static TypedSpec renameTargetReads(TypedSpec n, String tv,
+            Map<String, String> names, Set<String> outputs) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(tv)
+                && !outputs.contains(pa.property())) {
+            String renamed = names.get(pa.property());
+            if (renamed == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "navigation into a ~groupBy class binds on '"
+                        + pa.property() + "', which is not a ~groupBy key"
+                        + " — a grouped set cannot be navigated on a"
+                        + " non-key");
+            }
+            return new TypedPropertyAccess(pa.source(), renamed, pa.info());
+        }
+        // a nested lambda re-binding the target var shadows it — stop
+        if (n instanceof TypedLambda l && l.parameters().contains(tv)) {
+            return n;
+        }
+        return n.mapChildren(c -> renameTargetReads(c, tv, names, outputs));
     }
 
     /**
