@@ -284,3 +284,79 @@ overload (unread).
 - m2m2r/milestoned 0/7 (c21): executeLegendQuery overloads +
   graphFetch-over-m2m milestoned (legs #84/#81) + TargetProductMilestoned
   walls — leg-owned.
+
+## Validation family closed-out state (2026-07-31, cycles 28-29 — 19/23)
+
+Cycles 28-29 landed the L6 top bucket: filter-position to-many
+aggregates route through the agg demand registry (aggScanFilters feeds
+aggDemands ONLY — bare paths from filter bodies are DISCARDED, they
+belong to memberScan's implicit-EXISTS route), and filter-position
+demands emit the PARENT-COPY grouped subselect without a where
+(engine BuildCorrelatedSubQuery copies the root tree into the
+isolation subquery: firmTable's duplicate ID=1 rows double the
+aggregated collection — validateComplexValidation10's constraint8
+golden (1,1) pins the difference; the target-grouped shape saw 4
+distinct concat values and returned no violations). Position split at
+CorrelatedSubselects.splitAggGroups; projection demands on the same
+head keep the target-grouped shape.
+
+Remaining 4 (all ERROR walls, leg-owned):
+- validateComplexValidation2 (LegalEntity c2): `exists(...) ||
+  filter(e| $e.addresses.location.street == $this.address.location
+  .street)->isNotEmpty()` — filter-position TypedFilter whose predicate
+  reads an OUTER nav chain ($this.address.location.street). Needs the
+  correlated-EXISTS emission with outer-nav parent-copy inside the
+  exists subquery (Leg 1 isolation-chooser rung; the ExistsJoinForm/
+  exists machinery has no outer-nav channel yet).
+- validateComplexValidation3 (Firm c1): DOUBLY-nested filters over two
+  to-many navs (filter(a| ...employees.addresses->filter(b| $a.… ==
+  $b.…)->isNotEmpty())->isEmpty()) — nested correlated EXISTS where the
+  inner predicate correlates BOTH lambda vars. Same Leg-1 rung, one
+  level deeper (exists-in-exists with cross-correlation).
+- validateComplexValidation5 (Firm c3): full TDS pipeline INSIDE a
+  constraint (employees->project(...)->groupBy(...)->filter(...)->
+  tdsRows()->isEmpty()) — object-space TypedProject/TypedGroupBy over a
+  to-many nav in value position. A per-instance correlated TDS subquery
+  family of its own (engine builds a nested plan); not a spelling gap.
+- validateComplexValidation6 (Firm c4, mapping2): employeesAddresses =
+  @Firm_Person > (INNER) @Address_Person multi-hop join PM; the
+  value-position filter's leaf 'locationStreet' reads the target's own
+  join slot (Address ~filter INNER @Address_Location + locationStreet
+  via slot) — slot-demanding leaves under value-position filters
+  (chained-nav Leg #70 rung).
+
+## Cycle-30 bucket triage (2026-07-31)
+
+- aggregationAware/test/rewrite/NOP (5, one cause): all read
+  `$result.activities->filter(instanceOf AggregationAwareActivity)
+  .rewrittenQuery` — the Result frame's ROUTER-ACTIVITY surface. Our
+  frame has no activities => the collection lowers NULL =>
+  struct_extract(NULL) binder error. Needs: activities on the Result
+  surface + AggregationAwareActivity with the engine query-printer
+  rewrittenQuery text (' | [SCT_Main Class Wholesales].all();').
+  Router-metaprogramming family — leg-owned, not a spelling gap.
+- graphFetch alloyConfig (2): vocabulary is trivial (pure-source
+  overloads over ^AlloySerializationConfig) but BOTH corpus usages pass
+  includeObjectReference=true — the opaque store-reference token
+  envelope (H4/#84 machinery). Vocabulary alone gains 0; leg-owned.
+- graphFetch executeLegendQuery 4-arg (4): the queries are
+  PARAMETERIZED lambdas ({processingDate, businessDate | ...}) —
+  elqSplice only handles zero-arg. Extending the splice = bind pairs as
+  date lets; but the queries behind it are XStore graphFetch milestoned
+  (m2m2r/milestoned legs #84/#81) — they move to the next wall, gain 0
+  today. Splice extension worth doing WITH that leg.
+- tests/mapping/enumeration (4 FAILs): D
+  (testTdsProjectWithEnumToStringEqualityComparison) is a REAL value
+  bug: project->project(col(if(getEnum('Type') == 'FTE'...))) — the
+  first project ISOLATES (computed CASE decode), so the outer equal
+  sees a subselect column and EnumSourceValues.decodeInvert (which
+  already implements the engine's raw-compare rule, C1.4) cannot see
+  the chain. Engine folds both projects into ONE select (golden:
+  `case when "root".type = 'FTE' ...` — no subselect). Fix seam: fold
+  policy (resolveInto for computed cols consumed once?) OR typed-level
+  pre-lowering inversion. A/B/C (ProjectionWithEnumThroughAssociation,
+  IfWhereOneSideIsEnumLiteral, IfWhereBothSidesUseTheSameEnumMapping)
+  look like ROW-ORDER permutations of correct multisets (H2-vs-DuckDB
+  scan order) AND are H2-replay-blocked by the enum-decoded-column
+  Unverifiable arm — verify multiset equality per test, then either
+  in-SQL-decode unblocks replay or document as scan-order.

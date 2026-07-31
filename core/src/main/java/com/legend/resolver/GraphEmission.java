@@ -2600,7 +2600,8 @@ final class GraphEmission {
 
     static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
-                || !ni.classFqn().endsWith("AlloySerializationConfig")) {
+                || !"meta::pure::graphFetch::execution::AlloySerializationConfig"
+                        .equals(ni.classFqn())) {
             throw new NotImplementedException("serialize config of shape "
                     + cfg.getClass().getSimpleName() + " is not supported yet");
         }
