@@ -555,11 +555,29 @@ public final class ScanRelations {
      * underscores. Loud when the class maps ambiguously. */
     public static String[] rootImpl(ModelContext ctx, String mappingFqn,
             String classFqn) {
-        return rootImpl(ctx, mappingFqn, classFqn, 0);
+        return rootImpl(ctx, mappingFqn, classFqn, java.util.List.of());
     }
 
-    private static String[] rootImpl(ModelContext ctx, String mappingFqn,
-            String classFqn, int depth) {
+    /** {@code chainMappings}: ModelChainConnection mappings — the M2M2R
+     * surface; a ~src class unmapped in {@code mappingFqn} chases its
+     * relational set through them (engine chained-mapping resolution). */
+    public static String[] rootImpl(ModelContext ctx, String mappingFqn,
+            String classFqn, java.util.List<String> chainMappings) {
+        String[] r = rootImplOrNull(ctx, mappingFqn, classFqn, 0,
+                chainMappings);
+        if (r == null) {
+            throw new NotImplementedException("plan: no class mapping for '"
+                    + classFqn + "' under '" + mappingFqn + "'"
+                    + (chainMappings.isEmpty() ? ""
+                            : " or chain " + chainMappings));
+        }
+        return r;
+    }
+
+    private static String @com.legend.Nullable [] rootImplOrNull(
+            ModelContext ctx, String mappingFqn,
+            String classFqn, int depth,
+            java.util.List<String> chainMappings) {
         LegacyMappingDefinition md = mapping(ctx, mappingFqn);
         for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
             for (ClassMapping.Relational r : allClassMappings(m)) {
@@ -576,14 +594,24 @@ public final class ScanRelations {
         // an M2M (Pure) set: the physical identity follows ~src to the
         // UPSTREAM class's relational set (the H5 collapse — the plan's
         // db/table identity is the composed source's; max 4 hops, the
-        // corpus chains twice)
+        // corpus chains twice); the upstream class may live in THIS
+        // mapping or a CHAIN mapping (ModelChainConnection)
         if (depth < 4) {
             for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
                 for (com.legend.model.ClassMapping cm : m.classMappings()) {
                     if (cm instanceof ClassMapping.Pure pm
                             && typeMatches(pm.className(), classFqn)) {
-                        String[] up = rootImpl(ctx, mappingFqn,
-                                pm.sourceClass(), depth + 1);
+                        String[] up = rootImplOrNull(ctx, mappingFqn,
+                                pm.sourceClass(), depth + 1, chainMappings);
+                        for (int i = 0; up == null
+                                && i < chainMappings.size(); i++) {
+                            up = rootImplOrNull(ctx, chainMappings.get(i),
+                                    pm.sourceClass(), depth + 1,
+                                    java.util.List.of());
+                        }
+                        if (up == null) {
+                            return null;
+                        }
                         // 5th element marks the M2M chase: the plan's TDS
                         // tuple types spell PURE defaults, not the
                         // physical columns (the M2M layer erases them —
@@ -594,8 +622,7 @@ public final class ScanRelations {
                 }
             }
         }
-        throw new NotImplementedException("plan: no class mapping for '"
-                + classFqn + "' under '" + mappingFqn + "'");
+        return null;
     }
 
     /** Whether {@code name} is a VIEW of {@code db} (include closure). */

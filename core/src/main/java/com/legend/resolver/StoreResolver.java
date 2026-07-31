@@ -142,11 +142,22 @@ public final class StoreResolver {
     public List<TypedSpec> resolve(List<TypedSpec> body,
             @com.legend.Nullable String driverRuntimeFqn,
             @com.legend.Nullable String explicitMappingFqn) {
+        return resolve(body, driverRuntimeFqn, explicitMappingFqn,
+                List.of());
+    }
+
+    /** {@code chainMappings}: ModelChainConnection mapping FQNs from the
+     * DRIVER runtime (the M2M2R plan surface — the execute path threads
+     * them via TypedFrom; plan-text paths pass them here). */
+    public List<TypedSpec> resolve(List<TypedSpec> body,
+            @com.legend.Nullable String driverRuntimeFqn,
+            @com.legend.Nullable String explicitMappingFqn,
+            List<String> chainMappings) {
         // LAZY: runtime consulted only when a class fetch needs a
         // mapping; a pure relation query must not consult it
         // fail (the corpus's date-literal regression).
         Context context = explicitMappingFqn != null
-                ? new Context(explicitMappingFqn, null)
+                ? new Context(explicitMappingFqn, null, chainMappings)
                 : driverRuntimeFqn == null ? Context.NONE
                 : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
@@ -257,7 +268,7 @@ public final class StoreResolver {
     /** if() over class queries: the condition must be STATICALLY
      * decidable — the chosen branch's thunk body resolves. */
     private @com.legend.Nullable TypedSpec resolveStaticIf(TypedIf i, Context context) {
-        Boolean cond = staticBool(i.condition());
+        Boolean cond = LiteralFolds.staticBool(i.condition());
         if (cond == null) {
             throw new NotImplementedException("class query under if()"
                     + " with a runtime condition is not resolvable yet");
@@ -265,7 +276,7 @@ public final class StoreResolver {
         TypedSpec branch = cond ? i.thenBranch()
                 : i.elseBranch().orElseThrow(() -> new NotImplementedException(
                         "class query under if() without an else branch"));
-        return resolveNode(unthunk(branch), context);
+        return resolveNode(LiteralFolds.unthunk(branch), context);
     }
 
     /**
@@ -1184,51 +1195,6 @@ public final class StoreResolver {
     }
 
     /** Statically decide an if() condition, or null when genuinely runtime. */
-    private static @com.legend.Nullable Boolean staticBool(TypedSpec cond) {
-        return switch (cond) {
-            case TypedCBoolean b -> b.value();
-            case TypedNativeCall c when c.args().size() == 2
-                    && (EQUAL_FQN.equals(c.callee().qualifiedName())
-                            || EQ_FQN.equals(c.callee().qualifiedName())) -> {
-                Object l = literalValue(c.args().get(0));
-                Object r = literalValue(c.args().get(1));
-                yield l == null || r == null ? null : (Boolean) literalEquals(l, r);
-            }
-            default -> null;
-        };
-    }
-
-    private static @com.legend.Nullable Object literalValue(TypedSpec n) {
-        return switch (n) {
-            case TypedCBoolean b -> b.value();
-            case TypedCInteger i -> i.value();
-            case TypedCFloat f -> f.value();
-            case TypedCString st -> st.value();
-            default -> null;
-        };
-    }
-
-    /**
-     * Literal equality with SQL's semantics: NUMBERS compare numerically
-     * (1 == 1.0 — SQL '=' would say true, so the fold must too; audit),
-     * cross-kind value/string is a plain equals.
-     */
-    private static boolean literalEquals(Object l, Object r) {
-        if (l instanceof Number ln && r instanceof Number rn) {
-            return new java.math.BigDecimal(ln.toString())
-                    .compareTo(new java.math.BigDecimal(rn.toString())) == 0;
-        }
-        return l.equals(r);
-    }
-
-    /** An if() branch is a zero-arg thunk; its single body statement is the value. */
-    private static TypedSpec unthunk(TypedSpec branch) {
-        if (branch instanceof TypedLambda l && l.parameters().isEmpty()
-                && l.body().size() == 1) {
-            return l.body().get(0);
-        }
-        return branch;
-    }
 
     /** Anchor reachability, memoized per pass — see {@link Anchors}. */
     private final Anchors anchors = new Anchors();

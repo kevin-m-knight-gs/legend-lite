@@ -413,11 +413,26 @@ final class StatementExecutor {
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
+        return engineSql(raw, mappingFqn, specs, env, renderer, planParams,
+                tableRenames, java.util.List.of());
+    }
+
+    /** {@code chainMappings}: ModelChainConnection mappings from the plan
+     * surface's runtime argument (M2M2R — ~src classes resolve through
+     * them). */
+    private static EngineSql engineSql(java.util.List<TypedSpec> raw,
+            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            ExecEnv env,
+            com.legend.sql.dialect.EngineStyleH2 renderer,
+            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
+                    planParams,
+            java.util.function.UnaryOperator<String> tableRenames,
+            java.util.List<String> chainMappings) {
         java.util.List<TypedSpec> body =
                 new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(raw);
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                .resolve(body, env.runtimeFqn(), mappingFqn);
+                .resolve(body, env.runtimeFqn(), mappingFqn, chainMappings);
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
@@ -550,16 +565,20 @@ final class StatementExecutor {
                     "planToString: no getAll root (multi-node plans"
                     + " pending)");
         }
+        java.util.List<String> chainMaps = rtArg != null
+                ? com.legend.compiler.spec.typed.TypedFrom
+                        .chainMappingsIn(rtArg)
+                : java.util.List.of();
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
                 planDialect(dbType, quote, tz), java.util.Map.of(),
-                java.util.function.UnaryOperator.identity());
+                java.util.function.UnaryOperator.identity(), chainMaps);
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
                         mappingFqn, es.plan(), es.sql(),
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName),
+                        lam.body(), connName, chainMaps),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 

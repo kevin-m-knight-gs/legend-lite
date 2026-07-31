@@ -43,8 +43,19 @@ public final class PlanText {
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             @com.legend.Nullable String connectionName) {
+        return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
+                connectionName, java.util.List.of());
+    }
+
+    /** {@code chainMappings}: ModelChainConnection mappings (M2M2R) —
+     * the root set's physical identity may chase through them. */
+    public static String single(ModelContext ctx, String rootClassFqn,
+            String mappingFqn, SqlQuery plan, String sql,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
+            @com.legend.Nullable String connectionName,
+            java.util.List<String> chainMappings) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
-                rootClassFqn);
+                rootClassFqn, chainMappings);
         return "Relational\n(\n"
                 + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
                 + "  resultColumns = [" + resultColumns(ctx, impl[2], plan)

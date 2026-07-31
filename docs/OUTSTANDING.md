@@ -6,8 +6,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: family dir x current stage
 
--   33  executionPlan/tests  ::  rows-differ
--   13  executionPlan/tests  ::  harness-shape
+-   36  executionPlan/tests  ::  rows-differ
 -   11  pureToSQLQuery/tests  ::  harness-shape
 -   11  tests  ::  harness-shape
 -   10  functions/tests  ::  rows-differ
@@ -16,6 +15,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    9  milestoning/tests  ::  harness-shape
 -    8  executionPlan/tests  ::  other
 -    8  tds/tests  ::  harness-shape
+-    7  executionPlan/tests  ::  harness-shape
 -    7  functions/tests  ::  platform-surface
 -    7  transform/fromPure/tests  ::  harness-shape
 -    7  validation/tests  ::  resolve
@@ -140,13 +140,13 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   35  golden-sql+row-assert  ::  ERROR
 -   29  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
--   25  row-assert+plan-assert  ::  SHAPE
+-   24  row-assert+plan-assert  ::  SHAPE
 -   20  golden-sql+row-assert  ::  SHAPE
 -   19  golden-sql+row-assert  ::  FAIL
 -   13  row-assert+plan-assert  ::  ERROR
 -   13  ?  ::  SHAPE
--   12  row-assert+plan-assert+graph  ::  SHAPE
 -   10  row-assert+plan-assert  ::  FAIL
+-   10  row-assert+plan-assert+graph  ::  SHAPE
 -   10  row-assert+constraints  ::  ERROR
 -    9  row-assert+lineage  ::  SHAPE
 -    5  golden-sql+row-assert+plan-assert  ::  FAIL
@@ -175,9 +175,9 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  290  Test
+-  289  Test
 -   43  Test, AlloyOnly
--   32  meta::pure::profiles::Test
+-   30  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
 -    5  ?
 -    1  meta::pure::profiles::Test, AlloyOnly
@@ -219,11 +219,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | FAIL | executionPlan/tests | executionPlanTest.pure | testGroupByWithTwoOpenVariablesInAggAndFilter | rows-differ | golden-sql+row-assert+plan-assert | Test | assertEquals: expected Sequence\n(\n  type = TDS[(Sales Division, String, VARCHAR(30), ""), (Income  |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testMapWithOpenVariable | rows-differ | row-assert+plan-assert | Test | assertEquals: expected Sequence\n(\n  type = Integer\n  resultSizeRange = *\n  (\n    Allocation\n   |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testMapWithOpenVariableOutsideBlock | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: object-space expression node TypedNew |
-| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionAgg | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class 'meta::pure::mapping::modelToMo |
-| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionDeepFunction | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: unknown mapping 'meta::pure::mapping: |
+| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionAgg | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: model-to-model binding of 'meta::pure |
+| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionDeepFunction | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: model-to-model binding of 'meta::pure |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionJoin | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class 'meta::pure::mapping::modelToMo |
-| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionMultipleAgg | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class 'meta::pure::mapping::modelToMo |
-| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionSimple | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class 'meta::pure::mapping::modelToMo |
+| SHAPE | executionPlan/tests | executionPlanTest.pure | testModelConnectionMultipleAgg | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: model-to-model binding of 'meta::pure |
 | ERROR | executionPlan/tests | executionPlanTest.pure | testPlanForExecutionOption | platform-surface | row-assert+plan-assert | Test | unknown class 'ExecutionOptionContext' in ^ExecutionOptionContext(…) |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testPlanGenerationForMultipleExpressionsWithPropertyPath | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: plan: struct extraction has no engine |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testPlanWithLocalH2ConnectionWithSQL | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLE |
@@ -243,12 +242,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | executionPlan/tests | executionPlanTest.pure | twoDBRenameColumns | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
 | ERROR | executionPlan/tests | executionPlanTest.pure | withPlatform | other | row-assert+plan-assert | Test | LIST_AGG reached a dialect without a list encoding |
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | executeProjectWithNestedDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
-| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planGraphFetchWithDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call [calls meta::pure::graphFetch::execution] |
-| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planGraphFetchWithNestedDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call [calls meta::pure::graphFetch::execution] |
-| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
-| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithDerivedProperty1 | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
-| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
-| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedProperty | harness-shape | row-assert+plan-assert | meta::pure::profiles::Test | no execute(\|...) call |
+| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planGraphFetchWithDerivedProperty | rows-differ | row-assert+plan-assert+graph | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is  |
+| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planGraphFetchWithNestedDerivedProperty | rows-differ | row-assert+plan-assert+graph | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is  |
+| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedDerivedProperty | rows-differ | row-assert+plan-assert+graph | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: navigation '$x.details.firstName' cro |
+| SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedProperty | rows-differ | row-assert+plan-assert | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: navigation '$x.details.firstName' cro |
 | FAIL | functions/tests | testConcatenate.pure | testConcatenateFlatWithOtherProperty | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [1, 1, 2, 2], got [1, 2] |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateInQualifierWithComplexReturnType | other | golden-sql+row-assert | Test | class-typed property '$p.address' used as a whole value is graph output (Phase H4) |
 | ERROR | functions/tests | testConcatenate.pure | testQualifierConcatenateTwoSimilarJoins | other | golden-sql+row-assert | Test | extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' re |

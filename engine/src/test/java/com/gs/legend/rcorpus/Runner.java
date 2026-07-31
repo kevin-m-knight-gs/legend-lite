@@ -537,7 +537,17 @@ public final class Runner {
                                 "generateSeedDataString", "executionPlan")
                             .noneMatch(v -> fd2.body().stream()
                                 .anyMatch(b -> containsCallNamed(b, v)));
-                if (pairIdiom || singleExecute || executeTerminal) {
+                // PLAN-SURFACE wrapper (m2m2r planToString helper:
+                // executionPlan(q, m, rt, ext)->planToString(ext) as the
+                // single body expression) — expanding exposes the
+                // executionPlan shape executeMappingRefs recognizes
+                boolean planChain = fd2 != null && fd2.body().size() == 1
+                        && containsCallNamed(fd2.body().get(0),
+                                "executionPlan")
+                        && containsCallNamed(fd2.body().get(0),
+                                "planToString");
+                if (pairIdiom || singleExecute || executeTerminal
+                        || planChain) {
                     callee = fd2;
                     call = af2;
                     letName = ln0.value();
@@ -706,7 +716,16 @@ public final class Runner {
                         && af.parameters().size() == 2
                         && af.parameters().get(0)
                                 instanceof com.legend.model.spec.CString ln) {
-                    lets.put(ln.value(), af.parameters().get(1));
+                    com.legend.model.spec.ValueSpecification rhs =
+                            af.parameters().get(1);
+                    // a β-expansion prologue rebinding (let mapping =
+                    // $mapping) must not shadow the POINTER the caller
+                    // bound — chase Variable RHS through current lets
+                    if (rhs instanceof com.legend.model.spec.Variable rv
+                            && lets.containsKey(rv.name())) {
+                        rhs = lets.get(rv.name());
+                    }
+                    lets.put(ln.value(), rhs);
                 }
                 String simple = af.function()
                         .substring(af.function().lastIndexOf(':') + 1);
