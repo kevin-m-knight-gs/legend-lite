@@ -302,7 +302,8 @@ final class GraphEmission {
                 }
                 if (gen == null) {
                     throw new MappingResolutionException("property '"
-                            + node.property() + "' of class '" + cs.classFqn()
+                            + SyntheticHeads.displayName(node.property())
+                            + "' of class '" + cs.classFqn()
                             + "' is not mapped in mapping '" + cs.mappingFqn()
                             + "'", cs.classFqn());
                 }

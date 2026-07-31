@@ -333,6 +333,9 @@ final class StatementExecutor {
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                     .withLetBindings(env.queryLets())
                     .resolve(body, env.runtimeFqn());                     // Phase H
+            // C2.2: stores bound to DIFFERENT connections cannot share
+            // the one session connection — wall, never wrong-database rows
+            CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
             if (env.addDriverTablePk()) {
                 // the engine's addDriverTablePkForProject option (#45):
                 // projections gain driver-table PK columns; non-projection

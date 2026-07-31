@@ -951,7 +951,8 @@ final class AssociationJoins {
             demandedLeaves = withPredLeaves;
         }
         var assoc = ctx.findAssociationOf(cs.classFqn(), real).orElseThrow(() ->
-                new MappingResolutionException("property '" + real + "' of class '"
+                new MappingResolutionException("property '"
+                        + SyntheticHeads.displayName(real) + "' of class '"
                         + cs.classFqn() + "' is not mapped in mapping '"
                         + cs.mappingFqn() + "'", cs.classFqn()));
         // The end from the SAME association object — a separate index lookup

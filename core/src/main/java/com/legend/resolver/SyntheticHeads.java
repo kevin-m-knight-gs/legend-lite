@@ -916,8 +916,22 @@ final class SyntheticHeads {
     }
 
     /** A synthetic head's underlying property name ({@code product#f0} /
-     * {@code product#d1} → {@code product}); identity for ordinary heads. */
+     * {@code product#d1} → {@code product}); identity for ordinary heads.
+     * DISPATCH-participating (Substitution's identity checks) — never
+     * widen its vocabulary; message spelling belongs to
+     * {@link #displayName}. */
     static String realHead(String head) {
+        return JoinIdentity.of(head).prop();
+    }
+
+    /** MESSAGE-ONLY spelling of a head: strips the {@code #fN}/{@code #dN}
+     * synthetics AND the subtype-dispatch {@code stc_..___} prefix (§2
+     * hygiene — no internal identifier reaches a user-facing message).
+     * Never consulted by dispatch. */
+    static String displayName(String head) {
+        if (com.legend.model.ClassMapping.isSubTypeColumn(head)) {
+            return head.substring(head.indexOf("___") + 3);
+        }
         return JoinIdentity.of(head).prop();
     }
 
