@@ -571,8 +571,13 @@ final class StatementExecutor {
                 : null;
         boolean quote = rtArg != null && quoteIdentifiersOf(rtArg);
         String tz = rtArg != null ? timeZoneOf(rtArg) : null;
+        String fromConn = rtArg == null
+                ? firstFromConnectionName(
+                        lam.body().get(lam.body().size() - 1))
+                : null;
         String connName = rtArg != null
                 ? connectionNameOf(rtArg)
+                : fromConn != null ? fromConn
                 : "TestDatabaseConnection(type = \"H2\")";
         String dbType = rtArg != null ? databaseTypeOf(rtArg) : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1) {
@@ -603,6 +608,23 @@ final class StatementExecutor {
                         // (post-H everything is a relation)
                         lam.body(), connName, chainMaps),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** Pre-order search for the first {@code TypedFrom} carrying a
+     * connection-name hint (instance-runtime from()). */
+    private static @com.legend.Nullable String firstFromConnectionName(
+            com.legend.compiler.spec.typed.TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
+                && fr.connectionName() != null) {
+            return fr.connectionName();
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : t.children()) {
+            String r = firstFromConnectionName(c);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
     }
 
     /** Pre-order search for the first {@code TypedFrom} carrying

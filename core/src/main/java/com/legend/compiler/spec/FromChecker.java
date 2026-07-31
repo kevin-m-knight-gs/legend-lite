@@ -27,6 +27,7 @@ final class FromChecker {
         Application a = t.checkGeneric(af, env);
         List<TypedPackageableRef> refs = new ArrayList<>(a.args().size() - 1);
         List<String> chainMappings = new ArrayList<>();
+        String connectionName = null;
         java.util.Map<String, String> jsonSources =
                 new java.util.LinkedHashMap<>();
         for (int i = 1; i < a.args().size(); i++) {
@@ -55,6 +56,10 @@ final class FromChecker {
                 chainMappings.addAll(TypedFrom.chainMappingsIn(
                         a.args().get(i)));
                 jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i)));
+                if (connectionName == null) {
+                    connectionName = TypedFrom.connectionNameIn(
+                            a.args().get(i));
+                }
                 continue;
             }
             throw new TypeInferenceException("from() argument " + i
@@ -89,7 +94,7 @@ final class FromChecker {
         }
         return new TypedFrom(src, mapping, runtime,
                 List.copyOf(chainMappings),
-                java.util.Map.copyOf(jsonSources), a.out());
+                java.util.Map.copyOf(jsonSources), connectionName, a.out());
     }
 
     private static void collectMappingRefs(TypedSpec n,

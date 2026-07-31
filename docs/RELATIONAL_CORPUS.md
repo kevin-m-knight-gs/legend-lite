@@ -25,7 +25,7 @@ in-process Alloy-shaped path).
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
 | milestoning/tests | 224 | 207 | 5 | 2 | 10 | 42 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
-| modelToModelToRelational | 5 | 2 | 2 | 0 | 1 | 0 |
+| modelToModelToRelational | 5 | 4 | 0 | 0 | 1 | 0 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2162** | 77 | 163 | 136 | 293 |
+| **total** | 2538 | **2164** | 75 | 163 | 136 | 293 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8291,8 +8291,6 @@ in-process Alloy-shaped path).
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::relational::modelJoins::test::getNoStoreRuntime': unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument shapes pending
-- FAIL testProp2 [modelToModelToRelational]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop2, String, VARCHAR(8192), "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop2", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".description like '%RECEIVE CASH%' then 'Cash' else 'Stock' end as "prop2" from S.sourceEntitlement as "root" left outer join S.SourceAnnouncement as "sourceannouncement_0" on ("root".id = "sourceannouncement_0".id)\n  connection = RelationalDatabaseConnection(type = "H2")\n)\n, got Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop2, String, VARCHAR(8192), "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop2", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".description like '%RECEIVE CASH%' then 'Cash' else 'Stock' end as "prop2" from S.sourceEntitlement as "root" left outer join S.SourceAnnouncement as "sourceannouncement_0" on ("root".id = "sourceannouncement_0".id)\n  connection = TestDatabaseConnection(type = "H2")\n)\n
-- FAIL testProp3 [modelToModelToRelational]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop3", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".basis = 0.0 then 0.0 else (((1.0 * "root".entitledQuantity) / "sourceannouncement_0".basis) * "sourceannouncement_0".grossRate) end as "prop3" from S.sourceEntitlement as "root" left outer join S.SourceAnnouncement as "sourceannouncement_0" on ("root".id = "sourceannouncement_0".id)\n  connection = RelationalDatabaseConnection(type = "H2")\n)\n, got Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop3", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".basis = 0.0 then 0.0 else (((1.0 * "root".entitledQuantity) / "sourceannouncement_0".basis) * "sourceannouncement_0".grossRate) end as "prop3" from S.sourceEntitlement as "root" left outer join S.SourceAnnouncement as "sourceannouncement_0" on ("root".id = "sourceannouncement_0".id)\n  connection = TestDatabaseConnection(type = "H2")\n)\n
 - SHAPE testProp4 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::executionPlan::executionPlan' matches the argument types
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)

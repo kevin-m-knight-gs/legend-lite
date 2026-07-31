@@ -38,7 +38,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  functions/tests/projection  ::  typer
 -    3  functions/tests/projection  ::  harness-shape
 -    3  graphFetch/tests  ::  normalize(mapping)
--    3  modelToModelToRelational  ::  rows-differ
 -    3  modelToModelToRelational/milestoned  ::  typer
 -    3  postprocessor/tests  ::  other
 -    3  sqlQueryToString/DDL  ::  harness-shape
@@ -97,6 +96,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  graphFetch/tests/union  ::  platform-surface
 -    1  lineage/scanColumns  ::  normalize(mapping)
 -    1  modelJoins  ::  harness-shape
+-    1  modelToModelToRelational  ::  rows-differ
 -    1  postprocessor/tests  ::  typer
 -    1  router/tests  ::  rows-differ
 -    1  router/tests  ::  resolve
@@ -145,12 +145,12 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   19  golden-sql+row-assert  ::  FAIL
 -   13  row-assert+plan-assert  ::  ERROR
 -   13  ?  ::  SHAPE
--   11  row-assert+plan-assert  ::  FAIL
+-   10  row-assert+plan-assert  ::  FAIL
 -   10  row-assert+constraints  ::  ERROR
 -    9  row-assert+plan-assert+graph  ::  SHAPE
 -    9  row-assert+lineage  ::  SHAPE
--    5  golden-sql+row-assert+plan-assert  ::  FAIL
 -    5  row-assert+plan-assert+graph  ::  FAIL
+-    4  golden-sql+row-assert+plan-assert  ::  FAIL
 -    4  row-assert+graph  ::  SHAPE
 -    4  golden-sql+row-assert+constraints  ::  ERROR
 -    3  plan-assert  ::  SHAPE
@@ -177,7 +177,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 -  289  Test
 -   43  Test, AlloyOnly
--   28  meta::pure::profiles::Test
+-   26  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
 -    5  ?
 -    1  meta::pure::profiles::Test, AlloyOnly
@@ -355,8 +355,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testModelJoinForNonRelationalConcepts | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::r |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingFromProject | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument sha |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingProject | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
-| FAIL | modelToModelToRelational | m2m2rShowcase.pure | testProp2 | rows-differ | row-assert+plan-assert | meta::pure::profiles::Test | assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop2, String |
-| FAIL | modelToModelToRelational | m2m2rShowcase.pure | testProp3 | rows-differ | golden-sql+row-assert+plan-assert | meta::pure::profiles::Test | assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number |
 | SHAPE | modelToModelToRelational | m2m2rShowcase.pure | testProp4 | rows-differ | row-assert+plan-assert | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::execution |
 | ERROR | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaAllVersionsMapping | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidat |
 | ERROR | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaHardcodedDateMapping | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidat |

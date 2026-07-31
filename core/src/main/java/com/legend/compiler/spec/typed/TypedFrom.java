@@ -24,17 +24,127 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                         Optional<TypedPackageableRef> runtime,
                         List<String> chainMappings,
                         java.util.Map<String, String> jsonSources,
+                        @com.legend.Nullable String connectionName,
                         ExprType info) implements TypedSpec {
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime, ExprType info) {
-        this(source, mapping, runtime, List.of(), java.util.Map.of(), info);
+        this(source, mapping, runtime, List.of(), java.util.Map.of(), null,
+                info);
     }
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime,
                      List<String> chainMappings, ExprType info) {
-        this(source, mapping, runtime, chainMappings, java.util.Map.of(), info);
+        this(source, mapping, runtime, chainMappings, java.util.Map.of(),
+                null, info);
+    }
+
+    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
+                     Optional<TypedPackageableRef> runtime,
+                     List<String> chainMappings,
+                     java.util.Map<String, String> jsonSources,
+                     ExprType info) {
+        this(source, mapping, runtime, chainMappings, jsonSources, null,
+                info);
+    }
+
+    /** The plan-text CONNECTION SPELLING of the first connection instance
+     * under an INSTANCE-runtime expression ({@code
+     * RelationalDatabaseConnection(type = "H2")}) — null when no instance
+     * connection appears (ref runtimes; the plan surface falls back to
+     * TestDatabaseConnection). Exact-FQN dispatch. */
+    public static @com.legend.Nullable String connectionNameIn(TypedSpec n) {
+        if (n instanceof TypedNewInstance ni) {
+            String simple = switch (ni.classFqn()) {
+                case "meta::external::store::relational::runtime"
+                        + "::DatabaseConnection" -> "DatabaseConnection";
+                case "meta::external::store::relational::runtime"
+                        + "::RelationalDatabaseConnection" ->
+                        "RelationalDatabaseConnection";
+                case "meta::external::store::relational::runtime"
+                        + "::TestDatabaseConnection" ->
+                        "TestDatabaseConnection";
+                default -> null;
+            };
+            if (simple != null) {
+                String db = ni.properties().get("type") instanceof
+                        TypedEnumValue ev ? String.valueOf(ev.value()) : "H2";
+                return simple + "(type = \"" + db + "\")";
+            }
+        }
+        // HELPER-CONSTRUCTED runtimes (from(testRuntimeXY())): the
+        // instance lives in the callee's RAW body — chase it at parse
+        // level (bare + FQN spellings, the RelationalDebugContext-gate
+        // convention)
+        if (n instanceof TypedUserCall uc
+                && uc.callee().body().isPresent()) {
+            for (com.legend.model.spec.ValueSpecification b
+                    : uc.callee().body().get()) {
+                String r = rawConnectionNameIn(b);
+                if (r != null) {
+                    return r;
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            String r = connectionNameIn(c);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    private static @com.legend.Nullable String rawConnectionNameIn(
+            com.legend.model.spec.ValueSpecification n) {
+        if (n instanceof com.legend.model.spec.NewInstance ni) {
+            String cn = ni.className();
+            String simple = switch (cn) {
+                case "DatabaseConnection",
+                        "meta::external::store::relational::runtime"
+                        + "::DatabaseConnection" -> "DatabaseConnection";
+                case "RelationalDatabaseConnection",
+                        "meta::external::store::relational::runtime"
+                        + "::RelationalDatabaseConnection" ->
+                        "RelationalDatabaseConnection";
+                case "TestDatabaseConnection",
+                        "meta::external::store::relational::runtime"
+                        + "::TestDatabaseConnection" ->
+                        "TestDatabaseConnection";
+                default -> null;
+            };
+            if (simple != null) {
+                com.legend.model.spec.KeyExpression ke =
+                        ni.properties().get("type");
+                String db = ke != null && ke.value()
+                        instanceof com.legend.model.spec.EnumValue ev
+                        ? ev.value() : "H2";
+                return simple + "(type = \"" + db + "\")";
+            }
+        }
+        java.util.List<com.legend.model.spec.ValueSpecification> kids =
+                switch (n) {
+                    case com.legend.model.spec.AppliedFunction af ->
+                            af.parameters();
+                    case com.legend.model.spec.NewInstance ni2 ->
+                            ni2.properties().values().stream()
+                                    .map(com.legend.model.spec
+                                            .KeyExpression::value)
+                                    .toList();
+                    case com.legend.model.spec.PureCollection pc ->
+                            pc.values();
+                    case com.legend.model.spec.LambdaFunction lf ->
+                            lf.body();
+                    default -> java.util.List.of();
+                };
+        for (com.legend.model.spec.ValueSpecification c : kids) {
+            String r = rawConnectionNameIn(c);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
     }
 
     /** class FQN -> data: URL payload for every
@@ -148,6 +258,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         java.util.Optional<TypedPackageableRef> r = runtime.isPresent()
                 ? java.util.Optional.of((TypedPackageableRef) kids.get(i))
                 : java.util.Optional.empty();
-        return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources, info);
+        return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources,
+                connectionName, info);
     }
 }
