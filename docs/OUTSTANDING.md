@@ -6,7 +6,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: family dir x current stage
 
--   34  executionPlan/tests  ::  rows-differ
+-   33  executionPlan/tests  ::  rows-differ
 -   11  pureToSQLQuery/tests  ::  harness-shape
 -   11  tests  ::  harness-shape
 -   10  functions/tests  ::  rows-differ
@@ -30,7 +30,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    4  postprocessor/tests  ::  harness-shape
 -    4  testDataGeneration/tests  ::  rows-differ
 -    4  tests/advanced  ::  other
--    4  tests/mapping/enumeration  ::  rows-differ
 -    4  tests/mapping/inheritance  ::  normalize(mapping)
 -    3  functions/tests/projection  ::  resolve
 -    3  functions/tests/projection  ::  typer
@@ -47,11 +46,11 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  tests/mapping/embedded  ::  other
 -    3  tests/mapping/embedded  ::  resolve
 -    3  tests/mapping/enumeration  ::  harness-shape
+-    3  tests/mapping/enumeration  ::  rows-differ
 -    3  tests/mapping/inheritance  ::  platform-surface
 -    3  tests/mapping/modelJoin  ::  normalize(mapping)
 -    3  tests/mapping/relation  ::  rows-differ
 -    3  tests/mapping/union  ::  normalize(mapping)
--    3  transform/fromPure/tests  ::  rows-differ
 -    3  transform/fromPure/tests  ::  render(DB2)
 -    3  transform/fromPure/tests  ::  other
 -    3  validation/showcase  ::  other
@@ -81,6 +80,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  tests/mapping/selfJoin  ::  rows-differ
 -    2  tests/mapping/tree  ::  rows-differ
 -    2  tests/query  ::  typer
+-    2  transform/fromPure/tests  ::  rows-differ
 -    1  autogeneration/tests  ::  harness-shape
 -    1  executionPlan/tests  ::  platform-surface
 -    1  executionPlan/tests  ::  typer
@@ -137,14 +137,14 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   64  row-assert  ::  ERROR
 -   44  row-assert  ::  SHAPE
 -   35  golden-sql+row-assert  ::  ERROR
--   29  row-assert  ::  FAIL
+-   28  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
 -   21  row-assert+plan-assert  ::  SHAPE
 -   20  golden-sql+row-assert  ::  SHAPE
--   19  golden-sql+row-assert  ::  FAIL
+-   18  golden-sql+row-assert  ::  FAIL
 -   13  row-assert+plan-assert  ::  ERROR
 -   12  ?  ::  SHAPE
--   10  row-assert+plan-assert  ::  FAIL
+-    9  row-assert+plan-assert  ::  FAIL
 -    9  row-assert+plan-assert+graph  ::  SHAPE
 -    9  row-assert+lineage  ::  SHAPE
 -    6  row-assert+constraints  ::  ERROR
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  282  Test
+-  279  Test
 -   43  Test, AlloyOnly
 -   25  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -237,7 +237,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTemporalDateVariableInFunctionExpressionWithPropagation | rows-differ | golden-sql+row-assert+plan-assert | Test | assertEquals: expected select "productexchangetable_0".name as "exchangeName" from ProductTable as " |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTwoMappingsOneRuntime | rows-differ | row-assert+plan-assert | Test | assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalName |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTwoMappingsOneRuntimeWithoutExternalMapping | rows-differ | row-assert+plan-assert | Test | assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalName |
-| FAIL | executionPlan/tests | executionPlanTest.pure | testTypedTDSWithEnumFilter | rows-differ | row-assert+plan-assert | Test | assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root"  |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testViewToTDS | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToT |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | twoDBRenameColumns | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
 | ERROR | executionPlan/tests | executionPlanTest.pure | withPlatform | other | row-assert+plan-assert | Test | LIST_AGG reached a dialect without a list encoding |
@@ -479,7 +478,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | FAIL | tests/mapping/enumeration | testEnumerationMapping.pure | testProjectWithIfWhereBothSidesUseTheSameEnumMapping | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP] |
 | FAIL | tests/mapping/enumeration | testEnumerationMapping.pure | testProjectWithIfWhereOneSideIsEnumLiteral | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER] |
 | FAIL | tests/mapping/enumeration | testEnumerationMapping.pure | testProjectionWithEnumThroughAssociation | rows-differ | row-assert | Test | assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true] |
-| FAIL | tests/mapping/enumeration | testEnumerationMapping.pure | testTdsProjectWithEnumToStringEqualityComparison | rows-differ | golden-sql+row-assert | Test | assertSameElements: expected [no, yes, no], got [no, no, no] |
 | FAIL | tests/mapping/filter | testFilterMappingTree.pure | testFilterMappingWithProjectionOverlapp | rows-differ | row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
 | SHAPE | tests/mapping/include | testStoreSubstitution.pure | testStoreSubstitution | harness-shape | ? | Test | no execute(\|...) call |
 | ERROR | tests/mapping/inheritance | testInheritanceRelational.pure | testEmbeddMappingInSubTypes | normalize(mapping) | row-assert | Test | class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relatio |
@@ -539,7 +537,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testSqlGenerationForAdjustStrictDateUsageInProjectionForH2 | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringForTDSStringJoin | other | row-assert | Test | LIST_AGG reached a dialect without a list encoding |
 | FAIL | transform/fromPure/tests | testToSQLString.pure | testToSQLStringJoinStrings | rows-differ | golden-sql+row-assert | Test | assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTN |
-| FAIL | transform/fromPure/tests | testToSQLString.pure | testToSQLStringSplitPart | rows-differ | row-assert | Test | assertEquals: expected select legend_h2_extension_split_part(legend_h2_extension_split_part("root".F |
 | ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithAbs | platform-surface | golden-sql+row-assert | Test | 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is  |
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithAggregation | harness-shape | row-assert | Test | no execute(\|...) call [calls meta::relational::tests::functions::sqlstring] |
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithCodeBlock | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |

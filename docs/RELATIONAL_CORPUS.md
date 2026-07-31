@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 | 1 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 58 | 16 | 11 | 25 | 0 |
+| executionPlan/tests | 110 | 59 | 15 | 11 | 25 | 0 |
 | functions/tests | 258 | 227 | 8 | 18 | 5 | 80 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 132 | 6 | 14 | 3 | 1 |
@@ -49,7 +49,7 @@ in-process Alloy-shaped path).
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
 | tests/mapping/embedded | 63 | 55 | 1 | 7 | 0 | 0 |
-| tests/mapping/enumeration | 26 | 17 | 4 | 2 | 3 | 0 |
+| tests/mapping/enumeration | 26 | 18 | 3 | 2 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
 | tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 |
@@ -72,10 +72,10 @@ in-process Alloy-shaped path).
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/query | 83 | 73 | 1 | 8 | 1 | 37 |
-| transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
+| transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2172** | 76 | 156 | 134 | 293 |
+| **total** | 2538 | **2175** | 73 | 156 | 134 | 293 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8175,7 +8175,6 @@ in-process Alloy-shaped path).
 - FAIL testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n         as meta::relational::tests::model::simple::Person\n  resultSizeRange = *\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [names:String[*]]\n    )\n    Allocation\n    (\n      type = String\n      resultSizeRange = *\n      name = upperNames\n      value = \n        (\n          PureExp\n          (\n            type = String\n            resultSizeRange = *\n            requires = [names(String[*])]\n            expression = $names -> map([Routed Func:n:String[1] | $n -> toUpper();])\n          )\n        )\n    )\n    RelationalBlockExecutionNode\n    (\n      type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n             as meta::relational::tests::model::simple::Person\n      resultSizeRange = *\n      (\n        Allocation\n        (\n          type = String\n          name = inFilterClause_upperNames\n          value = \n            (\n              FreeMarkerConditionalExecutionNode\n              (\n                type = String\n                condition = ${(instanceOf(upperNames, "Stream") || instanceOf(upperNames, "StreamingResult") || ((collectionSize(upperNames![])?number) > 50))?c}\n                trueBlock = \n                (\n                  Sequence\n                  (\n                    type = String\n                    (\n                      CreateAndPopulateTempTable\n                      (\n                        type = Void\n                        inputVarNames = [upperNames]\n                        tempTableName = tempTableForIn_upperNames\n                        tempTableColumns = [(ColumnForStoringInCollection, VARCHAR(1024) )]\n                        connection = TestDatabaseConnection(type = "H2")\n                      )\n                      Constant\n                      (\n                        type = String\n                        values=[select "temptableforin_uppernames_0".ColumnForStoringInCollection as ColumnForStoringInCollection from tempTableForIn_upperNames as "temptableforin_uppernames_0"]\n                      )\n                    )\n                  )\n                )\n                falseBlock = \n                (\n                  Constant\n                  (\n                    type = String\n                    values=[${renderCollection(upperNames![] "," "'" "'" {"'" : "''" } "null")}]\n                  )\n                )\n              )\n            )\n        )\n        Relational\n        (\n          type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n                 as meta::relational::tests::model::simple::Person\n          resultSizeRange = *\n          resultColumns = [("pk_0", INT), ("firstName", VARCHAR(200)), ("age", INT), ("lastName", VARCHAR(200))]\n          sql = select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID) where "firmtable_0".LEGALNAME in (${inFilterClause_upperNames})\n          connection = TestDatabaseConnection(type = "H2")\n        )\n      ) \n    )\n  )\n)\n, got Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n         as meta::relational::tests::model::simple::Person\n  resultSizeRange = *\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [names:String[*]]\n    )\n    Relational\n    (\n      type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_
 - SHAPE testGraphFetchH2TempTableStrategy [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown type 'StoreMappingGlobalGraphFetchExecutionNode' in @StoreMappingGlobalGraphFetchExecutionNode
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown type 'StoreMappingGlobalGraphFetchExecutionNode' in @StoreMappingGlobalGraphFetchExecutionNode
-- FAIL testTypedTDSWithEnumFilter [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root" where "root"."TYPE" = 'CUSIP', got select * from (select case when "root"."TYPE" = 'CUSIP' then 'CUSIP' else case when "root"."TYPE" = 'ISIN' then 'ISIN' else NULL end end as "type" from "productSchema"."synonymTable" as "root") as "synonymtable_0" where "synonymtable_0"."type" = 'CUSIP'
 - FAIL testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert did not hold (false)
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
@@ -8415,7 +8414,6 @@ in-process Alloy-shaped path).
 - FAIL testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true]
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
-- FAIL testTdsProjectWithEnumToStringEqualityComparison [tests/mapping/enumeration]: assertSameElements: expected [no, yes, no], got [no, no, no]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
 - ERROR testGetAll [tests/mapping/inheritance]: unknown function 'genericType' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -8469,7 +8467,6 @@ in-process Alloy-shaped path).
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".LEGALNAME as "legalName", string_agg("persontable_0".FIRSTNAME, '*' ORDER BY "persontable_0".rowid ASC) as "employeesFirstName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "legalName"
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::extension]
-- FAIL testToSQLStringSplitPart [transform/fromPure/tests]: assertEquals: expected select legend_h2_extension_split_part(legend_h2_extension_split_part("root".FIRSTNAME, '|', 1), ',', 2) as "splitComma", legend_h2_extension_split_part(legend_h2_extension_split_part("root".FIRSTNAME, '|', 1 + 1 + 1), ',', 1 + 1 + 1) as "splitCommaExpression" from personTable as "root", got select legend_h2_extension_split_part("persontable_0"."splitBar", ',', 2) as "splitComma", legend_h2_extension_split_part("persontable_0"."splitBarExpression", ',', 1 + 1 + 1) as "splitCommaExpression" from (select legend_h2_extension_split_part("root".FIRSTNAME, '|', 1) as "splitBar", legend_h2_extension_split_part("root".FIRSTNAME, '|', 1 + 1 + 1) as "splitBarExpression" from personTable as "root") as "persontable_0"
 - FAIL testToSQLStringWithPosition [transform/fromPure/tests]: assertEquals: expected select substring("root".FULLNAME, 0, locate(',', "root".FULLNAME) - 1) as "firstName" from personTable as "root", got select substr("root".FULLNAME, 1, strpos("root".FULLNAME, ',') - 1) as "firstName" from personTable as "root"
 - SHAPE testTrim [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built
 - SHAPE testPad [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built

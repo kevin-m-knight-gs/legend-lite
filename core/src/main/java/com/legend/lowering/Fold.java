@@ -375,10 +375,14 @@ final class Fold {
      * Can a predicate/projection reference {@code column} directly in this
      * select, and as WHAT expression? Star select: the column IS a source
      * column. Projected select: the reference substitutes to the projection's
-     * expression &mdash; folding stays legal when that expression is a plain
-     * column (real legend's restrict/rename flatten); a COMPUTED projection
-     * returns null and the caller isolates (recomputing scalars in WHERE is
-     * legal but deferred until the corpus pins it).
+     * expression &mdash; a plain column (real legend's restrict/rename
+     * flatten) or a PURE-SCALAR computed expression (the engine inlines
+     * computed projections into consumer threads and merges &mdash; one flat
+     * SELECT; testTdsProjectWithEnumToStringEqualityComparison pins it:
+     * the enum decode CASE must stay visible to the comparison's
+     * source-value inversion). Row-space-dependent shapes (reducers,
+     * windows, exists/subqueries, list aggs, UNNEST) return null and the
+     * caller isolates.
      */
     static @com.legend.Nullable SqlExpr resolveInto(SqlSelect s, String column) {
         if (column == null) {
@@ -402,6 +406,49 @@ final class Fold {
         return r;
     }
 
+    /** A projection expression that may substitute INTO a consumer slot
+     * (WHERE / ORDER BY / an outer projection) of the SAME select without
+     * changing semantics: pure scalar over the current row. Reducers and
+     * windows compute over a ROW SET, exists/subqueries carry their own
+     * queries (duplication deferred until pinned), list aggs are reducers
+     * in disguise, and UNNEST is row-multiplying — each isolates. */
+    private static boolean scalarInlineable(SqlExpr e) {
+        if (e instanceof com.legend.sql.SqlAgg.Reducer
+                || e instanceof SqlExpr.WindowCall
+                || e instanceof SqlExpr.Exists
+                || e instanceof SqlExpr.ScalarSubquery
+                || e instanceof SqlExpr.OrderedListAgg
+                || e instanceof SqlExpr.JsonArrayAgg
+                || e instanceof SqlExpr.Star
+                || e instanceof SqlExpr.StarExcept
+                || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+            return false;
+        }
+        for (SqlExpr ch : e.children()) {
+            if (!scalarInlineable(ch)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether the expression reads ANY column. A sort key resolving to
+     * a pure CONSTANT projection must not inline — {@code ORDER BY 'lit'}
+     * is a DuckDB binder error (and a no-op ordinal elsewhere); behind
+     * the isolation subselect the same key is a plain output column
+     * (testLowerProjectColsNotEliminatedWithSort). */
+    static boolean referencesColumn(SqlExpr e) {
+        if (e instanceof SqlExpr.Column) {
+            return true;
+        }
+        for (SqlExpr ch : e.children()) {
+            if (referencesColumn(ch)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String pivotIdentity(String column) {
         return column.length() >= 2 && column.startsWith("'") && column.endsWith("'")
                 && column.contains(Type.RelationType.PIVOT_SEPARATOR)
@@ -421,7 +468,8 @@ final class Fold {
             }
             String name = p.outputName();
             if (column.equals(name)) {
-                return p.expr() instanceof SqlExpr.Column c ? c : null;
+                return p.expr() instanceof SqlExpr.Column c ? c
+                        : scalarInlineable(p.expr()) ? p.expr() : null;
             }
         }
         // A star projection (extend's `t0.*, expr AS x`) keeps every source

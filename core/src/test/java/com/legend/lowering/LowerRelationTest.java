@@ -306,7 +306,7 @@ class LowerRelationTest {
     }
 
     @Test
-    @DisplayName("extend-on-extend chains flat; computed ref forces isolation")
+    @DisplayName("extend-on-extend chains flat; computed ref inlines the scalar")
     void extendChains() throws SQLException {
         String flat = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->extend(~a : x|$x.AGE + 1)->extend(~b : x|$x.AGE + 2)");
@@ -314,8 +314,10 @@ class LowerRelationTest {
 
         String nested = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->extend(~a : x|$x.AGE + 1)->extend(~b : x|$x.a * 2)");
-        assertEquals(2, count(nested, "SELECT"),
-                "ref to a COMPUTED column isolates (no silent recompute): " + nested);
+        assertEquals(1, count(nested, "SELECT"),
+                "ref to a computed column INLINES the scalar expression"
+                        + " (engine one-flat-select; the enum decode"
+                        + " inversion pins the policy): " + nested);
         assertEquals(List.of("Ann|25|ACME|26|52"),
                 exec(nested + "\nLIMIT 1"));
     }

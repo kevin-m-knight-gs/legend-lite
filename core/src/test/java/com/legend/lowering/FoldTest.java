@@ -135,8 +135,10 @@ class FoldTest {
                 List.of());
         assertEquals(col("AGE"), Fold.resolveInto(extended, "AGE"),
                 "unclaimed names pass through the star to the source");
-        assertNull(Fold.resolveInto(extended, "computed"),
-                "the computed column still refuses substitution");
+        assertEquals(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")),
+                Fold.resolveInto(extended, "computed"),
+                "a pure-scalar computed column substitutes inline (engine"
+                        + " one-flat-select; enum decode inversion pin)");
     }
 
     @Test
@@ -151,8 +153,11 @@ class FoldTest {
         assertEquals(col("AGE"), Fold.resolveInto(projected, "YEARS"),
                 "renamed column substitutes to its source");
         assertEquals(col("NAME"), Fold.resolveInto(projected, "NAME"));
-        assertNull(Fold.resolveInto(projected, "SUM_AB"),
-                "computed projection cannot fold — caller isolates");
+        assertEquals(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")),
+                Fold.resolveInto(projected, "SUM_AB"),
+                "a pure-scalar computed projection substitutes inline;"
+                        + " ROW-SPACE shapes (reducers/windows/exists/"
+                        + "unnest) still refuse — see scalarInlineable");
         assertNull(Fold.resolveInto(projected, "DROPPED"),
                 "a column not in the projection is gone");
     }

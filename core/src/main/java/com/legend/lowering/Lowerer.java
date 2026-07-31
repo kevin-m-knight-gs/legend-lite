@@ -1551,7 +1551,7 @@ public final class Lowerer {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
         for (TypedSort.TypedSortKey k : s.keys()) {
             SqlExpr e = Fold.resolveInto(base, k.column());
-            if (e == null) {
+            if (e == null || !Fold.referencesColumn(e)) {
                 base = isolate(base);
                 return sortOnto(base, s);
             }
