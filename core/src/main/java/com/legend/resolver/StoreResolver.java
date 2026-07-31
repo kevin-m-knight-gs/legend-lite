@@ -2746,6 +2746,8 @@ public final class StoreResolver {
         Map<String, List<AggDemand>> aggDemands =
                 new LinkedHashMap<>();
         collectOpDemand(ops, cs, filterPaths, projectionPaths, aggDemands);
+        CorrelatedSubselects.aggScanFilters(ops, cs, aggDemands,
+                this::isToManyAssocHead, this::isAssocOrNavHead);
         if (tree == null && implicitSerialize) {
             tree = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).synthesizeScalarTree(cs);
         }
@@ -3130,18 +3132,21 @@ public final class StoreResolver {
         }
         InnerDemand.scanTdsContainsFns(n, userVar,
                 (b, pv) -> memberScan(b, pv, cs, out));
-        // LOUD (audit 9): an aggregate over a to-many crossing in FILTER
-        // position would join-explode and the reducer's to-one identity
-        // silently eats the aggregate (max() > 30 becoming any-match).
+        // FILTER-POSITION to-many aggregate (audit 9's join-explosion
+        // hazard): the node routes through the AGG DEMAND SCAN (the same
+        // parent-copy grouped-subselect machinery as projection position —
+        // aggregates are single-row, so the joined column compares safely
+        // in WHERE). memberScan SKIPS it (its nav path must not become an
+        // implicit EXISTS); a shape the agg scan fails to register still
+        // dies loud at the Substitution backstop ("the aggregate demand
+        // scan did not recognize this shape").
         if (n instanceof TypedNativeCall ac
                 && !ac.args().isEmpty()
                 && CorrelatedSubselects.isAggregate(ac.callee())
                 && CorrelatedSubselects.containsToManyCrossing(
                         ac.args().get(0), userVar, cs,
                         this::isToManyAssocHead)) {
-            throw new NotImplementedException("aggregate '"
-                    + ac.callee().qualifiedName() + "' over a to-many"
-                    + " navigation in FILTER position is not supported yet");
+            return;
         }
         List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {

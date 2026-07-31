@@ -18,7 +18,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    7  executionPlan/tests  ::  harness-shape
 -    7  functions/tests  ::  platform-surface
 -    7  transform/fromPure/tests  ::  harness-shape
--    7  validation/tests  ::  resolve
 -    6  graphFetch/tests  ::  rows-differ
 -    5  aggregationAware/test/rewrite/NOP  ::  execute(DuckDB)
 -    5  functions/tests/projection  ::  other
@@ -33,7 +32,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    4  tests/advanced  ::  other
 -    4  tests/mapping/enumeration  ::  rows-differ
 -    4  tests/mapping/inheritance  ::  normalize(mapping)
--    4  validation/tests  ::  other
 -    3  functions/tests/projection  ::  resolve
 -    3  functions/tests/projection  ::  typer
 -    3  functions/tests/projection  ::  harness-shape
@@ -57,6 +55,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  transform/fromPure/tests  ::  render(DB2)
 -    3  transform/fromPure/tests  ::  other
 -    3  validation/showcase  ::  other
+-    3  validation/tests  ::  other
 -    2  functions/tests  ::  resolve
 -    2  functions/tests  ::  harness-shape
 -    2  functions/tests/projection  ::  lower
@@ -131,6 +130,8 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  tests/query  ::  harness-shape
 -    1  tests/query  ::  execute(DuckDB)
 -    1  transform/fromPure/tests  ::  platform-surface
+-    1  validation/tests  ::  resolve
+-    1  validation/tests  ::  rows-differ
 
 ## Pivot: intent x status
 
@@ -145,13 +146,12 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   13  row-assert+plan-assert  ::  ERROR
 -   12  ?  ::  SHAPE
 -   10  row-assert+plan-assert  ::  FAIL
--   10  row-assert+constraints  ::  ERROR
 -    9  row-assert+plan-assert+graph  ::  SHAPE
 -    9  row-assert+lineage  ::  SHAPE
+-    6  row-assert+constraints  ::  ERROR
 -    5  row-assert+plan-assert+graph  ::  FAIL
 -    4  golden-sql+row-assert+plan-assert  ::  FAIL
 -    4  row-assert+graph  ::  SHAPE
--    4  golden-sql+row-assert+constraints  ::  ERROR
 -    3  plan-assert  ::  SHAPE
 -    3  row-assert+plan-assert+graph  ::  ERROR
 -    3  golden-sql  ::  FAIL
@@ -172,10 +172,12 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  row-assert+printer  ::  FAIL
 -    1  row-assert+printer  ::  SHAPE
 -    1  golden-sql+row-assert+plan-assert  ::  ERROR
+-    1  golden-sql+row-assert+constraints  ::  ERROR
+-    1  row-assert+constraints  ::  FAIL
 
 ## Pivot: stereotype
 
--  289  Test
+-  283  Test
 -   43  Test, AlloyOnly
 -   25  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -548,14 +550,8 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraints | other | golden-sql+row-assert+constraints | Test | unbound variable '$t' |
 | ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraintsWithInnerJoinInFilter | other | row-assert+constraints | Test | unbound variable '$t' |
 | ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraintsWithPostTDSOperation2 | other | row-assert+constraints | Test | unbound variable '$t' |
-| ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation10 | other | row-assert+constraints | Test | reducer 'meta::pure::functions::collection::isDistinct' over an unregistered computed ->map is not s |
+| FAIL | validation/tests | testComplexValidations.pure | validateComplexValidation10 | rows-differ | row-assert+constraints | Test | assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\nconstraint8,Error,,1\nconstraint8 |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation2 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation3 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
-| ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation4 | resolve | row-assert+constraints | Test | aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not sup |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation5 | other | row-assert+constraints | Test | object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[sou |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation6 | resolve | row-assert+constraints | Test | filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::comple |
-| ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation7 | resolve | row-assert+constraints | Test | aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not sup |
-| ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation9 | resolve | row-assert+constraints | Test | aggregate 'meta::pure::functions::collection::isDistinct' over a to-many navigation in FILTER positi |
-| ERROR | validation/tests | testValidationWithMilestoning.pure | testValidateQueryWithMilestoningAndAggregationAll | resolve | golden-sql+row-assert+constraints | Test | aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not sup |
-| ERROR | validation/tests | testValidationWithMilestoning.pure | testValidateQueryWithMilestoningAndAggregationSingle | resolve | golden-sql+row-assert+constraints | Test | aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not sup |
-| ERROR | validation/tests | testValidationWithMilestoning.pure | testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction | resolve | golden-sql+row-assert+constraints | Test | aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not sup |

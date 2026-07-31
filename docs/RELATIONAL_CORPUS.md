@@ -74,8 +74,8 @@ in-process Alloy-shaped path).
 | tests/query | 83 | 73 | 1 | 8 | 1 | 37 |
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
-| validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2165** | 76 | 163 | 134 | 293 |
+| validation/tests | 23 | 18 | 1 | 4 | 0 | 0 |
+| **total** | 2538 | **2171** | 77 | 156 | 134 | 293 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8092,7 +8092,6 @@ in-process Alloy-shaped path).
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - 7x unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
-- 5x aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - 4x LIST_AGG reached a dialect without a list encoding
 - 4x null
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
@@ -8119,6 +8118,7 @@ in-process Alloy-shaped path).
 - 1x Index 0 out of bounds for length 0
 - 1x no overload of 'executionPlan' matches the argument types
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
+- 1x scalar lowering not yet implemented for TypedSerializeGraph
 
 ### per-test outcomes (non-passing)
 
@@ -8486,12 +8486,6 @@ in-process Alloy-shaped path).
 - ERROR validateAllConstraintsWithInnerJoinInFilter [validation/showcase]: unbound variable '$t'
 - ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
-- ERROR validateComplexValidation4 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
 - ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro
 - ERROR validateComplexValidation6 [validation/tests]: filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::complex::Address' — slot-demanding leaves under value-position filters are not supported yet
-- ERROR validateComplexValidation7 [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- ERROR validateComplexValidation9 [validation/tests]: aggregate 'meta::pure::functions::collection::isDistinct' over a to-many navigation in FILTER position is not supported yet
-- ERROR validateComplexValidation10 [validation/tests]: reducer 'meta::pure::functions::collection::isDistinct' over an unregistered computed ->map is not supported (the aggregate demand scan did not recognize this shape)
-- ERROR testValidateQueryWithMilestoningAndAggregationAll [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- ERROR testValidateQueryWithMilestoningAndAggregationSingle [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
-- ERROR testValidateQueryWithMilestoningAndAggregationSingleAndNestedDynaFunction [validation/tests]: aggregate 'meta::pure::functions::math::sum' over a to-many navigation in FILTER position is not supported yet
+- FAIL validateComplexValidation10 [validation/tests]: assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\nconstraint8,Error,,1\nconstraint8,Error,,1\n, got []

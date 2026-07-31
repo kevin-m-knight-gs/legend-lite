@@ -1649,6 +1649,27 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * rewrite (splitDatedHeads etc.) and its keys are consumed in the SAME
      * resolveObject pass. A rewrite inserted between scan and substitution
      * dangles the keys silently. */
+    /** FILTER-POSITION aggregates join the same demand registry the
+     * terminal lambdas feed (memberScan skips them; unregistered shapes
+     * die loud at the Substitution backstop). BARE paths are DISCARDED:
+     * in filter position a bare to-many navigation is memberScan's
+     * (implicit EXISTS), and registering it as a projection-path join
+     * demand splats rows (testContainsOnToManyProperty 1->6). */
+    static void aggScanFilters(java.util.List<TypedSpec> ops, ClassSource cs,
+            Map<String, List<StoreResolver.AggDemand>> aggOut,
+            java.util.function.BiPredicate<ClassSource, String> toManyHead,
+            java.util.function.BiPredicate<ClassSource, String> bareHead) {
+        Set<List<String>> discardedBare = new LinkedHashSet<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof com.legend.compiler.spec.typed.TypedFilter ff) {
+                for (TypedSpec b : ff.predicate().body()) {
+                    aggScan(b, ff.predicate().parameters().get(0), cs,
+                            aggOut, discardedBare, toManyHead, bareHead);
+                }
+            }
+        }
+    }
+
     static void aggScan(TypedSpec n, String userVar, ClassSource cs,
                          Map<String, List<StoreResolver.AggDemand>> aggOut,
                          Set<List<String>> bareOut,
