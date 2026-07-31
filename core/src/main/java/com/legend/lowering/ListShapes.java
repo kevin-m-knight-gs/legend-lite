@@ -79,4 +79,12 @@ final class ListShapes {
         return arg.info().multiplicity() instanceof Multiplicity.Bounded b
                 && b.isToOne();
     }
+
+    /** A value in LIST position: singleton-wrap unless it is already a
+     * list (or NULL = empty). */
+    static SqlExpr asList(SqlExpr e, boolean many) {
+        return many || e instanceof SqlExpr.ArrayLit
+                || e instanceof SqlExpr.NullLit
+                ? e : new SqlExpr.ArrayLit(java.util.List.of(e));
+    }
 }

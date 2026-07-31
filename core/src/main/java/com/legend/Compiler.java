@@ -276,7 +276,8 @@ public final class Compiler {
         String sql = dialectOf(ctx, runtime)
                 .render(new com.legend.lowering.Lowerer(
                         t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                        f -> ctx.findClass(f).isPresent()).lower(body));
+                        f -> ctx.findClass(f).isPresent())
+                        .withEngineExistsJoinForm().lower(body));
         return new com.legend.exec.QueryPlan(sql, root.info(),
                 com.legend.exec.ResultShape.of(root));
     }
@@ -430,7 +431,8 @@ public final class Compiler {
         }
         return new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent()).lower(body);
+                f -> ctx.findClass(f).isPresent())
+                .withEngineExistsJoinForm().lower(body);
     }
 
     /**

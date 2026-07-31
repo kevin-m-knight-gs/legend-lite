@@ -71,6 +71,11 @@ public sealed interface SqlSource {
             @com.legend.Nullable String frameName)
             implements SqlSource {
 
+        /** SYNTHETIC frame marker (not a model identity): the engine's
+         * join-distinct exists key subselect (ExistsJoinForm) — dialects
+         * group-number its interior and spell its DISTINCT keys bare. */
+        public static final String EXISTS_KEYS_FRAME = "existsKeys";
+
         // NO short overload: a defaulted frameName silently anonymized a
         // view frame at rebuild sites (remediation T2.2); every
         // construction names every field.

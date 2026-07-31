@@ -79,13 +79,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     // subselect_0), and its interior plans BEFORE the alias itself.
 
     private void planQuery(SqlQuery q, Map<String, Integer> groups) {
+        planQuery(q, groups, true);
+    }
+
+    /** {@code rootScope}: engine reAliasQuery only spells "root" for a
+     * root-position scope — a JOINED derived table's interior continues
+     * the group numbering (golden: persontable_1 frame, persontable_2/3
+     * inside). Union BRANCHES are each their own root scope. */
+    private void planQuery(SqlQuery q, Map<String, Integer> groups,
+            boolean rootScope) {
         switch (q) {
             case SqlSelect s -> {
                 if (!(s.from() instanceof SqlSource.Dual)) {
-                    planSource(s.from(), true, groups);
+                    planSource(s.from(), rootScope, groups);
                 }
             }
-            case SqlUnion u -> u.branches().forEach(b -> planQuery(b, groups));
+            case SqlUnion u -> u.branches().forEach(
+                    b -> planQuery(b, groups, true));
         }
     }
 
@@ -117,6 +127,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 // by its own model identity — orderpnlview_0,
                 // unionalias_0 — never the underlying table's group
                 String group = sub.frameName() != null
+                        && !SqlSource.Subselect.EXISTS_KEYS_FRAME
+                                .equals(sub.frameName())
                         ? sub.frameName().toLowerCase(Locale.ROOT)
                         : firstInnerTable(sub.inner());
                 // only the DISTINCT materialization keeps the root name
@@ -134,7 +146,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     // children — nested union frames count outermost-first)
                     renames.put(sub.alias(), nextInGroup(group, groups));
                 }
-                planQuery(sub.inner(), groups);
+                planQuery(sub.inner(), groups,
+                        !SqlSource.Subselect.EXISTS_KEYS_FRAME
+                                .equals(sub.frameName()));
                 subselects.put(sub.alias(), sub);
             }
             case SqlSource.Join j -> {
@@ -377,8 +391,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (s.distinct()) {
             sb.append("distinct ");
         }
+        // engine reAliasQuery text: an ANONYMOUS DISTINCT-key subselect
+        // spells exact self-aliased columns BARE (golden: select distinct
+        // "persontable_2".FIRMID); top-level/named frames keep their as
+        boolean bareKeys = s.distinct() && anonDistinctDepth > 0;
         sb.append(s.projections().isEmpty() ? "*"
-                : s.projections().stream().map(this::projection)
+                : s.projections().stream()
+                        .map(p -> bareKeys
+                                && p.expr() instanceof SqlExpr.Column pc
+                                && pc.name().equals(p.alias())
+                                ? new SqlSelect.Projection(p.expr(), null)
+                                : p)
+                        .map(this::projection)
                         .collect(Collectors.joining(", ")));
         if (!(s.from() instanceof SqlSource.Dual)) {
             sb.append(" from ");
@@ -471,15 +495,25 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 // union frames keep the QUOTED alias interior (tds
                 // goldens); only VIEW frames unquote their projections
                 boolean viewFrame = sub.frameName() != null
-                        && !"unionAlias".equals(sub.frameName());
+                        && !"unionAlias".equals(sub.frameName())
+                        && !SqlSource.Subselect.EXISTS_KEYS_FRAME
+                                .equals(sub.frameName());
+                boolean anonFrame = SqlSource.Subselect.EXISTS_KEYS_FRAME
+                        .equals(sub.frameName());
                 if (viewFrame) {
                     frameDepth++;
+                }
+                if (anonFrame) {
+                    anonDistinctDepth++;
                 }
                 try {
                     query(sb, sub.inner(), depth);
                 } finally {
                     if (viewFrame) {
                         frameDepth--;
+                    }
+                    if (anonFrame) {
+                        anonDistinctDepth--;
                     }
                 }
                 sb.append(") as \"").append(rename(sub.alias())).append('"');
@@ -504,6 +538,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * rendering — their projections spell the engine view generator's
      * form: every column aliased, alias UNQUOTED. */
     private int frameDepth;
+    /** Anonymous-subselect nesting — the bare DISTINCT-key spelling is
+     * scoped to it (same lifecycle as frameDepth). */
+    private int anonDistinctDepth;
 
     @Override
     protected String projection(SqlSelect.Projection p) {

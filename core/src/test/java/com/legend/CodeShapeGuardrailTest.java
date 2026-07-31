@@ -50,6 +50,9 @@ class CodeShapeGuardrailTest {
             // renderer nesting cursor: NAMED-frame (view) subselect depth —
             // same lifecycle as a parser cursor, scoped to one render()
             "EngineStyleH2.frameDepth",
+            // anonymous-subselect nesting cursor (bare DISTINCT-key
+            // spelling scope) — same lifecycle as frameDepth
+            "EngineStyleH2.anonDistinctDepth",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",
@@ -65,6 +68,10 @@ class CodeShapeGuardrailTest {
             "SpecParser.boundedDepth",
             // per-resolution frames + counters
             "StoreResolver.freshVarCounter", "StoreResolver.temporal",
+            // driver-scoped emission opt-in (builder-style, set once
+            // before lower()): engine-parity join-distinct exists form —
+            // the standalone-SQL surface constructs without it
+            "Lowerer.engineExistsJoinForm",
             // JSON source frames (XStore §1): the execution context's
             // JsonModelConnection map, set per from()-scope — same
             // per-resolution frame lifecycle as `temporal`

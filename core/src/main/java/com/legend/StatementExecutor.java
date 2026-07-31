@@ -422,10 +422,9 @@ final class StatementExecutor {
                 body, env.ctx(), mappingFqn);
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
-                f -> env.ctx().findClass(f).isPresent());
+                f -> env.ctx().findClass(f).isPresent()).withEngineExistsJoinForm();
         planParams.values().forEach(lw::bindPlanParam);
-        // ENGINE-TEXT lowering: wire coercions (castAsDeclared) read bare
-        com.legend.sql.SqlQuery plan;
+        com.legend.sql.SqlQuery plan; // ENGINE-TEXT: wire coercions read bare
         try (var ignored = com.legend.lowering.EngineTextBoundary.enter()) {
             plan = lw.lower(body);
         }
@@ -2704,7 +2703,7 @@ final class StatementExecutor {
         }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent())
+                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm()
                 .lower(withQueryLetPrefix(body, env, ctx));
         plan = com.legend.lowering.SqlPostProcessors.apply(plan,
                 env.tableReplace());

@@ -27,8 +27,10 @@ Note the semantics themselves are NOT the gap: our row multiset matches
 inside the joined pipeline (NavMaterializer), which is row-equivalent to
 both forced strategies. Only the H2 scan order is unreproducible.
 
-## Deliberate emission divergences (row-equivalent, awaiting class-result replay)
+## Retired entries
 
-| Test | Evidence |
-|---|---|
-| `meta::relational::tests::advanced::structure::testQualifierContainingAJoinWithIsolationAndExistsDeep` | sql-text-only divergence. The engine has TWO exists emissions (pureToSQLQuery L5607-5609): LEFT JOIN to a DISTINCT-keys subselect + IS NOT NULL when the predicate is fully local, else correlated EXISTS. We standardized on correlated EXISTS (H-plan decision: DuckDB decorrelates; the join-distinct form serves weak-correlation DBs and costs a SELECT+DISTINCT). Row-equivalent by the engine's own dual-emission contract. H2 row-replay cannot verify yet: the result is a CLASS frame ("[h2-unverifiable] non-tabular result frame" — H2Verify compares flat tabular only, a documented layer-gap policy), so the harness falls to the honest text diff. Revisit when class-result replay exists. |
+- `testQualifierContainingAJoinWithIsolationAndExistsDeep` (2026-07-31,
+  same session it was added): the divergence was RETIRED by implementing
+  the engine's join-distinct exists form (ExistsJoinForm,
+  buildExistsAsJoinWithNullCheck parity) — the test now byte-matches.
+  Implemented beats documented.

@@ -151,6 +151,15 @@ public final class Lowerer {
     /** Pre-bind a free variable to an execution-plan TEMPLATE parameter
      * ({@code ${name}} — the plan printer's vocabulary): the variable
      * resolves through the ordinary let-binding channel. */
+    /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
+     * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
+    private boolean engineExistsJoinForm;
+
+    public Lowerer withEngineExistsJoinForm() {
+        this.engineExistsJoinForm = true;
+        return this;
+    }
+
     public Lowerer bindPlanParam(String name, boolean stringTyped) {
         letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
         return this;
@@ -1199,8 +1208,12 @@ public final class Lowerer {
             slot = Fold.filterSlot(src, false);
         }
         return switch (slot) {
-            case WHERE -> src.withWhere(src.where() == null ? predicate
-                    : Fold.mergeAnd(src.where(), predicate));
+            case WHERE -> {
+                SqlSelect m = src.withWhere(src.where() == null ? predicate
+                        : Fold.mergeAnd(src.where(), predicate));
+                yield engineExistsJoinForm
+                        ? ExistsJoinForm.rewrite(m, this::nextAlias) : m;
+            }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));
             case QUALIFY -> src.withQualify(src.qualify() == null ? predicate
@@ -2359,7 +2372,7 @@ public final class Lowerer {
                                 PlatformTypes.LIST)) {
                     TypedSpec ov = cp.overrides().get("values");
                     yield ov == null ? scalar(cp.source(), columns)
-                            : asList(scalar(ov, columns), isMany(ov));
+                            : ListShapes.asList(scalar(ov, columns), isMany(ov));
                 }
                 if (PlatformTypes
                         .isMapCarrier(cp.info().type())) {
@@ -2377,7 +2390,7 @@ public final class Lowerer {
                     if (ov != null && c.multiplicity() instanceof
                             Multiplicity.Bounded b
                             && b.isMany()) {
-                        v = asList(v, isMany(ov));
+                        v = ListShapes.asList(v, isMany(ov));
                     }
                     return new SqlExpr.StructLit.Field(c.name(), v);
                 }).toList());
@@ -2390,7 +2403,7 @@ public final class Lowerer {
                     TypedSpec values = n.properties().get("values");
                     yield values == null
                             ? new SqlExpr.ArrayLit(List.of())
-                            : asList(scalar(values, columns), isMany(values));
+                            : ListShapes.asList(scalar(values, columns), isMany(values));
                 }
                 // ^Pair(first=..., second=...): the Pair STRUCT carrier —
                 // its layout IS first/second (the platform declaration)
@@ -2423,7 +2436,7 @@ public final class Lowerer {
                     if (c.multiplicity() instanceof
                             Multiplicity.Bounded b
                             && b.isMany()) {
-                        v = asList(v, value != null && isMany(value));
+                        v = ListShapes.asList(v, value != null && isMany(value));
                     }
                     return new SqlExpr.StructLit.Field(c.name(), v);
                 }).toList());
@@ -2791,11 +2804,6 @@ public final class Lowerer {
                 : SqlExpr.Call.of(SqlFn.PLUS, e, new SqlExpr.IntLit(1));
     }
 
-    /** A value in LIST position: singleton-wrap unless it is already a list (or NULL = empty). */
-    private static SqlExpr asList(SqlExpr e, boolean many) {
-        return many || e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
-                ? e : new SqlExpr.ArrayLit(List.of(e));
-    }
 
     /** Natural ascending order on the stream's one column. */
     private SqlSelect naturalSort(TypedNativeCall nc) {
@@ -3321,8 +3329,8 @@ public final class Lowerer {
             // values and NULL (=[] to DuckDB list_concat) pass through.
             case FoldStrategy.Concatenation c ->
                     new SqlExpr.Call(SqlFn.LIST_CONCAT,
-                            List.of(asList(init, isMany(f.init())),
-                                    asList(source, isMany(f.source()))));
+                            List.of(ListShapes.asList(init, isMany(f.init())),
+                                    ListShapes.asList(source, isMany(f.source()))));
             case FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,

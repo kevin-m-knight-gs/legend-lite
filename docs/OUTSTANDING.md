@@ -20,15 +20,15 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    7  transform/fromPure/tests  ::  harness-shape
 -    7  validation/tests  ::  resolve
 -    6  graphFetch/tests  ::  rows-differ
--    6  tests/advanced  ::  other
 -    5  aggregationAware/test/rewrite/NOP  ::  execute(DuckDB)
 -    5  functions/tests/projection  ::  other
 -    5  functions/tests/projection  ::  rows-differ
--    5  milestoning/tests  ::  other
 -    5  tds/tests  ::  other
+-    5  tests/advanced  ::  other
 -    5  tests/query  ::  other
 -    4  graphFetch/tests  ::  typer
 -    4  graphFetch/tests  ::  platform-surface
+-    4  milestoning/tests  ::  other
 -    4  postprocessor/tests  ::  harness-shape
 -    4  testDataGeneration/tests  ::  rows-differ
 -    4  tests/mapping/enumeration  ::  rows-differ
@@ -141,7 +141,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   29  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
 -   25  row-assert+plan-assert  ::  SHAPE
--   21  golden-sql+row-assert  ::  FAIL
+-   20  golden-sql+row-assert  ::  FAIL
 -   20  golden-sql+row-assert  ::  SHAPE
 -   13  row-assert+plan-assert  ::  ERROR
 -   13  ?  ::  SHAPE
@@ -152,10 +152,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    5  golden-sql+row-assert+plan-assert  ::  FAIL
 -    5  row-assert+plan-assert+graph  ::  FAIL
 -    4  row-assert+graph  ::  SHAPE
--    4  golden-sql  ::  FAIL
 -    4  golden-sql+row-assert+constraints  ::  ERROR
 -    3  plan-assert  ::  SHAPE
 -    3  row-assert+plan-assert+graph  ::  ERROR
+-    3  golden-sql  ::  FAIL
 -    3  golden-sql  ::  SHAPE
 -    2  ?  ::  ERROR
 -    2  golden-sql+plan-assert  ::  SHAPE
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  295  Test
+-  293  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -349,7 +349,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Mart |
 | FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty | other | golden-sql+row-assert | Test | sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns | resolve | golden-sql+row-assert | Test | in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::mi |
-| FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testNonMilestoningQueryWithLatestMilestoneFilterSimple | other | golden-sql+row-assert | Test | sql-text: expected select "root".id as "pk_0", "root".id as "id", "root".orderDate as "orderDate" fr |
 | SHAPE | milestoning/tests | testBusinessDateMilestoning.pure | testQueryOfMilestonedTypeUsingLatestWithFilterInMapping | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | milestoning/tests | testBusinessDateMilestoning.pure | testViewChainsWithBusinessDate | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::external::store::relational::tests] |
 | SHAPE | milestoning/tests | testLatestDateMilestoning.pure | testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
@@ -453,7 +452,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | tests/advanced | testForcedSelfJoin.pure | isolationTest | resolve | row-assert | Test | multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported |
 | SHAPE | tests/advanced | testQueryStructure.pure | testForcedIsolationFilterOnTop | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | tests/advanced | testQueryStructure.pure | testLiteralConditionsForcedIsolation | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
-| FAIL | tests/advanced | testQueryStructure.pure | testQualifierContainingAJoinWithIsolationAndExistsDeep | other | golden-sql | Test | sql-text: expected select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", |
 | ERROR | tests/advanced | testQueryStructure.pure | testQualifierWithIsolation | other | row-assert | Test | extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='fir |
 | ERROR | tests/advanced | testQueryStructure.pure | testQualifierWithIsolationXX | other | row-assert | Test | extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='fir |
 | ERROR | tests/advanced | testRelationalResultSourcing.pure | relationalResultSourcingOfDateList | other | row-assert+plan-assert | meta::pure::profiles::Test | object-space expression node TypedLimit is not substitutable yet (H2 vocabulary): TypedLimit[source= |
