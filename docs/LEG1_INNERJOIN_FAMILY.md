@@ -413,3 +413,34 @@ no H2 row rescue; byte diff is the verdict):
 Order: (2)+(3) are dialect/naming spellings, low risk, land first and
 re-diff; (1) is the meaty gate change. Family expectation: +2 direct;
 watch the whole milestoning + advanced families for exists-form blast.
+
+## Cycle-34 design: temporal conds LAST (2026-07-31, leg #81 rung)
+
+Engine appends milestoning filters at the END of a select's
+filteringOperation (applyMilestoningTypeFilters after user processing);
+ours emit FIRST (pipeline order). Byte deltas remaining on the
+processing-temporal pair are ONLY this order (outer: exists-then-
+temporal; inner: pred -> correlation -> temporal).
+
+Mechanics (sized; TypedFilter has 46 ctor sites — use the AggDemand
+defaulting-ctor pattern):
+1. TypedFilter gains `boolean temporalStamp` with a 3-arg delegating
+   ctor (=false); ONLY TemporalFrame's stamping sites construct true.
+2. Lowerer filter fold (the ONE WHERE-merge arm): an IdentityHashMap
+   whereExpr -> {head, tail} registry. Lowering a STAMPED filter over
+   existing where W: newWhere = mergeAnd(W, temporal), register
+   {head=W, tail=temporal} (W null when first). Lowering an UNSTAMPED
+   filter over a registered where: newHead = head==null ? pred :
+   mergeAnd(head, pred); newWhere = mergeAnd(newHead, tail);
+   re-register. Unregistered = current behavior.
+3. INNER exists order (engine: pred -> correlation -> temporal): after
+   (2), check which of pred/corr folds first in our exists-sub
+   construction (predFilteredPipe / RelationPredicates route) — may
+   need a swap there; probe will show.
+4. ExistsJoinForm interplay: none (temporal queries skip it per c33).
+BLAST: every milestoned WHERE order changes — expect byte-match GAINS
+(engine order) but eyeball the full milestoning family + advanced +
+tds; DuckDB rows unaffected (AND commutes).
+Expected: processing-temporal pair (+2), possibly
+testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty,
+testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR.
