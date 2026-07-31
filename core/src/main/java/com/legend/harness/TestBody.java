@@ -940,7 +940,7 @@ public final class TestBody {
             }
         }
         AppliedFunction exec = golden == null ? null
-                : sqlTextExecCall(actual, lets, execStmts);
+                : ExecCallFinder.find(actual, lets, execStmts);
         if (exec != null && exec.parameters().size() >= 2) {
             try {
                 List<ValueSpecification> ps = new ArrayList<>();
@@ -976,54 +976,6 @@ public final class TestBody {
                 imports, runtimeFqn, conn);
     }
 
-    /** The execute(...) call behind a golden-SQL read chain
-     * ({@code $r->sqlRemoveFormatting()} / direct), or null. */
-    private static @com.legend.Nullable AppliedFunction sqlTextExecCall(
-            @com.legend.Nullable ValueSpecification v,
-            Map<String, ValueSpecification> lets,
-            List<ValueSpecification> execStmts) {
-        if (v == null) {
-            return null;
-        }
-        ValueSpecification cur = substitute(v, lets);
-        while (true) {
-            if (cur instanceof Variable var) {
-                // execute() bindings live in the exec-statement frame,
-                // not in lets — find the binding and descend into it
-                ValueSpecification bound = null;
-                for (ValueSpecification st : execStmts) {
-                    if (st instanceof AppliedFunction lf
-                            && lf.function().equals("letFunction")
-                            && lf.parameters().size() == 2
-                            && lf.parameters().get(0)
-                                    instanceof com.legend.model.spec
-                                            .CString n
-                            && n.value().equals(var.name())) {
-                        bound = lf.parameters().get(1);
-                    }
-                }
-                if (bound == null) {
-                    break;
-                }
-                cur = bound;
-                continue;
-            }
-            if (cur instanceof AppliedFunction af
-                    && !simpleName(af.function()).equals("execute")
-                    && !af.parameters().isEmpty()) {
-                cur = substitute(af.parameters().get(0), lets);
-                continue;
-            }
-            if (cur instanceof com.legend.model.spec.AppliedProperty ap) {
-                cur = ap.receiver();
-                continue;
-            }
-            break;
-        }
-        return cur instanceof AppliedFunction ex
-                && simpleName(ex.function()).equals("execute")
-                ? ex : null;
-    }
 
     /** #67: a pure golden-SQL assert upgrades to ROW-VERIFIED when the
      * H2 second target can replay the test's raw seeds (recorded at the

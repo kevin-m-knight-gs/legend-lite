@@ -527,7 +527,17 @@ public final class Runner {
                         && ef2.function()
                                 .substring(ef2.function().lastIndexOf(':') + 1)
                                 .equals("execute");
-                if (pairIdiom || singleExecute) {
+                boolean executeTerminal = fd2 != null
+                        && fd2.body().stream().anyMatch(
+                                Runner::containsDebugArityExecute)
+                        && java.util.stream.Stream.of("toSQLString",
+                                "validate", "scanColumns", "scanRelations",
+                                "generateTestData", "planTestDataGeneration",
+                                "getRelationalCSVDataFromQuery",
+                                "generateSeedDataString", "executionPlan")
+                            .noneMatch(v -> fd2.body().stream()
+                                .anyMatch(b -> containsCallNamed(b, v)));
+                if (pairIdiom || singleExecute || executeTerminal) {
                     callee = fd2;
                     call = af2;
                     letName = ln0.value();
@@ -554,6 +564,15 @@ public final class Runner {
                         && ll.parameters().size() == 2) {
                     last = ll.parameters().get(1);
                 }
+                // a trailing bare `$x;` whose x is ALREADY a spliced let
+                // would rebind letName to itself downstream of renames —
+                // keep the reference as-is only when names DIFFER; a
+                // same-name rebinding (let result = $result) is dropped
+                if (last instanceof com.legend.model.spec.Variable tv
+                        && tv.name().equals(letName)) {
+                    out.addAll(expanded);
+                    continue;
+                }
                 out.addAll(expanded);
                 out.add(new com.legend.model.spec.AppliedFunction(
                         "letFunction", List.of(
@@ -564,6 +583,42 @@ public final class Runner {
             out.addAll(expanded);
         }
         return out;
+    }
+
+    /** A DEBUG-ARITY execute call (5+ args): the forced-isolation
+     * idiom's structural signature — the tight let-expansion gate. */
+    /** The forced-helper idiom is identified by its
+     * ^RelationalDebugContext(forcedIsolation=...) execute argument —
+     * arity alone also matches validation helpers (regression source). */
+    private static boolean isDebugContextNew(
+            com.legend.model.spec.ValueSpecification v) {
+        return v instanceof com.legend.model.spec.AppliedFunction af
+                && af.function().equals("new")
+                && !af.parameters().isEmpty()
+                && af.parameters().get(0)
+                        instanceof com.legend.model.spec.PackageableElementPtr pe
+                && (pe.fullPath().equals("RelationalDebugContext")
+                        || pe.fullPath().equals("meta::relational::runtime"
+                                + "::RelationalDebugContext"));
+    }
+
+    private static boolean containsDebugArityExecute(
+            com.legend.model.spec.ValueSpecification v) {
+        if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            String simple = af.function()
+                    .substring(af.function().lastIndexOf(':') + 1);
+            if (simple.equals("execute") && af.parameters().size() >= 5
+                    && af.parameters().stream().anyMatch(
+                            Runner::isDebugContextNew)) {
+                return true;
+            }
+            for (com.legend.model.spec.ValueSpecification p2 : af.parameters()) {
+                if (containsDebugArityExecute(p2)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Any execute/toSQLString/from call anywhere in these statements. */

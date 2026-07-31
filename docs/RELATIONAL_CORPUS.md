@@ -40,7 +40,7 @@ in-process Alloy-shaped path).
 | tds/tests | 266 | 246 | 2 | 9 | 9 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
 | tests | 39 | 25 | 3 | 0 | 11 | 0 |
-| tests/advanced | 68 | 47 | 2 | 7 | 12 | 17 |
+| tests/advanced | 68 | 53 | 4 | 7 | 4 | 17 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2142** | 78 | 166 | 152 | 317 |
+| **total** | 2538 | **2148** | 80 | 166 | 144 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4888,8 +4888,6 @@ in-process Alloy-shaped path).
 - tests/advanced duplicate Function::meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlappForcedCorrelated() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForced.pure, kept tests/advanced/sibling-5.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlappForcedOnClause() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForced.pure, kept tests/advanced/sibling-5.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlapp(,NameRef[name=IsolationStrategy][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForced.pure, kept tests/advanced/sibling-5.pure)
-- tests/advanced duplicate Function::meta::relational::tests::advanced::forced::injection::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedInjection.pure, kept tests/advanced/sibling-6.pure)
-- tests/advanced duplicate Function::meta::relational::tests::advanced::forced::injection::testProject() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedInjection.pure, kept tests/advanced/sibling-6.pure)
 - tests/advanced meta::relational::functions::pureToSqlQuery::SelectWithCursor => Unknown type: 'meta::relational::milestoning::TemporalMilestoningContext' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::State => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::FunctionParamScope => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
@@ -5142,6 +5140,8 @@ in-process Alloy-shaped path).
 - tests/advanced meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::getSupportedFunctions => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
 - tests/advanced meta::relational::functions::pureToSqlQuery::FunctionParamScope$prop$resolveFunctionReferenceByVar => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
+- tests/advanced duplicate Function::meta::relational::tests::advanced::forced::injection::setUp() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedInjection.pure, kept tests/advanced/sibling-6.pure)
+- tests/advanced duplicate Function::meta::relational::tests::advanced::forced::injection::testProject() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedInjection.pure, kept tests/advanced/sibling-6.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedMilestoning.pure, kept tests/advanced/sibling-7.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedMilestoning.pure, kept tests/advanced/sibling-7.pure)
 - tests/advanced duplicate Function::meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilter(,NameRef[name=IsolationStrategy][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/advanced/testForcedMilestoning.pure, kept tests/advanced/sibling-7.pure)
@@ -8386,14 +8386,8 @@ in-process Alloy-shaped path).
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
 - SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
-- SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::filter]
-- SHAPE testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::filter]
-- SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::milestoning]
-- SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::milestoning]
-- SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::milestoning]
-- SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedOnClause [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::milestoning]
-- SHAPE testDerivedWithFilteringTwoPropertiesForcedCorrelated [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::qualifier]
-- SHAPE testDerivedWithFilteringTwoPropertiesForcedOnClause [tests/advanced]: no execute(|...) call [calls meta::relational::tests::advanced::forced::qualifier]
+- FAIL testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
+- FAIL testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - ERROR isolationTest [tests/advanced]: multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[product, group]; head binding=TypedPropertyAccess]
 - FAIL testQualifierWithForkAndOrWithInline [tests/advanced]: assertEquals: expected Peter Smith Smith Smith Smith,Peter Smith Smith Smith Hill,Peter Smith Hill Smith Smith,Peter Smith Hill Smith Hill, got Peter Smith Hill Smith Hill,Peter Smith Smith Smith Hill,Peter Smith Hill Smith Smith,Peter Smith Smith Smith Smith
 - ERROR testQualifierWithIsolation [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']

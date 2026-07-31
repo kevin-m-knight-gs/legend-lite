@@ -6,9 +6,8 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: family dir x current stage
 
--   35  executionPlan/tests  ::  rows-differ
+-   33  executionPlan/tests  ::  rows-differ
 -   13  executionPlan/tests  ::  harness-shape
--   12  tests/advanced  ::  harness-shape
 -   11  pureToSQLQuery/tests  ::  harness-shape
 -   11  tests  ::  harness-shape
 -   10  functions/tests  ::  rows-differ
@@ -27,12 +26,12 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    5  functions/tests/projection  ::  rows-differ
 -    5  milestoning/tests  ::  other
 -    5  tds/tests  ::  other
--    5  tests/mapping/sqlFunction  ::  rows-differ
 -    5  tests/query  ::  other
 -    4  graphFetch/tests  ::  typer
 -    4  graphFetch/tests  ::  platform-surface
 -    4  postprocessor/tests  ::  harness-shape
 -    4  testDataGeneration/tests  ::  rows-differ
+-    4  tests/advanced  ::  harness-shape
 -    4  tests/mapping/enumeration  ::  rows-differ
 -    4  tests/mapping/inheritance  ::  normalize(mapping)
 -    4  validation/tests  ::  other
@@ -48,6 +47,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  sqlQueryToString/DDL  ::  harness-shape
 -    3  tds/tests  ::  rows-differ
 -    3  tests  ::  rows-differ
+-    3  tests/advanced  ::  rows-differ
 -    3  tests/mapping  ::  rows-differ
 -    3  tests/mapping/association  ::  normalize(mapping)
 -    3  tests/mapping/classMappingFilterWithInnerJoin  ::  normalize(mapping)
@@ -109,7 +109,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  testDataGeneration/tests  ::  other
 -    1  testDataGeneration/tests  ::  harness-shape
 -    1  tests/advanced  ::  resolve
--    1  tests/advanced  ::  rows-differ
 -    1  tests/advanced  ::  lower
 -    1  tests/datatype  ::  rows-differ
 -    1  tests/datatype  ::  platform-surface
@@ -138,20 +137,20 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 ## Pivot: intent x status
 
 -   64  row-assert  ::  ERROR
--   46  row-assert  ::  SHAPE
+-   44  row-assert  ::  SHAPE
 -   38  golden-sql+row-assert  ::  ERROR
--   35  row-assert  ::  FAIL
+-   30  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
--   26  golden-sql+row-assert  ::  SHAPE
 -   25  row-assert+plan-assert  ::  SHAPE
--   19  golden-sql+row-assert  ::  FAIL
+-   21  golden-sql+row-assert  ::  FAIL
+-   20  golden-sql+row-assert  ::  SHAPE
 -   15  ?  ::  SHAPE
 -   13  row-assert+plan-assert  ::  ERROR
 -   12  row-assert+plan-assert+graph  ::  SHAPE
--   11  row-assert+plan-assert  ::  FAIL
+-   10  row-assert+plan-assert  ::  FAIL
 -   10  row-assert+constraints  ::  ERROR
 -    9  row-assert+lineage  ::  SHAPE
--    6  golden-sql+row-assert+plan-assert  ::  FAIL
+-    5  golden-sql+row-assert+plan-assert  ::  FAIL
 -    5  row-assert+plan-assert+graph  ::  FAIL
 -    4  row-assert+graph  ::  SHAPE
 -    4  golden-sql  ::  FAIL
@@ -177,7 +176,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  312  Test
+-  299  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -237,11 +236,9 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagWithGraphFetchAndFrom | typer | row-assert+plan-assert+graph | Test | no overload of 'executionPlan' matches the argument types |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagWithSupportedAndUnSupportedUsages | rows-differ | row-assert+plan-assert | Test | assertEquals: expected true, got false |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagithTdsJoinForTwoDB | rows-differ | row-assert+plan-assert+graph | Test | assertEquals: expected true, got false |
-| FAIL | executionPlan/tests | executionPlanTest.pure | testTemporalDateVariableInFunctionExpression | rows-differ | golden-sql+row-assert+plan-assert | Test | assertEquals: expected select "productclassificationtable_0".type as "classificationType" from Produ |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTemporalDateVariableInFunctionExpressionWithPropagation | rows-differ | golden-sql+row-assert+plan-assert | Test | assertEquals: expected select "productexchangetable_0".name as "exchangeName" from ProductTable as " |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTwoMappingsOneRuntime | rows-differ | row-assert+plan-assert | Test | assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalName |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTwoMappingsOneRuntimeWithoutExternalMapping | rows-differ | row-assert+plan-assert | Test | assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalName |
-| FAIL | executionPlan/tests | executionPlanTest.pure | testTypedTDSWithEnum | rows-differ | row-assert+plan-assert | Test | assertEquals: expected select "root"."TYPE" as "type", "root"."NAME" as "name" from "productSchema". |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTypedTDSWithEnumFilter | rows-differ | row-assert+plan-assert | Test | assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root"  |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testViewToTDS | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToT |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | twoDBRenameColumns | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
@@ -454,14 +451,8 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests/advanced | testFailures.pure | BuildCorrelatedSubQuery | harness-shape | ? | Test | no execute(\|...) call |
 | SHAPE | tests/advanced | testFailures.pure | failMoveFilterOnTop | harness-shape | ? | Test | no execute(\|...) call |
 | ERROR | tests/advanced | testFilterWithQualifiedProperties.pure | filterFunctionExpressionWithOrConditionOnRightTable | other | golden-sql+row-assert | Test | Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subquer |
-| SHAPE | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedCorrelated | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::filter] |
-| SHAPE | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedOnClause | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::filter] |
-| SHAPE | tests/advanced | testForcedMilestoning.pure | testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::milestoning] |
-| SHAPE | tests/advanced | testForcedMilestoning.pure | testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::milestoning] |
-| SHAPE | tests/advanced | testForcedMilestoning.pure | testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::milestoning] |
-| SHAPE | tests/advanced | testForcedMilestoning.pure | testNonMilestoningQueryWithMilestoneFilterProjectForcedOnClause | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::milestoning] |
-| SHAPE | tests/advanced | testForcedQualifier.pure | testDerivedWithFilteringTwoPropertiesForcedCorrelated | harness-shape | row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::qualifier] |
-| SHAPE | tests/advanced | testForcedQualifier.pure | testDerivedWithFilteringTwoPropertiesForcedOnClause | harness-shape | row-assert | Test | no execute(\|...) call [calls meta::relational::tests::advanced::forced::qualifier] |
+| FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedCorrelated | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
+| FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedOnClause | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
 | ERROR | tests/advanced | testForcedSelfJoin.pure | isolationTest | resolve | row-assert | Test | multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported |
 | SHAPE | tests/advanced | testQueryStructure.pure | testForcedIsolationFilterOnTop | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | ERROR | tests/advanced | testQueryStructure.pure | testIfIncludingQualifiers | lower | golden-sql+row-assert | Test | lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::removeDuplicat |
@@ -536,11 +527,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | FAIL | tests/mapping/selfJoin | selfJoin.pure | testSelfJoinPropertyMappingWithDynaFunction | rows-differ | row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false] |
 | ERROR | tests/mapping/sqlFunction | boolean.pure | testProject | execute(DuckDB) | row-assert | Test | Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to |
 | SHAPE | tests/mapping/sqlFunction | testSqlFunctionsInMapping.pure | testAdjustDateTranslationInMappingAndQuery | other | golden-sql+row-assert | Test | statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vo |
-| FAIL | tests/mapping/sqlFunction | testSqlFunctionsInMapping.pure | testToSQLStringParseDecimalExecutioninH2 | rows-differ | row-assert | Test | assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000] |
-| FAIL | tests/mapping/sqlFunction | testSqlFunctionsInMapping.pure | testToSQLStringParseDecimalSQLCompilationinH2 | rows-differ | row-assert | Test | assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000] |
-| FAIL | tests/mapping/sqlFunction | testSqlFunctionsInMapping.pure | testToSQLStringParseIntegerinComposite | rows-differ | row-assert | Test | assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTabl |
-| FAIL | tests/mapping/sqlFunction | testSqlFunctionsInMapping.pure | testToSQLStringParseIntegerinDB2 | rows-differ | row-assert | Test | assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTabl |
-| FAIL | tests/mapping/sqlFunction | testSqlFunctionsInMapping.pure | testToSQLStringParseIntegerinH2 | rows-differ | row-assert | Test | assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTabl |
 | FAIL | tests/mapping/tree | tree.pure | testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner | rows-differ | row-assert | Test | assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null] |
 | FAIL | tests/mapping/tree | tree.pure | testJoinIsolationDeeper_LeftOuterLeftOuterThenInner | rows-differ | row-assert | Test | assertEquals: expected [11, OrgName3], got [11, OrgName3] |
 | SHAPE | tests/mapping/union | testUnion.pure | testEnumFilterWithUnionMappingPlanGeneration | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a  |
