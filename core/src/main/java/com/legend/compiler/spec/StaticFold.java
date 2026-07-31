@@ -141,7 +141,7 @@ final class StaticFold {
             }
         }
         // if over a static condition: fold the taken branch's body
-        if (af.function().equals("if") && ps.size() == 3
+        if (com.legend.model.spec.AppliedFunction.isIf(af) && ps.size() == 3
                 && eval(ps.get(0), scope) instanceof Boolean cond
                 && ps.get(1) instanceof LambdaFunction thenL
                 && ps.get(2) instanceof LambdaFunction elseL) {
@@ -558,4 +558,5 @@ final class StaticFold {
         int cut = qn.lastIndexOf("::");
         return cut < 0 ? qn : qn.substring(cut + 2);
     }
+
 }

@@ -87,4 +87,10 @@ public record AppliedFunction(
     public AppliedFunction(String function, List<ValueSpecification> parameters) {
         this(function, parameters, List.of());
     }
+
+    /** The parse-level {@code if} spelling — the single owner of the
+     * name compare (string-dispatch freeze). */
+    public static boolean isIf(AppliedFunction af) {
+        return af.function().equals("if");
+    }
 }

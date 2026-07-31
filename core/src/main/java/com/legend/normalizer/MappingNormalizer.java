@@ -3362,6 +3362,9 @@ public final class MappingNormalizer {
                         new TypeAnnotation.Named(
                                 new TypeExpression.NameRef(primitiveName))));
             }
+            if ("Boolean".equals(primitiveName)) {
+                v = booleanizeCaseLiterals(v);
+            }
             boolean exempt = v instanceof AppliedFunction af
                     && (af.function().equals("navigate")
                         || af.function().equals("legacyNavigate")
@@ -3373,6 +3376,40 @@ public final class MappingNormalizer {
                     : new KeyExpression(v, key.isAdd(), key.isLocal()));
         });
         return buildNewInstance(classFqn, wrapped);
+    }
+
+    /** {@code case(cond,'true','false')} bound to a Boolean property
+     * coerces by EMISSION (engine keeps the strings in SQL and decodes
+     * at the TDS reader; our tenet types the value in the plan):
+     * if-branch and bare 'true'/'false' literals become boolean
+     * literals. Any OTHER string stays — the checker's conformance
+     * error remains the loud path (never weakened). */
+    private static ValueSpecification booleanizeCaseLiterals(
+            ValueSpecification v) {
+        if (v instanceof CString cs) {
+            if (cs.value().equals("true")) {
+                return new CBoolean(true);
+            }
+            if (cs.value().equals("false")) {
+                return new CBoolean(false);
+            }
+            return v;
+        }
+        if (v instanceof AppliedFunction af && AppliedFunction.isIf(af)
+                && af.parameters().size() == 3) {
+            List<ValueSpecification> ps = new ArrayList<>(af.parameters());
+            for (int i = 1; i <= 2; i++) {
+                if (ps.get(i) instanceof LambdaFunction lf
+                        && !lf.body().isEmpty()) {
+                    List<ValueSpecification> b = new ArrayList<>(lf.body());
+                    b.set(b.size() - 1,
+                            booleanizeCaseLiterals(b.get(b.size() - 1)));
+                    ps.set(i, new LambdaFunction(lf.parameters(), b));
+                }
+            }
+            return new AppliedFunction("if", ps);
+        }
+        return v;
     }
 
     private static ClassDefinition.@com.legend.Nullable PropertyDefinition findPropertyDefDeep(
