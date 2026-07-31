@@ -200,3 +200,22 @@ proven at TemporalFrame:1371).
   generateAndExecutePlan helper vocabulary (execute-with-setup spelling).
 - modelToModelToRelational 2/5 + milestoned 0/7: not yet itemized —
   next probe.
+
+## modelToModelToRelational itemization (2026-07-31, cycle 21; family 2/5 + milestoned 0/7)
+
+- testProp3 FAIL (nearest): TWO engine-text spelling sub-rules — (1) float
+  literal in COMPARISON context spells bare `0.0` (our EngineStyleH2
+  spells cast(0.0 as float) unconditionally; the cast spelling was pinned
+  from other goldens — the rule is CONTEXT-DEPENDENT, investigate before
+  changing); (2) the whole then/else arithmetic wraps in one extra paren
+  group `(((a*b)/c)*d)`. Plan-surface spelling bucket.
+- testProp2: unknown function meta::pure::mapping::withChainedMappings
+  (library vocabulary — register/parse the helper).
+- testProp4: executionPlan overload signature gap.
+- milestoned 0/7: meta::legend::executeLegendQuery overloads (legend
+  query API surface) + graphFetch-over-m2m milestoned (legs #84/#81) +
+  TargetProductMilestoned class walls. Feature-track heavy; classify
+  with graphFetch tracks.
+- planProjectWithDerivedProperty1 already PASSES (not in failure lists).
+- graphFetch-over-m2m pair (planGraphFetchWith(Nested)DerivedProperty):
+  leg #84 ('class query under TypedGraphFetch not resolvable', H2 vocab).
