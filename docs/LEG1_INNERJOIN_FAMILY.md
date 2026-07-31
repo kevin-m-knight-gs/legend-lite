@@ -157,3 +157,21 @@ proven at TemporalFrame:1371).
 - #32 two-dates family: testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWith
   LatestDateOnProperty.
 - Semi-structured feature: testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements.
+
+## executionPlan/tests residue classification (2026-07-31, cycle 17 — 57 items, family 53/110)
+
+- M2M2R LEG (~13 here + 6 testModelConnection* plan walls + modelToModelToRelational/milestoned
+  0/7 = ~26 corpus-wide, THE biggest coherent remaining feature): planProjectWithDerivedProperty(1)/
+  planProjectWithNested(Derived)Property/planGraphFetchWith(Nested)DerivedProperty/
+  executeProjectWithNestedDerivedProperty (7 SHAPEs — planToString($query, $mapping, $runtime)
+  3-arg spelling over ModelToModelMapping chained onto relational; the golden COLLAPSES the chain:
+  engine composes m2m bindings into one SQL, e.g. fullName = concat(firstName,' ',lastName));
+  + 4 'plan wall: class meta::pure::mapping::modelToModel...' assert-form rows. Design: H-plan H5
+  recursive substitution — resolve the inner getAll, substitute, binding tables compose by
+  β-transitivity.
+- Plan-surface vocabulary/spelling (~15): 2 PureExecutionStrategy nodes (CreateAndPopulateTempTable/
+  RelationalInstantiation), 2 'no overload of executionPlan', 2 SQLExecutionNode.connection
+  property, ~10 plan-text diffs (Sequence/Relational/RelationalBlockExecutionNode spellings; known
+  sub-rules: DATE literal in k_ projections, k_ naming, select 1, quoted-schema sql-text).
+- Cross-db relation-from pair (feature); ExecutionOptionContext unknown-class (vocabulary);
+  4 null-reason rows (re-itemize on next sweep); 2 expected-true/false asserts (investigate).
