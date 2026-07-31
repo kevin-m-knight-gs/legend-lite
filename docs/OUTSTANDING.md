@@ -46,7 +46,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  sqlQueryToString/DDL  ::  harness-shape
 -    3  tds/tests  ::  rows-differ
 -    3  tests  ::  rows-differ
--    3  tests/advanced  ::  rows-differ
 -    3  tests/mapping  ::  rows-differ
 -    3  tests/mapping/association  ::  normalize(mapping)
 -    3  tests/mapping/classMappingFilterWithInnerJoin  ::  normalize(mapping)
@@ -74,6 +73,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  router/tests  ::  typer
 -    2  tds/relation  ::  harness-shape
 -    2  tds/tests  ::  resolve
+-    2  tests/advanced  ::  rows-differ
 -    2  tests/advanced  ::  harness-shape
 -    2  tests/injection  ::  other
 -    2  tests/mapping/association  ::  resolve
@@ -138,7 +138,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   64  row-assert  ::  ERROR
 -   44  row-assert  ::  SHAPE
 -   37  golden-sql+row-assert  ::  ERROR
--   30  row-assert  ::  FAIL
+-   29  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
 -   25  row-assert+plan-assert  ::  SHAPE
 -   21  golden-sql+row-assert  ::  FAIL
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  296  Test
+-  295  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -454,7 +454,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests/advanced | testQueryStructure.pure | testForcedIsolationFilterOnTop | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | tests/advanced | testQueryStructure.pure | testLiteralConditionsForcedIsolation | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | FAIL | tests/advanced | testQueryStructure.pure | testQualifierContainingAJoinWithIsolationAndExistsDeep | other | golden-sql | Test | sql-text: expected select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", |
-| FAIL | tests/advanced | testQueryStructure.pure | testQualifierWithForkAndOrWithInline | rows-differ | row-assert | Test | assertEquals: expected Peter Smith Smith Smith Smith,Peter Smith Smith Smith Hill,Peter Smith Hill S |
 | ERROR | tests/advanced | testQueryStructure.pure | testQualifierWithIsolation | other | row-assert | Test | extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='fir |
 | ERROR | tests/advanced | testQueryStructure.pure | testQualifierWithIsolationXX | other | row-assert | Test | extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='fir |
 | ERROR | tests/advanced | testRelationalResultSourcing.pure | relationalResultSourcingOfDateList | other | row-assert+plan-assert | meta::pure::profiles::Test | object-space expression node TypedLimit is not substitutable yet (H2 vocabulary): TypedLimit[source= |

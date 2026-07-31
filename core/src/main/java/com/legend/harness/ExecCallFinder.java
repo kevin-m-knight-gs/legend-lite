@@ -37,18 +37,8 @@ final class ExecCallFinder {
                 }
                 // execute() bindings live in the exec-statement frame,
                 // not in lets — find the binding and descend into it
-                ValueSpecification bound = null;
-                for (ValueSpecification st : execStmts) {
-                    if (st instanceof AppliedFunction lf
-                            && lf.function().equals("letFunction")
-                            && lf.parameters().size() == 2
-                            && lf.parameters().get(0)
-                                    instanceof com.legend.model.spec
-                                            .CString n
-                            && n.value().equals(var.name())) {
-                        bound = lf.parameters().get(1);
-                    }
-                }
+                ValueSpecification bound =
+                        lastLetBinding(var.name(), execStmts);
                 if (bound == null) {
                     break;
                 }
@@ -70,5 +60,24 @@ final class ExecCallFinder {
         return cur instanceof AppliedFunction ex
                 && TestBody.simpleName(ex.function()).equals("execute")
                 ? ex : null;
+    }
+
+    /** The LAST exec-frame {@code let <name> = <expr>} binding (statement
+     * order — later shadowing bindings win), or null. The single owner of
+     * the letFunction name compare (string-dispatch freeze). */
+    static @com.legend.Nullable ValueSpecification lastLetBinding(
+            String name, List<ValueSpecification> execStmts) {
+        ValueSpecification bound = null;
+        for (ValueSpecification st : execStmts) {
+            if (st instanceof AppliedFunction lf
+                    && lf.function().equals("letFunction")
+                    && lf.parameters().size() == 2
+                    && lf.parameters().get(0)
+                            instanceof com.legend.model.spec.CString n
+                    && n.value().equals(name)) {
+                bound = lf.parameters().get(1);
+            }
+        }
+        return bound;
     }
 }

@@ -2461,6 +2461,20 @@ public final class TestBody {
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
         ValueSpecification spliced = subst(expr, lets);
+        // A TOP-LEVEL LET ALIAS (let res = rows->map(..)->makeString(','))
+        // lives in the exec-statement frame, not in lets — the shape
+        // sniffs below (joinSep/toCSV/replace) must see the real chain,
+        // not the Variable. Same last-binding-wins chase as
+        // ExecCallFinder, cycle-guarded.
+        java.util.Set<String> seenLets = new java.util.HashSet<>();
+        while (spliced instanceof Variable av && seenLets.add(av.name())) {
+            ValueSpecification bound =
+                    ExecCallFinder.lastLetBinding(av.name(), execStmts);
+            if (bound == null) {
+                break;
+            }
+            spliced = subst(bound, lets);
+        }
         // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
         // compares STRUCTURALLY (or renders for a string-literal peer) —
         // rendering is a wire concern, not a query. A tail whose receiver
