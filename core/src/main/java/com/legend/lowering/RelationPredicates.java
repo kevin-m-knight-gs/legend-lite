@@ -23,6 +23,21 @@ final class RelationPredicates {
     private RelationPredicates() {
     }
 
+    /** Rows-level ->toOne() over a relation ($r.values.rows->toOne(),
+     * the corpus's single-ROW claim): row-identical to the relation
+     * itself. The exactly-one contract is enforced where the value
+     * is CONSUMED (the executor's scalar second-row guard, audit
+     * 21b F10) — engine toOne throws at the reader, never in SQL.
+     * ANY 1-arg toOne in relation position looks through — the
+     * POSITION is the contract (a class-typed nav arg arrives
+     * here after resolution; the inner dispatch stays loud when
+     * the arg is genuinely not relation-lowerable). */
+    static boolean isRelationToOne(TypedNativeCall nc) {
+        return "meta::pure::functions::multiplicity::toOne"
+                        .equals(nc.callee().qualifiedName())
+                && nc.args().size() == 1;
+    }
+
     static Lowerer.@com.legend.Nullable RelationPredicate of(TypedNativeCall n) {
         // count over a RELATION argument is size (row count) — the graph-
         // leaf sub-aggregation emission rewrites nav-slot reads to their

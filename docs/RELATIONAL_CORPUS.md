@@ -40,7 +40,7 @@ in-process Alloy-shaped path).
 | tds/tests | 266 | 246 | 2 | 9 | 9 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
 | tests | 39 | 25 | 3 | 0 | 11 | 0 |
-| tests/advanced | 68 | 53 | 4 | 7 | 4 | 17 |
+| tests/advanced | 68 | 54 | 4 | 6 | 4 | 17 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2148** | 80 | 166 | 144 | 317 |
+| **total** | 2538 | **2149** | 80 | 165 | 144 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8392,7 +8392,6 @@ in-process Alloy-shaped path).
 - FAIL testQualifierWithForkAndOrWithInline [tests/advanced]: assertEquals: expected Peter Smith Smith Smith Smith,Peter Smith Smith Smith Hill,Peter Smith Hill Smith Smith,Peter Smith Hill Smith Hill, got Peter Smith Hill Smith Hill,Peter Smith Smith Smith Hill,Peter Smith Hill Smith Smith,Peter Smith Smith Smith Smith
 - ERROR testQualifierWithIsolation [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
-- ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::removeDuplicates' in relation position)
 - FAIL testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: sql-text: expected select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID) left outer join (select distinct "persontable_2".FIRMID from personTable as "persontable_2" left outer join addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_2".ADDRESSID) left outer join personTable as "persontable_3" on ("persontable_2".MANAGERID = "persontable_3".ID) where ("addresstable_0".NAME = 'Hoboken' or concat("persontable_3".FIRSTNAME, ' ', "persontable_3".LASTNAME) = 'Bla') and "persontable_2".LASTNAME = 'smith') as "persontable_1" on ("firmtable_0".ID = "persontable_1".FIRMID) where "persontable_1".FIRMID is not null, got select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID) where EXISTS (select 1 from personTable as "t2" left outer join addressTable as "t3" on ("t3".ID = "t2".ADDRESSID) left outer join personTable as "t4" on ("t2".MANAGERID = "t4".ID) where "firmtable_0".ID = "t2".FIRMID and ("t3".NAME = 'Hoboken' or concat("t4".FIRSTNAME, ' ', "t4".LASTNAME) = 'Bla') and "t2".LASTNAME = 'smith')
 - SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification

@@ -489,23 +489,16 @@ public final class Lowerer {
                           + "') escaped Phase H store resolution — a resolver gap,"
                           + " not a missing lowering rule");
 
-            // Rows-level ->toOne() over a relation ($r.values.rows->toOne(),
-            // the corpus's single-ROW claim): row-identical to the relation
-            // itself. The exactly-one contract is enforced where the value
-            // is CONSUMED (the executor's scalar second-row guard, audit
-            // 21b F10) — engine toOne throws at the reader, never in SQL.
-            // ANY 1-arg toOne in relation position looks through — the
-            // POSITION is the contract (a class-typed nav arg arrives
-            // here after resolution; the inner dispatch stays loud when
-            // the arg is genuinely not relation-lowerable).
-            case TypedNativeCall nc when
-                    "meta::pure::functions::multiplicity::toOne"
-                            .equals(nc.callee().qualifiedName())
-                    && nc.args().size() == 1 ->
+            case TypedNativeCall nc
+                    when RelationPredicates.isRelationToOne(nc) ->
                     relation(nc.args().get(0));
 
-            case TypedNativeCall nc when isBareSingleColumnSort(nc) ->
+            case TypedNativeCall nc when ValueCollectionOps.isBareSingleColumnSort(nc) ->
                     naturalSort(nc);
+
+            case TypedNativeCall nc
+                    when ValueCollectionOps.relationDistinct(nc) != null ->
+                    distinctOf(nc);
 
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
@@ -1447,6 +1440,13 @@ public final class Lowerer {
                             && col.name().equals(c) ? null : c));
         }
         return ps;
+    }
+
+    /** Single-column relation removeDuplicates (rule owned by
+     * ValueCollectionOps.relationDistinct) lowers as TypedDistinct. */
+    private SqlSelect distinctOf(TypedNativeCall nc) {
+        return distinct(Objects.requireNonNull(
+                ValueCollectionOps.relationDistinct(nc)));
     }
 
     private SqlSelect distinct(TypedDistinct d) {
@@ -2795,18 +2795,6 @@ public final class Lowerer {
     private static SqlExpr asList(SqlExpr e, boolean many) {
         return many || e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
                 ? e : new SqlExpr.ArrayLit(List.of(e));
-    }
-
-    /** Bare ->sort() over a SINGLE-COLUMN relation stream (assert
-     * vocabulary: $result.rows.values->sort()) — a multi-column relation
-     * has no natural order and stays at the loud frontier default. */
-    private static boolean isBareSingleColumnSort(TypedNativeCall nc) {
-        return "meta::pure::functions::collection::sort"
-                        .equals(nc.callee().qualifiedName())
-                && nc.args().size() == 1
-                && nc.args().get(0).info().type()
-                        instanceof Type.RelationType srt
-                && srt.columns().size() == 1;
     }
 
     /** Natural ascending order on the stream's one column. */

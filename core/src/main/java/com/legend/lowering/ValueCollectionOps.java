@@ -27,6 +27,39 @@ final class ValueCollectionOps {
 
     /** The relation-space rewrite of {@code n}, or null when {@code n} is
      * not a 1-arg removeDuplicates/sort over a single-column relation. */
+    /** Bare ->sort() over a SINGLE-COLUMN relation stream (assert
+     * vocabulary: $result.rows.values->sort()) — a multi-column relation
+     * has no natural order and stays at the loud frontier default. */
+    static boolean isBareSingleColumnSort(TypedNativeCall nc) {
+        return "meta::pure::functions::collection::sort"
+                        .equals(nc.callee().qualifiedName())
+                && nc.args().size() == 1
+                && nc.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type
+                                .Type.RelationType srt
+                && srt.columns().size() == 1;
+    }
+
+    /** Relation-POSITION removeDuplicates over a single-column relation
+     * (the corpus assert idiom {@code $r.rows.values->removeDuplicates()}):
+     * rewrite to TypedDistinct — whole-row DISTINCT is only cell dedup
+     * when there is exactly one column; multi-column stays at the loud
+     * frontier wall. */
+    static @com.legend.Nullable com.legend.compiler.spec.typed.TypedDistinct
+            relationDistinct(TypedNativeCall n) {
+        return "meta::pure::functions::collection::removeDuplicates"
+                        .equals(n.callee().qualifiedName())
+                && n.args().size() == 1
+                && n.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type
+                                .Type.RelationType rt
+                && rt.columns().size() == 1
+                ? new com.legend.compiler.spec.typed.TypedDistinct(
+                        n.args().get(0), java.util.List.of(),
+                        n.args().get(0).info())
+                : null;
+    }
+
     static @com.legend.Nullable TypedSpec relationSpaceRewrite(TypedNativeCall n) {
         if (n.args().size() != 1
                 || !(n.args().get(0).info().type()

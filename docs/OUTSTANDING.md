@@ -109,7 +109,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  testDataGeneration/tests  ::  other
 -    1  testDataGeneration/tests  ::  harness-shape
 -    1  tests/advanced  ::  resolve
--    1  tests/advanced  ::  lower
 -    1  tests/datatype  ::  rows-differ
 -    1  tests/datatype  ::  platform-surface
 -    1  tests/mapping  ::  lower
@@ -138,7 +137,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 -   64  row-assert  ::  ERROR
 -   44  row-assert  ::  SHAPE
--   38  golden-sql+row-assert  ::  ERROR
+-   37  golden-sql+row-assert  ::  ERROR
 -   30  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
 -   25  row-assert+plan-assert  ::  SHAPE
@@ -176,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  299  Test
+-  298  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -455,7 +454,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedOnClause | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
 | ERROR | tests/advanced | testForcedSelfJoin.pure | isolationTest | resolve | row-assert | Test | multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported |
 | SHAPE | tests/advanced | testQueryStructure.pure | testForcedIsolationFilterOnTop | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
-| ERROR | tests/advanced | testQueryStructure.pure | testIfIncludingQualifiers | lower | golden-sql+row-assert | Test | lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::removeDuplicat |
 | SHAPE | tests/advanced | testQueryStructure.pure | testLiteralConditionsForcedIsolation | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | FAIL | tests/advanced | testQueryStructure.pure | testQualifierContainingAJoinWithIsolationAndExistsDeep | other | golden-sql | Test | sql-text: expected select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", |
 | FAIL | tests/advanced | testQueryStructure.pure | testQualifierWithForkAndOrWithInline | rows-differ | row-assert | Test | assertEquals: expected Peter Smith Smith Smith Smith,Peter Smith Smith Smith Hill,Peter Smith Hill S |
