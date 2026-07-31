@@ -444,3 +444,23 @@ tds; DuckDB rows unaffected (AND commutes).
 Expected: processing-temporal pair (+2), possibly
 testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty,
 testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR.
+
+## Cycle-35 finding: join emission order (2026-07-31)
+
+testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty
+after the c34 zone merge: SQL is semantically IDENTICAL to the engine
+(two-dates-per-head correct: separate 10-15 projection join +
+10-16 filter join on ProductClassificationTable, exchange latest);
+the only delta is JOIN ORDER + consequent alias numbering.
+- Engine: PROJECTION-demand joins first, then FILTER-demand joins
+  (processClass: pks->concatenate(properties) merge, THEN
+  filterQuery.select concatenates — pureToSQLQuery L5599-5608).
+- Ours: filter-demand joins emit first (pipeline order).
+Next slice: in the resolver materialization, emit projection-path
+join demands BEFORE filter-path demands (find where filterPaths vs
+projectionPaths ordering drives AssociationJoins emission —
+collectOpDemand feeds both; the join list order decides SQL text).
+BLAST: every query with BOTH filter and projection navs changes join
+order + aliases — full-sweep referee; rows unaffected.
+testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR unread
+this cycle (re-diff after the order slice).
