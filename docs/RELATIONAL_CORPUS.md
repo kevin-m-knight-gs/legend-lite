@@ -25,7 +25,7 @@ in-process Alloy-shaped path).
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
 | milestoning/tests | 224 | 207 | 5 | 2 | 10 | 42 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
-| modelToModelToRelational | 5 | 2 | 1 | 0 | 2 | 0 |
+| modelToModelToRelational | 5 | 2 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 | 1 |
@@ -71,11 +71,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 117 | 0 | 6 | 1 | 6 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 83 | 73 | 1 | 8 | 1 | 36 |
+| tests/query | 83 | 73 | 1 | 8 | 1 | 37 |
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2162** | 76 | 163 | 137 | 292 |
+| **total** | 2538 | **2162** | 75 | 163 | 138 | 293 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8292,7 +8292,7 @@ in-process Alloy-shaped path).
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::relational::modelJoins::test::getNoStoreRuntime': unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument shapes pending
 - SHAPE testProp2 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown function 'meta::pure::mapping::withChainedMappings' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- FAIL testProp3 [modelToModelToRelational]: assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop3", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".basis = 0.0 then 0.0 else (((1.0 * "root".entitledQuantity) / "sourceannouncement_0".basis) * "sourceannouncement_0".grossRate) end as "prop3" from S.sourceEntitlement as "root" left outer join S.SourceAnnouncement as "sourceannouncement_0" on ("root".id = "sourceannouncement_0".id)\n  connection = RelationalDatabaseConnection(type = "H2")\n)\n, got Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number, FLOAT, "")]\n  resultColumns = [("name", VARCHAR(200)), ("prop3", "")]\n  sql = select "root".name as "name", case when "sourceannouncement_0".basis = cast(0.0 as float) then cast(0.0 as float) else ((1.0 * "root".entitledQuantity) / "sourceannouncement_0".basis) * "sourceannouncement_0".grossRate end as "prop3" from S.sourceEntitlement as "root" left outer join S.SourceAnnouncement as "sourceannouncement_0" on ("root".id = "sourceannouncement_0".id)\n  connection = RelationalDatabaseConnection(type = "H2")\n)\n
+- SHAPE testProp3 [modelToModelToRelational]: assert form 'assertEqualsH2Compatible/3' is not supported yet — plan wall: unknown function 'meta::pure::mapping::withChainedMappings' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testProp4 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::executionPlan::executionPlan' matches the argument types
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)

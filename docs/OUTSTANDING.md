@@ -149,19 +149,19 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   10  row-assert+constraints  ::  ERROR
 -    9  row-assert+plan-assert+graph  ::  SHAPE
 -    9  row-assert+lineage  ::  SHAPE
--    5  golden-sql+row-assert+plan-assert  ::  FAIL
 -    5  row-assert+plan-assert+graph  ::  FAIL
+-    4  golden-sql+row-assert+plan-assert  ::  FAIL
 -    4  row-assert+graph  ::  SHAPE
 -    4  golden-sql+row-assert+constraints  ::  ERROR
 -    3  plan-assert  ::  SHAPE
 -    3  row-assert+plan-assert+graph  ::  ERROR
+-    3  golden-sql+row-assert+plan-assert  ::  SHAPE
 -    3  golden-sql  ::  FAIL
 -    3  golden-sql  ::  SHAPE
 -    2  ?  ::  ERROR
 -    2  golden-sql+plan-assert  ::  SHAPE
 -    2  graph  ::  SHAPE
 -    2  row-assert+graph  ::  FAIL
--    2  golden-sql+row-assert+plan-assert  ::  SHAPE
 -    2  golden-sql  ::  ERROR
 -    1  plan-assert  ::  FAIL
 -    1  golden-sql+row-assert+plan-assert+graph  ::  ERROR
@@ -356,7 +356,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingFromProject | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument sha |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingProject | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
 | SHAPE | modelToModelToRelational | m2m2rShowcase.pure | testProp2 | rows-differ | row-assert+plan-assert | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: unknown function 'meta::pure::mapping |
-| FAIL | modelToModelToRelational | m2m2rShowcase.pure | testProp3 | rows-differ | golden-sql+row-assert+plan-assert | meta::pure::profiles::Test | assertEquals: expected Relational\n(\n  type = TDS[(name, String, VARCHAR(8192), ""), (prop3, Number |
+| SHAPE | modelToModelToRelational | m2m2rShowcase.pure | testProp3 | rows-differ | golden-sql+row-assert+plan-assert | meta::pure::profiles::Test | assert form 'assertEqualsH2Compatible/3' is not supported yet — plan wall: unknown function 'meta::p |
 | SHAPE | modelToModelToRelational | m2m2rShowcase.pure | testProp4 | rows-differ | row-assert+plan-assert | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::execution |
 | ERROR | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaAllVersionsMapping | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidat |
 | ERROR | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaHardcodedDateMapping | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidat |

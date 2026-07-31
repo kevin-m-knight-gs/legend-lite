@@ -566,11 +566,33 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     protected String expr(SqlExpr e, int parentPrec) {
         // plan-template parameter (engine freemarker): strings are
         // single-quoted with the engine's escape template
-        // engine h2New text spells case/when lowercase and float
-        // literals as cast(v as float) — the ANSI DOUBLE-cast is a
-        // DuckDB execution idiom, not engine text
+        // engine text spells float LITERALS bare (testProp3 golden:
+        // basis = 0.0) — cast(%s as float) is the parseFloat DYNAFUNCTION
+        // format (h2Extension2_1_214:246) and the Float-typed variant
+        // element access (:428), never the literal; the ANSI DOUBLE-cast
+        // stays a DuckDB execution idiom
         if (e instanceof SqlExpr.FloatLit f) {
-            return "cast(" + f.value() + " as float)";
+            return String.valueOf(f.value());
+        }
+        // engine text: an arithmetic op with a MIXED-OPERATOR composite
+        // operand wraps itself (testProp3 golden (((1.0*q)/basis)*rate) —
+        // TIMES over DIVIDE); SAME-operator chains stay flat (golden
+        // quantity + quantity + 3), lone ops stay bare (AGE * AGE).
+        // parentPrec >= 7 = the base renderer already wraps.
+        if (e instanceof SqlExpr.Call ac && parentPrec < 7
+                && (ac.fn() == com.legend.sql.SqlFn.PLUS
+                        || ac.fn() == com.legend.sql.SqlFn.MINUS
+                        || ac.fn() == com.legend.sql.SqlFn.TIMES)
+                && ac.args().stream().anyMatch(x -> {
+                    SqlExpr u = x instanceof SqlExpr.Group g ? g.inner() : x;
+                    return u instanceof SqlExpr.Call cc
+                            && cc.fn() != ac.fn()
+                            && (cc.fn() == com.legend.sql.SqlFn.PLUS
+                                    || cc.fn() == com.legend.sql.SqlFn.MINUS
+                                    || cc.fn() == com.legend.sql.SqlFn.TIMES
+                                    || cc.fn() == com.legend.sql.SqlFn.DIVIDE);
+                })) {
+            return "(" + super.expr(e, 0) + ")";
         }
         if (e instanceof SqlExpr.PlanParam p) {
             // an OPTIONAL parameter spells the varPlaceHolderToString
