@@ -257,3 +257,30 @@ TestDatabaseConnection default; (2) one trailing empty-line diff (check
 PlanText.single terminal newline). testProp3 additionally needs the
 assertEqualsH2Compatible/3 harness arm. testProp4 = executionPlan
 overload (unread).
+
+## L6 itemization (2026-07-31, cycle 27)
+
+- CONSTRAINTS/VALIDATION biggest bucket (5): "aggregate sum over a
+  to-many navigation in FILTER position" — validateComplexValidation4/7 +
+  testValidateQueryWithMilestoningAndAggregation{All,Single,SingleAnd
+  NestedDynaFunction}. Shape: filter(x| $x.<toMany>.<col>->sum() > N).
+  Engine: correlated scalar subquery (select sum(col) from target where
+  assoc-corr) compared in WHERE — aggregates return exactly one row, so
+  no multi-row hazard (unlike the pierced-toOne case). Design: route
+  filter-position to-many aggregates through the SAME correlated-
+  aggregate machinery the projection position uses (#77 parent-copy /
+  CorrelatedSubselects AggRead registry) — the wall text says "the
+  aggregate demand scan did not recognize this shape", i.e. the demand
+  scan skips filter lambdas for agg reads. Adjacent singles:
+  isDistinct-reducer variants (validateComplexValidation9/10).
+- graphFetch: executeLegendQuery 4-arg overloads (4, legend query API
+  surface); parseJSON/alloyConfig unknown fns (4, vocabulary);
+  assertJsonStringsEqual/2 (harness assert form); no-execute (3).
+- lineage: 9 of 12 = sql-only advisory (PENDING-USER policy!); 3 real
+  (scanColumns joinTree diff, class-typed whole-value read, Vehicle
+  inheritance mapping).
+- testDataGeneration: scattered singles (tableToTDS join side,
+  stc multi-hop, assertSize sqls 5v4, assert forms).
+- m2m2r/milestoned 0/7 (c21): executeLegendQuery overloads +
+  graphFetch-over-m2m milestoned (legs #84/#81) + TargetProductMilestoned
+  walls — leg-owned.
