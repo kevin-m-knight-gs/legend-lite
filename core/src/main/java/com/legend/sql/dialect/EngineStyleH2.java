@@ -549,9 +549,17 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 // keyword (TIMESTAMP'${reportEndDate.date}'); a non-default
                 // connection timeZone wraps DATETIME in GMTtoTZ (the same
                 // template the optional holder spells)
-                case DATE, DATETIME -> p.kind()
-                        == SqlExpr.PlanParam.Kind.DATETIME
-                        && timeZone != null
+                // DATE has TWO engine spellings, split by the param's
+                // freemarker PATH SHAPE (both in executionPlanTest
+                // goldens): a PROPERTY-ACCESSOR param (dotted path —
+                // '${reportEndDate.date}', minted by the class-property
+                // open-variable arm) spells the h2New TIMESTAMP keyword;
+                // a plain function param ('${bd}' — the milestoning
+                // business-date channel) spells BARE-QUOTED.
+                case DATE -> p.name().indexOf('.') >= 0
+                        ? "TIMESTAMP'${" + p.name() + "}'"
+                        : "'${" + p.name() + "}'";
+                case DATETIME -> timeZone != null
                         ? "TIMESTAMP'${GMTtoTZ( \"[" + timeZone + "]\" "
                                 + p.name() + ")}'"
                         : "TIMESTAMP'${" + p.name() + "}'";
@@ -913,6 +921,24 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     // == engine-H2 spellings (each MATCHED against a corpus golden) =====
 
+    /** DurationUnit interval-fn -> H2 dateadd unit keyword
+     * (extensionDefaults.pure mapToDBUnitType). */
+    private static String dbUnitOf(String unitFn) {
+        return switch (unitFn) {
+            case "to_years" -> "YEAR";
+            case "to_months" -> "MONTH";
+            case "to_weeks" -> "WEEK";
+            case "to_days" -> "DAY";
+            case "to_hours" -> "HOUR";
+            case "to_minutes" -> "MINUTE";
+            case "to_seconds" -> "SECOND";
+            case "to_milliseconds" -> "MILLISECOND";
+            case "to_microseconds" -> "MICROSECOND";
+            default -> throw new IllegalStateException(
+                    "no H2 dateadd unit for interval fn '" + unitFn + "'");
+        };
+    }
+
     @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
@@ -928,6 +954,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     ? "datediff(" + u.value() + ", " + expr(a.get(1), 0)
                             + ", " + expr(a.get(2), 0) + ")"
                     : super.call(c, parentPrec);
+            // engine H2 adjust: dateadd(UNIT, n, x) (h2Extension dynaFn
+            // 'adjust' + extensionDefaults mapToDBUnitType) — the ANSI
+            // base's d + to_days(n) is the DuckDB-executable spelling
+            case ADD_INTERVAL -> "dateadd("
+                    + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
+                    + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
             case CHR -> "char(" + expr(a.get(0), 0) + ")";
             case LENGTH -> "char_length(" + expr(a.get(0), 0) + ")";
             case REVERSE_STRING -> "legend_h2_extension_reverse_string("
