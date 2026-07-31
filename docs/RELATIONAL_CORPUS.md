@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 | 1 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 58 | 15 | 11 | 26 | 0 |
+| executionPlan/tests | 110 | 58 | 16 | 11 | 25 | 0 |
 | functions/tests | 258 | 227 | 8 | 18 | 5 | 80 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 132 | 6 | 14 | 3 | 1 |
@@ -25,7 +25,7 @@ in-process Alloy-shaped path).
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
 | milestoning/tests | 224 | 207 | 5 | 2 | 10 | 42 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
-| modelToModelToRelational | 5 | 4 | 0 | 0 | 1 | 0 |
+| modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2164** | 75 | 163 | 136 | 293 |
+| **total** | 2538 | **2165** | 76 | 163 | 134 | 293 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8098,7 +8098,6 @@ in-process Alloy-shaped path).
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 3x unbound variable '$t'
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
-- 2x no overload of 'executionPlan' matches the argument types
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
 - 2x Binder Error: subqueries in lambda expressions are not supported
@@ -8118,7 +8117,8 @@ in-process Alloy-shaped path).
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 1x unknown class 'ExecutionOptionContext' in ^ExecutionOptionContext(…)
 - 1x Index 0 out of bounds for length 0
-- 1x scalar lowering not yet implemented for TypedSerializeGraph
+- 1x no overload of 'executionPlan' matches the argument types
+- 1x graphFetch expects (classCollection, #{Class{…}}#)
 
 ### per-test outcomes (non-passing)
 
@@ -8167,12 +8167,12 @@ in-process Alloy-shaped path).
 - FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
 - ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'sqlComment'
-- ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: no overload of 'executionPlan' matches the argument types
+- ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: graphFetch expects (classCollection, #{Class{…}}#)
 - FAIL testQuoteIdentifiersFlagWithGraphFetch [executionPlan/tests]: assertEquals: expected PureExp(type=Stringexpression=->serialize(#{meta::relational::tests::model::simple::Product{name}}#)(StoreMappingGlobalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],propertiesWithParameters=[name]]resultSizeRange=*store=meta::relational::tests::dblocalGraphFetchExecutionNode=RelationalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],propertiesWithParameters=[name]]nodeIndex=0relationalNode=SQL(type=meta::pure::metamodel::type::AnyresultColumns=[("pk_0",INT),("name",VARCHAR(200))]sql=select"root"."ID"as"pk_0","root"."NAME"as"name"from"productSchema"."productTable"as"root"connection=TestDatabaseConnection(type="H2"))children=[])children=[]localTreeIndices=[0,1]dependencyIndices=[]))), got Relational(type=Class[impls=(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)]asmeta::relational::tests::model::simple::ProductresultSizeRange=1resultColumns=[("pk_0",INT),("name",VARCHAR(200))]sql=select"root"."ID"as"pk_0","root"."NAME"as"name"from"productSchema"."productTable"as"root"connection=TestDatabaseConnection(type="H2"))
 - SHAPE testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - SHAPE testRelationalProjectionWithExternalFormat [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown function 'meta::external::format::shared::transformation::tests::exampleExternalFormatExtension' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'executionPlan' matches the argument types
+- FAIL testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n         as meta::relational::tests::model::simple::Person\n  resultSizeRange = *\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [names:String[*]]\n    )\n    Allocation\n    (\n      type = String\n      resultSizeRange = *\n      name = upperNames\n      value = \n        (\n          PureExp\n          (\n            type = String\n            resultSizeRange = *\n            requires = [names(String[*])]\n            expression = $names -> map([Routed Func:n:String[1] | $n -> toUpper();])\n          )\n        )\n    )\n    RelationalBlockExecutionNode\n    (\n      type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n             as meta::relational::tests::model::simple::Person\n      resultSizeRange = *\n      (\n        Allocation\n        (\n          type = String\n          name = inFilterClause_upperNames\n          value = \n            (\n              FreeMarkerConditionalExecutionNode\n              (\n                type = String\n                condition = ${(instanceOf(upperNames, "Stream") || instanceOf(upperNames, "StreamingResult") || ((collectionSize(upperNames![])?number) > 50))?c}\n                trueBlock = \n                (\n                  Sequence\n                  (\n                    type = String\n                    (\n                      CreateAndPopulateTempTable\n                      (\n                        type = Void\n                        inputVarNames = [upperNames]\n                        tempTableName = tempTableForIn_upperNames\n                        tempTableColumns = [(ColumnForStoringInCollection, VARCHAR(1024) )]\n                        connection = TestDatabaseConnection(type = "H2")\n                      )\n                      Constant\n                      (\n                        type = String\n                        values=[select "temptableforin_uppernames_0".ColumnForStoringInCollection as ColumnForStoringInCollection from tempTableForIn_upperNames as "temptableforin_uppernames_0"]\n                      )\n                    )\n                  )\n                )\n                falseBlock = \n                (\n                  Constant\n                  (\n                    type = String\n                    values=[${renderCollection(upperNames![] "," "'" "'" {"'" : "''" } "null")}]\n                  )\n                )\n              )\n            )\n        )\n        Relational\n        (\n          type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n                 as meta::relational::tests::model::simple::Person\n          resultSizeRange = *\n          resultColumns = [("pk_0", INT), ("firstName", VARCHAR(200)), ("age", INT), ("lastName", VARCHAR(200))]\n          sql = select "root".ID as "pk_0", "root".FIRSTNAME as "firstName", "root".AGE as "age", "root".LASTNAME as "lastName" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID) where "firmtable_0".LEGALNAME in (${inFilterClause_upperNames})\n          connection = TestDatabaseConnection(type = "H2")\n        )\n      ) \n    )\n  )\n)\n, got Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_Person)]\n         as meta::relational::tests::model::simple::Person\n  resultSizeRange = *\n  (\n    FunctionParametersValidationNode\n    (\n      functionParameters = [names:String[*]]\n    )\n    Relational\n    (\n      type = Class[impls=(meta::relational::tests::model::simple::Person | simpleRelationalMappingInc.meta_relational_tests_model_simple_
 - SHAPE testGraphFetchH2TempTableStrategy [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown type 'StoreMappingGlobalGraphFetchExecutionNode' in @StoreMappingGlobalGraphFetchExecutionNode
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: unknown type 'StoreMappingGlobalGraphFetchExecutionNode' in @StoreMappingGlobalGraphFetchExecutionNode
 - FAIL testTypedTDSWithEnumFilter [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root" where "root"."TYPE" = 'CUSIP', got select * from (select case when "root"."TYPE" = 'CUSIP' then 'CUSIP' else case when "root"."TYPE" = 'ISIN' then 'ISIN' else NULL end end as "type" from "productSchema"."synonymTable" as "root") as "synonymtable_0" where "synonymtable_0"."type" = 'CUSIP'
@@ -8291,7 +8291,6 @@ in-process Alloy-shaped path).
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::relational::modelJoins::test::getNoStoreRuntime': unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument shapes pending
-- SHAPE testProp4 [modelToModelToRelational]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::executionPlan::executionPlan' matches the argument types
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty]

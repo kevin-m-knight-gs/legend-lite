@@ -10,10 +10,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   11  pureToSQLQuery/tests  ::  harness-shape
 -   11  tests  ::  harness-shape
 -   10  functions/tests  ::  rows-differ
+-    9  executionPlan/tests  ::  other
 -    9  functions/tests  ::  other
 -    9  lineage/scanRelations  ::  harness-shape
 -    9  milestoning/tests  ::  harness-shape
--    8  executionPlan/tests  ::  other
 -    8  tds/tests  ::  harness-shape
 -    7  executionPlan/tests  ::  harness-shape
 -    7  functions/tests  ::  platform-surface
@@ -57,7 +57,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  transform/fromPure/tests  ::  render(DB2)
 -    3  transform/fromPure/tests  ::  other
 -    3  validation/showcase  ::  other
--    2  executionPlan/tests  ::  typer
 -    2  functions/tests  ::  resolve
 -    2  functions/tests  ::  harness-shape
 -    2  functions/tests/projection  ::  lower
@@ -85,6 +84,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  tests/query  ::  typer
 -    1  autogeneration/tests  ::  harness-shape
 -    1  executionPlan/tests  ::  platform-surface
+-    1  executionPlan/tests  ::  typer
 -    1  functions/tests  ::  execute(DuckDB)
 -    1  functions/tests/loadCsvToDbTable  ::  typer
 -    1  functions/tests/projection  ::  normalize(mapping)
@@ -96,7 +96,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  graphFetch/tests/union  ::  platform-surface
 -    1  lineage/scanColumns  ::  normalize(mapping)
 -    1  modelJoins  ::  harness-shape
--    1  modelToModelToRelational  ::  rows-differ
 -    1  postprocessor/tests  ::  typer
 -    1  router/tests  ::  rows-differ
 -    1  router/tests  ::  resolve
@@ -140,11 +139,11 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   35  golden-sql+row-assert  ::  ERROR
 -   29  row-assert  ::  FAIL
 -   27  row-assert+graph  ::  ERROR
--   22  row-assert+plan-assert  ::  SHAPE
+-   21  row-assert+plan-assert  ::  SHAPE
 -   20  golden-sql+row-assert  ::  SHAPE
 -   19  golden-sql+row-assert  ::  FAIL
 -   13  row-assert+plan-assert  ::  ERROR
--   13  ?  ::  SHAPE
+-   12  ?  ::  SHAPE
 -   10  row-assert+plan-assert  ::  FAIL
 -   10  row-assert+constraints  ::  ERROR
 -    9  row-assert+plan-assert+graph  ::  SHAPE
@@ -163,6 +162,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  row-assert+graph  ::  FAIL
 -    2  golden-sql+row-assert+plan-assert  ::  SHAPE
 -    2  golden-sql  ::  ERROR
+-    1  ?  ::  FAIL
 -    1  plan-assert  ::  FAIL
 -    1  golden-sql+row-assert+plan-assert+graph  ::  ERROR
 -    1  row-assert+lineage  ::  ERROR
@@ -177,7 +177,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 -  289  Test
 -   43  Test, AlloyOnly
--   26  meta::pure::profiles::Test
+-   25  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
 -    5  ?
 -    1  meta::pure::profiles::Test, AlloyOnly
@@ -193,7 +193,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | aggregationAware/test/rewrite/NOP | nonAggregationAware.pure | testRewriteTDSOperation | execute(DuckDB) | row-assert | Test | Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_ |
 | SHAPE | autogeneration/tests | relationalToPure.pure | testClassesAssociationsAndMappingFromDatabase | harness-shape | row-assert | Test | no execute(\|...) call [calls meta::relational::extension] |
 | SHAPE | executionPlan/tests | ? | testEnumPushDownWithExternalFormat | rows-differ | ? | ? | assert form 'assertEquals/2' is not supported yet — plan wall: unknown function 'meta::external::for |
-| SHAPE | executionPlan/tests | ? | testMultiExpressionWithPlatformAndFromFunction | rows-differ | ? | ? | assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'executionPlan' matche |
+| FAIL | executionPlan/tests | ? | testMultiExpressionWithPlatformAndFromFunction | rows-differ | ? | ? | assertEquals: expected Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Pe |
 | SHAPE | executionPlan/tests | ? | testRelationalProjectionWithExternalFormat | rows-differ | ? | ? | assert form 'assertEquals/2' is not supported yet — plan wall: unknown function 'meta::external::for |
 | SHAPE | executionPlan/tests | executionPlanExecutionTest.pure | testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode | harness-shape | plan-assert | Test | no execute(\|...) call [calls meta::external::store::relational::tests] |
 | SHAPE | executionPlan/tests | executionPlanExecutionTest.pure | testPureExecutionStrategyForRelationalInstantiationExecutionNode | harness-shape | plan-assert | Test | no execute(\|...) call [calls meta::external::store::relational::tests] |
@@ -231,7 +231,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testRoutingContextBuilderFunctions | rows-differ | row-assert+plan-assert | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class meta::pure::metamodel::type::An |
 | SHAPE | executionPlan/tests | executionPlanTest.pure | testSQLCommentsInPlan | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLE |
 | ERROR | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagFromSimple | typer | row-assert+plan-assert+graph | Test | no overload of 'executionPlan' matches the argument types |
-| ERROR | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagWithGraphFetchAndFrom | typer | row-assert+plan-assert+graph | Test | no overload of 'executionPlan' matches the argument types |
+| ERROR | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagWithGraphFetchAndFrom | other | row-assert+plan-assert+graph | Test | graphFetch expects (classCollection, #{Class{…}}#) |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagWithSupportedAndUnSupportedUsages | rows-differ | row-assert+plan-assert | Test | assertEquals: expected true, got false |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testSupportStreamFlagithTdsJoinForTwoDB | rows-differ | row-assert+plan-assert+graph | Test | assertEquals: expected true, got false |
 | FAIL | executionPlan/tests | executionPlanTest.pure | testTemporalDateVariableInFunctionExpressionWithPropagation | rows-differ | golden-sql+row-assert+plan-assert | Test | assertEquals: expected select "productexchangetable_0".name as "exchangeName" from ProductTable as " |
@@ -355,7 +355,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testModelJoinForNonRelationalConcepts | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::r |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingFromProject | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument sha |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingProject | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
-| SHAPE | modelToModelToRelational | m2m2rShowcase.pure | testProp4 | rows-differ | row-assert+plan-assert | meta::pure::profiles::Test | assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::execution |
 | ERROR | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaAllVersionsMapping | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidat |
 | ERROR | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaHardcodedDateMapping | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidat |
 | SHAPE | modelToModelToRelational/milestoned | milestonedSourceToNonMilestonedTargetProperty.pure | testFlatten_ViaNoArgMapping | harness-shape | row-assert+graph | Test, AlloyOnly | no execute(\|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToN |
