@@ -104,3 +104,31 @@ table), not re-enter filteredNavLeafRead per segment. Same machinery as
   `isBrexitClassificationTypeExchange` bound to an if-expression typed
   String (normalizer/typer if-branch unification in mapping bindings,
   milestoningmap2). Typer bucket, not temporal calculus.
+
+## Leg-2 view-propagation trace state (2026-07-31, cycle 12 — three ruled-out sites)
+
+`testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot`
+(WRONG ANSWER, `Trade.all($bd)->project($o.tradePnl.supportContactName)`,
+milestoningmap3): our SQL joins the view (SELECT DISTINCT over
+tradePnlTableNoMilestoning JOIN tradeTable JOIN salesPersonTable) with NO
+temporal condition on milestoned salesPersonTable; engine stamps
+from_z/thru_z inside the view (per-TABLE-ALIAS filtering).
+
+RULED OUT (patched, no effect, reverted): (1) TemporalFrame.stampForClass
+strat==null interior-scan arm — stampForClass/stampForClassOrDefer are
+NEVER CALLED for this hop (LL_VIEW_DEBUG print silent); (2)
+NavMaterializer:322 physCtx fallback (slotCtx->inherited) around
+filterMilestonedJoinTargets — also no effect (either `inherited` empty
+there or hasMilestonedSlotTarget false for the view pipe, or the hop
+materializes via a different route entirely). ALSO: contextAt returns
+TemporalContext.NONE for non-milestoned target classes (targetStrat null
+skips every arm) — by design for CLASS stamping, but physical-table
+stamping needs the inherited date regardless.
+
+NEXT TRACE: instrument the resolver entry for THIS hop (which path
+materializes property 'tradePnl' of milestoningmap3 — AssociationJoins
+route? CorrelatedSubselects? the ViewFrame distinct materialization in
+Pipelines?) with env-gated prints, THEN thread the root context (root
+TemporalContext must be reachable — TemporalFrame.root exists) into the
+view pipe's milestoned scans via replaceScan/tableHasBlock (mechanism
+proven at TemporalFrame:1371).
