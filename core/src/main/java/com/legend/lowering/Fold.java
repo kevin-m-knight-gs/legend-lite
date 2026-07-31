@@ -228,14 +228,7 @@ final class Fold {
         if (s.limit() != null || s.offset() != null || s.distinct()) {
             return FilterSlot.ISOLATE;
         }
-        // A select already CARRYING window projections cannot take the
-        // predicate in WHERE even when the predicate never mentions a
-        // window column: SQL evaluates WHERE before window functions in
-        // the same select, so rank() would compute over the filtered
-        // rows — the chain asked filter-AFTER-window. QUALIFY evaluates
-        // post-window (C1.1; witness testMappingWithWindowColumn).
-        if (referencesWindowColumn || s.projections().stream()
-                .anyMatch(p -> containsWindow(p.expr()))) {
+        if (referencesWindowColumn) {
             return FilterSlot.QUALIFY;
         }
         if (!s.groupBy().isEmpty()) {
@@ -248,8 +241,16 @@ final class Fold {
 
     /** Window containment at EXPRESSION depth ({@code rank() + 1} in a
      * projection is as window-carrying as a bare call); children() stops
-     * at query boundaries, so subquery-internal windows don't count. */
-    private static boolean containsWindow(SqlExpr e) {
+     * at query boundaries, so subquery-internal windows don't count.
+     * NOT consulted by filterSlot: in plain relation composition the
+     * engine's relational runtimes fold an ordinary predicate to WHERE
+     * even over a window-carrying select (PCT testExtendFilterOutNull
+     * passes on H2 AND DuckDB reference adapters — the window sees the
+     * FILTERED rows). The opposite behavior is required only at the
+     * MAPPING seam, where the engine treats the mapped relation as a
+     * non-mergeable view — that isolation is the RESOLVER's decision
+     * (windowed ~func pipelines), never a fold rule. */
+    static boolean containsWindow(SqlExpr e) {
         return e instanceof SqlExpr.WindowCall
                 || e.children().stream().anyMatch(Fold::containsWindow);
     }

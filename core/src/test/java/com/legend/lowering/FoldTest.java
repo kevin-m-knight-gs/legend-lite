@@ -45,20 +45,20 @@ class FoldTest {
         assertEquals(Fold.FilterSlot.HAVING,
                 Fold.filterSlot(BARE.withGroupBy(List.of(col("A"))), false));
         assertEquals(Fold.FilterSlot.QUALIFY, Fold.filterSlot(BARE, true));
-        // C1.1: a select CARRYING window projections takes QUALIFY even
-        // when the predicate never mentions the window column — WHERE
-        // would filter the rows the window computes over. Detection is
-        // expression-deep (rank() + 1 is as window-carrying as rank()).
+        // Engine relational parity (PCT testExtendFilterOutNull green on
+        // the H2 and DuckDB reference adapters): an ORDINARY predicate
+        // folds to WHERE even over a window-carrying select — the window
+        // sees the filtered rows. The mapping-seam isolation, not this
+        // rule, protects mapped windowed relations.
         SqlExpr rank = new SqlExpr.WindowCall(
-                new com.legend.sql.SqlAgg.Ranking("rank"),
+                new com.legend.sql.SqlAgg.RankingFn("rank", List.of()),
                 List.of(), List.of(SqlSelect.SortKey.asc(col("A"))), null);
-        assertEquals(Fold.FilterSlot.QUALIFY, Fold.filterSlot(
+        assertEquals(Fold.FilterSlot.WHERE, Fold.filterSlot(
                 BARE.withProjections(List.of(
                         new SqlSelect.Projection(rank, "r")), null), false));
-        assertEquals(Fold.FilterSlot.QUALIFY, Fold.filterSlot(
-                BARE.withProjections(List.of(new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.ADD, rank, new SqlExpr.IntLit(1)),
-                        "r1")), null), false));
+        // ...and expression-deep containment stays available to the seam
+        assertTrue(Fold.containsWindow(
+                SqlExpr.Call.of(SqlFn.PLUS, rank, new SqlExpr.IntLit(1))));
     }
 
     @Test

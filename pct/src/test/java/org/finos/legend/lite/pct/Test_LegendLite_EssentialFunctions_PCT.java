@@ -57,6 +57,24 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // key-sorts fail through the SAME cause: their sort keys ARE
             // substrings (the comparator machinery itself is pinned
             // green in ValueSortComparatorTest).
+            // G5 toString wall: a class instance's toString cannot lower
+            // to SQL (Java orchestrates, the database executes) — the wall
+            // REPLACED a silently-fabricated VARCHAR cast, so this is a
+            // designed refusal, not a wrong answer. The reference DuckDB
+            // adapter excludes this same test ("type not supported").
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"toString over ClassType[fqn=meta::pure::functions::string::tests::toString::ClassWithComplexToString] is not modeled\""),
+            // C1.5c extends the SAME divergence to indexOf: the engine's
+            // relational runtime translates indexOf to 1-BASED locate()
+            // verbatim (testSqlFunctionsInMapping golden + rows [12,12]);
+            // platform pure is 0-based. The reference DuckDB adapter
+            // ledgers the IDENTICAL diffs (testSimple "expected: 4
+            // actual: 5"; testIndexOfOneElement "expected: 0 actual: 1")
+            // and excludes testFromIndex outright (no translation — ours
+            // runs 1-based). One pipeline cannot be both bases; corpus
+            // (engine-relational parity) is the acceptance surface.
+            one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
+            one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
+            one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
             one("meta::pure::functions::string::tests::substring::testStart_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy dog'"),
             one("meta::pure::functions::string::tests::substring::testStartEnd_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy do'"),
             one("meta::pure::functions::collection::tests::sort::testSimpleSortWithKey_Function_1__Boolean_1_", "actual:   ['Branche', 'Doe', 'Smith']"),
@@ -93,8 +111,7 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // deactivate() reflects the EXPRESSION (a ValueSpecification metamodel
             // object) — legend-lite compiles to SQL and holds no expression tree at
             // run time; metamodel reflection is out of vocabulary.
-            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"unknown function 'meta::pure::functions::meta::deactivate'\""),
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "expected: '// Warning: Good for gin -- Sad times no tonic'"));
+            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"unknown function 'meta::pure::functions::meta::deactivate' — no function of this name in the native or user catalog (unported platform function, or a misspelling)\""));
 
     public static Test suite() {
         return wrapSuite(

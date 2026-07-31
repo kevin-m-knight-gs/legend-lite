@@ -374,17 +374,17 @@ final class RelOpTranslator {
             // (real pure's if takes zero-param lambdas — the dynafunction
             // spelling passes plain expressions).
             // The 'indexOf' DYNAFUNCTION has SQL locate() semantics —
-            // 1-BASED position (engine renders locate(sub, str)); pure's
-            // indexOf is 0-based. Conform by EMISSION: +1.
+            // 1-BASED position, and since C1.5c the pure-relational
+            // indexOf rule IS 1-based locate (engine parity), so the
+            // dynafunction forwards VERBATIM (the old +1 emission paired
+            // with the 0-based rule; both sides dropped together).
             case RelationalOperation.FunctionCall call
                     when call.name().equals("indexOf") && call.args().size() == 2 ->
-                    new AppliedFunction("plus", List.of(
-                            new AppliedFunction("indexOf", List.of(
-                                    translate(call.args().get(0), tableScope,
-                                            targetVarOrNull, rowBindOrNull, pipeline),
-                                    translate(call.args().get(1), tableScope,
-                                            targetVarOrNull, rowBindOrNull, pipeline))),
-                            new CInteger(1)));
+                    new AppliedFunction("indexOf", List.of(
+                            translate(call.args().get(0), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline),
+                            translate(call.args().get(1), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)));
             // dyna 'substring' is SQL SUBSTRING (1-based start, LENGTH
             // third arg) and the RELATIONAL substring rule is now a
             // VERBATIM passthrough with the H2 sub-1-start clamp — args
@@ -407,22 +407,20 @@ final class RelOpTranslator {
                     new AppliedFunction("minus", translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline));
             // SQL POSITION(needle, haystack) — 1-based, arguments REVERSED
-            // vs pure's indexOf(haystack, needle); same +1 emission as the
-            // indexOf dynafunction above
+            // vs pure's indexOf(haystack, needle); forwards verbatim like
+            // the indexOf dynafunction above (C1.5c made the rule 1-based)
             case RelationalOperation.FunctionCall call
                     when call.name().equals("position") && call.args().size() == 2 ->
                     // toOne on the haystack: an OPTIONAL column read would
                     // otherwise infect the whole arithmetic chain with [*]
                     // (SQL null-propagates; erasure makes toOne free)
-                    new AppliedFunction("plus", List.of(
-                            new AppliedFunction("indexOf", List.of(
-                                    new AppliedFunction("toOne", List.of(
-                                            translate(call.args().get(1), tableScope,
-                                                    targetVarOrNull, rowBindOrNull,
-                                                    pipeline))),
-                                    translate(call.args().get(0), tableScope,
-                                            targetVarOrNull, rowBindOrNull, pipeline))),
-                            new CInteger(1)));
+                    new AppliedFunction("indexOf", List.of(
+                            new AppliedFunction("toOne", List.of(
+                                    translate(call.args().get(1), tableScope,
+                                            targetVarOrNull, rowBindOrNull,
+                                            pipeline))),
+                            translate(call.args().get(0), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("isNull") && call.args().size() == 1 ->
                     new AppliedFunction("isEmpty", List.of(translate(call.args().get(0),

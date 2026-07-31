@@ -1,7 +1,7 @@
-# PCT expected-failure ledger (33 of 1109)
+# PCT expected-failure ledger (36 of 1109)
 
 The PCT suites (`pct/` module, legend-pure's PCT framework over the
-LegendLite adapter) run 1109 tests: 1076 pass outright, 33 are ledgered
+LegendLite adapter) run 1109 tests: 1073 pass outright, 36 are ledgered
 as `expectedFailures`. **Nothing is skipped**: every ledgered test
 executes on every build and must fail with its pinned message
 (contains-matched). A ledgered test that starts passing, or fails with a
@@ -73,15 +73,26 @@ Revisitable: the adapter holds the interpreter's `processorSupport`, so
 values could be reconstructed from the metamodel instead of text —
 future adapter work, not platform work.
 
-## C. The substring divergence — contradictory golden sets (4)
+## C. The substring/indexOf base divergence — contradictory golden sets (7)
 
-Legend-engine's own two runtimes disagree about `substring`: platform
-Pure is 0-based; the engine's RELATIONAL pushdown passes the start index
-verbatim into 1-based SQL (`testFilterUsingParseIntegerFunction` pins
-the unshifted SQL text AND its rows verify 1-based on H2). One pipeline
-cannot satisfy both golden sets; the corpus (engine-relational parity)
-is this project's acceptance surface, and the reference DuckDB adapter
-ledgers the identical four failures.
+Legend-engine's own two runtimes disagree about string index bases:
+platform Pure is 0-based; the engine's RELATIONAL pushdown is 1-based —
+`substring` passes the start index verbatim into 1-based SQL
+(`testFilterUsingParseIntegerFunction` pins the unshifted SQL text AND
+its rows verify 1-based on H2), and `indexOf` translates to `locate()`
+verbatim (`testSqlFunctionsInMapping` pins `select locate('o', …)` with
+rows `[12,12]`; the propertyfunc mapping family composes `position()`
+with 1-based arithmetic). One pipeline cannot satisfy both golden sets;
+the corpus (engine-relational parity) is this project's acceptance
+surface, and the reference DuckDB adapter ledgers the identical
+failures — byte-identical diffs for indexOf testSimple ("expected: 4
+actual: 5") and testIndexOfOneElement ("expected: 0 actual: 1").
+
+- string::indexOf::testSimple — 1-based locate parity (C1.5c)
+- string::indexOf::testFromIndex — 1-based from/result; the reference
+  excludes it outright (no translation at all — ours runs)
+- collection::indexof::testIndexOfOneElement — a String[1] receiver
+  resolves to string::indexOf; same base divergence
 
 - string::substring::testStart
 - string::substring::testStartEnd

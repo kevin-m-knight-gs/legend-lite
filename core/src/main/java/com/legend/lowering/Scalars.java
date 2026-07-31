@@ -687,9 +687,23 @@ final class Scalars {
         }
         // ---- Misc (registrations bucket) ----
         for (String f : Pure.nativeKeysAt("between")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.AND,
-                    SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(0), args.get(1)),
-                    SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(0), args.get(2))));
+            // between IS the two guarded comparisons composed — every
+            // operand is [0..1] and an EMPTY operand yields false, never
+            // SQL NULL (C1.5a; same optionalOperandGuards the standalone
+            // >=/<= rules apply). Partial-date literals pad like the
+            // comparison family (dateArg).
+            RULES.put(f, (n, args) -> {
+                List<SqlExpr> padded = new ArrayList<>(args.size());
+                for (int i = 0; i < args.size(); i++) {
+                    padded.add(dateArg(n.args().get(i), args.get(i)));
+                }
+                return NullSemantics.optionalOperandGuards(n, padded,
+                        new SqlExpr.Group(SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+                                        padded.get(0), padded.get(1)),
+                                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                                        padded.get(0), padded.get(2)))));
+            });
         }
         for (String f : Pure.nativeKeysAt("compare")) {
             RULES.put(f, (n, args) -> {
@@ -752,9 +766,21 @@ final class Scalars {
         }
         // size(NULL list) is pure's EMPTY collection: 0, never NULL
         for (String f : Pure.nativeKeysAt("size")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.COALESCE,
-                    SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
-                    new SqlExpr.IntLit(0)));
+            RULES.put(f, (n, args) -> {
+                // a TO-ONE value is a 0/1-element collection: 'abc'->size()
+                // is 1, never len('abc') (C1.5d — the same gate its 13
+                // family siblings carry; the list encoding would
+                // CHAR-INDEX a lone string)
+                if (isToOne(n.args().get(0))
+                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.IS_NULL, args.get(0)),
+                            new SqlExpr.IntLit(0))), new SqlExpr.IntLit(1));
+                }
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
+                        new SqlExpr.IntLit(0));
+            });
         }
         familyIfPresent(SqlFn.MINUS, "sub");
         // makeString: the Any[*] joiner. Elements stringify; a NULL element
@@ -873,11 +899,12 @@ final class Scalars {
                             ListShapes.listShaped(sa) ? sa
                                     : new SqlExpr.ArrayLit(List.of(sa))));
                 }
-                Boolean asc = comparatorDirection(
+                Boolean asc = Comparators.direction(
                         n.args().get(n.args().size() - 1));
                 if (asc == null) {
-                    throw new IllegalStateException("sort comparator must be a"
-                            + " bare compare over its two parameters");
+                    throw new com.legend.error.NotImplementedException(
+                            "sort comparators beyond a bare compare over the"
+                            + " two parameters are not modeled");
                 }
                 if (n.args().size() == 2) {
                     return new SqlExpr.Call(
@@ -1009,7 +1036,7 @@ final class Scalars {
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
                     // a TO-ONE collection is its own extreme
                     return isToOne(n.args().get(0)) ? args.get(0)
-                            : comparatorSelect(args.get(0), cmp, false);
+                            : Comparators.select(args.get(0), cmp, false);
                 }
                 if (args.size() > 1) {
                     MixedElems ma = mixedArgs(n.args(), args);
@@ -1030,7 +1057,7 @@ final class Scalars {
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
                     // a TO-ONE collection is its own extreme
                     return isToOne(n.args().get(0)) ? args.get(0)
-                            : comparatorSelect(args.get(0), cmp, true);
+                            : Comparators.select(args.get(0), cmp, true);
                 }
                 if (args.size() > 1) {
                     MixedElems ma = mixedArgs(n.args(), args);
@@ -1200,21 +1227,33 @@ final class Scalars {
                             new SqlExpr.IntLit(1)));
                 }
                 if (args.size() == 3) {
-                    // indexOf(s, sub, from): search the suffix; re-base hits,
-                    // misses stay -1.
+                    // indexOf(s, sub, from): H2 LOCATE(sub, s, from)
+                    // semantics — 1-BASED from and result, miss 0 (the
+                    // engine has NO translation for this overload; the
+                    // convention follows the 2-arg golden). Search the
+                    // suffix, re-base hits.
+                    SqlExpr from1 = args.get(2) instanceof SqlExpr.IntLit il
+                            ? new SqlExpr.IntLit(Math.max(il.value(), 1))
+                            : SqlExpr.Call.of(SqlFn.GREATEST, args.get(2),
+                                    new SqlExpr.IntLit(1));
                     SqlExpr suffix = new SqlExpr.Call(SqlFn.SUBSTRING, List.of(
-                            args.get(0), plusOne(args.get(2))));
+                            args.get(0), from1));
                     SqlExpr k = new SqlExpr.Call(SqlFn.STRPOS,
                             List.of(suffix, args.get(1)));
                     return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.GREATER, k, new SqlExpr.IntLit(0)),
                             SqlExpr.Call.of(SqlFn.MINUS,
-                                    SqlExpr.Call.of(SqlFn.PLUS, k, args.get(2)),
+                                    SqlExpr.Call.of(SqlFn.PLUS, k, from1),
                                     new SqlExpr.IntLit(1)))),
-                            new SqlExpr.IntLit(-1));
+                            new SqlExpr.IntLit(0));
                 }
-                return new SqlExpr.Call(SqlFn.MINUS, List.of(
-                        new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(1)));
+                // 1-BASED, raw strpos: the engine translates indexOf to
+                // locate() verbatim (testSqlFunctionsInMapping golden
+                // 'select locate(...)' with rows [12,12] — C1.5c; the
+                // reference DuckDB PCT adapter ledgers the same platform
+                // divergence, "expected: 4 actual: 5"). Composes with the
+                // 1-based verbatim substring above. Miss = 0.
+                return new SqlExpr.Call(SqlFn.STRPOS, args);
             });
         }
         for (String f : Pure.nativeKeysAt("at")) {
@@ -1787,12 +1826,16 @@ final class Scalars {
                 // parameter closes over by SUBSTITUTION.
                 if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
                         && comp.params().size() == 2) {
-                    SqlExpr body = substituteRef(comp.body(), comp.params().get(1), args.get(1));
+                    // pure contains.pure: exists(x | $comparator->eval($value, $x))
+                    // — the FIRST comparator param binds the NEEDLE, the
+                    // second each element (C1.5b; the reversed binding sent
+                    // [1,2,3]->contains(5, {v,e|$v>$e}) the wrong way)
+                    SqlExpr body = substituteRef(comp.body(), comp.params().get(0), args.get(1));
                     return new SqlExpr.Call(SqlFn.GREATER, List.of(
                             SqlExpr.Call.of(SqlFn.LIST_LENGTH,
                                     SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
                                             new SqlExpr.Lambda(
-                                                    List.of(comp.params().get(0)), body))),
+                                                    List.of(comp.params().get(1)), body))),
                             new SqlExpr.IntLit(0)));
                 }
                 // a TO-ONE singleton-literal needle (['ISIN2']) unwraps
@@ -2811,65 +2854,6 @@ final class Scalars {
         return SqlExpr.Call.of(SqlFn.MAP_FROM_ENTRIES, pairs);
     }
 
-    /**
-     * Comparator max/min (real collection max.pure: fold with STRICT
-     * {@code >} — the FIRST max wins ties). The comparator must be a
-     * KEY DIFFERENCE ({@code {x,y| f($x) - f($y)}}); the winner is the
-     * element with the extreme key, earliest index on ties:
-     * {@code (SELECT x FROM (UNNEST(l) x, UNNEST(range) i) ORDER BY key
-     * DESC/ASC, i LIMIT 1)}.
-     */
-    private static SqlExpr comparatorSelect(SqlExpr list, SqlExpr.Lambda cmp, boolean maxIn) {
-        boolean max = maxIn;
-        if (!(cmp.body() instanceof SqlExpr.Call mc) || mc.fn() != SqlFn.MINUS
-                || mc.args().size() != 2) {
-            throw new IllegalStateException("comparator max/min supports key-difference"
-                    + " comparators ({x,y | f($x) - f($y)}) only");
-        }
-        String px = cmp.params().get(0);
-        String py = cmp.params().get(1);
-        SqlExpr keyOfX = mc.args().get(0);
-        // the two sides must be the SAME key over the two params —
-        // {x,y | f($x) - f($y)} ascending, {x,y | f($y) - f($x)} REVERSED
-        SqlExpr rightAsX = substituteRef(mc.args().get(1), py, new SqlExpr.Column(null, px));
-        if (!keyOfX.equals(rightAsX)) {
-            SqlExpr leftAsY = substituteRef(mc.args().get(0), py, new SqlExpr.Column(null, px));
-            SqlExpr rightSide = mc.args().get(1);
-            if (leftAsY.equals(rightSide)
-                    || substituteRef(rightSide, px, new SqlExpr.Column(null, py)).equals(
-                            substituteRef(mc.args().get(0),
-                                    px, new SqlExpr.Column(null, py)))) {
-                // reversed comparator: max-by-it is MIN by the key
-                keyOfX = substituteRef(mc.args().get(1), px, new SqlExpr.Column(null, px));
-                keyOfX = substituteRef(keyOfX, py, new SqlExpr.Column(null, px));
-                max = !max;
-            } else {
-                throw new IllegalStateException("comparator max/min: the two comparator"
-                        + " sides must apply the SAME key to each parameter");
-            }
-        }
-        SqlExpr keyOverElem = substituteRef(keyOfX, px, new SqlExpr.Column("_cx", "x"));
-        var inner = new SqlSelect(List.of(
-                new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.UNNEST, list), "x"),
-                new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.UNNEST, SqlExpr.Call.of(SqlFn.RANGE_FN,
-                                new SqlExpr.IntLit(1),
-                                SqlExpr.Call.of(SqlFn.PLUS,
-                                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
-                                        new SqlExpr.IntLit(1)))), "i")),
-                false, new com.legend.sql.SqlSource.Dual(), null,
-                            List.of(), null, null, List.of(), null, null, List.of());
-        var src = new SqlSource.Subselect(inner, "_cx", null);
-        var outer = new SqlSelect(List.of(
-                new SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),
-                false, src, null, List.of(), null, null,
-                List.of(new SqlSelect.SortKey(keyOverElem, !max,
-                                SqlSelect.SortKey.NullOrder.NULLS_LAST, null),
-                        SqlSelect.SortKey.asc(new SqlExpr.Column("_cx", "i"))),
-                1L, null, List.of());
-        return new SqlExpr.ScalarSubquery(outer);
-    }
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
     static SqlExpr tdsCell(String cell, Type type) {
@@ -3091,33 +3075,8 @@ final class Scalars {
                         && cmp.parameters().contains(v.name()));
     }
 
-    /**
-     * The direction of a bare-compare comparator: {@code {x,y|$x->compare($y)}}
-     * ascending, {@code {x,y|$y->compare($x)}} descending; anything richer
-     * has no relational sort shape (null).
-     */
-    private static @com.legend.Nullable Boolean comparatorDirection(TypedSpec spec) {
-        if (!(spec instanceof TypedLambda cmp)
-                || cmp.parameters().size() != 2 || cmp.body().size() != 1
-                || !(cmp.body().get(0) instanceof TypedNativeCall cc)
-                || !cc.callee().qualifiedName().equals("meta::pure::functions::lang::compare")
-                || cc.args().size() != 2
-                || !(cc.args().get(0) instanceof TypedVariable a)
-                || !(cc.args().get(1) instanceof TypedVariable b)) {
-            return null;
-        }
-        String p0 = cmp.parameters().get(0);
-        String p1 = cmp.parameters().get(1);
-        if (a.name().equals(p0) && b.name().equals(p1)) {
-            return Boolean.TRUE;
-        }
-        if (a.name().equals(p1) && b.name().equals(p0)) {
-            return Boolean.FALSE;
-        }
-        return null;
-    }
 
-    private static SqlExpr substituteRef(SqlExpr e, String name, SqlExpr replacement) {
+    static SqlExpr substituteRef(SqlExpr e, String name, SqlExpr replacement) {
         return switch (e) {
             case SqlExpr.Column c when c.table() == null && name.equals(c.name()) -> replacement;
             case SqlExpr.Column c when name.equals(c.table()) ->
@@ -3440,8 +3399,11 @@ final class Scalars {
         if (arg instanceof TypedEnumValue ev) {
             return ev.value();
         }
-        throw new IllegalStateException("a DurationUnit argument must be an enum"
-                + " literal, got " + arg.getClass().getSimpleName());
+        // a VARIABLE unit is valid pure — an unimplemented form, not a
+        // resolver bug (C1.5 crash-on-valid)
+        throw new com.legend.error.NotImplementedException(
+                "a non-literal DurationUnit argument ("
+                + arg.getClass().getSimpleName() + ") is not modeled");
     }
 
     /**
