@@ -522,6 +522,7 @@ final class StatementExecutor {
         // context IN the query — ->from(mapping, runtime) on the terminal
         String mappingFqn;
         boolean hasRuntimeArg;
+        java.util.List<String> queryChain = java.util.List.of();
         if (ep.args().get(1) instanceof
                 com.legend.compiler.spec.typed.TypedPackageableRef pr) {
             mappingFqn = pr.fullPath();
@@ -533,6 +534,25 @@ final class StatementExecutor {
             mappingFqn = firstFromMapping(
                     lam.body().get(lam.body().size() - 1));
             hasRuntimeArg = false;
+            if (mappingFqn == null) {
+                // QUERY-SIDE CHAIN dispatch (withChainedMappings->from(rt)
+                // — a runtime-only from carrying chainMappings): the chain
+                // mapping that BINDS the root class names the plan
+                java.util.List<String> qChain = firstFromChainMappings(
+                        lam.body().get(lam.body().size() - 1));
+                String rc0 = rootGetAllClass(lam.body());
+                if (!qChain.isEmpty() && rc0 != null) {
+                    var srcs = new com.legend.resolver.ClassSources(
+                            env.ctx(), specs);
+                    java.util.List<String> binders = qChain.stream()
+                            .distinct()
+                            .filter(m2 -> srcs.binds(m2, rc0)).toList();
+                    if (binders.size() == 1) {
+                        mappingFqn = binders.get(0);
+                        queryChain = qChain;
+                    }
+                }
+            }
             if (mappingFqn == null) {
                 throw new com.legend.error.NotImplementedException(
                         "executionPlan mapping argument must be a reference"
@@ -565,10 +585,13 @@ final class StatementExecutor {
                     "planToString: no getAll root (multi-node plans"
                     + " pending)");
         }
-        java.util.List<String> chainMaps = rtArg != null
-                ? com.legend.compiler.spec.typed.TypedFrom
-                        .chainMappingsIn(rtArg)
-                : java.util.List.of();
+        java.util.List<String> chainMaps = new java.util.ArrayList<>(
+                rtArg != null
+                        ? com.legend.compiler.spec.typed.TypedFrom
+                                .chainMappingsIn(rtArg)
+                        : java.util.List.of());
+        queryChain.stream().filter(m2 -> !chainMaps.contains(m2))
+                .forEach(chainMaps::add);
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
                 planDialect(dbType, quote, tz), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
@@ -580,6 +603,23 @@ final class StatementExecutor {
                         // (post-H everything is a relation)
                         lam.body(), connName, chainMaps),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** Pre-order search for the first {@code TypedFrom} carrying
+     * chainMappings (the query-side withChainedMappings channel). */
+    private static java.util.List<String> firstFromChainMappings(
+            com.legend.compiler.spec.typed.TypedSpec t) {
+        if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
+                && !fr.chainMappings().isEmpty()) {
+            return fr.chainMappings();
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : t.children()) {
+            java.util.List<String> r = firstFromChainMappings(c);
+            if (!r.isEmpty()) {
+                return r;
+            }
+        }
+        return java.util.List.of();
     }
 
     /** Pre-order search for the first {@code ->from(mapping, …)} in the

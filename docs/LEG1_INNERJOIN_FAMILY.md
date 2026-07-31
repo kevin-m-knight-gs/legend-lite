@@ -238,3 +238,22 @@ into engineSql/PlanText (c18 plumbing). ALSO pending:
 assertEqualsH2Compatible/3 harness arm (either-golden matches;
 TestBody:1753/1773 has /2 partial) — testProp3 needs it after the
 mapping dispatch lands. testProp4 = executionPlan overload (unread).
+
+## Chain-binder dispatch state (2026-07-31, cycle 24 — uncommitted, plans generate)
+
+DONE (uncommitted): planToString's null-mapping path dispatches the root
+class through the query-side chainMappings binder (ClassSources.binds,
+exactly-one rule) via new firstFromChainMappings helper; queryChain
+unions into the engineSql/PlanText chain threading. testProp2+3 now
+GENERATE plans (FAIL on text, no walls). Remaining testProp2 diffs:
+(1) connection = RelationalDatabaseConnection(type = "H2") — the query's
+from(runtimeWithoutChain()) INSTANCE runtime carries the connection
+class name, but FromChecker drops the instance (only chainMappings/
+jsonSources extracted); fix = extend the same extraction with a
+connectionName hint on TypedFrom (schema change: T2.2 all-fields rule,
+~5 construction sites: FromChecker, SyntheticHeads:475/996,
+StatementExecutor executes) and have planToString prefer it over the
+TestDatabaseConnection default; (2) one trailing empty-line diff (check
+PlanText.single terminal newline). testProp3 additionally needs the
+assertEqualsH2Compatible/3 harness arm. testProp4 = executionPlan
+overload (unread).
