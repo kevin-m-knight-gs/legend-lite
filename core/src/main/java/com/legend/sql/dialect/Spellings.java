@@ -23,6 +23,27 @@ public record Spellings(Map<SqlFn, String> fnNames) {
 
     public static final Spellings DUCKDB = new Spellings(build());
 
+
+    /** H2 2.1.214 EXECUTION spellings — same-arity same-order renames
+     * only (arg-order changes are shape logic and stay coded arms in the
+     * {@code H2} dialect). Every row here is in the 2.1.214 function
+     * catalog; DuckDB names H2 lacks entirely (levenshtein,
+     * jaro_winkler, split, base64, regexp_extract_all, ...) are ABSENT
+     * so they fail loud and graduate into the declared-gap registry —
+     * never the engine's CREATE ALIAS UDF route. */
+    public static final Spellings H2 = new Spellings(h2());
+
+    private static Map<SqlFn, String> h2() {
+        Map<SqlFn, String> m = build();
+        // every row below EXECUTED on real h2-2.1.214 (RunScript probes,
+        // 2026-07-31); SPLIT_PART and FORMAT were probed ABSENT and are
+        // deliberately not mapped (loud wall -> declared-gap registry)
+        m.put(SqlFn.MATCHES, "regexp_like");       // REGEXP_LIKE(input, regexp)
+        m.put(SqlFn.STRFTIME, "formatdatetime");   // FORMATDATETIME(ts, fmt)
+        m.put(SqlFn.STRPTIME, "parsedatetime");    // PARSEDATETIME(s, fmt)
+        return m;
+    }
+
     private static Map<SqlFn, String> build() {
         Map<SqlFn, String> m = new EnumMap<>(SqlFn.class);
         m.put(SqlFn.ABS, "abs");

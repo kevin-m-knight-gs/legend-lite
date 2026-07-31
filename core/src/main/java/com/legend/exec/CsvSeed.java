@@ -62,7 +62,13 @@ public final class CsvSeed {
                 ? java.util.Optional.<Type.RelationType>empty()
                 : ctx.findTable(dbFqn, table);
         if (tableType.isPresent()) {
-            StringBuilder ddl = new StringBuilder("CREATE OR REPLACE TABLE ")
+            // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
+            // engine's own target) has no OR REPLACE for tables — this was
+            // the recorded root cause of ~39 'Table already exists' H2
+            // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
+            // the two-statement form identically
+            out.add("DROP TABLE IF EXISTS " + qualified);
+            StringBuilder ddl = new StringBuilder("CREATE TABLE ")
                     .append(qualified).append(" (");
             var tcols = tableType.get().columns();
             for (int c = 0; c < tcols.size(); c++) {

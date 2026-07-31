@@ -60,5 +60,23 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
             "where", "with", "without"));
 
     /** Engine-text lowering (H2/DB2 golden style): minimal quoting. */
+
+    /** H2 2.1.214 reserved words — the ENGINE's own list
+     * (h2Extension2_1_214.pure:180-192, same set as Ddl.H2_RESERVED;
+     * kept in sync by LexiconTest). */
+    public static final Lexicon H2 = new Lexicon('"', Set.of(
+            "all", "and", "array", "as", "between", "case", "check",
+            "constraint", "cross", "current_catalog", "current_date",
+            "current_schema", "current_time", "current_timestamp",
+            "current_user", "distinct", "except", "exists", "false", "fetch",
+            "for", "foreign", "from", "full", "group", "having", "if", "in",
+            "inner", "intersect", "interval", "is", "join", "left", "like",
+            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
+            "null", "offset", "on", "or", "order", "primary", "qualify",
+            "row", "rownum", "select", "table", "true", "union", "unique",
+            "unknown", "using", "values", "where", "window", "with",
+            "_rowid_", "both", "groups", "ilike", "leading", "over",
+            "partition", "range", "regexp", "rows", "top", "trailing"));
+
     public static final Lexicon ENGINE_STYLE = new Lexicon('"', Set.of());
 }

@@ -60,7 +60,7 @@ in-process Alloy-shaped path).
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 24 | 2 | 2 | 0 | 9 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 47 | 41 | 1 | 5 | 0 | 38 |
+| tests/mapping/modelJoin | 47 | 41 | 1 | 5 | 0 | 10 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 2 |
 | tests/mapping/relation | 93 | 90 | 3 | 0 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2180** | 71 | 153 | 134 | 286 |
+| **total** | 2538 | **2180** | 71 | 153 | 134 | 258 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8289,7 +8289,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
 - SHAPE testConnectionEqualityAllSameStatic [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityAllButOnePropertySame [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityTypeDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)

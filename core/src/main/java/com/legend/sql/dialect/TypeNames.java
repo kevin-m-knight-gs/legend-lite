@@ -30,6 +30,11 @@ public record TypeNames(Map<SqlType.Scalar, String> scalarNames,
     /** DuckDB: bare DOUBLE, native JSON, STRUCT(...). */
     public static final TypeNames DUCKDB = new TypeNames(duck(), true);
 
+    /** H2 2.1.214: standard names; JSON exists as a type but maps to
+     * byte[] on read-back (codec row pending, H2_BACKEND.md step 11);
+     * no STRUCT. */
+    public static final TypeNames H2 = new TypeNames(base(), false);
+
     private static Map<SqlType.Scalar, String> base() {
         Map<SqlType.Scalar, String> m = new EnumMap<>(SqlType.Scalar.class);
         m.put(SqlType.Scalar.BOOLEAN, "BOOLEAN");

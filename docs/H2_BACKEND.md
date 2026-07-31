@@ -11,8 +11,13 @@
 > - BOUNDARY: correlation IS legal in the WHERE/SELECT over an uncorrelated table
 >   function (`SELECT MAX(x) FROM SYSTEM_RANGE(1,3) r(x) WHERE x < t.n` works) —
 >   bounded-explosion rewrites are available where a static bound exists.
-> - `QUALIFY` confirmed native on 2.4.240. `(json).field` access returned NULL in a
->   first probe — verify the syntax during step 6 before counting D2 as fixed.
+> - `QUALIFY` confirmed native on 2.4.240. JSON navigation SETTLED by syntax battery:
+>   ARRAY indexing works (`(JSON '[10,20,30]')[2]` -> 20, 1-based) but OBJECT FIELD
+>   access exists in NO syntax (`json['a']` = data conversion error; `(json).a` = NULL) —
+>   the engine itself uses its legend_h2_extension_json_navigate Java UDF for this
+>   (the §4.2 route this doc bans). Step 6's rationale is therefore WEAKENED: the bump
+>   buys array indexing only, not VARIANT_GET. core/pom stays at the engine's 2.1.214
+>   until the declared-gap registry quantifies what array indexing alone unlocks.
 > - Step 6's bump target is 2.4.240, but the GOLDEN-replay side stays 2.1.214: the
 >   engine's goldens ran on a FORKED 2.1.214 (§7 — charPadding + boolean-comparison
 >   patches).
