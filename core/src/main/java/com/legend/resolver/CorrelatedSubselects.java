@@ -115,14 +115,21 @@ final class CorrelatedSubselects {
 
 
     CorrAggSub corrAggSubSource(ClassSource cs, String head,
-            AssociationJoins.AssocJoin aj, @com.legend.Nullable TypedLambda corrAgg) {
+            AssociationJoins.AssocJoin aj, @com.legend.Nullable TypedLambda corrAgg,
+            boolean filterPosition) {
         if (corrAgg == null) {
             List<String> tKeys = targetEquiKeysOrNull(java.util.Objects.requireNonNull(aj.condition()));
-            if (tKeys != null) {
+            // FILTER position takes the PARENT-COPY shape below even for a
+            // simple equi condition (engine isolation copies the root tree
+            // — duplicate root rows double the group; constraint8 golden);
+            // the chained shape already re-joins the parent inside.
+            if (tKeys != null && !filterPosition) {
                 return new CorrAggSub(aj.targetPipeline(), tKeys,
                         aj.targetRow(), null, null, null, null);
             }
-            return chainedAggSubSource(cs, head, aj);
+            if (tKeys == null) {
+                return chainedAggSubSource(cs, head, aj);
+            }
         }
         List<String> keyCols = parentEquiKeys(aj.condition(), head);
         ParentCopy pc = java.util.Objects.requireNonNull(
@@ -157,6 +164,12 @@ final class CorrelatedSubselects {
         int cjOrd = 2;
         while (cjTaken.contains(corrRowVar)) {
             corrRowVar = "_cj" + cjOrd++;
+        }
+        if (corrAgg == null) {
+            // filter-position parent copy: no correlated pred, the sub is
+            // the bare parentCopy JOIN target grouped by the parent keys
+            return new CorrAggSub(joinedSub, keyCols, pcRow, corrTp,
+                    corrRowVar, corrJoinedRow, pc);
         }
         TypedLambda where = assocMaterial.corrPredOnJoinedRow(
                 corrAgg, cs, aj.target(), corrTp,
@@ -312,16 +325,20 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
             Map<String, Substitution.SubNav> subNavs) {}
 
 
+    /** Null {@code corr} = an UNCORRELATED parent copy (filter-position
+     * aggregate): no outer reads, the plain parent pipeline materializes. */
     @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
             @com.legend.Nullable TypedLambda corr) {
         Set<String> names = new LinkedHashSet<>();
-        for (TypedSpec b : java.util.Objects.requireNonNull(corr, "corr").body()) {
-            collectVarNamesInto(b, names);
+        if (corr != null) {
+            for (TypedSpec b : corr.body()) {
+                collectVarNamesInto(b, names);
+            }
+            names.removeAll(corr.parameters());
         }
-        names.removeAll(corr.parameters());
         Set<List<String>> outerPaths = new LinkedHashSet<>();
         for (String v : names) {
-            for (TypedSpec b : corr.body()) {
+            for (TypedSpec b : java.util.Objects.requireNonNull(corr).body()) {
                 StoreResolver.consumedPaths(b, v, outerPaths);
             }
         }
@@ -480,6 +497,58 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         return null;
     }
 
+
+    /** The grouped subselect's GROUP-BY keys + their columns; a key that
+     * only exists as per-member splits (k_0…) is the U4 union rung —
+     * loud; a key missing entirely is a resolver bug. */
+    static void groupKeysInto(List<String> keyCols, Type.RelationType keyRow,
+            List<com.legend.compiler.spec.typed.TypedGroupBy.GroupKey> keys,
+            List<Type.Column> subCols) {
+        for (String k : keyCols) {
+            var col = keyRow.columns().stream()
+                    .filter(c -> c.name().equals(k)).findFirst()
+                    .orElseThrow(() -> keyRow.columns().stream()
+                            .anyMatch(c -> c.name().equals(k + "_0"))
+                    ? new NotImplementedException(
+                            "aggregate over navigation into a UNION-"
+                            + "mapped target: the equi-key '" + k
+                            + "' splits into per-member columns ("
+                            + k + "_0…) — the grouped subselect needs"
+                            + " per-member key pairs + OR join-back"
+                            + " (U4 rung, not built yet)")
+                    : new IllegalStateException(
+                            "resolver bug: equi-key column '" + k
+                                    + "' missing from the "
+                                    + "grouping row"));
+            keys.add(new com.legend.compiler.spec.typed.TypedGroupBy.GroupKey(
+                    k, Optional.empty()));
+            subCols.add(col);
+        }
+    }
+
+    /** Per-head demand groups in emission order: projection-position
+     * demands first, then filter-position demands as their OWN group —
+     * each group becomes one grouped subselect (positions differ in
+     * shape: only filter isolation parent-copies the root tree). */
+    static List<Map.Entry<String, List<StoreResolver.AggDemand>>> splitAggGroups(
+            Map<String, List<StoreResolver.AggDemand>> aggDemands) {
+        List<Map.Entry<String, List<StoreResolver.AggDemand>>> groups =
+                new ArrayList<>();
+        for (var byHead : aggDemands.entrySet()) {
+            List<StoreResolver.AggDemand> proj = new ArrayList<>();
+            List<StoreResolver.AggDemand> filt = new ArrayList<>();
+            for (StoreResolver.AggDemand d : byHead.getValue()) {
+                (d.filterPosition() ? filt : proj).add(d);
+            }
+            if (!proj.isEmpty()) {
+                groups.add(Map.entry(byHead.getKey(), proj));
+            }
+            if (!filt.isEmpty()) {
+                groups.add(Map.entry(byHead.getKey(), filt));
+            }
+        }
+        return groups;
+    }
 
     /** UNION-split key expansion: a key absent from the row but present
      * as per-member variants (k_0, k_1, …) expands to ALL of them — the
@@ -1660,12 +1729,27 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             java.util.function.BiPredicate<ClassSource, String> toManyHead,
             java.util.function.BiPredicate<ClassSource, String> bareHead) {
         Set<List<String>> discardedBare = new LinkedHashSet<>();
+        Map<String, List<StoreResolver.AggDemand>> local =
+                new LinkedHashMap<>();
         for (TypedSpec op : ops) {
             if (op instanceof com.legend.compiler.spec.typed.TypedFilter ff) {
                 for (TypedSpec b : ff.predicate().body()) {
                     aggScan(b, ff.predicate().parameters().get(0), cs,
-                            aggOut, discardedBare, toManyHead, bareHead);
+                            local, discardedBare, toManyHead, bareHead);
                 }
+            }
+        }
+        // demands re-stamped filterPosition=true: the emission takes the
+        // PARENT-COPY grouped subselect (engine BuildCorrelatedSubQuery
+        // copies the root tree into the isolation subquery, so duplicate
+        // root rows double the aggregated collection — validation
+        // constraint8 golden pins the difference)
+        for (var e : local.entrySet()) {
+            for (StoreResolver.AggDemand d : e.getValue()) {
+                aggOut.computeIfAbsent(e.getKey(), k -> new ArrayList<>())
+                        .add(new StoreResolver.AggDemand(d.node(), d.leaf(),
+                                d.mapper(), d.orderKey(), d.orderAsc(),
+                                true));
             }
         }
     }

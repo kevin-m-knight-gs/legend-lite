@@ -1893,23 +1893,31 @@ public final class StoreResolver {
         Map<TypedSpec, Substitution.AggRead> aggReads =
                 new IdentityHashMap<>();
         List<AssociationJoins.AssocJoin> aggAssocJoins = new ArrayList<>();
-        for (var entry : aggDemands.entrySet()) {
+        // FILTER-position demands emit their OWN parent-copy subselect;
+        // a projection demand on the same head keeps the target-grouped
+        // shape (the engine's isolation differs by position — the root
+        // tree is copied only into filter isolations)
+        List<Map.Entry<String, List<AggDemand>>> aggGroups =
+                CorrelatedSubselects.splitAggGroups(aggDemands);
+        Set<String> aggJoinHeads = new LinkedHashSet<>();
+        for (var entry : aggGroups) {
             String head = entry.getKey();
-            Set<String> leaves = new LinkedHashSet<>();
-            for (AggDemand d : entry.getValue()) {
-                leaves.addAll(d.demandLeaves());
-            }
+            boolean filterPos = entry.getValue().get(0).filterPosition();
             AssociationJoins.AssocJoin aj = aggMaterials.get(head);
-            aggAssocJoins.add(aj);
+            if (aggJoinHeads.add(head)) {
+                aggAssocJoins.add(aj);
+            }
             // #69 THE CORRELATED-AGGREGATE SUBSELECT (engine parent-copy
             // architecture): a correlated pred's parent-nav reads can
             // never resolve in the outer ON — the subselect re-joins the
             // PARENT extent (with the navs the pred demands), filters by
             // the pred over the joined row, groups by the PARENT-side
             // equi keys, and joins back on key equality.
-            TypedLambda corrAgg = synthetics.correlatedPred(head);
+            TypedLambda corrAgg = filterPos ? null
+                    : synthetics.correlatedPred(head);
             CorrelatedSubselects.CorrAggSub cas =
-                    corrSubs.corrAggSubSource(cs, head, java.util.Objects.requireNonNull(aj), corrAgg);
+                    corrSubs.corrAggSubSource(cs, head, java.util.Objects.requireNonNull(aj), corrAgg,
+                            filterPos);
             String corrRowVar = cas.rowVar();
             String corrTp = cas.targetPrefix();
             Type.RelationType corrJoinedRow = cas.joinedRow();
@@ -1928,26 +1936,8 @@ public final class StoreResolver {
                     keys = new ArrayList<>();
             List<Type.Column>
                     subCols = new ArrayList<>();
-            for (String k : keyCols) {
-                var col = keyRow.columns().stream()
-                        .filter(c -> c.name().equals(k)).findFirst()
-                        .orElseThrow(() -> keyRow.columns().stream()
-                                .anyMatch(c -> c.name().equals(k + "_0"))
-                        ? new com.legend.error.NotImplementedException(
-                                "aggregate over navigation into a UNION-"
-                                + "mapped target: the equi-key '" + k
-                                + "' splits into per-member columns ("
-                                + k + "_0…) — the grouped subselect needs"
-                                + " per-member key pairs + OR join-back"
-                                + " (U4 rung, not built yet)")
-                        : new IllegalStateException(
-                                "resolver bug: equi-key column '" + k
-                                        + "' missing from the "
-                                        + "grouping row"));
-                keys.add(new TypedGroupBy.GroupKey(
-                        k, Optional.empty()));
-                subCols.add(col);
-            }
+            CorrelatedSubselects.groupKeysInto(keyCols, keyRow, keys,
+                    subCols);
             List<TypedAggCol> aggs =
                     new ArrayList<>();
             int ord = 0;
@@ -1970,7 +1960,8 @@ public final class StoreResolver {
                     new ExprType(subRow,
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE));
-            String prefix = AssociationJoins.prefixFor(head + "_agg", cs);
+            String prefix = AssociationJoins.prefixFor(
+                    head + (filterPos ? "_fagg" : "_agg"), cs);
             Type.RelationType leftRow =
                     (Type.RelationType)
                             withJoins.info().type();
@@ -3061,11 +3052,17 @@ public final class StoreResolver {
      * source class; null when any hop is not a class-typed property. */
     record AggDemand(TypedNativeCall node,
             @com.legend.Nullable String leaf, @com.legend.Nullable TypedLambda mapper,
-            @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
+            @com.legend.Nullable TypedLambda orderKey, boolean orderAsc,
+            boolean filterPosition) {
 
-        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf) { this(node, leaf, null, null, true); }
+        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf) { this(node, leaf, null, null, true, false); }
         AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf,
-                @com.legend.Nullable TypedLambda mapper) { this(node, leaf, mapper, null, true); }
+                @com.legend.Nullable TypedLambda mapper) { this(node, leaf, mapper, null, true, false); }
+        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf,
+                @com.legend.Nullable TypedLambda mapper,
+                @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
+            this(node, leaf, mapper, orderKey, orderAsc, false);
+        }
 
         /** Target-side property heads this demand reads — feeds the
          * target's slot demand. */

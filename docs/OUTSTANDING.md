@@ -131,7 +131,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  tests/query  ::  execute(DuckDB)
 -    1  transform/fromPure/tests  ::  platform-surface
 -    1  validation/tests  ::  resolve
--    1  validation/tests  ::  rows-differ
 
 ## Pivot: intent x status
 
@@ -173,11 +172,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  row-assert+printer  ::  SHAPE
 -    1  golden-sql+row-assert+plan-assert  ::  ERROR
 -    1  golden-sql+row-assert+constraints  ::  ERROR
--    1  row-assert+constraints  ::  FAIL
 
 ## Pivot: stereotype
 
--  283  Test
+-  282  Test
 -   43  Test, AlloyOnly
 -   25  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -550,7 +548,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraints | other | golden-sql+row-assert+constraints | Test | unbound variable '$t' |
 | ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraintsWithInnerJoinInFilter | other | row-assert+constraints | Test | unbound variable '$t' |
 | ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraintsWithPostTDSOperation2 | other | row-assert+constraints | Test | unbound variable '$t' |
-| FAIL | validation/tests | testComplexValidations.pure | validateComplexValidation10 | rows-differ | row-assert+constraints | Test | assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\nconstraint8,Error,,1\nconstraint8 |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation2 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation3 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation5 | other | row-assert+constraints | Test | object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[sou |

@@ -74,8 +74,8 @@ in-process Alloy-shaped path).
 | tests/query | 83 | 73 | 1 | 8 | 1 | 37 |
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
-| validation/tests | 23 | 18 | 1 | 4 | 0 | 0 |
-| **total** | 2538 | **2171** | 77 | 156 | 134 | 293 |
+| validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
+| **total** | 2538 | **2172** | 76 | 156 | 134 | 293 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8488,4 +8488,3 @@ in-process Alloy-shaped path).
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro
 - ERROR validateComplexValidation6 [validation/tests]: filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::complex::Address' — slot-demanding leaves under value-position filters are not supported yet
-- FAIL validateComplexValidation10 [validation/tests]: assertEquals: expected CONSTRAINT_ID,ENFORCEMENT_LEVEL,MESSAGE,ID\nconstraint8,Error,,1\nconstraint8,Error,,1\n, got []
