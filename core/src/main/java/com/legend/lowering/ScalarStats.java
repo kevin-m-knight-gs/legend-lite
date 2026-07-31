@@ -44,7 +44,7 @@ final class ScalarStats {
                 rules.put(f, (n, args) -> ListShapes.listShaped(args.get(0))
                         ? new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
                                 new SqlExpr.StringLit(e.getValue()),
-                                args.get(0)))
+                                Scalars.numList(args.get(0))))
                         : new SqlAgg.Reducer(e.getValue(),
                                 List.of(args.get(0)), false, java.util.List.of()));
             }

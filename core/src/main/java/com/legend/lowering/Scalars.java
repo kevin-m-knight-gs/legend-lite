@@ -1071,7 +1071,7 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("sum")) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_SUM, args));
+                    : SqlExpr.Call.of(SqlFn.LIST_SUM, numList(args.get(0))));
         }
         // round(Number[1]) RETURNS Integer (real pure) — banker's round,
         // then the integral cast the signature promises; round(x, scale)
@@ -1159,8 +1159,15 @@ final class Scalars {
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                        : new SqlExpr.Call(SqlFn.LIST_AVG, args));
+                        : SqlExpr.Call.of(SqlFn.LIST_AVG, numList(args.get(0))));
             }
+        }
+        // median overrides its plain-family registration: the mixed-Number
+        // carrier must unwrap (json ordering is lexicographic — the wrong
+        // middle) and a to-one value is its own median.
+        for (String f : Pure.nativeKeysAt("median")) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                    : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, numList(args.get(0))));
         }
         ScalarStats.register(RULES);   // stat reductions + tolerance assert
         // variance(list, isBiasCorrected): true => sample, false => population.
@@ -1170,7 +1177,7 @@ final class Scalars {
                         || boolLiteral(n.args().get(1), "variance isBiasCorrected");
                 return new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
                         new SqlExpr.StringLit(sample ? "var_samp" : "var_pop"),
-                        args.get(0)));
+                        numList(args.get(0))));
             });
         }
         // first/head/last over a TO-ONE value are the IDENTITY — the list
@@ -1756,12 +1763,12 @@ final class Scalars {
                     }
                     // A TO-ONE side is the single-element list ([1] fits
                     // Number[*]) — unnest needs the list shape.
-                    SqlExpr xs = n.args().get(0).info().multiplicity().isMany()
+                    SqlExpr xs = numList(n.args().get(0).info().multiplicity().isMany()
                             || args.get(0) instanceof SqlExpr.ArrayLit
-                            ? args.get(0) : new SqlExpr.ArrayLit(List.of(args.get(0)));
-                    SqlExpr ys = n.args().get(1).info().multiplicity().isMany()
+                            ? args.get(0) : new SqlExpr.ArrayLit(List.of(args.get(0))));
+                    SqlExpr ys = numList(n.args().get(1).info().multiplicity().isMany()
                             || args.get(1) instanceof SqlExpr.ArrayLit
-                            ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1)));
+                            ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1))));
                     var inner = new SqlSelect(List.of(
                             new SqlSelect.Projection(
                                     SqlExpr.Call.of(SqlFn.UNNEST, xs), "a"),
@@ -2453,6 +2460,25 @@ final class Scalars {
         }
     }
 
+    /** The NUMBER-LUB literal carrier ({@code [to_json(1), to_json(2.5)]}
+     * — the Lowerer's identity-preserving mixed-literal arm) UNWRAPS for
+     * NUMERIC consumption: aggregation math needs the raw values (the
+     * mixed raw array then coerces 1 -> 1.0, exactly pure's numeric
+     * promotion), while identity consumers rebuild element identity from
+     * the TYPED elements (encodeMixed), never from the carrier.
+     * Non-carrier shapes pass through untouched. */
+    static SqlExpr numList(SqlExpr e) {
+        if (e instanceof SqlExpr.ArrayLit la && !la.elements().isEmpty()
+                && la.elements().stream().allMatch(x ->
+                        x instanceof SqlExpr.Call c
+                        && c.fn() == SqlFn.TO_VARIANT)) {
+            return new SqlExpr.ArrayLit(la.elements().stream()
+                    .map(x -> (SqlExpr) ((SqlExpr.Call) x).args().get(0))
+                    .toList());
+        }
+        return e;
+    }
+
     static @com.legend.Nullable MixedElems mixedElems(TypedSpec arg,
                                  SqlExpr lowered) {
         if (!(arg instanceof TypedCollection c)
@@ -2499,6 +2525,11 @@ final class Scalars {
                                        SqlExpr x,
                                        List<SqlExpr> ids,
                                        List<SqlExpr> vals) {
+        // a carrier-wrapped element unwraps: identity/comparable both
+        // build from the RAW value (floatRepr over json cannot type)
+        if (x instanceof SqlExpr.Call cw && cw.fn() == SqlFn.TO_VARIANT) {
+            x = cw.args().get(0);
+        }
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER) {
             ids.add(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
