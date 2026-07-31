@@ -381,3 +381,35 @@ Remaining 4 (all ERROR walls, leg-owned):
   testQualifiedPropertyUsingColumnProtocol, + validateComplexValidation5
   (TDS pipeline in constraint). Each is a DIFFERENT rung; no shared
   slice remains under #70's original framing.
+
+## Cycle-33 design state: processing-temporal pair (2026-07-31, in flight)
+
+testProcessingTemporalPropertyQuery + PropagationInQuery [milestoning]
+are sql-text FAILs sharing THREE engine divergences (class frame =>
+no H2 row rescue; byte diff is the verdict):
+1. EXISTS FORM: engine emits correlated `exists(select 1 ... and
+   "root".kerberos = ct.kerberos and ct.in_z <= DATE'..' and ct.out_z >
+   DATE'..')` for the MILESTONED exists target; our ExistsJoinForm
+   (SQL-level, plainShape gate) fires and emits the join-distinct form
+   (temporal conds land as ordinary local conjuncts — indistinguishable
+   at SQL level). GROUND FIRST: read engine buildExistsPredicate vs
+   buildExistsAsJoinWithNullCheck gates (pureToSQLQuery L5607-5749) —
+   is the choice temporal-driven or localness-driven? Then thread a
+   provenance marker (temporal-stamped target => skip ExistsJoinForm);
+   candidate seams: a frame marker on the exists subselect (mirror
+   EXISTS_KEYS_FRAME) stamped where the exists arg's pipeline carries
+   TemporalFrame stamps, checked in ExistsJoinForm's plainShape gate.
+   Tightening is SAFE for passing tests: engine never join-distincts
+   milestoned targets, so no byte-match test can depend on it.
+2. CARRIER NAME: engine projects the temporal date constant as
+   "k_processingDate" (k_ prefix); ours spells "processingDate".
+   Find our carrier-column naming site (likely TemporalFrame /
+   GraphEmission pk emission) and adopt the engine spelling — grep
+   engine for 'k_processingDate' / 'k_businessDate' to ground.
+3. LITERAL SPELLING: engine spells the PROJECTED date constant as bare
+   string '2015-10-16' (comparisons stay DATE'2015-10-16') — same
+   projection-vs-comparison split as the c22 bare-float rule; land in
+   EngineStyleH2 next to FloatLit.
+Order: (2)+(3) are dialect/naming spellings, low risk, land first and
+re-diff; (1) is the meaty gate change. Family expectation: +2 direct;
+watch the whole milestoning + advanced families for exists-form blast.
