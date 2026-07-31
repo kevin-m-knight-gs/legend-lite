@@ -175,3 +175,28 @@ proven at TemporalFrame:1371).
   sub-rules: DATE literal in k_ projections, k_ naming, select 1, quoted-schema sql-text).
 - Cross-db relation-from pair (feature); ExecutionOptionContext unknown-class (vocabulary);
   4 null-reason rows (re-itemize on next sweep); 2 expected-true/false asserts (investigate).
+
+## M2M2R cycle-19 triage (2026-07-31; executionPlan 56/110 after chain threading)
+
+- NEXT SLICE (nested m2m nav, 3 tests: planProjectWithNestedProperty,
+  planProjectWithNestedDerivedProperty, executeProjectWithNestedDerivedProperty):
+  `$x.details.firstName` walls at Substitution:~1627 — head binding is a
+  WHOLE-SOURCE TypedNewInstanceCast (`details : $src` in PersonPeterSmith),
+  not the slot-read cast CastNav serves. Design: at Substitution
+  CONSTRUCTION (StoreResolver.substitution, which holds `sources` + `cs`),
+  pre-register whole-source cast heads (binding = TypedNewInstanceCast
+  whose source unwraps to the bare src var) into the assocs registry as a
+  SAME-ROW AssocSub: prefix = identity/no-join, targetRowVar = the cast
+  target's composed ClassSource rowVar (ClassSources.get(mapping, castFqn)
+  — the frame-identity guard in CastNav.leafSource applies: composed
+  target must share the row var), targetBindings = the composed binding
+  table. Then the existing H5c arm (`target.assocs().containsKey(head)`
+  -> assocLeaf) dispatches. Review assocLeaf's prefix handling for the
+  no-join case first.
+- graphFetch-over-m2m pair (planGraphFetchWith(Nested)DerivedProperty):
+  'class query under TypedGraphFetch not resolvable' — leg #84 (H4/H5c
+  graph channel).
+- executeProjectWithNestedDerivedProperty additionally needs the
+  generateAndExecutePlan helper vocabulary (execute-with-setup spelling).
+- modelToModelToRelational 2/5 + milestoned 0/7: not yet itemized —
+  next probe.
