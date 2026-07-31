@@ -1104,6 +1104,11 @@ public final class Pure {
     public static final NativeFunctionDefinition FROM__RELATION_1 = signature("native function meta::pure::mapping::from<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition FROM__RELATION_1__ANY_1 = signature("native function meta::pure::mapping::from<T>(source:meta::pure::metamodel::relation::Relation<T>[1], runtime:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition FROM__T_MANY__ANY_1__ANY_1 = signature("native function meta::pure::mapping::from<T>(source:T[*], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1]):T[*];");
+    // engine Handlers.java:2223 withChainedMappings_T_m__Mapping_MANY__T_m_
+    // — identity on the stream, tagging CHAINED mappings (the M2M2R
+    // query-side chain channel; FromChecker absorbs it into
+    // TypedFrom.chainMappings)
+    public static final NativeFunctionDefinition WITH_CHAINED_MAPPINGS = signature("native function meta::pure::mapping::withChainedMappings<T>(source:T[*], mappings:meta::pure::mapping::Mapping[*]):T[*];");
     public static final NativeFunctionDefinition GENERATE_GUID = signature("native function meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition GET_ALL__CLASS_1 = signature("native function meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*];");
     public static final NativeFunctionDefinition GET_ALL__CLASS_1__DATE_1 = signature("native function meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*];");

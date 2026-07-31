@@ -219,3 +219,22 @@ proven at TemporalFrame:1371).
 - planProjectWithDerivedProperty1 already PASSES (not in failure lists).
 - graphFetch-over-m2m pair (planGraphFetchWith(Nested)DerivedProperty):
   leg #84 ('class query under TypedGraphFetch not resolvable', H2 vocab).
+
+## withChainedMappings state (2026-07-31, cycle 23 — native + FromChecker landed, uncommitted w/ next slice)
+
+DONE (uncommitted): Pure.WITH_CHAINED_MAPPINGS native (engine
+Handlers:2223 signature, T[*] simplification per the from() precedent);
+FromChecker absorbs source->withChainedMappings([maps])->from(rt) into
+TypedFrom.chainMappings (collectMappingRefs walk) and strips the node.
+testProp2/3 moved past the unknown-function wall to: "executionPlan
+mapping argument must be a reference (or the query must carry ->from)" —
+the query's from() carries ONLY runtimeWithoutChain(); the MAPPING must
+dispatch through the query-side chainMappings. NEXT SLICE: in
+StatementExecutor.planToString's 2-arg/dummy-mapping arm
+(firstFromMapping null path), also look for the first TypedFrom's
+chainMappings + root getAll class and pick the chain binder (the
+ClassSources.binds dispatch rule) as mappingFqn; thread the same chain
+into engineSql/PlanText (c18 plumbing). ALSO pending:
+assertEqualsH2Compatible/3 harness arm (either-golden matches;
+TestBody:1753/1773 has /2 partial) — testProp3 needs it after the
+mapping dispatch lands. testProp4 = executionPlan overload (unread).

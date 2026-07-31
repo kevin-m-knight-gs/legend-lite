@@ -75,8 +75,31 @@ final class FromChecker {
                     : Optional.of(refs.get(0));
             default -> Optional.of(refs.get(1));
         };
-        return new TypedFrom(a.args().get(0), mapping, runtime,
+        // QUERY-SIDE chain channel (engine withChainedMappings_T_m__
+        // Mapping_MANY__T_m_): source->withChainedMappings([...])->from(rt)
+        // — identity on the stream; its mapping refs join chainMappings
+        // and the node strips (same channel as ModelChainConnection)
+        TypedSpec src = a.args().get(0);
+        if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall wc
+                && "meta::pure::mapping::withChainedMappings"
+                        .equals(wc.callee().qualifiedName())
+                && wc.args().size() == 2) {
+            collectMappingRefs(wc.args().get(1), chainMappings);
+            src = wc.args().get(0);
+        }
+        return new TypedFrom(src, mapping, runtime,
                 List.copyOf(chainMappings),
                 java.util.Map.copyOf(jsonSources), a.out());
+    }
+
+    private static void collectMappingRefs(TypedSpec n,
+            List<String> out) {
+        if (n instanceof TypedPackageableRef r) {
+            out.add(r.fullPath());
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectMappingRefs(c, out);
+        }
     }
 }
