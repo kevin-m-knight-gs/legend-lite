@@ -88,6 +88,20 @@ public class RelationalCorpusRunner {
                 }
             }
         }
+        // the relational compiler's OWN model vocabulary
+        // (RelationalDebugContext / IsolationStrategy — the tests/advanced
+        // testForced* family constructs them): pureToSQLQuery.pure parses
+        // clean since the #50 walls landed; library elements only, pulled
+        // by reference exactly like the m2m test library
+        Path p2s = Corpus.RELATIONAL.resolve(
+                "pureToSQLQuery/pureToSQLQuery.pure");
+        if (Files.isRegularFile(p2s)) {
+            try {
+                runner.registerLibrarySource(Files.readString(p2s));
+            } catch (Exception ignore) {
+                // unreadable: the family stays walled as before
+            }
+        }
         runner.classLookup = fqn -> {
             try {
                 return classIndex().get(fqn);

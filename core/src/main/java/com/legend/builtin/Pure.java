@@ -1335,8 +1335,9 @@ public final class Pure {
     // debug-context surface (REAL legend-pure platform/pure/tools.pure +
     // essential/tools/debug/noDebug.pure): the corpus's debug-arity execute
     // calls type against these. RelationalDebugContext/IsolationStrategy
-    // stay CORPUS classes (pureToSQLQuery.pure — dark until task #50's
-    // parse wall lands) — never promoted to the prelude.
+    // stay CORPUS classes — pureToSQLQuery.pure parses clean since the
+    // #50 walls landed and the corpus runner registers it as a LIBRARY
+    // source (pulled by reference); never promoted to the prelude.
     public static final ClassDefinition DEBUG_CONTEXT = nativeClass("native Class meta::pure::tools::DebugContext extends meta::pure::metamodel::type::Any { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }");
     public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
     public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
