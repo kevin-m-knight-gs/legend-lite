@@ -194,6 +194,9 @@ public final class Pure {
 
     // ---- Relation algebra (parameterized) ----
     public static final ClassDefinition RELATION             = nativeClass("native Class meta::pure::metamodel::relation::Relation<T>         extends meta::pure::metamodel::type::Any {}");
+    // real relation.pure — the TDS refinement of Relation (cast target
+    // in testEnumInRelation; taxonomy T2: absent metamodel class)
+    public static final ClassDefinition TDS_RELATION         = nativeClass("native Class meta::pure::metamodel::relation::TDS<T>              extends meta::pure::metamodel::relation::Relation {}");
     public static final ClassDefinition COL_SPEC             = nativeClass("native Class meta::pure::metamodel::relation::ColSpec<T>          extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition COL_SPEC_ARRAY       = nativeClass("native Class meta::pure::metamodel::relation::ColSpecArray<T>     extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition FUNC_COL_SPEC        = nativeClass("native Class meta::pure::metamodel::relation::FuncColSpec<F, R>   extends meta::pure::metamodel::type::Any {}");
@@ -213,10 +216,19 @@ public final class Pure {
     public static final ClassDefinition RUNTIME_CONNECTION = nativeClass("native Class meta::core::runtime::Connection {}");
     public static final ClassDefinition CONNECTION_STORE = nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }");
     public static final ClassDefinition RUNTIME = nativeClass("native Class meta::core::runtime::Runtime { connectionStores: meta::core::runtime::ConnectionStore[*]; }");
+    // real runtime.pure (engine core) — the corpus instantiates
+    // ^EngineRuntime(mappings=..., connectionStores=...) directly
+    // (taxonomy T2: absent metamodel class)
+    public static final ClassDefinition ENGINE_RUNTIME = nativeClass("native Class meta::core::runtime::EngineRuntime extends meta::core::runtime::Runtime { mappings: meta::pure::mapping::Mapping[*]; }");
     // real executionContext.pure — the corpus instantiates bare
     // ^ExecutionContext() as a defaults carrier (testDataGeneration
     // _Alloy plan calls); properties are optional knobs
     public static final ClassDefinition EXECUTION_CONTEXT = nativeClass("native Class meta::pure::runtime::ExecutionContext {}");
+    // real executionPlan_generation.pure — the execution-option context
+    // family (taxonomy T2)
+    public static final ClassDefinition MULTI_EXECUTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::MultiExecutionContext extends meta::pure::runtime::ExecutionContext { childExecutionContext: meta::pure::runtime::ExecutionContext[*]; }");
+    public static final ClassDefinition EXECUTION_OPTION = nativeClass("native Class meta::pure::executionPlan::ExecutionOption extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition EXECUTION_OPTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::ExecutionOptionContext extends meta::pure::executionPlan::MultiExecutionContext { executionOptions: meta::pure::executionPlan::ExecutionOption[*]; }");
     // real extension.pure — the plug-in registry class; corpus function
     // SIGNATURES name it (extensions:Extension[*]) even where the value
     // only ever passes through
@@ -465,6 +477,11 @@ public final class Pure {
     public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; name: meta::pure::metamodel::type::String[0..1]; database: meta::relational::metamodel::Database[1]; }");
     /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
     public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
+    // real platform_store_relational/functions.pure:128 — the relational
+    // execution activity the corpus casts Result.activities to
+    // (taxonomy T2: absent metamodel class)
+    public static final ClassDefinition RELATIONAL_DATA_SOURCE = nativeClass("native Class meta::relational::runtime::DataSource extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition RELATIONAL_ACTIVITY = nativeClass("native Class meta::relational::mapping::RelationalActivity extends meta::pure::mapping::Activity { sql: meta::pure::metamodel::type::String[1]; comment: meta::pure::metamodel::type::String[0..1]; executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; sqlGenerationTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[0..1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; dataSource: meta::relational::runtime::DataSource[0..1]; }");
     // real platform_store_relational/functions.pure:50-65 (dataSource and
     // Row's value(name) qualified property omitted until demanded) — setup
     // functions INTROSPECT results (println(executeInDb(...).rows.values))
@@ -479,6 +496,10 @@ public final class Pure {
     // answer through the K-side plan model (the plan-handle walks)
     public static final ClassDefinition EXECUTION_NODE = nativeClass("native Class meta::pure::executionPlan::ExecutionNode extends meta::pure::metamodel::type::Any { executionNodes: meta::pure::executionPlan::ExecutionNode[*]; }");
     public static final ClassDefinition FUNCTION_PARAMETERS_VALIDATION_NODE = nativeClass("native Class meta::pure::executionPlan::FunctionParametersValidationNode extends meta::pure::executionPlan::ExecutionNode { functionParameters: meta::pure::executionPlan::FunctionParameter[*]; }");
+    // real graphFetchExecutionPlan.pure — the cross-store graph fetch
+    // node pair the corpus casts plan nodes to (taxonomy T2)
+    public static final ClassDefinition GLOBAL_GRAPH_FETCH_EXECUTION_NODE = nativeClass("native Class meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");
+    public static final ClassDefinition STORE_MAPPING_GLOBAL_GRAPH_FETCH_EXECUTION_NODE = nativeClass("native Class meta::pure::graphFetch::executionPlan::StoreMappingGlobalGraphFetchExecutionNode extends meta::pure::graphFetch::executionPlan::GlobalGraphFetchExecutionNode {}");
     public static final ClassDefinition FUNCTION_PARAMETER = nativeClass("native Class meta::pure::executionPlan::FunctionParameter extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; supportsStream: meta::pure::metamodel::type::Boolean[0..1]; }");
     public static final ClassDefinition SQL_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::SQLExecutionNode extends meta::pure::executionPlan::ExecutionNode { sqlQuery: meta::pure::metamodel::type::String[1]; }");
     public static final ClassDefinition RELATIONAL_INSTANTIATION_EXECUTION_NODE = nativeClass("native Class meta::relational::mapping::RelationalInstantiationExecutionNode extends meta::pure::executionPlan::ExecutionNode {}");

@@ -475,7 +475,13 @@ class NativeFunctionTest {
         // 188: +relation::Relation/NamedRelation (relational.pure:45/:50
         //     — the store-relation chain Table sits under; TableTDS'
         //     defining file compiles in 42 corpus modules again).
-        assertEquals(188, Pure.allNativeClasses().size(),
+        // 197: taxonomy T2 — +EngineRuntime, MultiExecutionContext,
+        //     ExecutionOption, ExecutionOptionContext, relation::TDS,
+        //     relational DataSource, RelationalActivity,
+        //     GlobalGraphFetchExecutionNode,
+        //     StoreMappingGlobalGraphFetchExecutionNode (all grounded in
+        //     engine/legend-pure declarations; see PLAN_SURFACE map).
+        assertEquals(197, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -813,7 +819,24 @@ class NativeFunctionTest {
                     "meta::pure::executionPlan::FunctionParameter",
                     List.of("name", "supportsStream"),
                     "meta::relational::mapping::SQLExecutionNode",
-                    List.of("sqlQuery"));
+                    List.of("sqlQuery"),
+                    // taxonomy T2 additions — real engine sources:
+                    // runtime.pure (EngineRuntime.mappings),
+                    // executionPlan_generation.pure (MultiExecutionContext,
+                    // ExecutionOptionContext),
+                    // platform_store_relational/functions.pure:128
+                    // (RelationalActivity)
+                    "meta::core::runtime::EngineRuntime",
+                    List.of("mappings"),
+                    "meta::pure::executionPlan::MultiExecutionContext",
+                    List.of("childExecutionContext"),
+                    "meta::pure::executionPlan::ExecutionOptionContext",
+                    List.of("executionOptions"),
+                    "meta::relational::mapping::RelationalActivity",
+                    List.of("sql", "comment", "executionTimeInNanoSecond",
+                            "sqlGenerationTimeInNanoSecond",
+                            "connectionAcquisitionTimeInNanoSecond",
+                            "executionPlanInformation", "dataSource"));
 
     /** XStore leg slice 0 (real core/pure/mapping/modelToModel.pure:58/:82). */
     private static final java.util.Map<String, List<String>> STORE_MODEL_SURFACE_PROPERTIES =

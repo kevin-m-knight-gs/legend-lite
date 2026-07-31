@@ -941,7 +941,14 @@ public final class Runner {
     /** A no-execute body attempted through the FULL pipeline: PASS/FAIL
      * outcomes are real; Unsupported/errors return null so the caller
      * falls back to the functional-bucket SHAPE. */
-    private Outcome tryRunNoExecute(ParsedTest t,
+    /** The try-run result: a REAL verdict (PASS/FAIL) stands; otherwise
+     * {@code wall} carries the pipeline's ACTUAL diagnosis so the
+     * functional-bucket SHAPE row is not diagnosis-free (taxonomy X2:
+     * 81 rows — 20% of all failures — had no diagnosis attached). */
+    private record TryRun(@com.legend.Nullable Outcome verdict,
+            @com.legend.Nullable String wall) { }
+
+    private TryRun tryRunNoExecute(ParsedTest t,
             List<com.legend.model.spec.ValueSpecification> body) {
         body = expandHelperCalls(body, t, 0, true);
         java.util.Set<String> called = new java.util.LinkedHashSet<>();
@@ -1001,12 +1008,13 @@ public final class Runner {
                             + scored.status() + ": " + scored.detail());
                 }
                 // only REAL verdicts stand — vocabulary gaps and hollow
-                // shapes keep the functional-bucket SHAPE
+                // shapes keep the functional-bucket SHAPE, but their
+                // COMPUTED diagnosis rides along (X2)
                 if (scored.status() == Status.PASS
                         || scored.status() == Status.FAIL) {
-                    return scored;
+                    return new TryRun(scored, null);
                 }
-                return null;
+                return new TryRun(null, scored.detail());
             }
         } catch (Exception e) {
             String pull = attempt < 3 ? unknownTypePull(e, t) : null;
@@ -1019,7 +1027,7 @@ public final class Runner {
                         + e);
                 e.printStackTrace();
             }
-            return null;
+            return new TryRun(null, exceptionText(e));
         }
         }
     }
@@ -1117,13 +1125,15 @@ public final class Runner {
             // it; anything the platform cannot run falls back to the
             // FUNCTIONAL-bucket SHAPE (the denominator stays honest about
             // WHAT is not built yet).
-            Outcome attempted = tryRunNoExecute(t, body);
-            if (attempted != null) {
-                return attempted;
+            TryRun attempted = tryRunNoExecute(t, body);
+            if (attempted.verdict() != null) {
+                return attempted.verdict();
             }
             String ns = dominantNamespace(body);
             return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...)"
-                    + " call" + (ns == null ? "" : " [calls " + ns + "]"));
+                    + " call" + (ns == null ? "" : " [calls " + ns + "]")
+                    + (attempted.wall() == null ? ""
+                            : " — wall: " + attempted.wall()));
         }
         // QUALIFIED function/element references in the body pull their
         // defining families too (execute(..., other::family::runtime(),
@@ -1189,8 +1199,18 @@ public final class Runner {
                 e.printStackTrace();
             }
             return new Outcome(t.fqn(), Status.ERROR,
-                    String.valueOf(e.getMessage()).replace("\n", " | "));
+                    exceptionText(e));
         }
+    }
+
+    /** A MESSAGE-LESS exception must not render as the literal "null"
+     * (taxonomy X3: HotSpot's OmitStackTraceInFastThrow strips messages
+     * from hot repeat throws, silently merging distinct causes into a
+     * fake "null" bucket) — fall back to the exception class name. */
+    private static String exceptionText(Throwable e) {
+        String m = e.getMessage();
+        return (m == null ? e.getClass().getSimpleName() : m)
+                .replace("\n", " | ");
     }
 
     private static Outcome score(String fqn, com.legend.harness.TestBody.Outcome o) {
