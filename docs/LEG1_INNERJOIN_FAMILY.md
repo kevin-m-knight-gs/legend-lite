@@ -360,3 +360,24 @@ Remaining 4 (all ERROR walls, leg-owned):
   scan order) AND are H2-replay-blocked by the enum-decoded-column
   Unverifiable arm — verify multiset equality per test, then either
   in-SQL-decode unblocks replay or document as scan-order.
+
+## Cycle-32 closeout (2026-07-31)
+
+- Enumeration trio DOCUMENTED not-implementable (H2 scan order,
+  replay-proven — see NOT_IMPLEMENTABLE.md); family fully triaged at
+  18/26 (3 scan-order, 2 vocabulary walls genericType/relation::TDS,
+  2 SHAPE no-execute, 1 runtime-dispatch ambiguity).
+- tests/mapping/inheritance normalize bucket (4): NOT a coherent rung —
+  genericType/_classMappingByClass = M3-reflection vocabulary;
+  testSubTypeFilter = H4 whole-value graph output (#84);
+  testEmbeddMappingInSubTypes + testMilestonedSubTyping pair +
+  testForcedSubTypeProjectDirect = association-into-subtype-mapping
+  resolution (leg #71 subType dispatch).
+- Leg #70 residue recount: the 24 TypedFilter walls are down to 7 —
+  2 slot-demanding leaves (testChainedInnerJoinsWithQualifierInGroupBy,
+  validateComplexValidation6), 2 correlated/nested constraint filters
+  (validateComplexValidation2/3), testGroupByWithFilterFunction_noDatePath
+  (open-variable Allocation-plan machinery, executionPlan leg),
+  testQualifiedPropertyUsingColumnProtocol, + validateComplexValidation5
+  (TDS pipeline in constraint). Each is a DIFFERENT rung; no shared
+  slice remains under #70's original framing.
