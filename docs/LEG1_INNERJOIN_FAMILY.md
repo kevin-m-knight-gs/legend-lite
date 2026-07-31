@@ -132,3 +132,28 @@ Pipelines?) with env-gated prints, THEN thread the root context (root
 TemporalContext must be reachable — TemporalFrame.root exists) into the
 view pipe's milestoned scans via replaceScan/tableHasBlock (mechanism
 proven at TemporalFrame:1371).
+
+## Milestoning/tests residue classification (2026-07-31, cycle 15 — 17 items, family 207/224)
+
+- PENDING-USER sql-only advisory (8): testDateFunctionInMilestonedProperty(+WithMilestonedEntity),
+  testQueryOfMilestonedTypeUsingLatestWithFilterInMapping, testLatestIgnoredForNonMilestonedMapped
+  (BiTemporal|)ClassesAllQuery, testBusinessDatePropagationInColFunction_asQueryParam,
+  testLatestMilestoneDateMappedTableDate..., testLatestMilestoneDatePropogationFromTypeQuery... —
+  all "sql-only: advisory golden-SQL, no row verification"; the advisory-upgrade policy question
+  decides them.
+- PLAN-SURFACE leg (L1): testProcessingTemporalPropertyQuery + PropagationInQuery (pre-existing
+  FAIL; diff inventory vs golden: bare '2015-10-16' constant vs our DATE'...' in the k_ projection;
+  k_processingDate output naming vs our processingDate; select 1 spelling; ALSO the engine golden
+  keeps correlated exists here while ExistsJoinForm converts — the engine chooser distinguishes
+  cases we don't yet; revisit the chooser when this pair's other spellings are fixed);
+  testExecutionPlanForQueryWithVariableRundateWithinLambda (plan text);
+  testViewChainsWithBusinessDate (toSQL(...).toSQLString(connType, timeZone, quoteIdentifiers,
+  ^Format(newLine, indent)) member-call surface — runner/exec vocabulary).
+- Leg #80/#70 (isolation/OR): testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR.
+- Leg #30/#32 (nested-nav temporal): testBusinessDateInjectionFromVarReferenceInProjectUsing
+  ExternalFunction ("milestoned property access on a NESTED navigation").
+- Leg #71 (subType): testMilestoningContextIsPropogatedThroughSubType (multi-hop through stc_
+  embedded/slot head).
+- #32 two-dates family: testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWith
+  LatestDateOnProperty.
+- Semi-structured feature: testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements.
