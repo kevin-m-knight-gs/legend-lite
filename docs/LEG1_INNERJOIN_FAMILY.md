@@ -89,3 +89,18 @@ each qualifier segment as its own filtered-subselect join descriptor and
 re-key the continuation on the joined alias (this leg's hop emission
 table), not re-enter filteredNavLeafRead per segment. Same machinery as
 #70 chained/deep filtered navigation.
+
+## Milestoning long-tail witnesses (2026-07-31, cycle-12 triage — Leg 2 owned)
+
+- `testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot`
+  WRONG ANSWER (priority): expected `[1,Joe Martinez, 1,Joe Martinez,
+  2,TDSNull]`, got `2,John Martinez` — the business-date context must
+  propagate through the property INTO the view frame (engine filters the
+  out-of-date version to NULL; we return the raw view row). Leg 2
+  milestone: temporal context threading across ViewFrames (the ON-clause
+  seam memory: temporal conds ride the resolver join-condition channel).
+- `testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns` ERROR: typing
+  wall in mapping body — Boolean property
+  `isBrexitClassificationTypeExchange` bound to an if-expression typed
+  String (normalizer/typer if-branch unification in mapping bindings,
+  milestoningmap2). Typer bucket, not temporal calculus.
