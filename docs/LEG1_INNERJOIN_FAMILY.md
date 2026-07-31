@@ -68,3 +68,24 @@ instead of a scalar-subquery compare. Projection position keeps the
 scalar subquery (engine multiplies rows there; our scalar read is the
 row-stable equivalent). Needs predicate-context awareness at the
 Substitution comparison site — do NOT bolt onto the lowerer.
+
+## Qualifier -> class-hop -> qualifier chains (testQualifierWithIsolation pair, 2026-07-31)
+
+`testQualifierWithIsolation`/`testQualifierWithIsolationXX` (ERROR
+"extend/project columns [firm] reference names unresolvable even after
+isolation [col='firm' ref='firm']", Lowerer.computedColumns:1144 via
+scalarRelationalArms — a nested relation in scalar position): the
+projection arithmetic crosses `$f.employeeByLastName('Smith2').firm
+->toOne().employeeByLastName('Smith3').age->toOne()` — a FILTERED
+qualifier, then a CLASS hop (firm), then ANOTHER filtered qualifier.
+filteredNavLeafRead's hop peeling handles class hops between leaf and
+filtered head, but a second qualifier AFTER the hop leaves a TypedProject
+binding whose 'firm' column self-references (never materialized as a
+join). Engine golden (testQueryStructure.pure:237): four chained LEFT
+JOINs to filtered subselects — persontable_0(Smith), persontable_2
+(Smith2), firmtable_1 (the hop), persontable_4 (Smith3) — with the CASE
+arithmetic reading across them. Fix shape: the hop chain must register
+each qualifier segment as its own filtered-subselect join descriptor and
+re-key the continuation on the joined alias (this leg's hop emission
+table), not re-enter filteredNavLeafRead per segment. Same machinery as
+#70 chained/deep filtered navigation.
