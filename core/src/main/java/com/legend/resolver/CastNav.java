@@ -83,4 +83,41 @@ final class CastNav {
                         "meta::pure::functions::multiplicity::toOne")
                 ? c.args().get(0) : v;
     }
+
+    /** WHOLE-SOURCE M2M cast heads (details : $src — H5c): the cast
+     * target COMPOSES the same physical row, so its leaves dispatch as a
+     * SAME-ROW AssocSub — empty prefix, shared row var (the frame-
+     * identity rule); slot-read casts keep their own registration route.
+     * {@code childOf}: the CONTEXT-aware (chain-dispatching) class-source
+     * lookup. Returns {@code assocs} unchanged when nothing registers. */
+    static java.util.Map<String, Substitution.AssocSub> withWholeSourceCasts(
+            ClassSources sources, ClassSource cs,
+            java.util.Map<String, Substitution.AssocSub> assocs,
+            java.util.function.Function<String, ClassSource> childOf) {
+        java.util.Map<String, Substitution.AssocSub> out = assocs;
+        for (var e : cs.bindings().entrySet()) {
+            if (out.containsKey(e.getKey())) {
+                continue;
+            }
+            if (Pipelines.unwrapToOne(e.getValue())
+                    instanceof TypedNewInstanceCast nic
+                    && Pipelines.unwrapToOne(nic.source())
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedVariable sv
+                    && sv.name().equals(cs.rowVar())) {
+                ClassSource child = childOf.apply(nic.classFqn());
+                if (!child.rowVar().equals(cs.rowVar())) {
+                    continue; // cross-source cast: the loud wall stands
+                }
+                if (out == assocs) {
+                    out = new java.util.LinkedHashMap<>(assocs);
+                }
+                out.put(e.getKey(), new Substitution.AssocSub(
+                        "", child.rowVar(), child.bindings(),
+                        nic.classFqn(),
+                        Pipelines.slotAliases(child.pipeline())));
+            }
+        }
+        return out;
+    }
 }

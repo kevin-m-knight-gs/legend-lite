@@ -2615,17 +2615,7 @@ public final class StoreResolver {
                 g.milestoning(), g.versionSweep(), g.classFqn());
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
-                target -> dispatch(fctx, target),
-                (fctx.explicitMapping() == null ? "" : fctx.explicitMapping())
-                        + '\u0000'
-                        // audit 23: KEY from fctx's runtime — a mixed read
-                        // poisoned the cache across an in-chain from()
-                        + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn())
-                        // chain mappings join the key (same rule:
-                        // dispatch is context-dependent)
-                        + (fctx.chainMappings().isEmpty() ? ""
-                                : '\u0000' + String.join(",",
-                                        fctx.chainMappings())));
+                target -> dispatch(fctx, target), contextKey(fctx));
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
@@ -2894,7 +2884,7 @@ public final class StoreResolver {
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
                 case TypedFilter f -> new TypedFilter(pipeline,
-                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, true, fresh, f.predicate())
+                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, true, fresh, f.predicate(), context)
                                 .rewriteLambda(f.predicate()),
                         pipeline.info());
                 case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
@@ -2902,7 +2892,7 @@ public final class StoreResolver {
                 case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
                         pipeline.info());
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
-                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh, sb.key()).rewriteLambda(sb.key()),
+                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh, sb.key(), context).rewriteLambda(sb.key()),
                         sb.ascending(), sb.keyAlias(), pipeline.info());
                 case TypedDistinct d -> {
                     // dedup by the MAPPED row (engine instance identity):
@@ -2942,8 +2932,9 @@ public final class StoreResolver {
         final TypedSpec base = pipeline;
         final Pipelines.Materialized fm = m;
         final String fv = fresh;
+        final Context fcx = context;
         Function<TypedLambda, TypedLambda> sub = fn ->
-                substitution(cs, fm, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fv, fn)
+                substitution(cs, fm, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fv, fn, fcx)
                         .rewriteLambda(fn);
         // An agg map may be the BARE instance var (x|$x : y|$y->count()) —
         // COUNT(*)-style; it becomes the identity over the row.
@@ -3396,6 +3387,8 @@ public final class StoreResolver {
         return false;
     }
 
+    /** Context-less scopes (hop/nested registries): whole-source cast
+     * heads stay at their loud wall there. */
     private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
                                       Map<String, Substitution.AssocSub> assocs,
                                       Set<String> assocEnds,
@@ -3404,6 +3397,25 @@ public final class StoreResolver {
                                       Map<TypedSpec, Substitution.InQueryRead> inQueryReads,
                                       boolean filterPosition,
                                       String freshRowVar, TypedLambda userLambda) {
+        return substitution(cs, m, assocs, assocEnds, existsSubs, aggReads,
+                inQueryReads, filterPosition, freshRowVar, userLambda,
+                Context.NONE);
+    }
+
+    private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
+                                      Map<String, Substitution.AssocSub> assocs,
+                                      Set<String> assocEnds,
+                                      Map<String, Substitution.ExistsSub> existsSubs,
+                                      Map<TypedSpec, Substitution.AggRead> aggReads,
+                                      Map<TypedSpec, Substitution.InQueryRead> inQueryReads,
+                                      boolean filterPosition,
+                                      String freshRowVar, TypedLambda userLambda,
+                                      Context context) {
+        assocs = context.isNone() ? assocs
+                : CastNav.withWholeSourceCasts(sources, cs, assocs,
+                        fqn -> sources.get(dispatch(context, fqn), fqn,
+                                target -> dispatch(context, target),
+                                contextKey(context)));
         return new Substitution(new Substitution.Target(
                 new Substitution.RowScope(userLambda.parameters().get(0),
                         freshRowVar, cs.classFqn(), cs.mappingFqn(),
@@ -3459,6 +3471,17 @@ public final class StoreResolver {
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins
      * (chain-aware — ClassSources owns the binding logic). */
+    /** The memo key of a context-dependent resolution (audit 23: runtime
+     * + chain mappings participate — a mixed read poisoned the cache
+     * across an in-chain from()). */
+    private static String contextKey(Context c) {
+        return (c.explicitMapping() == null ? "" : c.explicitMapping())
+                + '\u0000'
+                + (c.runtimeFqn() == null ? "" : c.runtimeFqn())
+                + (c.chainMappings().isEmpty() ? ""
+                        : '\u0000' + String.join(",", c.chainMappings()));
+    }
+
     private String dispatch(Context context, String classFqn) {
         return sources.dispatch(context.explicitMapping(),
                 context.runtimeFqn(), context.chainMappings(), classFqn);

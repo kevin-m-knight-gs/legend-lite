@@ -13,7 +13,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 10 | 0 | 5 | 0 | 1 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 56 | 15 | 11 | 28 | 0 |
+| executionPlan/tests | 110 | 58 | 15 | 11 | 26 | 0 |
 | functions/tests | 258 | 227 | 8 | 18 | 5 | 80 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 132 | 6 | 14 | 3 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2160** | 76 | 163 | 139 | 292 |
+| **total** | 2538 | **2162** | 76 | 163 | 137 | 292 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8178,8 +8178,6 @@ in-process Alloy-shaped path).
 - FAIL testTypedTDSWithEnumFilter [executionPlan/tests]: assertEquals: expected select "root"."TYPE" as "type" from "productSchema"."synonymTable" as "root" where "root"."TYPE" = 'CUSIP', got select * from (select case when "root"."TYPE" = 'CUSIP' then 'CUSIP' else case when "root"."TYPE" = 'ISIN' then 'ISIN' else NULL end end as "type" from "productSchema"."synonymTable" as "root") as "synonymtable_0" where "synonymtable_0"."type" = 'CUSIP'
 - FAIL testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: assert did not hold (false)
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
-- SHAPE planProjectWithNestedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: navigation '$x.details.firstName' crosses a MODEL-TO-MODEL cast binding — not supported yet (H5c)
-- SHAPE planProjectWithNestedDerivedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: navigation '$x.details.firstName' crosses a MODEL-TO-MODEL cast binding — not supported yet (H5c)
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
