@@ -1209,10 +1209,12 @@ public final class Lowerer {
         }
         return switch (slot) {
             case WHERE -> {
-                SqlSelect m = src.withWhere(src.where() == null ? predicate
-                        : Fold.mergeAnd(src.where(), predicate));
+                SqlSelect m = src.withWhere(
+                        mergeWhere(src.where(), predicate, f.stamp()));
                 yield engineExistsJoinForm
-                        ? ExistsJoinForm.rewrite(m, this::nextAlias) : m;
+                        ? ExistsJoinForm.rewrite(m, this::nextAlias,
+                                whereZones::get)
+                        : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));
@@ -1220,6 +1222,18 @@ public final class Lowerer {
                     : Fold.mergeAnd(src.qualify(), predicate));
             case ISOLATE -> throw new IllegalStateException("unreachable: isolated above");
         };
+    }
+
+    /** whereExpr identity -> its {@link WhereMerge.Zones} split — written
+     * whenever a resolver-stamped filter folds, consumed as later filters
+     * fold onto the same WHERE (see {@link WhereMerge}). */
+    private final java.util.IdentityHashMap<SqlExpr, WhereMerge.Zones>
+            whereZones = new java.util.IdentityHashMap<>();
+
+    private SqlExpr mergeWhere(@com.legend.Nullable SqlExpr existing,
+            SqlExpr predicate,
+            com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
+        return WhereMerge.merge(whereZones, existing, predicate, stamp);
     }
 
     /** The isolate-terminal boundary: the select was JUST isolated, so an
@@ -2124,8 +2138,8 @@ public final class Lowerer {
                 return new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(
                                 windowScalar(i.condition(), base, over),
-                                windowScalar(thunkBody(i.thenBranch()), base, over))),
-                        i.elseBranch().map(e -> windowScalar(thunkBody(e), base, over))
+                                windowScalar(ListShapes.thunkBody(i.thenBranch()), base, over))),
+                        i.elseBranch().map(e -> windowScalar(ListShapes.thunkBody(e), base, over))
                                 .orElse(new SqlExpr.NullLit()));
             }
             default -> {
@@ -2510,8 +2524,8 @@ public final class Lowerer {
             case TypedIf i -> new SqlExpr.Case(
                     List.of(new SqlExpr.Case.When(
                             scalar(i.condition(), columns),
-                            scalar(thunkBody(i.thenBranch()), columns))),
-                    i.elseBranch().map(e -> scalar(thunkBody(e), columns))
+                            scalar(ListShapes.thunkBody(i.thenBranch()), columns))),
+                    i.elseBranch().map(e -> scalar(ListShapes.thunkBody(e), columns))
                             .orElse(new SqlExpr.NullLit()));
 
             // An enum VALUE in scalar position renders as its name string
@@ -3438,26 +3452,16 @@ public final class Lowerer {
         if (negate) {
             pred = SqlExpr.Call.of(SqlFn.NOT, pred);
         }
-        return sub.withWhere(sub.where() == null ? pred
-                : Fold.mergeAnd(sub.where(), pred));
+        // the exists PREDICATE is user-zone: it seeds the subselect's
+        // conjuncts (engine buildExistsPredicate), correlation and
+        // milestoning stamps order after it via the zone merge
+        return sub.withWhere(mergeWhere(sub.where(), pred,
+                com.legend.compiler.spec.typed.TypedFilter.Stamp.NONE));
     }
 
     // ==================================================================
     // Plumbing
     // ==================================================================
-
-    /** An if-branch is a 0-param SINGLE-expression thunk; its body is the value. */
-    private static TypedSpec thunkBody(TypedSpec branch) {
-        if (branch instanceof TypedLambda l) {
-            if (l.body().size() != 1) {
-                throw new IllegalStateException("if-branch thunk has "
-                        + l.body().size() + " statements; a last-statement pick"
-                        + " would silently drop the rest");
-            }
-            return l.body().get(0);
-        }
-        return branch;
-    }
 
     SqlSelect isolate(SqlSelect s) {
         return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias(), null));

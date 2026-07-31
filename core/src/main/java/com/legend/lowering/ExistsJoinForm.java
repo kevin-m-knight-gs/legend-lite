@@ -35,8 +35,13 @@ final class ExistsJoinForm {
     }
 
     /** Rewrites every qualifying WHERE conjunct of {@code outer};
-     * returns {@code outer} unchanged when none qualifies. */
-    static SqlSelect rewrite(SqlSelect outer, Supplier<String> alias) {
+     * returns {@code outer} unchanged when none qualifies. {@code zones}
+     * looks up a subquery WHERE's resolver-zone split — the DISTINCT-key
+     * subselect spells temporal conds FIRST (the engine applies the
+     * child's milestoning during child processing; the user pred
+     * concatenates after), while the merged WHERE arrives user-first. */
+    static SqlSelect rewrite(SqlSelect outer, Supplier<String> alias,
+            java.util.function.Function<SqlExpr, WhereMerge.@com.legend.Nullable Zones> zones) {
         if (outer.where() == null) {
             return outer;
         }
@@ -100,8 +105,8 @@ final class ExistsJoinForm {
                 outs.add(outputColOf(sub.from(), in));
             }
             SqlSelect keys = new SqlSelect(projs, true, sub.from(),
-                    local.isEmpty() ? null
-                            : Fold.mergeAnd(local.toArray(SqlExpr[]::new)),
+                    keysWhere(local, sub.where() == null ? null
+                            : zones.apply(sub.where())),
                     List.of(), null, null, List.of(), null, null, outs);
             SqlSource.Subselect side = new SqlSource.Subselect(
                     keys, alias.get(),
@@ -172,6 +177,31 @@ final class ExistsJoinForm {
 
     /** Only a plain filtered select converts — any other clause means
      * the engine's local-predicate gate fails and EXISTS stands. */
+    /** The DISTINCT-key subselect's WHERE: engine order is TEMPORAL
+     * conds first, user pred after (the child's milestoning applies
+     * during child processing, buildExistsAsJoinWithNullCheck
+     * concatenates the pred). Applies only when the zone split exactly
+     * accounts for the non-correlation conds — a user pred that itself
+     * contributed a correlation pair falls back to encounter order. */
+    private static @com.legend.Nullable SqlExpr keysWhere(List<SqlExpr> local,
+            WhereMerge.@com.legend.Nullable Zones z) {
+        if (local.isEmpty()) {
+            return null;
+        }
+        if (z != null && z.temporal() != null) {
+            SqlExpr reordered = z.user() == null ? z.temporal()
+                    : Fold.mergeAnd(z.temporal(), z.user());
+            List<SqlExpr> flat = new ArrayList<>();
+            flatten(reordered, flat);
+            if (flat.size() == local.size()
+                    && new java.util.HashSet<>(flat)
+                            .equals(new java.util.HashSet<>(local))) {
+                return reordered;
+            }
+        }
+        return Fold.mergeAnd(local.toArray(SqlExpr[]::new));
+    }
+
     private static boolean plainShape(SqlSelect s) {
         return !s.distinct() && s.groupBy().isEmpty() && s.having() == null
                 && s.qualify() == null && s.orderBy().isEmpty()

@@ -1935,7 +1935,9 @@ final class Substitution {
                 List.of(eq), predType);
         TypedSpec rel = new TypedFilter(
                 new TypedFilter(
-                        ex.targetPipeline(), corr, ex.targetPipeline().info()),
+                        ex.targetPipeline(), corr, ex.targetPipeline().info(),
+                        com.legend.compiler.spec.typed.TypedFilter
+                                .Stamp.CORRELATION),
                 memberPred, ex.targetPipeline().info());
         return new TypedNativeCall(neCallee(), List.of(rel),
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
@@ -2376,7 +2378,9 @@ final class Substitution {
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
         return new CorrTarget(new TypedFilter(
-                ex.targetPipeline(), corr, ex.targetPipeline().info()), tRenamed);
+                ex.targetPipeline(), corr, ex.targetPipeline().info(),
+                com.legend.compiler.spec.typed.TypedFilter.Stamp.CORRELATION),
+                tRenamed);
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,

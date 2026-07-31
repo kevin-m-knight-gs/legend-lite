@@ -591,7 +591,8 @@ final class TemporalFrame {
         if (pipe instanceof TypedFilter f) {
             TypedSpec src = detachSpineJoin(f.source(), pfx, found);
             return src == null ? null
-                    : new TypedFilter(src, f.predicate(), src.info());
+                    : new TypedFilter(src, f.predicate(), src.info(),
+                            f.stamp());
         }
         return null;
     }
@@ -1513,7 +1514,7 @@ final class TemporalFrame {
                                         Type.Primitive.BOOLEAN,
                                         Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
-        return new TypedFilter(pipe, pred, pipe.info());
+        return new TypedFilter(pipe, pred, pipe.info(), TypedFilter.Stamp.TEMPORAL);
     }
 
     /**
@@ -1677,7 +1678,7 @@ final class TemporalFrame {
             }
             case TypedFilter f -> new TypedFilter(
                     applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
-                    f.predicate(), f.info());
+                    f.predicate(), f.info(), f.stamp());
             case TypedDistinct d ->
                     new TypedDistinct(
                             applyJoinTemporalFilters(d.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
@@ -1740,7 +1741,7 @@ final class TemporalFrame {
         return switch (pipe) {
             case TypedTableReference t -> wrap.apply(t);
             case TypedFilter f -> new TypedFilter(replaceScan(f.source(), wrap),
-                    f.predicate(), f.info());
+                    f.predicate(), f.info(), f.stamp());
             case TypedSelect sel -> new TypedSelect(replaceScan(sel.source(), wrap),
                     sel.columns(), sel.info());
             case TypedDistinct d ->
@@ -1906,7 +1907,7 @@ final class TemporalFrame {
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)),
                         Multiplicity.Bounded.ONE));
-        return new TypedFilter(pipe, pred, pipe.info());
+        return new TypedFilter(pipe, pred, pipe.info(), TypedFilter.Stamp.TEMPORAL);
     }
 
     /**

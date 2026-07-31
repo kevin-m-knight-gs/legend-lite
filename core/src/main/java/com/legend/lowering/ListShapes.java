@@ -1,5 +1,7 @@
 package com.legend.lowering;
 
+import com.legend.compiler.spec.typed.TypedLambda;
+
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.sql.SqlAgg;
@@ -87,4 +89,17 @@ final class ListShapes {
                 || e instanceof SqlExpr.NullLit
                 ? e : new SqlExpr.ArrayLit(java.util.List.of(e));
     }
+    /** An if-branch is a 0-param SINGLE-expression thunk; its body is the value. */
+    static TypedSpec thunkBody(TypedSpec branch) {
+        if (branch instanceof TypedLambda l) {
+            if (l.body().size() != 1) {
+                throw new IllegalStateException("if-branch thunk has "
+                        + l.body().size() + " statements; a last-statement pick"
+                        + " would silently drop the rest");
+            }
+            return l.body().get(0);
+        }
+        return branch;
+    }
+
 }

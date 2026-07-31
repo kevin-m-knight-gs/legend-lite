@@ -26,7 +26,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    5  tests/query  ::  other
 -    4  graphFetch/tests  ::  typer
 -    4  graphFetch/tests  ::  platform-surface
--    4  milestoning/tests  ::  other
 -    4  postprocessor/tests  ::  harness-shape
 -    4  testDataGeneration/tests  ::  rows-differ
 -    4  tests/advanced  ::  other
@@ -60,6 +59,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  functions/tests/projection  ::  lower
 -    2  helperFunctions/tests  ::  harness-shape
 -    2  lineage/scanColumns  ::  other
+-    2  milestoning/tests  ::  other
 -    2  milestoning/tests  ::  resolve
 -    2  milestoning/tests  ::  rows-differ
 -    2  modelJoins  ::  rows-differ
@@ -141,7 +141,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   27  row-assert+graph  ::  ERROR
 -   21  row-assert+plan-assert  ::  SHAPE
 -   20  golden-sql+row-assert  ::  SHAPE
--   18  golden-sql+row-assert  ::  FAIL
+-   16  golden-sql+row-assert  ::  FAIL
 -   13  row-assert+plan-assert  ::  ERROR
 -   12  ?  ::  SHAPE
 -    9  row-assert+plan-assert  ::  FAIL
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  279  Test
+-  277  Test
 -   43  Test, AlloyOnly
 -   25  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -349,8 +349,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | milestoning/tests | testMilestoningContextPropagation.pure | testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | milestoning/tests | testMilestoningContextPropagation.pure | testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | ERROR | milestoning/tests | testMilestoningContextPropagation.pure | testMilestoningContextIsPropogatedThroughSubType | resolve | golden-sql+row-assert | Test | multi-hop navigation product.stc_meta__relational__tests__milestoning__Product___classification.desc |
-| FAIL | milestoning/tests | testProcessingDateMilestoning.pure | testProcessingTemporalPropertyPropagationInQuery | other | golden-sql+row-assert | Test | sql-text: expected select "root".kerberos as "pk_0", "root".kerberos as "kerberos", '2015-10-16' as  |
-| FAIL | milestoning/tests | testProcessingDateMilestoning.pure | testProcessingTemporalPropertyQuery | other | golden-sql+row-assert | Test | sql-text: expected select "root".kerberos as "pk_0", "root".kerberos as "kerberos", '2015-10-16' as  |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testModelJoinForNonRelationalConcepts | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::r |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingFromProject | rows-differ | row-assert+plan-assert+graph | Test | assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument sha |
 | SHAPE | modelJoins | testModelJoinsToRelationalJoins.pure | testPersonToFirmUsingProject | harness-shape | row-assert+plan-assert | Test | no verifying assertions |
