@@ -27,6 +27,35 @@ Note the semantics themselves are NOT the gap: our row multiset matches
 inside the joined pipeline (NavMaterializer), which is row-equivalent to
 both forced strategies. Only the H2 scan order is unreproducible.
 
+## Enumeration projection trio — H2 scan order over the synonym join (2026-07-31, cycle 32)
+
+`testProjectionWithEnumThroughAssociation`,
+`testProjectWithIfWhereOneSideIsEnumLiteral`,
+`testProjectWithIfWhereBothSidesUseTheSameEnumMapping`
+[tests/mapping/enumeration] assert rows BY INDEX (`$tds.rows->at(i)`)
+over `Product LEFT JOIN Product_Synonym` with NO ORDER BY anywhere in
+query or golden. The multisets match; only the join's incidental row
+order differs between the engine's H2 and our DuckDB.
+
+Replay proof (2026-07-31, identical SQL + seeds on both engines —
+`h2 RunScript` 2.1.214 with NON_KEYWORDS=VALUE vs `duckdb` CLI, the
+exact flat select our pipeline now emits after the c31 scalar-inlining):
+
+| Engine | Row order (testProjectWithIfWhereOneSideIsEnumLiteral) |
+|---|---|
+| H2 (engine target) | [My Product, CUSIP], [My Product, GS_NUMBER], [My Product 2, GS_NUMBER] — the test's expected rows, per index |
+| DuckDB (our target) | [My Product, CUSIP], [My Product 2, GS_NUMBER], [My Product, GS_NUMBER] — our observed rows, per index |
+
+H2 nests by product then synonym (product-major); DuckDB's hash join
+emits synonym-scan order (11, 12, 13 = products 1, 2, 1). The other two
+tests share the same join and seeds and their observed rows are exactly
+the DuckDB join order pushed through their projections (verified by
+hand against the seed rows for all three).
+
+The enum SEMANTICS are not the gap: cycle 31's inlining fixed the real
+value bug in this family (testTdsProjectWithEnumToStringEqualityComparison,
+decode inversion), and these three compare correct multisets.
+
 ## Retired entries
 
 - `testQualifierContainingAJoinWithIsolationAndExistsDeep` (2026-07-31,
