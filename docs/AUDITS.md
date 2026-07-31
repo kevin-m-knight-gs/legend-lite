@@ -10,6 +10,7 @@ lifecycles** — do not merge them into one queue; separate docs are what got th
 | [`TENET_REMEDIATION.md`](TENET_REMEDIATION.md) | **Who does the work** — tenet #1 conformance, 20 ranked violations | V0 (tenet text) first; it makes the rest adjudicable |
 | [`AUDIT_PROGRAM.md`](AUDIT_PROGRAM.md) | **What to audit next** — exhaustive `null` / `try` / `if` sweeps | Plan, not findings. Audit N is a gate and starts now |
 | [`CORPUS_TAXONOMY.md`](CORPUS_TAXONOMY.md) | **The burndown** — root causes behind the 406 non-passing corpus tests, not error messages | Dataset a2ee66f0 (2132 pass; now 2177 — R1, k_ carriers, enum decode already burned). Start at §8 |
+| [`H2_BACKEND.md`](H2_BACKEND.md) | **H2 as a real backend** — capability map (206/256 constructs), golden-text census, 13-step sequencing | ADOPTED as the loop plan 2026-07-31; verification addendum covers 2.4.240 |
 | [`AUDIT_23_SPECIAL_CASING.md`](AUDIT_23_SPECIAL_CASING.md) | **Keyed special-casing** — every name/FQN/magic-string conditional across ~37k LOC, censused | Complete. Read before any `if` audit |
 | [`AUDIT_2026_07.md`](AUDIT_2026_07.md) | Earlier round | Complete |
 
