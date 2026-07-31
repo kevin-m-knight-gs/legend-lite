@@ -1080,6 +1080,18 @@ public final class Runner {
                 expandHelperCalls(t.fn().body(), t, 0);
         List<String> mappingRefs = executeMappingRefs(body, t);
         if (mappingRefs.isEmpty()) {
+            // VACUOUS PLACEHOLDER: the engine's own suite contains tests
+            // whose entire body is the literal `true` (testFailures.pure
+            // failMoveFilterOnTop/BuildCorrelatedSubQuery — placeholders
+            // for strategies the engine itself documents as failing).
+            // The engine runs them as vacuous passes; scoring them SHAPE
+            // would misfile engine semantics as a vocabulary gap.
+            if (body.size() == 1
+                    && body.get(0) instanceof com.legend.model.spec
+                            .CBoolean cb && cb.value()) {
+                return new Outcome(t.fqn(), Status.PASS,
+                        "vacuous placeholder (engine body = true)");
+            }
             // TRY-RUN-THEN-SHAPE: a no-execute body may still be fully
             // runnable through the pipeline (metamodel navigation +
             // host-evaluated natives — the typeInference family). Attempt

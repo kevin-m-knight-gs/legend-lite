@@ -45,3 +45,26 @@ S1: Column-vs-bare LUB (diagnose first); the join-lookup pair moved
 S2: leg-4 views-as-join-targets (5) — belongs to the leg-4 design
     (frame-as-join-side), not built here.
 S3: Merge ops (2) — feature track.
+
+## Filter-position pierced-toOne reads: fold the comparison into EXISTS (2026-07-31)
+
+`filterFunctionExpressionWithOrConditionOnRightTable` (ERROR, DuckDB
+"more than one row returned by a subquery"): `Firm.all()->filter(f|
+$f.employees->filter(e|$e.lastName=='Lopez' || $e.age>20)->toOne()
+.lastName == 'Smith')`. Substitution.filteredNavLeafRead rewrites the
+pierced read to a correlated single-column relation rendered as a scalar
+subquery — strict pure toOne (raises on >1 match). The engine instead
+LEFT JOINs with the inner filter in the ON clause and compares in the
+outer WHERE (golden in testFilterWithQualifiedProperties.pure:225, note
+the null-guarded OR: `AGE is not null and AGE > 20`); join row
+multiplication collapses via PK dedup at the class reader, so the
+OBSERVABLE engine semantics in filter position is
+`EXISTS(target: assoc-cond AND inner-filter AND leaf-compare)`.
+
+Fix (this leg's hop emission table): when the consumer of a
+filteredNavLeafRead is a comparison INSIDE a filter predicate, fold the
+comparison into the correlated relation and emit the exists family
+instead of a scalar-subquery compare. Projection position keeps the
+scalar subquery (engine multiplies rows there; our scalar read is the
+row-stable equivalent). Needs predicate-context awareness at the
+Substitution comparison site — do NOT bolt onto the lowerer.

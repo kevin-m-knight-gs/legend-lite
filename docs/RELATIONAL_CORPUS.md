@@ -40,7 +40,7 @@ in-process Alloy-shaped path).
 | tds/tests | 266 | 246 | 2 | 9 | 9 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
 | tests | 39 | 25 | 3 | 0 | 11 | 0 |
-| tests/advanced | 68 | 54 | 4 | 6 | 4 | 17 |
+| tests/advanced | 68 | 56 | 4 | 6 | 2 | 17 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2149** | 80 | 165 | 144 | 317 |
+| **total** | 2538 | **2151** | 80 | 165 | 142 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8383,8 +8383,6 @@ in-process Alloy-shaped path).
 - SHAPE testExtractDBsWithSubstituition [tests]: no execute(|...) call [calls meta::relational::runtime]
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select (select "t2".NAME as "name" from snDBDefault.default.personTable as "t1" left outer join snDBDefault.default.addressTable as "t2" on ("t2".ID = "t1".ADDRESSID) where "root".ID = "t1".FIRMID and "t1".LASTNAME = 'Smith') as "address" from snDBDefault.default.firmTableNew as "root"
 - FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", (select "t2".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t2" where ("t2".ID <> 1 or "t2".ID is null) and "t2".PRODID = "root".ID and "t2".TYPE = 'CUSIP') as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" where (select "t1".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t1" where ("t1".ID <> 1 or "t1".ID is null) and "t1".PRODID = "root".ID and "t1".TYPE = 'CUSIP') = 'CUSIP1'
-- SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
-- SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - FAIL testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]

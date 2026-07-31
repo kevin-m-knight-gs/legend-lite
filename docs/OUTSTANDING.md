@@ -31,7 +31,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    4  graphFetch/tests  ::  platform-surface
 -    4  postprocessor/tests  ::  harness-shape
 -    4  testDataGeneration/tests  ::  rows-differ
--    4  tests/advanced  ::  harness-shape
 -    4  tests/mapping/enumeration  ::  rows-differ
 -    4  tests/mapping/inheritance  ::  normalize(mapping)
 -    4  validation/tests  ::  other
@@ -75,6 +74,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    2  router/tests  ::  typer
 -    2  tds/relation  ::  harness-shape
 -    2  tds/tests  ::  resolve
+-    2  tests/advanced  ::  harness-shape
 -    2  tests/injection  ::  other
 -    2  tests/mapping/association  ::  resolve
 -    2  tests/mapping/enumeration  ::  other
@@ -143,8 +143,8 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   25  row-assert+plan-assert  ::  SHAPE
 -   21  golden-sql+row-assert  ::  FAIL
 -   20  golden-sql+row-assert  ::  SHAPE
--   15  ?  ::  SHAPE
 -   13  row-assert+plan-assert  ::  ERROR
+-   13  ?  ::  SHAPE
 -   12  row-assert+plan-assert+graph  ::  SHAPE
 -   10  row-assert+plan-assert  ::  FAIL
 -   10  row-assert+constraints  ::  ERROR
@@ -175,7 +175,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  298  Test
+-  296  Test
 -   43  Test, AlloyOnly
 -   32  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -447,8 +447,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests | testRelationalExtension.pure | testTranslateDbType | harness-shape | row-assert | Test | no execute(\|...) call [calls meta::relational::metamodel::datatype] |
 | FAIL | tests | testRelationalMapper.pure | testRelationalMapperTwoDBs | rows-differ | row-assert | Test | assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.prod |
 | FAIL | tests | testRelationalMapper.pure | testRelationalMapperWithJoin | rows-differ | row-assert | Test | assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableN |
-| SHAPE | tests/advanced | testFailures.pure | BuildCorrelatedSubQuery | harness-shape | ? | Test | no execute(\|...) call |
-| SHAPE | tests/advanced | testFailures.pure | failMoveFilterOnTop | harness-shape | ? | Test | no execute(\|...) call |
 | ERROR | tests/advanced | testFilterWithQualifiedProperties.pure | filterFunctionExpressionWithOrConditionOnRightTable | other | golden-sql+row-assert | Test | Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subquer |
 | FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedCorrelated | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
 | FAIL | tests/advanced | testForced.pure | testFilterMappingWithProjectionOverlappForcedOnClause | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT] |
