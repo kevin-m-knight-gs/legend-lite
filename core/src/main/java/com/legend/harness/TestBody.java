@@ -956,7 +956,26 @@ public final class TestBody {
                         ps), lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
                 if (java.util.Objects.equals(golden, sql)) {
-                    return null;
+                    // MILESTONE 1 (H2_BACKEND.md §12 step 5): the matched
+                    // text IS our rendering — execute it on the H2 second
+                    // target and hold its rows to our DuckDB rows. A
+                    // divergence here is a REAL renderer/execution bug
+                    // (the H5.1 class), never advisory; unverifiable
+                    // inputs only count.
+                    String h2rows = h2Upgrade(args, lets, execStmts,
+                            execVars, execChains, ctx, imports,
+                            runtimeFqn, conn);
+                    if (h2rows == null) {
+                        H2Verify.M1_VERIFIED.increment();
+                        return null;
+                    }
+                    if (java.util.Objects.equals(h2rows, ADVISORY_MARKER)) {
+                        H2Verify.M1_UNVERIFIABLE.increment();
+                        return null;
+                    }
+                    H2Verify.M1_DIVERGED.increment();
+                    return "h2-exec: OUR byte-matched SQL on H2 diverged"
+                            + " from our DuckDB rows — " + h2rows;
                 }
                 // divergent text: execution-equivalence may still verify
                 String rows = h2Upgrade(args, lets, execStmts, execVars,

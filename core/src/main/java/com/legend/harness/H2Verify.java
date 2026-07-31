@@ -62,6 +62,17 @@ public final class H2Verify {
         return READY;
     }
 
+    /** MILESTONE-1 counters (H2_BACKEND.md §12 step 5): real H2
+     * execution of OUR byte-matched SQL, held to our DuckDB rows.
+     * Sweep-scoped (fresh JVM per surefire run); the corpus runner
+     * reports them as the h2-exec scoreboard line. */
+    public static final java.util.concurrent.atomic.LongAdder M1_VERIFIED =
+            new java.util.concurrent.atomic.LongAdder();
+    public static final java.util.concurrent.atomic.LongAdder M1_DIVERGED =
+            new java.util.concurrent.atomic.LongAdder();
+    public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
+            new java.util.concurrent.atomic.LongAdder();
+
     private static final String SETTINGS =
             // CASE_INSENSITIVE_IDENTIFIERS mirrors DuckDB's matching —
             // the SAME recorded statements already ran there; quoted

@@ -187,6 +187,14 @@ public class RelationalCorpusRunner {
             long p = outs.stream().filter(o -> o.status() == Runner.Status.PASS).count();
             System.out.println("[rcorpus] " + f + ": " + p + "/" + outs.size() + " pass");
         });
+        // MILESTONE 1 (H2_BACKEND.md §12 step 5): real H2 execution of
+        // OUR byte-matched SQL, held to our DuckDB rows — additive
+        // instrumentation; a diverged count > 0 surfaces as test FAILs.
+        System.out.println("[rcorpus] h2-exec (our SQL on H2): "
+                + com.legend.harness.H2Verify.M1_VERIFIED.sum() + " verified, "
+                + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
+                + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
+                + " unverifiable");
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (onlyFilters.isEmpty()) {
@@ -216,26 +224,42 @@ public class RelationalCorpusRunner {
         }
     }
 
-    /** The committed scoreboard's per-family PASS counts ({@code | family
-     * | tests | pass | ... |}); empty (gate skipped, loud) when the file
-     * is absent or unreadable. */
+    /** The committed scoreboard's per-family PASS counts, parsed BY
+     * HEADER NAME — a positional cells[3] read meant any column inserted
+     * before it silently degraded the regression gate to green
+     * (H2_BACKEND.md §10). Empty (gate skipped, loud) when the file is
+     * absent, unreadable, or carries no recognizable 'pass' column. */
     private static Map<String, Integer> readBaseline(Path p) {
         Map<String, Integer> m = new LinkedHashMap<>();
+        int passCol = -1;
         try {
             for (String line : java.nio.file.Files.readAllLines(p)) {
-                if (!line.startsWith("| ") || line.startsWith("| family")
-                        || line.contains("**total**")) {
+                if (!line.startsWith("| ")) {
                     continue;
                 }
                 String[] cells = line.split("\\|");
-                if (cells.length < 4) {
+                if (line.startsWith("| family")) {
+                    for (int i = 0; i < cells.length; i++) {
+                        if (cells[i].trim().equals("pass")) {
+                            passCol = i;
+                        }
+                    }
+                    continue;
+                }
+                if (passCol < 0 || cells.length <= passCol
+                        || line.contains("**total**")) {
                     continue;
                 }
                 try {
-                    m.put(cells[1].trim(), Integer.parseInt(cells[3].trim()));
+                    m.put(cells[1].trim(),
+                            Integer.parseInt(cells[passCol].trim()));
                 } catch (NumberFormatException ignore) {
                     // separator / non-table rows
                 }
+            }
+            if (passCol < 0) {
+                System.out.println("[rcorpus] baseline has no 'pass' header"
+                        + " — regression gate SKIPPED");
             }
         } catch (Exception e) {
             System.out.println("[rcorpus] baseline unreadable (" + e

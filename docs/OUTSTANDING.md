@@ -417,7 +417,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | testDataGeneration/tests | testDataGeneration.pure | testUnionToUnion | normalize(mapping) | row-assert | meta::pure::profiles::Test | class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tes |
 | FAIL | testDataGeneration/tests | testDataGeneration.pure | testUnionViewOnView | rows-differ | row-assert | meta::pure::profiles::Test | assertSize(sqls): expected 14, got 12 |
 | FAIL | testDataGeneration/tests | testDataGeneration.pure | testViewEmbeddedInChainedJoin | rows-differ | row-assert | meta::pure::profiles::Test | assertSize(sqls): expected 5, got 4 |
-| SHAPE | tests | relationalSetUp.pure | testResultToJsonStream | harness-shape | plan-assert | Test | no execute(\|...) call — wall: unknown enumeration 'GeographicEntityType' |
+| SHAPE | tests | relationalSetUp.pure | testResultToJsonStream | harness-shape | plan-assert | Test | no execute(\|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host' |
 | SHAPE | tests | testRelationalExtension.pure | testConnectionEqualityAllButOnePropertySame | harness-shape | row-assert | Test | no execute(\|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelation |
 | SHAPE | tests | testRelationalExtension.pure | testConnectionEqualityAllSameStatic | harness-shape | ? | Test | no execute(\|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelation |
 | SHAPE | tests | testRelationalExtension.pure | testConnectionEqualityTypeDiff | harness-shape | row-assert | Test | no execute(\|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelation |

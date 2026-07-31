@@ -471,6 +471,9 @@ on it.
 ## 12. Sequencing
 
 **Milestone 1 — connect two halves that already exist. Refactors nothing.**
+> **MEASURED (2026-07-31, landed):** `h2-exec (our SQL on H2): 289 verified, 0 diverged,
+> 135 unverifiable` — corpus-wide, first sweep. Zero divergences: every byte-matched
+> rendering executes on real H2 2.1.214 with rows identical to DuckDB.
 
 > For every corpus test that today produces a **golden-matching `toSQLString(H2)`** and a **tabular**
 > result, execute *that text* on the H2 already stood up from the recorded statements, and assert row
