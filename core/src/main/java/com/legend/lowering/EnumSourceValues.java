@@ -25,9 +25,29 @@ final class EnumSourceValues {
      * ({@code "root".active = 0}) — the engine never compares decoded
      * names. Pure algebra: valid for any literal-decode case shape.
      */
-    static @com.legend.Nullable SqlExpr decodeInvert(SqlExpr a, SqlExpr b) {
+    static @com.legend.Nullable SqlExpr decodeInvert(
+            com.legend.compiler.spec.typed.TypedSpec ta,
+            com.legend.compiler.spec.typed.TypedSpec tb,
+            SqlExpr a, SqlExpr b) {
         SqlExpr lit = b instanceof SqlExpr.StringLit ? b
                 : a instanceof SqlExpr.StringLit ? a : null;
+        if (lit != null) {
+            // Which SPACE does the literal live in? An ENUM literal
+            // (Type.FTE) names a decoded value — invert by NAME to its
+            // source condition(s). A plain STRING compares in RAW space:
+            // the engine's golden pins `"root".type = 'FTE'` for
+            // getEnum('Type') == 'FTE' — the string meets the raw store
+            // column verbatim, never the decoded name (C1.4).
+            com.legend.compiler.spec.typed.TypedSpec litSpec = lit == b ? tb : ta;
+            if (!(litSpec instanceof
+                    com.legend.compiler.spec.typed.TypedEnumValue)) {
+                SqlExpr chainSide = lit == b ? a : b;
+                return com.legend.sql.DecodeShapes.sourceExpr(chainSide)
+                        .map(src -> (SqlExpr) SqlExpr.Call.of(
+                                com.legend.sql.SqlFn.EQUAL, src, lit))
+                        .orElse(null);
+            }
+        }
         if (lit == null) {
             // BOTH sides decode chains over the SAME enum table (C1.4:
             // if($p.type == $q.type, ...) with one shared enum mapping):
