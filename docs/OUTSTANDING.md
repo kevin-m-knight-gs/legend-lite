@@ -52,7 +52,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    3  tests/mapping/union  ::  normalize(mapping)
 -    3  transform/fromPure/tests  ::  render(DB2)
 -    3  transform/fromPure/tests  ::  other
--    3  validation/showcase  ::  other
 -    3  validation/tests  ::  other
 -    2  functions/tests  ::  resolve
 -    2  functions/tests  ::  execute(DuckDB)
@@ -147,10 +146,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    9  row-assert+plan-assert  ::  FAIL
 -    9  row-assert+plan-assert+graph  ::  SHAPE
 -    9  row-assert+lineage  ::  SHAPE
--    6  row-assert+constraints  ::  ERROR
 -    5  row-assert+plan-assert+graph  ::  FAIL
 -    4  golden-sql+row-assert+plan-assert  ::  FAIL
 -    4  row-assert+graph  ::  SHAPE
+-    4  row-assert+constraints  ::  ERROR
 -    3  plan-assert  ::  SHAPE
 -    3  row-assert+plan-assert+graph  ::  ERROR
 -    3  golden-sql  ::  FAIL
@@ -171,11 +170,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  row-assert+printer  ::  FAIL
 -    1  row-assert+printer  ::  SHAPE
 -    1  golden-sql+row-assert+plan-assert  ::  ERROR
--    1  golden-sql+row-assert+constraints  ::  ERROR
 
 ## Pivot: stereotype
 
--  277  Test
+-  274  Test
 -   43  Test, AlloyOnly
 -   25  meta::pure::profiles::Test
 -   10  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -540,9 +538,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithCodeBlock | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | FAIL | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithPosition | rows-differ | row-assert | Test | assertEquals: expected select substring("root".FULLNAME, 0, locate(',', "root".FULLNAME) - 1) as "fi |
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testTrim | render(DB2) | row-assert | Test | per-driver golden loop declares DatabaseType.Composite — only the H2/DB2 renderers are built |
-| ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraints | other | golden-sql+row-assert+constraints | Test | unbound variable '$t' |
-| ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraintsWithInnerJoinInFilter | other | row-assert+constraints | Test | unbound variable '$t' |
-| ERROR | validation/showcase | validationStandaloneShowcase.pure | validateAllConstraintsWithPostTDSOperation2 | other | row-assert+constraints | Test | unbound variable '$t' |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation2 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation3 | other | row-assert+constraints | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation5 | other | row-assert+constraints | Test | object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[sou |

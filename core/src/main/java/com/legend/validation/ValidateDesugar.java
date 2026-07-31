@@ -197,11 +197,11 @@ public final class ValidateDesugar {
         }
         if (postTds != null) {
             // beta-apply {t|...} over the concatenated violations
-            tds = replaceVar(postTds.body()
-                            .get(postTds.body().size() - 1),
-                    postTds.parameters().get(0).name(),
-                    java.util.Objects.requireNonNull(tds,
-                            "constraint validation without constraints"));
+            tds = com.legend.compiler.spec.SourceSubst.substitute(
+                    postTds.body().get(postTds.body().size() - 1),
+                    java.util.Map.of(postTds.parameters().get(0).name(),
+                            java.util.Objects.requireNonNull(tds,
+                                    "constraint validation without constraints")));
         }
         // engine parity note: the engine passes ^exeCtx(
         // addDriverTablePkForProject=true) to execute; that metamodel
@@ -325,48 +325,6 @@ public final class ValidateDesugar {
 
     /** Textbook variable substitution over the parse tree (the postTDS
      * beta-application). */
-    private static ValueSpecification replaceVar(ValueSpecification v,
-            String name, ValueSpecification with) {
-        if (v instanceof Variable var && name.equals(var.name())) {
-            return with;
-        }
-        if (v instanceof AppliedFunction af) {
-            List<ValueSpecification> ps = new ArrayList<>();
-            boolean changed = false;
-            for (ValueSpecification x : af.parameters()) {
-                ValueSpecification r = replaceVar(x, name, with);
-                ps.add(r);
-                changed |= r != x;
-            }
-            return changed
-                    ? new AppliedFunction(af.function(), ps,
-                            af.candidateFqns()) : v;
-        }
-        if (v instanceof PureCollection pc) {
-            List<ValueSpecification> vs = new ArrayList<>();
-            boolean changed = false;
-            for (ValueSpecification x : pc.values()) {
-                ValueSpecification r = replaceVar(x, name, with);
-                vs.add(r);
-                changed |= r != x;
-            }
-            return changed ? new PureCollection(vs) : v;
-        }
-        if (v instanceof LambdaFunction lf
-                && lf.parameters().stream()
-                        .noneMatch(pv -> name.equals(pv.name()))) {
-            List<ValueSpecification> body = new ArrayList<>();
-            boolean changed = false;
-            for (ValueSpecification b : lf.body()) {
-                ValueSpecification r = replaceVar(b, name, with);
-                body.add(r);
-                changed |= r != b;
-            }
-            return changed ? new LambdaFunction(lf.parameters(), body) : v;
-        }
-        return v;
-    }
-
     private static ValueSpecification constraintProject(
             ValueSpecification chain,
             ClassDefinition.ConstraintDefinition c,
@@ -407,8 +365,10 @@ public final class ValidateDesugar {
             } else if (override[1] instanceof ValueSpecification ov) {
                 messageCol = new LambdaFunction(
                         List.of(new Variable("this", null, null)),
-                        List.of(replaceVar(ov, (String) override[2],
-                                new Variable("this", null, null))));
+                        List.of(com.legend.compiler.spec.SourceSubst
+                                .substitute(ov, java.util.Map.of(
+                                        (String) override[2],
+                                        new Variable("this", null, null)))));
             }
         }
         List<ValueSpecification> fns = new ArrayList<>(List.of(

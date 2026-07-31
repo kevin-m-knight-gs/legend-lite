@@ -73,9 +73,9 @@ in-process Alloy-shaped path).
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/query | 83 | 73 | 1 | 8 | 1 | 37 |
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
-| validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
+| validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2177** | 71 | 156 | 134 | 286 |
+| **total** | 2538 | **2180** | 71 | 153 | 134 | 286 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8029,7 +8029,6 @@ in-process Alloy-shaped path).
 - 4x LIST_AGG reached a dialect without a list encoding
 - 4x ArrayIndexOutOfBoundsException
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- 3x unbound variable '$t'
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::postprocess': in call to 'meta::relational::postProcessor::transformNonCached', argument 2: expected Function<meta::pure::metamodel::type::Any>, got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
@@ -8053,6 +8052,7 @@ in-process Alloy-shaped path).
 - 1x no overload of 'executionPlan' matches the argument types
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x scalar lowering not yet implemented for TypedSerializeGraph
+- 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 
 ### per-test outcomes (non-passing)
 
@@ -8410,9 +8410,6 @@ in-process Alloy-shaped path).
 - ERROR testGreatestLeast [transform/fromPure/tests]: LIST_GET reached a dialect without a list encoding
 - ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
 - ERROR testHashFunctions [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
-- ERROR validateAllConstraints [validation/showcase]: unbound variable '$t'
-- ERROR validateAllConstraintsWithPostTDSOperation2 [validation/showcase]: unbound variable '$t'
-- ERROR validateAllConstraintsWithInnerJoinInFilter [validation/showcase]: unbound variable '$t'
 - ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro

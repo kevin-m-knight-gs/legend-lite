@@ -27,7 +27,7 @@ import java.util.Map;
  * variable preserves semantics exactly; shadowing lambda parameters stop
  * substitution.
  */
-final class SourceSubst {
+public final class SourceSubst {
 
     private SourceSubst() {
     }
@@ -53,7 +53,7 @@ final class SourceSubst {
                 List.of(substitute(lam.body().get(lam.body().size() - 1), env)));
     }
 
-    static ValueSpecification substitute(ValueSpecification v,
+    public static ValueSpecification substitute(ValueSpecification v,
             Map<String, ValueSpecification> env) {
         if (env.isEmpty()) {
             return v;
