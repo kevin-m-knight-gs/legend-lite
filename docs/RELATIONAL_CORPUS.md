@@ -63,7 +63,7 @@ in-process Alloy-shaped path).
 | tests/mapping/modelJoin | 47 | 41 | 1 | 5 | 0 | 38 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 2 |
-| tests/mapping/relation | 93 | 90 | 3 | 0 | 0 | 0 |
+| tests/mapping/relation | 93 | 91 | 2 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 67 | 5 | 1 | 1 | 1 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 33 | 3 | 4 | 10 | 0 |
 | validation/showcase | 8 | 5 | 0 | 3 | 0 | 0 |
 | validation/tests | 23 | 12 | 0 | 11 | 0 | 0 |
-| **total** | 2538 | **2131** | 86 | 169 | 152 | 317 |
+| **total** | 2538 | **2132** | 85 | 169 | 152 | 317 |
 
 ### mapping walls (dropped at assembly)
 
@@ -8469,7 +8469,6 @@ in-process Alloy-shaped path).
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: assertEquals: expected [David, null, Fabrice, null, John, John, Oliver, Fabrice, Oliver, Oliver], got [David, null, Fabrice, Oliver, John, John, Oliver, Oliver]
 - FAIL testMixedMappingWithFilterInProject [tests/mapping/relation]: assertEquals: expected [David, null, Fabrice, null, John, John, Oliver, Fabrice, Oliver, Oliver], got [David, null, Fabrice, Oliver, John, John, Oliver, Oliver]
-- FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'len(DOUBLE)'. You might need to add explicit type casts. | 	Candidate functions: | 	len(VARCHAR) -> BIGINT | 	len(BIT) -> BIGINT | 	len(ANY[]) -> BIGINT |  |  | LINE 1: ...(123.456 AS DOUBLE), CAST(100.001 AS DOUBLE)]), 0), coalesc

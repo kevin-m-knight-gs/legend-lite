@@ -228,7 +228,14 @@ final class Fold {
         if (s.limit() != null || s.offset() != null || s.distinct()) {
             return FilterSlot.ISOLATE;
         }
-        if (referencesWindowColumn) {
+        // A select already CARRYING window projections cannot take the
+        // predicate in WHERE even when the predicate never mentions a
+        // window column: SQL evaluates WHERE before window functions in
+        // the same select, so rank() would compute over the filtered
+        // rows — the chain asked filter-AFTER-window. QUALIFY evaluates
+        // post-window (C1.1; witness testMappingWithWindowColumn).
+        if (referencesWindowColumn || s.projections().stream()
+                .anyMatch(p -> containsWindow(p.expr()))) {
             return FilterSlot.QUALIFY;
         }
         if (!s.groupBy().isEmpty()) {
@@ -238,6 +245,14 @@ final class Fold {
     }
 
     enum FilterSlot { WHERE, HAVING, QUALIFY, ISOLATE }
+
+    /** Window containment at EXPRESSION depth ({@code rank() + 1} in a
+     * projection is as window-carrying as a bare call); children() stops
+     * at query boundaries, so subquery-internal windows don't count. */
+    private static boolean containsWindow(SqlExpr e) {
+        return e instanceof SqlExpr.WindowCall
+                || e.children().stream().anyMatch(Fold::containsWindow);
+    }
 
     /**
      * Column selection/rename/projection narrows or re-labels the SELECT list.
@@ -313,6 +328,18 @@ final class Fold {
      */
     static boolean windowFolds(SqlSelect s) {
         return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
+    }
+
+    /** Top-level ORDER BY null placement (C1.2): the engine emits NO
+     * NULLS clause (extensionDefaults.pure processOrderBy) and its
+     * goldens executed on H2, whose default sorts null SMALLEST — ASC
+     * nulls first, DESC nulls last. DuckDB defaults to NULLS LAST in
+     * both directions, so the placement must be explicit. (The WINDOW
+     * sort convention is the opposite engine pin — duckdbExtension.pure
+     * emits ASC NULLS LAST / DESC NULLS FIRST — and stays separate.) */
+    static SqlSelect.SortKey.NullOrder sortNulls(boolean ascending) {
+        return ascending ? SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                : SqlSelect.SortKey.NullOrder.NULLS_LAST;
     }
 
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */

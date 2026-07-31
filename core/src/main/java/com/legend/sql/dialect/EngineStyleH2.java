@@ -215,7 +215,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // case-chain — the template compares the RAW source column
         // (toSourceValues; the engine never compares decoded names)
         SqlExpr colExpr = decodeSourceColumn(other);
-        String col = expr(colExpr != null ? colExpr : other, 4);
+        // the rendered column sits inside the template's single-quoted
+        // args — escape like the selector arm at holder-equality does
+        // (C2.1: a quote-bearing spelling must not walk out of the arg)
+        String col = expr(colExpr != null ? colExpr : other, 4)
+                .replace("'", "\\'");
         String pn = p.name() + (p.optional() ? "![]" : "");
         String fn = p.enumMapFn() + "(" + pn + ")";
         return "(${optionalVarPlaceHolderOperationSelector(" + pn
@@ -789,7 +793,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         ? '"' + c.name() + '"'
                         : expr(k.expr(), 0);
         String s = e + (k.ascending() ? " asc" : " desc");
-        if (k.nullOrder() != null) {
+        // H2 sorts null SMALLEST by default (ASC first / DESC last) and
+        // the engine never spells a NULLS clause — suppress a placement
+        // that just restates that default (C1.2 puts it in the IR so
+        // DuckDB, whose default differs, can render it explicitly)
+        var h2Default = k.ascending()
+                ? com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                : com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_LAST;
+        if (k.nullOrder() != null && k.nullOrder() != h2Default) {
             s += k.nullOrder() == com.legend.sql.SqlSelect.SortKey
                     .NullOrder.NULLS_FIRST ? " nulls first" : " nulls last";
         }

@@ -45,6 +45,20 @@ class FoldTest {
         assertEquals(Fold.FilterSlot.HAVING,
                 Fold.filterSlot(BARE.withGroupBy(List.of(col("A"))), false));
         assertEquals(Fold.FilterSlot.QUALIFY, Fold.filterSlot(BARE, true));
+        // C1.1: a select CARRYING window projections takes QUALIFY even
+        // when the predicate never mentions the window column — WHERE
+        // would filter the rows the window computes over. Detection is
+        // expression-deep (rank() + 1 is as window-carrying as rank()).
+        SqlExpr rank = new SqlExpr.WindowCall(
+                new com.legend.sql.SqlAgg.Ranking("rank"),
+                List.of(), List.of(SqlSelect.SortKey.asc(col("A"))), null);
+        assertEquals(Fold.FilterSlot.QUALIFY, Fold.filterSlot(
+                BARE.withProjections(List.of(
+                        new SqlSelect.Projection(rank, "r")), null), false));
+        assertEquals(Fold.FilterSlot.QUALIFY, Fold.filterSlot(
+                BARE.withProjections(List.of(new SqlSelect.Projection(
+                        SqlExpr.Call.of(SqlFn.ADD, rank, new SqlExpr.IntLit(1)),
+                        "r1")), null), false));
     }
 
     @Test

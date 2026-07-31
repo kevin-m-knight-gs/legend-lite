@@ -780,9 +780,14 @@ public class AnsiSqlRenderer implements SqlDialect {
         }
         char q = quoteChar();
         // a QUOTE-BEARING identity ('"date"' — quoted store declaration)
-        // is already its own spelling
+        // is already its own spelling — but ONLY when its interior is a
+        // valid quoted body (quote chars appear as doubled pairs); a
+        // stray interior quote would walk out of the identifier (C2.1)
         if (name.length() > 1 && name.charAt(0) == q
-                && name.charAt(name.length() - 1) == q) {
+                && name.charAt(name.length() - 1) == q
+                && !name.substring(1, name.length() - 1)
+                        .replace("" + q + q, "")
+                        .contains(String.valueOf(q))) {
             return name;
         }
         return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;

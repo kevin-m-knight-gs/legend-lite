@@ -209,14 +209,17 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected String structLit(SqlExpr.StructLit s) {
+        // stringLit, not raw interpolation: a Pure property name may carry
+        // quotes ('quoted name' declarations) — C2.1 injection surface
         return "{" + s.fields().stream()
-                .map(f -> "'" + f.name() + "': " + expr(f.value(), 0))
+                .map(f -> stringLit(f.name()) + ": " + expr(f.value(), 0))
                 .collect(java.util.stream.Collectors.joining(", ")) + "}";
     }
 
     @Override
     protected String structGet(SqlExpr.StructGet g) {
-        return "struct_extract(" + expr(g.source(), 0) + ", '" + g.field() + "')";
+        return "struct_extract(" + expr(g.source(), 0) + ", "
+                + stringLit(g.field()) + ")";
     }
 
     // ---- variant (JSON) idioms ----

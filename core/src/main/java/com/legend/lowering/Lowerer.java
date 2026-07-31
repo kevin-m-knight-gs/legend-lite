@@ -1542,7 +1542,7 @@ public final class Lowerer {
             }
             // engine TEXT spells the OUTPUT column (order by "name" asc);
             // execution renders e — sortBy stays physical in both
-            keys.add(new SqlSelect.SortKey(e, k.ascending(), null,
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), Fold.sortNulls(k.ascending()),
                     k.column()));
         }
         return base.withOrderBy(keys);
@@ -1563,11 +1563,12 @@ public final class Lowerer {
         if (attempt(() -> scalar(last(sb.key()), (v, name) -> resolveOrThrow(fin1, name)))
                 instanceof Resolution.Resolved r) {
             return base.withOrderBy(List.of(
-                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null)));
+                    new SqlSelect.SortKey(r.expr(), sb.ascending(), Fold.sortNulls(sb.ascending()), null)));
         }
         SqlSelect iso = isolate(base);
         SqlExpr key = scalar(last(sb.key()), (v, name) -> resolveOrThrow(iso, name));
-        return iso.withOrderBy(List.of(new SqlSelect.SortKey(key, sb.ascending(), null, null)));
+        return iso.withOrderBy(List.of(
+                new SqlSelect.SortKey(key, sb.ascending(), Fold.sortNulls(sb.ascending()), null)));
     }
 
     private SqlSelect sortOnto(SqlSelect base, TypedSort s) {
@@ -1578,7 +1579,7 @@ public final class Lowerer {
                 throw new IllegalStateException("sort key '" + k.column()
                         + "' cannot be resolved after isolation");
             }
-            keys.add(new SqlSelect.SortKey(e, k.ascending(), null, null));
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), Fold.sortNulls(k.ascending()), null));
         }
         return base.withOrderBy(keys);
     }
