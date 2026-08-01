@@ -93,11 +93,15 @@ public class AnsiSqlRenderer implements SqlDialect {
      * This dialect's MIR passes, run at {@code render()} entry — IR
      * rewrites live HERE as named passes, never inside render methods
      * (remediation T3.2; {@code SubselectPrune} is the common-pass model
-     * at the lowering exit).
+     * at the lowering exit). The CARRIER STRATEGY pass runs FIRST on
+     * every dialect (CARRIER_REDESIGN.md §1): semantic collection nodes
+     * become this dialect's emission before any other rewrite sees them.
      */
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return supportsQualify() ? java.util.List.of()
-                : java.util.List.of(new QualifyToSubselect());
+        return supportsQualify()
+                ? java.util.List.of(new CarrierStrategies())
+                : java.util.List.of(new CarrierStrategies(),
+                        new QualifyToSubselect());
     }
 
     // ==================================================================

@@ -1,6 +1,11 @@
 # Collection-carrier redesign (H2_BACKEND.md §4.1) — the single-compiler leg
 
-Status: DESIGN (c48). Measured motivation: the H2 portability sweep's
+Status: R0 LANDED (2026-08-01). Census pins (raw occurrences,
+pre-dialect layers): ArrayLit 34, OrderedListAgg 1, SqlFn.LIST_ 147,
+SqlFn.UNNEST 13 — `CarrierPurityRatchetTest` enforces shrink-only.
+`CarrierStrategies` (identity) wired FIRST in every dialect's passes().
+Known runner flapper (noted, unowned): testResultToJsonStream's SHAPE
+wall text alternates between two diagnoses run-to-run (counts stable). Measured motivation: the H2 portability sweep's
 capability budget (c45, exact): **1,250 of 2,538 corpus tests wall on
 collection carriers** — UNNEST 792, array literal 226, LIST_AGG 133,
 LIST_CONTAINS 30, LIST_GET 20, TYPEOF 17, LIST_BOOL_AND 5, LIST_CONCAT 3,

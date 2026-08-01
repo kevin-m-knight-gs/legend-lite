@@ -26,7 +26,10 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return java.util.List.of(new UnqualifyPivotArgs(), new FoldToListReduce());
+        // carrier strategies FIRST (base contract), then this dialect's
+        // structural rewrites
+        return java.util.List.of(new CarrierStrategies(),
+                new UnqualifyPivotArgs(), new FoldToListReduce());
     }
 
     // ---- structural capabilities ----
