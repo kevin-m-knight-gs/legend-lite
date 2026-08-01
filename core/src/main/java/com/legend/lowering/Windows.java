@@ -20,7 +20,7 @@ final class Windows {
 
     enum Kind { RANKING, VALUE }
 
-    record WindowFn(String sqlName, Kind kind) {
+    record WindowFn(com.legend.sql.SqlAgg.Fn sqlName, Kind kind) {
     }
 
     private static final Map<String, WindowFn> FNS = new HashMap<>();
@@ -28,37 +28,37 @@ final class Windows {
     private Windows() {
     }
 
-    private static void family(String sqlName, Kind kind, String pureName) {
+    private static void family(com.legend.sql.SqlAgg.Fn sqlName, Kind kind, String pureName) {
         for (String f : Pure.nativeKeysAt(pureName)) {
             FNS.put(f, new WindowFn(sqlName, kind));
         }
     }
 
     /** SQL reducer names for the 4-arg colToAgg window aggregates. */
-    private static final Map<String, String> AGGREGATES = new HashMap<>();
+    private static final Map<String, com.legend.sql.SqlAgg.Fn> AGGREGATES = new HashMap<>();
 
     static {
-        family("ROW_NUMBER", Kind.RANKING, "rowNumber");
-        family("RANK", Kind.RANKING, "rank");
-        family("DENSE_RANK", Kind.RANKING, "denseRank");
-        family("PERCENT_RANK", Kind.RANKING, "percentRank");
-        family("CUME_DIST", Kind.RANKING, "cumulativeDistribution");
-        family("NTILE", Kind.RANKING, "ntile");
-        family("LAG", Kind.VALUE, "lag");
-        family("LEAD", Kind.VALUE, "lead");
-        family("FIRST_VALUE", Kind.VALUE, "first");
-        family("LAST_VALUE", Kind.VALUE, "last");
-        family("NTH_VALUE", Kind.VALUE, "nth");
+        family(com.legend.sql.SqlAgg.Fn.ROW_NUMBER, Kind.RANKING, "rowNumber");
+        family(com.legend.sql.SqlAgg.Fn.RANK, Kind.RANKING, "rank");
+        family(com.legend.sql.SqlAgg.Fn.DENSE_RANK, Kind.RANKING, "denseRank");
+        family(com.legend.sql.SqlAgg.Fn.PERCENT_RANK, Kind.RANKING, "percentRank");
+        family(com.legend.sql.SqlAgg.Fn.CUME_DIST, Kind.RANKING, "cumulativeDistribution");
+        family(com.legend.sql.SqlAgg.Fn.NTILE, Kind.RANKING, "ntile");
+        family(com.legend.sql.SqlAgg.Fn.LAG, Kind.VALUE, "lag");
+        family(com.legend.sql.SqlAgg.Fn.LEAD, Kind.VALUE, "lead");
+        family(com.legend.sql.SqlAgg.Fn.FIRST_VALUE, Kind.VALUE, "first");
+        family(com.legend.sql.SqlAgg.Fn.LAST_VALUE, Kind.VALUE, "last");
+        family(com.legend.sql.SqlAgg.Fn.NTH_VALUE, Kind.VALUE, "nth");
         // variance/stdDev window forms exist ONLY in the _Window-bearing
         // overload — the reducer overloads of the same names must stay out.
-        windowOnly("VARIANCE", Kind.VALUE, "variance");
-        windowOnly("STDDEV", Kind.VALUE, "stdDev");
+        windowOnly(com.legend.sql.SqlAgg.Fn.VARIANCE, Kind.VALUE, "variance");
+        windowOnly(com.legend.sql.SqlAgg.Fn.STDDEV, Kind.VALUE, "stdDev");
         // The 4-arg colToAgg window AGGREGATES — real pure has exactly these
         // (average, stdDevPopulation; everything else windows via the
         // agg-col spelling). Keyed by the _Window-bearing overload only —
         // the REDUCER overloads of the same names are Aggregates' domain.
-        aggregate("AVG", "average");
-        aggregate("STDDEV_POP", "stdDevPopulation");
+        aggregate(com.legend.sql.SqlAgg.Fn.AVG, "average");
+        aggregate(com.legend.sql.SqlAgg.Fn.STDDEV_POP, "stdDevPopulation");
     }
 
     /** Real pure's window-frame class — overload selection is by this
@@ -66,20 +66,20 @@ final class Windows {
     private static final String WINDOW_CLASS =
             "meta::pure::functions::relation::_Window";
 
-    private static void windowOnly(String sqlName, Kind kind, String pureName) {
+    private static void windowOnly(com.legend.sql.SqlAgg.Fn sqlName, Kind kind, String pureName) {
         for (String key : Pure.nativeKeysAt(pureName, WINDOW_CLASS)) {
             FNS.put(key, new WindowFn(sqlName, kind));
         }
     }
 
-    private static void aggregate(String sqlName, String pureName) {
+    private static void aggregate(com.legend.sql.SqlAgg.Fn sqlName, String pureName) {
         for (String key : Pure.nativeKeysAt(pureName, WINDOW_CLASS)) {
             AGGREGATES.put(key, sqlName);
         }
     }
 
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
-    static @com.legend.Nullable String aggregate(TypedFunction callee) {
+    static com.legend.sql.SqlAgg.@com.legend.Nullable Fn aggregate(TypedFunction callee) {
         return AGGREGATES.get(callee.signatureKey());
     }
 

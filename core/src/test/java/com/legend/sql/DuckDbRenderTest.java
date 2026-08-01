@@ -46,12 +46,12 @@ class DuckDbRenderTest {
         SqlSelect s = SqlSelect.starOf(T_PERSON)
                 .withProjections(List.of(
                         new SqlSelect.Projection(col("FIRM"), null),
-                        new SqlSelect.Projection(SqlAgg.Reducer.of("SUM", col("AGE")), "totalAge")),
+                        new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")), "totalAge")),
                         List.of())
                 .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)))
                 .withGroupBy(List.of(col("FIRM")))
                 .withHaving(SqlExpr.Call.of(SqlFn.GREATER,
-                        SqlAgg.Reducer.of("COUNT"), new SqlExpr.IntLit(2)))
+                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT), new SqlExpr.IntLit(2)))
                 .withOrderBy(List.of(SqlSelect.SortKey.desc(col("FIRM"))))
                 .withLimit(10L)
                 .withOffset(5L);
@@ -195,13 +195,13 @@ class DuckDbRenderTest {
     @DisplayName("window: OVER with partition/order/frame; QUALIFY clause")
     void windowAndQualify() {
         SqlExpr.WindowCall rank = new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn("ROW_NUMBER", List.of()),
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(col("FIRM")),
                 List.of(new SqlSelect.SortKey(col("AGE"), false,
                         SqlSelect.SortKey.NullOrder.NULLS_FIRST, null)),
                 null);
         SqlExpr.WindowCall running = new SqlExpr.WindowCall(
-                SqlAgg.Reducer.of("SUM", col("AGE")),
+                SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")),
                 List.of(), List.of(SqlSelect.SortKey.asc(col("AGE"))),
                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
                         new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(),
@@ -262,7 +262,7 @@ class DuckDbRenderTest {
                 new SqlExpr.StringLit("minor"));
         assertEquals("CASE WHEN t0.AGE > 18 THEN 'adult' ELSE 'minor' END", renderExpr(c));
         assertEquals("COUNT(DISTINCT t0.FIRM)",
-                renderExpr(new SqlAgg.Reducer("COUNT", List.of(col("FIRM")), true, java.util.List.of())));
+                renderExpr(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col("FIRM")), true, java.util.List.of())));
     }
 
     @Test

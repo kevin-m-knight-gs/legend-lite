@@ -76,12 +76,12 @@ class DuckDbValidityTest {
         SqlSelect s = SqlSelect.starOf(T_PERSON)
                 .withProjections(List.of(
                         new SqlSelect.Projection(col("FIRM_ID"), null),
-                        new SqlSelect.Projection(SqlAgg.Reducer.of("SUM", col("AGE")), "total")),
+                        new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")), "total")),
                         List.of())
                 .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(20)))
                 .withGroupBy(List.of(col("FIRM_ID")))
                 .withHaving(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
-                        SqlAgg.Reducer.of("COUNT"), new SqlExpr.IntLit(1)))
+                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT), new SqlExpr.IntLit(1)))
                 .withOrderBy(List.of(SqlSelect.SortKey.desc(col("FIRM_ID"))))
                 .withLimit(10L).withOffset(0L);
         exec(s);
@@ -105,13 +105,13 @@ class DuckDbValidityTest {
     @DisplayName("QUALIFY on a window alias is valid; window frames execute")
     void qualifyAndFrames() throws SQLException {
         SqlExpr.WindowCall rank = new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn("ROW_NUMBER", List.of()),
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(col("FIRM_ID")),
                 List.of(new SqlSelect.SortKey(col("AGE"), false,
                         SqlSelect.SortKey.NullOrder.NULLS_FIRST, null)),
                 null);
         SqlExpr.WindowCall running = new SqlExpr.WindowCall(
-                SqlAgg.Reducer.of("SUM", col("AGE")),
+                SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")),
                 List.of(), List.of(SqlSelect.SortKey.asc(col("AGE"))),
                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
                         new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(),
@@ -179,7 +179,7 @@ class DuckDbValidityTest {
         exec(SqlSelect.starOf(v));
 
         assertEquals(3L, ((Number) exec(new SqlSelect(
-                List.of(new SqlSelect.Projection(SqlAgg.Reducer.of("COUNT"), null)),
+                List.of(new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.COUNT), null)),
                 false,
                 new SqlSource.Subselect(new SqlUnion(List.of(
                         SqlSelect.starOf(T_PERSON), SqlSelect.starOf(T_PERSON)), false, List.of()),

@@ -232,7 +232,7 @@ public sealed interface SqlExpr
      * dialect strategy layer owns the emission — DuckDB's native
      * {@code list_aggregate}, or the portable FUSION into the collecting
      * subselect (the engine's shape). No backend spelling lives here. */
-    record ReduceCollection(String reducer, SqlExpr collection,
+    record ReduceCollection(SqlAgg.Fn reducer, SqlExpr collection,
             java.util.List<SqlExpr> extras) implements SqlExpr {
         public ReduceCollection {
             extras = java.util.List.copyOf(extras);

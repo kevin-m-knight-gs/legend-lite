@@ -51,7 +51,7 @@ class FoldTest {
         // sees the filtered rows. The mapping-seam isolation, not this
         // rule, protects mapped windowed relations.
         SqlExpr rank = new SqlExpr.WindowCall(
-                new com.legend.sql.SqlAgg.RankingFn("rank", List.of()),
+                new com.legend.sql.SqlAgg.RankingFn(com.legend.sql.SqlAgg.Fn.RANK, List.of()),
                 List.of(), List.of(SqlSelect.SortKey.asc(col("A"))), null);
         assertEquals(Fold.FilterSlot.WHERE, Fold.filterSlot(
                 BARE.withProjections(List.of(

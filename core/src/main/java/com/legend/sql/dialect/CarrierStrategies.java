@@ -63,13 +63,13 @@ public final class CarrierStrategies extends SqlRewriter {
                 && sel.projections().size() == 1
                 && sel.projections().get(0).expr()
                         instanceof SqlAgg.Reducer collect
-                && "LIST".equals(collect.fn())
+                && collect.fn() == SqlAgg.Fn.LIST
                 && !collect.distinct()
                 && collect.args().size() == 1) {
             List<SqlExpr> args = new ArrayList<>(collect.args());
             args.addAll(rc.extras());
             SqlAgg.Reducer fused = new SqlAgg.Reducer(
-                    rc.reducer().toUpperCase(Locale.ROOT), args,
+                    rc.reducer(), args,
                     false, collect.orderBy());
             return new SqlExpr.ScalarSubquery(sel.withProjections(
                     List.of(new SqlSelect.Projection(fused,

@@ -37,7 +37,7 @@ final class ValueCollections {
     static SqlSelect columnList(SqlSelect rel, String col, String sub) {
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
-                                new SqlAgg.Reducer("LIST", List.of(
+                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column(sub, col)), false, java.util.List.of()),
                                 null)),
                         List.of(new OutputCol(col, SqlType.Scalar.VARCHAR,
@@ -59,7 +59,7 @@ final class ValueCollections {
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 SqlExpr.Call.of(SqlFn.LIST_FLATTEN,
-                                        new SqlAgg.Reducer("LIST", List.of(
+                                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                                 new SqlExpr.ArrayLit(cells)),
                                                 false, java.util.List.of())),
                                 null)),

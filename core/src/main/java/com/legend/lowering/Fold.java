@@ -67,7 +67,7 @@ final class Fold {
 
     static @com.legend.Nullable OrderedAgg orderUnionAggregate(com.legend.sql.SqlSelect base,
             com.legend.sql.SqlAgg.Reducer red) {
-        if (!"STRING_AGG".equals(red.fn()) || !red.orderBy().isEmpty()) {
+        if (red.fn() != com.legend.sql.SqlAgg.Fn.STRING_AGG || !red.orderBy().isEmpty()) {
             return null;
         }
         com.legend.sql.SqlSource.Subselect sub = findUnionSub(base.from());

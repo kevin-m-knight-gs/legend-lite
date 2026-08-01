@@ -888,7 +888,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // the H2-LENIENT per-group witness spells the BARE expression
         // (view ~groupBy per-row columns — H2 1.x goldens never wrap;
         // our DB-side form is ANY_VALUE, an engine-text-only unwrap)
-        if ("ANY_VALUE".equals(r.fn()) && r.args().size() == 1) {
+        if (r.fn() == com.legend.sql.SqlAgg.Fn.ANY_VALUE && r.args().size() == 1) {
             return expr(r.args().get(0), 0);
         }
         String s = super.reducer(r);

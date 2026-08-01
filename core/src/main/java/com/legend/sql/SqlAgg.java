@@ -12,19 +12,43 @@ import java.util.List;
  */
 public sealed interface SqlAgg {
 
-    String fn();
+    /** THE aggregate-function vocabulary (BACKEND_PORTABILITY.md §5.2 /
+     * CARRIER_REDESIGN.md P1): typed and exhaustive like {@link SqlFn} —
+     * the raw-String channel rendered names verbatim on every dialect,
+     * an undeclared passthrough. Dialects SPELL these (base: the enum
+     * name); WAVG/HASH_LIST are Lowerer-internal pseudo-reducers
+     * expanded before rendering. */
+    enum Fn {
+        SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP,
+        VAR_SAMP, VAR_POP, MEDIAN, MODE, STRING_AGG, LIST, QUANTILE_CONT,
+        QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN,
+        WAVG, HASH_LIST, BOOL_AND, BOOL_OR, IS_DISTINCT_MARK,
+        UNIQUE_VALUE_ONLY, QDISC_DESC, VARIANCE, STDDEV,
+        ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
+        LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE;
+
+        /** Lowerer-internal pseudo-reducers (composed before rendering —
+         * reaching a renderer is a caller bug). */
+        public boolean marker() {
+            return this == WAVG || this == HASH_LIST
+                    || this == IS_DISTINCT_MARK || this == UNIQUE_VALUE_ONLY
+                    || this == QDISC_DESC;
+        }
+    }
+
+    Fn fn();
 
     List<SqlExpr> args();
 
     /** GROUP-BY-valid aggregate (also usable inside a window): SUM, COUNT, MIN, ... */
-    record Reducer(String fn, List<SqlExpr> args, boolean distinct,
+    record Reducer(Fn fn, List<SqlExpr> args, boolean distinct,
             List<SqlSelect.SortKey> orderBy) implements SqlAgg, SqlExpr {
 
         // NO short overload: a defaulted orderBy silently dropped an ordered
         // aggregate's ORDER BY at rebuild sites (remediation T2.2); every
         // construction names every field.
 
-        public static Reducer of(String fn, SqlExpr... args) {
+        public static Reducer of(Fn fn, SqlExpr... args) {
             return new Reducer(fn, List.of(args), false, List.of());
         }
 
@@ -35,10 +59,10 @@ public sealed interface SqlAgg {
     }
 
     /** Window-only ranking function: ROW_NUMBER, RANK, NTILE, CUME_DIST, ... */
-    record RankingFn(String fn, List<SqlExpr> args) implements SqlAgg {
+    record RankingFn(Fn fn, List<SqlExpr> args) implements SqlAgg {
     }
 
     /** Window-only value function: LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE. */
-    record ValueFn(String fn, List<SqlExpr> args) implements SqlAgg {
+    record ValueFn(Fn fn, List<SqlExpr> args) implements SqlAgg {
     }
 }

@@ -63,9 +63,9 @@ final class RelationPredicates {
                 List<SqlSelect.Projection> ps = base.projections();
                 SqlAgg.Reducer counter = ps.size() == 1
                         && !(ps.get(0).expr() instanceof SqlExpr.Star)
-                        ? new SqlAgg.Reducer("COUNT", List.of(ps.get(0).expr()),
+                        ? new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(ps.get(0).expr()),
                                 false, java.util.List.of())
-                        : SqlAgg.Reducer.of("COUNT");
+                        : SqlAgg.Reducer.of(SqlAgg.Fn.COUNT);
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
                                 counter, null)), List.of()));
@@ -74,8 +74,8 @@ final class RelationPredicates {
         // GENERAL reducer over a single-scalar-column RELATION argument
         // (the graph derived-leaf sub-aggregation: average($this.employees
         // .age) — engine renders a correlated scalar aggregate subquery)
-        String fam = Aggregates.reducerOrNull(n.callee());
-        if (fam != null && !"COUNT".equals(fam) && !"ANY_VALUE".equals(fam)
+        com.legend.sql.SqlAgg.Fn fam = Aggregates.reducerOrNull(n.callee());
+        if (fam != null && fam != com.legend.sql.SqlAgg.Fn.COUNT && fam != com.legend.sql.SqlAgg.Fn.ANY_VALUE
                 && n.args().size() == 1
                 && n.args().get(0).info().type() instanceof Type.RelationType rt2
                 && rt2.columns().size() == 1

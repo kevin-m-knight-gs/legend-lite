@@ -235,7 +235,7 @@ class SpecChildrenContractsTest {
             return new SqlExpr.Column(null, "c");
         }
         if (type == SqlAgg.class) {
-            return new SqlAgg.Reducer("sum",
+            return new SqlAgg.Reducer(SqlAgg.Fn.SUM,
                     List.of(new SqlExpr.Column(null, "a")), false, List.of());
         }
         if (type == SqlQuery.class) {

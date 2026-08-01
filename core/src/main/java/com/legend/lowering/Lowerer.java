@@ -902,7 +902,7 @@ public final class Lowerer {
             }
             return Scalars.lower(call, wrapped);
         }
-        String fn = Aggregates.reducerFor(call.callee());
+        SqlAgg.Fn fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = aggSelectorBody(a);
         // ORDER-SENSITIVE aggregation (sortBy before joinStrings): the key
         // lowers in the SAME row scope as the map body and rides inside
@@ -960,11 +960,11 @@ public final class Lowerer {
         // QUANTILE flavor; descending order is the 1-p quantile.
         // variance(isBiasCorrected): false selects the POPULATION variance.
         if (!flags.isEmpty()) {
-            if ("VAR_SAMP".equals(fn) && flags.size() == 1 && extra.isEmpty()) {
-                fn = flags.get(0) ? "VAR_SAMP" : "VAR_POP";
-            } else if ("QUANTILE_CONT".equals(fn) && flags.size() == 2
+            if (fn == SqlAgg.Fn.VAR_SAMP && flags.size() == 1 && extra.isEmpty()) {
+                fn = flags.get(0) ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP;
+            } else if (fn == SqlAgg.Fn.QUANTILE_CONT && flags.size() == 2
                     && extra.size() == 1) {
-                fn = flags.get(1) ? "QUANTILE_CONT" : "QUANTILE_DISC";
+                fn = flags.get(1) ? SqlAgg.Fn.QUANTILE_CONT : SqlAgg.Fn.QUANTILE_DISC;
                 if (!flags.get(0)) {
                     if (flags.get(1)) {
                         // CONTINUOUS interpolation is symmetric: the
@@ -976,7 +976,7 @@ public final class Lowerer {
                         // PERCENTILE_DISC picks the first value whose
                         // cume_dist >= p in DESC order — the ceil(p*N)-th
                         // largest); index the sorted list exactly.
-                        fn = "__QDISC_DESC__";
+                        fn = SqlAgg.Fn.QDISC_DESC;
                     }
                 }
             } else {
@@ -994,20 +994,20 @@ public final class Lowerer {
                 && rm.args().size() == 2) {
             SqlExpr first = scalar(rm.args().get(0), (v, name) -> resolveOrThrow(base, name));
             SqlExpr second = scalar(rm.args().get(1), (v, name) -> resolveOrThrow(base, name));
-            if ("__WAVG__".equals(fn)) {
+            if (fn == SqlAgg.Fn.WAVG) {
                 // Weighted average: SUM(v*w)/SUM(w) — no single SQL reducer.
                 return SqlExpr.Call.of(SqlFn.DIVIDE,
-                        new SqlAgg.Reducer("SUM",
+                        new SqlAgg.Reducer(SqlAgg.Fn.SUM,
                                 List.of(SqlExpr.Call.of(SqlFn.TIMES, first, second)), false, java.util.List.of()),
-                        new SqlAgg.Reducer("SUM", List.of(second), false, java.util.List.of()));
+                        new SqlAgg.Reducer(SqlAgg.Fn.SUM, List.of(second), false, java.util.List.of()));
             }
             return new SqlAgg.Reducer(fn, List.of(first, second), false, java.util.List.of());
         }
-        if ("__WAVG__".equals(fn)) {
+        if (fn == SqlAgg.Fn.WAVG) {
             throw new IllegalStateException(
                     "wavg expects a rowMapper(value, weight) map body");
         }
-        if ((distinctValues || "__IS_DISTINCT__".equals(fn))
+        if ((distinctValues || fn == SqlAgg.Fn.IS_DISTINCT_MARK)
                 && mapBody instanceof TypedVariable) {
             throw new com.legend.error.NotImplementedException(
                     "DISTINCT aggregate over a bare group variable — no value"
@@ -1017,7 +1017,7 @@ public final class Lowerer {
             // MARKER reducers never take the bare COUNT(*)-style return —
             // the marker would escape its contract as literal SQL
             // (audit 23 C-a: uniqueValueOnly/hashCode over a bare row)
-            if (fn.startsWith("__")) {
+            if (fn.marker()) {
                 throw new com.legend.error.NotImplementedException(
                         "composed aggregate '" + call.callee().qualifiedName()
                         + "' over a bare group variable — no value column");
@@ -1025,7 +1025,7 @@ public final class Lowerer {
             return new SqlAgg.Reducer(fn, List.of(), false, java.util.List.of());
         }
         // count-of-rows desugar (x|$x -> x|1): count(*), count(1) on UNIONs
-        if ("COUNT".equals(fn) && mapBody instanceof TypedCInteger one
+        if (fn == SqlAgg.Fn.COUNT && mapBody instanceof TypedCInteger one
                 && one.value().longValue() == 1 && extra.isEmpty()
                 && !distinctValues && valueCast == null
                 && !Fold.unionBacked(base.from())) {
@@ -1048,7 +1048,7 @@ public final class Lowerer {
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) — no single
         // SQL reducer (engine testGroupByIsDistinct golden).
-        if ("__IS_DISTINCT__".equals(fn)) {
+        if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
             if (!extra.isEmpty()) {
                 throw new IllegalStateException("isDistinct aggregate with"
                         + " extra arguments — the group form takes none"
@@ -1056,30 +1056,30 @@ public final class Lowerer {
                         + " SQL for a non-group call)");
             }
             return SqlExpr.Call.of(SqlFn.EQUAL,
-                    new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
-                    new SqlAgg.Reducer("COUNT", List.of(value), false, java.util.List.of()));
+                    new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(value), true, java.util.List.of()),
+                    new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(value), false, java.util.List.of()));
         }
-        if ("__UNIQUE_VALUE_ONLY__".equals(fn)) {
+        if (fn == SqlAgg.Fn.UNIQUE_VALUE_ONLY) {
             return uniqueValueOnlyAgg(extra, value);
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL
         // reducer. DuckDB hash() is UBIGINT; result is pure Integer —
         // shift into signed BIGINT range (only determinism and type are
         // the contract; real pure hash values are platform-specific).
-        if ("__HASH_LIST__".equals(fn)) {
+        if (fn == SqlAgg.Fn.HASH_LIST) {
             // shift by 2^63 exactly (PLUS Long.MIN_VALUE)
             return new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.PLUS,
                             new SqlExpr.Cast(
                                     SqlExpr.Call.of(SqlFn.HASH,
-                                            new SqlAgg.Reducer("LIST", List.of(value), false, java.util.List.of())),
+                                            new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(value), false, java.util.List.of())),
                                     SqlType.Scalar.HUGEINT),
                             new SqlExpr.IntLit(Long.MIN_VALUE)),
                     SqlType.Scalar.BIGINT);
         }
         // 1-arg joinStrings joins with the EMPTY separator (string-
         // Extension.pure:253) — bare STRING_AGG defaults to COMMA.
-        if ("STRING_AGG".equals(fn) && extra.isEmpty()) {
+        if (fn == SqlAgg.Fn.STRING_AGG && extra.isEmpty()) {
             extra.add(new SqlExpr.StringLit(""));
         }
         // ORDER DETERMINISM: an un-ordered group concat follows SCAN
@@ -1087,7 +1087,7 @@ public final class Lowerer {
         // S1*S2 goldens); DuckDB's hash joins scramble it. The faithful
         // key is the VALUE table's physical row order — rowid, valid
         // only when the value reads a BASE TABLE alias.
-        if ("STRING_AGG".equals(fn) && aggOrder.isEmpty()
+        if (fn == SqlAgg.Fn.STRING_AGG && aggOrder.isEmpty()
                 && value instanceof SqlExpr.Column vc
                 && aliasIsBaseTable(base.from(), vc.table())) {
             aggOrder = List.of(new SqlSelect.SortKey(
@@ -1095,14 +1095,14 @@ public final class Lowerer {
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate.
-        if ("STRING_AGG".equals(fn) && extra.size() == 3) {
+        if (fn == SqlAgg.Fn.STRING_AGG && extra.size() == 3) {
             return SqlExpr.Call.of(SqlFn.CONCAT,
                     SqlExpr.Call.of(SqlFn.CONCAT, extra.get(0),
                             new SqlAgg.Reducer(fn, List.of(value, extra.get(1)),
                                     false, aggOrder)),
                     extra.get(2));
         }
-        if ("__QDISC_DESC__".equals(fn)) {
+        if (fn == SqlAgg.Fn.QDISC_DESC) {
             return Aggregates.qdiscDesc(value, extra.get(0));
         }
         List<SqlExpr> args = new ArrayList<>();
@@ -1111,7 +1111,7 @@ public final class Lowerer {
         SqlExpr red = new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
         // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —
         // the discrete quantile keeps the input's integer type, so cast
-        return "QUANTILE_DISC".equals(fn)
+        return fn == SqlAgg.Fn.QUANTILE_DISC
                 ? new SqlExpr.Cast(red, SqlType.Scalar.DOUBLE) : red;
     }
 
@@ -1304,9 +1304,9 @@ public final class Lowerer {
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL,
-                        new SqlAgg.Reducer("COUNT", List.of(value), true, java.util.List.of()),
+                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(value), true, java.util.List.of()),
                         new SqlExpr.IntLit(1)),
-                new SqlAgg.Reducer("MAX", List.of(value), false, java.util.List.of()))),
+                new SqlAgg.Reducer(SqlAgg.Fn.MAX, List.of(value), false, java.util.List.of()))),
                 uvDefault);
     }
 
@@ -2077,10 +2077,10 @@ public final class Lowerer {
                             instanceof TypedColSpec zcs -> {
                 SqlExpr col = resolveOrThrow(base, zcs.name());
                 SqlExpr avg = new SqlExpr.WindowCall(
-                        new SqlAgg.Reducer("AVG", List.of(col), false, java.util.List.of()),
+                        new SqlAgg.Reducer(SqlAgg.Fn.AVG, List.of(col), false, java.util.List.of()),
                         over.partitionBy(), over.orderBy(), over.frame());
                 SqlExpr std = new SqlExpr.WindowCall(
-                        new SqlAgg.Reducer("STDDEV_POP", List.of(col), false, java.util.List.of()),
+                        new SqlAgg.Reducer(SqlAgg.Fn.STDDEV_POP, List.of(col), false, java.util.List.of()),
                         over.partitionBy(), over.orderBy(), over.frame());
                 return SqlExpr.Call.of(SqlFn.DIVIDE,
                         SqlExpr.Call.of(SqlFn.MINUS, col, avg),
@@ -2681,7 +2681,7 @@ public final class Lowerer {
                 SqlSelect count = SqlSelect.starOf(
                                 new SqlSource.Subselect(src, nextAlias(), null))
                         .withProjections(List.of(new SqlSelect.Projection(
-                                        new SqlAgg.Reducer("COUNT", List.of(), false, java.util.List.of()), null)),
+                                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, java.util.List.of()), null)),
                                 List.of(new OutputCol("count",
                                         SqlType.Scalar.BIGINT, false)));
                 yield new SqlExpr.ScalarSubquery(count);
@@ -2720,7 +2720,7 @@ public final class Lowerer {
                 String sub = nextAlias();
                 SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                         .withProjections(List.of(new SqlSelect.Projection(
-                                        new SqlAgg.Reducer("LIST", List.of(
+                                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                                 new SqlExpr.Column(sub, "value")), false, java.util.List.of()),
                                         null)),
                                 List.of(new OutputCol("value",

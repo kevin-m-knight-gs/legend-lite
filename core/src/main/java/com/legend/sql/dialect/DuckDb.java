@@ -38,7 +38,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected String reduceCollection(SqlExpr.ReduceCollection rc) {
         return "list_aggregate(" + expr(rc.collection(), 0) + ", '"
-                + rc.reducer() + "'"
+                + rc.reducer().name().toLowerCase(java.util.Locale.ROOT) + "'"
                 + rc.extras().stream().map(x -> ", " + expr(x, 0))
                         .collect(java.util.stream.Collectors.joining())
                 + ")";

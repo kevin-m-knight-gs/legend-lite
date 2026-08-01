@@ -35,12 +35,12 @@ class CarrierDifferentialTest {
         SqlSelect collect = SqlSelect.starOf(
                         new SqlSource.Table("t", "s", List.of()))
                 .withProjections(List.of(new SqlSelect.Projection(
-                                new SqlAgg.Reducer("LIST", List.of(
+                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
                                         List.of()),
                                 null)),
                         List.of());
-        SqlExpr reduce = new SqlExpr.ReduceCollection("string_agg",
+        SqlExpr reduce = new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG,
                 new SqlExpr.ScalarSubquery(collect),
                 List.of(new SqlExpr.StringLit("*")));
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())

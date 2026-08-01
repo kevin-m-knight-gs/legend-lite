@@ -15,91 +15,91 @@ import java.util.Map;
  */
 public final class Aggregates {
 
-    private static final Map<String, String> REDUCERS = new HashMap<>();
+    private static final Map<String, SqlAgg.Fn> REDUCERS = new HashMap<>();
 
     private Aggregates() {
     }
 
-    private static void family(String sqlName, String pureName) {
+    private static void family(SqlAgg.Fn sqlName, String pureName) {
         for (String f : Pure.nativeKeysAt(pureName)) {
             REDUCERS.put(f, sqlName);
         }
     }
 
     static {
-        family("SUM", "sum");
+        family(SqlAgg.Fn.SUM, "sum");
         // Pure spells numeric reduction via plus: y|$y->plus() == sum.
-        family("SUM", "plus");
-        family("COUNT", "count");
-        family("AVG", "average");
+        family(SqlAgg.Fn.SUM, "plus");
+        family(SqlAgg.Fn.COUNT, "count");
+        family(SqlAgg.Fn.AVG, "average");
         // the mapping ~groupBy DSL's 'avg' (normalizer emits it verbatim
         // against the meta::legend::lite::avg native) — the catalog HALF
         // was missing: typechecked, then died at lowering (T1.8)
-        family("AVG", "avg");
-        family("MIN", "min");
-        family("MAX", "max");
+        family(SqlAgg.Fn.AVG, "avg");
+        family(SqlAgg.Fn.MIN, "min");
+        family(SqlAgg.Fn.MAX, "max");
         // H2-LENIENT per-group witness (view ~groupBy per-row columns —
         // the engine's H2 1.x golden spells the BARE column; our DB-side
         // form is ANY_VALUE): REAL pure first() — order-sensitive
         // first()-over-relation consumers keep their limit-1 route by
         // excluding ANY_VALUE at THEIR arms, never a synthetic native
-        family("ANY_VALUE", "first");
-        family("STDDEV_SAMP", "stdDevSample");
-        family("STDDEV_SAMP", "stdDev");
-        family("COUNT", "size");
+        family(SqlAgg.Fn.ANY_VALUE, "first");
+        family(SqlAgg.Fn.STDDEV_SAMP, "stdDevSample");
+        family(SqlAgg.Fn.STDDEV_SAMP, "stdDev");
+        family(SqlAgg.Fn.COUNT, "size");
         // joinStrings carries its separator as an EXTRA reduce-call argument
         // (handled in the lowering's aggExpr).
-        family("STRING_AGG", "joinStrings");
-        family("STDDEV_POP", "stdDevPopulation");
-        family("VAR_SAMP", "varianceSample");
-        family("VAR_POP", "variancePopulation");
+        family(SqlAgg.Fn.STRING_AGG, "joinStrings");
+        family(SqlAgg.Fn.STDDEV_POP, "stdDevPopulation");
+        family(SqlAgg.Fn.VAR_SAMP, "varianceSample");
+        family(SqlAgg.Fn.VAR_POP, "variancePopulation");
         // Pure's bare variance is the SAMPLE variance (PCT semantics).
-        family("VAR_SAMP", "variance");
-        family("MEDIAN", "median");
-        family("AVG", "mean");
-        family("MODE", "mode");
+        family(SqlAgg.Fn.VAR_SAMP, "variance");
+        family(SqlAgg.Fn.MEDIAN, "median");
+        family(SqlAgg.Fn.AVG, "mean");
+        family(SqlAgg.Fn.MODE, "mode");
         // Boolean reductions: y|$y->and() / ->or() over a group — DuckDB
         // BOOL_AND/BOOL_OR (engine simpleGroupByAnd/Or goldens). The
         // 1-arg COLLECTION overloads only: the 2-arg logical and(a,b)
         // must never register as a reducer.
         for (String f : Pure.nativeKeysAt("and", 1)) {
-            REDUCERS.put(f, "BOOL_AND");
+            REDUCERS.put(f, SqlAgg.Fn.BOOL_AND);
         }
         for (String f : Pure.nativeKeysAt("or", 1)) {
-            REDUCERS.put(f, "BOOL_OR");
+            REDUCERS.put(f, SqlAgg.Fn.BOOL_OR);
         }
         // percentile: DuckDB QUANTILE family; the 4-arg overload's
         // ascending/continuous flags are folded in the lowering (aggExpr).
-        family("QUANTILE_CONT", "percentile");
-        family("QUANTILE_CONT", "percentileCont");
-        family("QUANTILE_DISC", "percentileDisc");
+        family(SqlAgg.Fn.QUANTILE_CONT, "percentile");
+        family(SqlAgg.Fn.QUANTILE_CONT, "percentileCont");
+        family(SqlAgg.Fn.QUANTILE_DISC, "percentileDisc");
         // BI-VARIATE reducers — the map body is rowMapper(a, b); aggExpr
         // decomposes it into the two SQL arguments.
-        family("CORR", "corr");
-        family("COVAR_SAMP", "covarSample");
-        family("COVAR_POP", "covarPopulation");
-        family("ARG_MAX", "maxBy");
-        family("ARG_MIN", "minBy");
+        family(SqlAgg.Fn.CORR, "corr");
+        family(SqlAgg.Fn.COVAR_SAMP, "covarSample");
+        family(SqlAgg.Fn.COVAR_POP, "covarPopulation");
+        family(SqlAgg.Fn.ARG_MAX, "maxBy");
+        family(SqlAgg.Fn.ARG_MIN, "minBy");
         // wavg has NO single SQL reducer: SUM(v*w)/SUM(w), composed in
         // aggExpr — the marker name never reaches the renderer.
-        family("__WAVG__", "wavg");
+        family(SqlAgg.Fn.WAVG, "wavg");
         // hashCode of a GROUP is HASH(LIST(values)) — composed in aggValue.
-        family("__HASH_LIST__", "hashCode");
+        family(SqlAgg.Fn.HASH_LIST, "hashCode");
         // isDistinct of a GROUP is COUNT(DISTINCT x) = COUNT(x) — composed
         // in aggValue (engine testGroupByIsDistinct golden). EXACT overload
         // only (audit 22a M5): the legacy 2-arg isDistinct(l,r) must never
         // reach the marker — its args would be dropped and the group SQL
         // rendered for a constantly-true pure expression.
         for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
-            REDUCERS.put(f, "__IS_DISTINCT__");
+            REDUCERS.put(f, SqlAgg.Fn.IS_DISTINCT_MARK);
         }
         // the unique group value or NULL (collectionExtension.pure
         // semantics over a group): composed CASE, no single SQL reducer
         for (String f : Pure.nativeKeysAt("uniqueValueOnly", 1)) {
-            REDUCERS.put(f, "__UNIQUE_VALUE_ONLY__");
+            REDUCERS.put(f, SqlAgg.Fn.UNIQUE_VALUE_ONLY);
         }
         for (String f : Pure.nativeKeysAt("uniqueValueOnly", 2)) {
-            REDUCERS.put(f, "__UNIQUE_VALUE_ONLY__");
+            REDUCERS.put(f, SqlAgg.Fn.UNIQUE_VALUE_ONLY);
         }
     }
 
@@ -110,7 +110,7 @@ public final class Aggregates {
      * second parameter, audit L7).
      */
     /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
-    static @com.legend.Nullable String reducerOrNull(TypedFunction callee) {
+    static com.legend.sql.SqlAgg.@com.legend.Nullable Fn reducerOrNull(TypedFunction callee) {
         return REDUCERS.get(callee.signatureKey());
     }
 
@@ -128,15 +128,15 @@ public final class Aggregates {
      * golden: plain LEFT JOINs, no grouped subselect). */
     public static boolean isDemandReducer(TypedFunction callee) {
         return isReducer(callee)
-                && !"ANY_VALUE".equals(REDUCERS.get(callee.signatureKey()));
+                && REDUCERS.get(callee.signatureKey()) != SqlAgg.Fn.ANY_VALUE;
     }
 
     static boolean isReducerKey(String signatureKey) {
         return REDUCERS.containsKey(signatureKey);
     }
 
-    static String reducerFor(TypedFunction callee) {
-        String name = REDUCERS.get(callee.signatureKey());
+    static com.legend.sql.SqlAgg.Fn reducerFor(TypedFunction callee) {
+        com.legend.sql.SqlAgg.Fn name = REDUCERS.get(callee.signatureKey());
         if (name == null) {
             throw new IllegalStateException(
                     "no aggregate lowering registered for resolved overload '"
@@ -151,11 +151,11 @@ public final class Aggregates {
     static SqlExpr qdiscDesc(SqlExpr value, SqlExpr p) {
         return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.LIST_GET,
                 SqlExpr.Call.of(SqlFn.LIST_SORT_DESC,
-                        new SqlAgg.Reducer("LIST", java.util.List.of(value), false, java.util.List.of())),
+                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, java.util.List.of(value), false, java.util.List.of())),
                 new SqlExpr.Cast(
                         SqlExpr.Call.of(SqlFn.CEILING,
                                 SqlExpr.Call.of(SqlFn.TIMES, p,
-                                        new SqlAgg.Reducer("COUNT",
+                                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
                                                 java.util.List.of(value), false, java.util.List.of()))),
                         SqlType.Scalar.BIGINT)),
                 SqlType.Scalar.DOUBLE);

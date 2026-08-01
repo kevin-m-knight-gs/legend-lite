@@ -36,10 +36,10 @@ final class ScalarStats {
         // dyna stdDevSample(int1) — engine golden stddev_samp(col)) is
         // the whole-select SQL AGGREGATE (shape-decided, ListShapes rule).
         for (var e : Map.of(
-                "stdDevSample", "stddev_samp", "stdDev", "stddev_samp",
-                "stdDevPopulation", "stddev_pop",
-                "varianceSample", "var_samp",
-                "variancePopulation", "var_pop").entrySet()) {
+                "stdDevSample", SqlAgg.Fn.STDDEV_SAMP, "stdDev", SqlAgg.Fn.STDDEV_SAMP,
+                "stdDevPopulation", SqlAgg.Fn.STDDEV_POP,
+                "varianceSample", SqlAgg.Fn.VAR_SAMP,
+                "variancePopulation", SqlAgg.Fn.VAR_POP).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 rules.put(f, (n, args) -> ListShapes.listShaped(args.get(0))
                         ? new SqlExpr.ReduceCollection(e.getValue(),

@@ -109,7 +109,7 @@ public final class H2 extends AnsiSqlRenderer {
      * v), probed 2.1.214. Other reducers render on the base. */
     @Override
     protected String reducer(com.legend.sql.SqlAgg.Reducer r) {
-        if ("QUANTILE_CONT".equals(r.fn()) && r.args().size() == 2
+        if (r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT && r.args().size() == 2
                 && !r.distinct() && r.orderBy().isEmpty()) {
             return "PERCENTILE_CONT(" + expr(r.args().get(1), 0)
                     + ") WITHIN GROUP (ORDER BY " + expr(r.args().get(0), 0)

@@ -800,7 +800,7 @@ final class Scalars {
                                                 args.get(0), new SqlExpr.Column(null, "x")),
                                         new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.ReduceCollection("string_agg", strs,
+                        new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
                                 List.of(sep)),
                         new SqlExpr.StringLit(""));
                 if (args.size() == 4) {
@@ -823,7 +823,7 @@ final class Scalars {
                     SqlExpr sep = args.size() == 2 ? args.get(1)
                             : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
                     joined = SqlExpr.Call.of(SqlFn.COALESCE,
-                            new SqlExpr.ReduceCollection("string_agg",
+                            new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG,
                                     args.get(0), List.of(sep)),
                             new SqlExpr.StringLit(""));
                 }
@@ -850,19 +850,17 @@ final class Scalars {
                     SqlExpr p2 = asc ? args.get(1)
                             : SqlExpr.Call.of(SqlFn.MINUS,
                                     new SqlExpr.IntLit(1), args.get(1));
-                    return new SqlExpr.ReduceCollection("quantile_cont",
+                    return new SqlExpr.ReduceCollection(SqlAgg.Fn.QUANTILE_CONT,
                             args.get(0), List.of(p2));
                 }
                 return pureDiscretePercentile(args.get(0), args.get(1), asc);
             });
         }
         for (String f : Pure.nativeKeysAt("percentileCont")) {
-            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(
-                    "quantile_cont", args.get(0), List.of(args.get(1))));
+            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(SqlAgg.Fn.QUANTILE_CONT, args.get(0), List.of(args.get(1))));
         }
         for (String f : Pure.nativeKeysAt("percentileDisc")) {
-            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(
-                    "quantile_disc", args.get(0), List.of(args.get(1))));
+            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(SqlAgg.Fn.QUANTILE_DISC, args.get(0), List.of(args.get(1))));
         }
         // collection sort: bare list_sort; a COMPARATOR must be a bare
         // compare over the two parameters (its argument order IS the
@@ -1177,7 +1175,7 @@ final class Scalars {
                 boolean sample = n.args().size() <= 1
                         || boolLiteral(n.args().get(1), "variance isBiasCorrected");
                 return new SqlExpr.ReduceCollection(
-                        sample ? "var_samp" : "var_pop",
+                        sample ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP,
                         numList(args.get(0)), List.of());
             });
         }
@@ -1748,8 +1746,9 @@ final class Scalars {
         // corr/covarPopulation/covarSample over two LISTS: the paired-unnest
         // subquery recipe — (SELECT CORR(a, b) FROM (SELECT unnest(x) AS a,
         // unnest(y) AS b)); DuckDB zips parallel select-list unnests.
-        for (var e : Map.of("corr", "CORR", "covarPopulation", "COVAR_POP",
-                "covarSample", "COVAR_SAMP").entrySet()) {
+        for (var e : Map.of("corr", SqlAgg.Fn.CORR,
+                "covarPopulation", SqlAgg.Fn.COVAR_POP,
+                "covarSample", SqlAgg.Fn.COVAR_SAMP).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> {
                     if (args.size() != 2) {
@@ -2701,7 +2700,7 @@ final class Scalars {
     /** {@code ', '}-joined string list ('' for empty) — composed in SQL. */
     private static SqlExpr joinList(SqlExpr strings) {
         return SqlExpr.Call.of(SqlFn.COALESCE,
-                new SqlExpr.ReduceCollection("string_agg", strings,
+                new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strings,
                         List.of(new SqlExpr.StringLit(", "))),
                 new SqlExpr.StringLit(""));
     }

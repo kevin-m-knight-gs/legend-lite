@@ -38,7 +38,7 @@ final class ListShapes {
                 && ss.projections().size() == 1
                 && (ss.projections().get(0).expr()
                                 instanceof SqlAgg.Reducer r
-                            && "LIST".equals(r.fn())
+                            && r.fn() == SqlAgg.Fn.LIST
                         || ss.projections().get(0).expr()
                                 instanceof SqlExpr.OrderedListAgg);
     }
