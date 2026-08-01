@@ -73,6 +73,28 @@ public final class H2 extends AnsiSqlRenderer {
             return "(LEFT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
                     + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
         }
+        // split_part (R5c): H2 has no token pick — the probed EXACT
+        // spelling (empty tokens KEPT, missing token -> '', matching
+        // DuckDB split_part on all 6 probed edges): separator-count CASE
+        // guard + REGEXP_REPLACE with \Q\E-quoted separator (H2 regexes
+        // are java.util.regex). Literal single-char separator + literal
+        // positive index only — the strategy rule emits nothing else.
+        if (c.fn() == SqlFn.SPLIT_PART
+                && a.get(1) instanceof SqlExpr.StringLit sep
+                && sep.value().length() == 1
+                && a.get(2) instanceof SqlExpr.IntLit ix && ix.value() >= 1) {
+            String str = expr(a.get(0), 0);
+            String sepLit = stringLit(sep.value());
+            String q = "\\Q" + sep.value() + "\\E";
+            String cls = "[^" + q + "]*";
+            String pat = stringLit("^(?:" + cls + q + "){"
+                    + (ix.value() - 1) + "}(" + cls + ").*$");
+            return "CASE WHEN (CHAR_LENGTH(" + str
+                    + ") - CHAR_LENGTH(REPLACE(" + str + ", " + sepLit
+                    + ", ''))) < " + (ix.value() - 1)
+                    + " THEN '' ELSE REGEXP_REPLACE(" + str + ", " + pat
+                    + ", '$1') END";
+        }
         return super.call(c, parentPrec);
     }
 

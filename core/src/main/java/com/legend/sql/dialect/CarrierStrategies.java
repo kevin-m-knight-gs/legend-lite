@@ -253,6 +253,14 @@ public final class CarrierStrategies extends SqlRewriter {
         //     -> (SELECT NAME(x, extras...) FROM ...)
         // The collect's ORDER KEYS carry over — the ordering contract
         // (insertion order via RowOrder) is preserved, not re-derived.
+        if (e instanceof SqlExpr.Call lg
+                && lg.fn() == com.legend.sql.SqlFn.LIST_GET
+                && lg.args().size() == 2) {
+            SqlExpr got = listGetRule(lg.args().get(0), lg.args().get(1));
+            if (got != null) {
+                return got;
+            }
+        }
         if (e instanceof SqlExpr.Membership m) {
             SqlExpr rewritten = membershipRule(m);
             if (rewritten != null) {
@@ -394,6 +402,86 @@ public final class CarrierStrategies extends SqlRewriter {
                     .withProjections(List.of(new SqlSelect.Projection(
                             fused, null)), List.of()));
         }
+        // THROUGH-SUBSELECT ROW-MAJOR (R5c, witnessed): FLATTEN(collect)
+        // where the collected COLUMN resolves to an ArrayLit in the
+        // inner subselect's projection — the cells live in INNER scope,
+        // so the per-row CONCAT substitutes into the INNER projection
+        // (unsorted), and the sorted global-cell form explodes per-cell
+        // branches of the INNER select.
+        if (coll instanceof SqlExpr.Call fl2
+                && fl2.fn() == com.legend.sql.SqlFn.LIST_FLATTEN
+                && fl2.args().size() == 1
+                && fl2.args().get(0) instanceof SqlExpr.ScalarSubquery fsq2
+                && fsq2.subquery() instanceof SqlSelect fsel2
+                && fsel2.projections().size() == 1
+                && fsel2.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer fc2
+                && fc2.fn() == SqlAgg.Fn.LIST && !fc2.distinct()
+                && fc2.args().size() == 1
+                && fc2.args().get(0) instanceof SqlExpr.Column fcol
+                && fsel2.from() instanceof com.legend.sql.SqlSource.Subselect
+                        fsub
+                && fsub.inner() instanceof SqlSelect finner
+                && !finner.distinct() && finner.groupBy().isEmpty()
+                && finner.having() == null && finner.qualify() == null
+                && finner.limit() == null && finner.offset() == null
+                && rc.reducer() == SqlAgg.Fn.STRING_AGG
+                && rc.extras().size() == 1) {
+            SqlExpr src = null;
+            int srcIx = -1;
+            for (int i = 0; i < finner.projections().size(); i++) {
+                if (fcol.name().equals(finner.projections().get(i).alias())) {
+                    src = finner.projections().get(i).expr();
+                    srcIx = i;
+                }
+            }
+            if (src instanceof SqlExpr.ArrayLit cells2
+                    && !cells2.elements().isEmpty()) {
+                SqlExpr sep = rc.extras().get(0);
+                if (!sorted) {
+                    SqlExpr rowJoined = concatJoin(cells2.elements(),
+                            transform, sep);
+                    List<SqlSelect.Projection> np =
+                            new ArrayList<>(finner.projections());
+                    np.set(srcIx, new SqlSelect.Projection(rowJoined,
+                            fcol.name()));
+                    SqlAgg.Reducer fused = new SqlAgg.Reducer(
+                            SqlAgg.Fn.STRING_AGG, List.of(fcol, sep), false,
+                            fc2.orderBy());
+                    return new SqlExpr.ScalarSubquery(fsel2
+                            .withFrom(new com.legend.sql.SqlSource.Subselect(
+                                    finner.withProjections(np,
+                                            finner.outputs()),
+                                    fsub.alias(), fsub.frameName()))
+                            .withProjections(List.of(
+                                    new SqlSelect.Projection(fused,
+                                            fsel2.projections().get(0)
+                                                    .alias())),
+                                    fsel2.outputs()));
+                }
+                List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+                for (SqlExpr cell : cells2.elements()) {
+                    branches.add(finner.withProjections(
+                            List.of(new SqlSelect.Projection(cell, "v")),
+                            List.of()));
+                }
+                com.legend.sql.SqlUnion union =
+                        new com.legend.sql.SqlUnion(branches, true,
+                                List.of());
+                SqlExpr vRead = new SqlExpr.Column("_cells", "v");
+                SqlExpr tv = transform == null ? vRead
+                        : substParam(transform.body(),
+                                transform.params().get(0), vRead);
+                SqlAgg.Reducer fused = new SqlAgg.Reducer(
+                        SqlAgg.Fn.STRING_AGG, List.of(tv, sep), false,
+                        List.of(SqlSelect.SortKey.asc(vRead)));
+                return new SqlExpr.ScalarSubquery(SqlSelect.starOf(
+                                new com.legend.sql.SqlSource.Subselect(union,
+                                        "_cells", null))
+                        .withProjections(List.of(new SqlSelect.Projection(
+                                fused, null)), List.of()));
+            }
+        }
         if (!(coll instanceof SqlExpr.ScalarSubquery sq)
                 || !(sq.subquery() instanceof SqlSelect sel)
                 || sel.projections().size() != 1
@@ -436,6 +524,106 @@ public final class CarrierStrategies extends SqlRewriter {
                                     out, sep), v);
         }
         return java.util.Objects.requireNonNull(out);
+    }
+
+    /** Portable LIST_GET (R5c, witnessed shapes; list_extract contract
+     * probed: 1-based, -1 = last, 0 and out-of-range = NULL). Returns
+     * null when the shape is unwitnessed (the renderer wall stays). */
+    private static @com.legend.Nullable SqlExpr listGetRule(SqlExpr coll,
+            SqlExpr idx) {
+        if (!(idx instanceof SqlExpr.IntLit ix)) {
+            return null;
+        }
+        long i = ix.value();
+        // compile-time pick over a literal collection
+        if (coll instanceof SqlExpr.ArrayLit al) {
+            int n = al.elements().size();
+            long pos = i > 0 ? i : i < 0 ? n + i + 1 : 0;
+            return pos >= 1 && pos <= n ? al.elements().get((int) (pos - 1))
+                    : new SqlExpr.NullLit();
+        }
+        // first-non-null idiom: LIST_FILTER(lit, x | x IS NOT NULL)[1]
+        // IS COALESCE over the elements
+        if (i == 1 && coll instanceof SqlExpr.Call ft
+                && ft.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                && ft.args().size() == 2
+                && ft.args().get(0) instanceof SqlExpr.ArrayLit fal
+                && !fal.elements().isEmpty()
+                && ft.args().get(1) instanceof SqlExpr.Lambda lam
+                && lam.params().size() == 1
+                && lam.body() instanceof SqlExpr.Call nn
+                && nn.fn() == com.legend.sql.SqlFn.IS_NOT_NULL
+                && nn.args().size() == 1
+                && nn.args().get(0) instanceof SqlExpr.Column pc
+                && pc.table() == null
+                && lam.params().get(0).equals(pc.name())) {
+            return fal.elements().size() == 1 ? fal.elements().get(0)
+                    : new SqlExpr.Call(com.legend.sql.SqlFn.COALESCE,
+                            fal.elements());
+        }
+        // token pick over a split: LIST_GET(SPLIT(s, sep), n) is
+        // SPLIT_PART(s, sep, n) GUARDED to NULL when the token is
+        // missing (differential-caught: list_extract OOB is NULL,
+        // split_part is '') — literal single-char separator and
+        // positive literal index only (the H2 spelling's domain).
+        if (i >= 1 && coll instanceof SqlExpr.Call sp
+                && sp.fn() == com.legend.sql.SqlFn.SPLIT
+                && sp.args().size() == 2
+                && sp.args().get(1) instanceof SqlExpr.StringLit sepLit
+                && sepLit.value().length() == 1) {
+            SqlExpr s0 = sp.args().get(0);
+            SqlExpr missing = SqlExpr.Call.of(com.legend.sql.SqlFn.LESS,
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS,
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH, s0),
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH,
+                                    SqlExpr.Call.of(
+                                            com.legend.sql.SqlFn.REPLACE,
+                                            s0, sp.args().get(1),
+                                            new SqlExpr.StringLit("")))),
+                    new SqlExpr.IntLit(i - 1));
+            SqlExpr part = SqlExpr.Call.of(com.legend.sql.SqlFn.SPLIT_PART,
+                    s0, sp.args().get(1), idx);
+            return i == 1 ? part
+                    : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                            missing, new SqlExpr.NullLit())), part);
+        }
+        // element pick over a collect: ORDER-carrying LIMIT/OFFSET.
+        // i = -1 (last) needs keys to flip; keyless last is undefined
+        // order — declined, the wall stays loud.
+        SqlSelect sel = collectSelect(coll);
+        if (sel != null) {
+            SqlAgg.Reducer collect =
+                    (SqlAgg.Reducer) sel.projections().get(0).expr();
+            SqlSelect picked = sel.withProjections(
+                    List.of(new SqlSelect.Projection(collect.args().get(0),
+                            sel.projections().get(0).alias())),
+                    sel.outputs());
+            if (i >= 1) {
+                return new SqlExpr.ScalarSubquery(picked
+                        .withOrderBy(collect.orderBy())
+                        .withLimit(1L)
+                        .withOffset(i > 1 ? i - 1 : null));
+            }
+            if (i == -1 && !collect.orderBy().isEmpty()) {
+                List<SqlSelect.SortKey> flipped = new ArrayList<>();
+                for (SqlSelect.SortKey k : collect.orderBy()) {
+                    flipped.add(new SqlSelect.SortKey(k.expr(),
+                            !k.ascending(), flipNulls(k.nullOrder()),
+                            k.outputName()));
+                }
+                return new SqlExpr.ScalarSubquery(picked
+                        .withOrderBy(flipped).withLimit(1L));
+            }
+        }
+        return null;
+    }
+
+    private static SqlSelect.SortKey.@com.legend.Nullable NullOrder flipNulls(
+            SqlSelect.SortKey.@com.legend.Nullable NullOrder n) {
+        return n == null ? null
+                : n == SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                        ? SqlSelect.SortKey.NullOrder.NULLS_LAST
+                        : SqlSelect.SortKey.NullOrder.NULLS_FIRST;
     }
 
     /** Portable membership (R2). LITERAL collection: the OR-chain

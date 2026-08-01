@@ -296,6 +296,153 @@ class CarrierDifferentialTest {
         }
     }
 
+    /** Through-subselect row-major join (R5c): STRING_AGG over
+     * FLATTEN(collect) whose collected column resolves to an ArrayLit
+     * in the INNER subselect — per-row CONCAT substitutes inside;
+     * sorted variant explodes per-cell branches with a global sort. */
+    @Test
+    void throughSubselectRowMajorJoinRowEqual() throws Exception {
+        for (boolean sorted : new boolean[] {false, true}) {
+            SqlExpr flatten = SqlExpr.Call.of(
+                    com.legend.sql.SqlFn.LIST_FLATTEN,
+                    new SqlExpr.ScalarSubquery(cellsCollect()));
+            SqlExpr chain = sorted
+                    ? SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SORT, flatten)
+                    : flatten;
+            SqlExpr transformed = SqlExpr.Call.of(
+                    com.legend.sql.SqlFn.LIST_TRANSFORM, chain,
+                    new SqlExpr.Lambda(List.of("x"),
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                                    new SqlExpr.Column(null, "x"),
+                                    new SqlExpr.StringLit("~"))));
+            SqlExpr reduce = new SqlExpr.ReduceCollection(
+                    SqlAgg.Fn.STRING_AGG, transformed,
+                    List.of(new SqlExpr.StringLit("|")));
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(reduce, "j")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                seed(st);
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "row-major join divergence (sorted=" + sorted + ")");
+            }
+        }
+    }
+
+    /** Literal pick (R5c): LIST_GET over a compile-time collection —
+     * probed list_extract contract (1-based, -1 last, 0/OOB NULL). */
+    @Test
+    void listGetLiteralPickRowEqual() throws Exception {
+        for (long ix : new long[] {2, -1, 0, 5}) {
+            SqlExpr get = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
+                    new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("a"),
+                            new SqlExpr.StringLit("b"),
+                            new SqlExpr.StringLit("c"))),
+                    new SqlExpr.IntLit(ix));
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(get, "e")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "literal pick divergence at " + ix);
+            }
+        }
+    }
+
+    /** Collect pick (R5c): LIST_GET(collect, n) is the ORDER-carrying
+     * LIMIT/OFFSET form. */
+    @Test
+    void listGetOverCollectRowEqual() throws Exception {
+        for (long ix : new long[] {1, 2}) {
+            SqlExpr get = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
+                    collectOfV(), new SqlExpr.IntLit(ix));
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(get, "e")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                seed(st);
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "collect pick divergence at " + ix);
+            }
+        }
+    }
+
+    /** Split token pick (R5c): LIST_GET(SPLIT(s, ','), n) becomes
+     * SPLIT_PART — empty tokens and missing tokens included. */
+    @Test
+    void splitTokenPickRowEqual() throws Exception {
+        for (long ix : new long[] {1, 2, 3}) {
+            SqlExpr get = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.SPLIT,
+                            new SqlExpr.Column("s", "v"),
+                            new SqlExpr.StringLit(",")),
+                    new SqlExpr.IntLit(ix));
+            SqlSelect q = SqlSelect.starOf(
+                            new SqlSource.Table("t", "s", List.of()))
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(get, "e")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE t (v VARCHAR)");
+                st.execute("INSERT INTO t VALUES ('a,b,c'), ('a,,c'), ('a')");
+                assertEquals(all(st, new DuckDb().render(q)),
+                        all(st, portable().render(q)),
+                        "split token divergence at " + ix);
+            }
+        }
+    }
+
+    /** First-non-null idiom (R5c): LIST_GET(LIST_FILTER(lit, x | x IS
+     * NOT NULL), 1) is COALESCE over the elements. */
+    @Test
+    void coalesceIdiomRowEqual() throws Exception {
+        SqlExpr filtered = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FILTER,
+                new SqlExpr.ArrayLit(List.of(new SqlExpr.NullLit(),
+                        new SqlExpr.StringLit("x"))),
+                new SqlExpr.Lambda(List.of("e"),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
+                                new SqlExpr.Column(null, "e"))));
+        SqlExpr get = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
+                filtered, new SqlExpr.IntLit(1));
+        SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                .withProjections(List.of(
+                        new SqlSelect.Projection(get, "e")), List.of());
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                Statement st = c.createStatement()) {
+            assertEquals(one(st, new DuckDb().render(q)),
+                    one(st, portable().render(q)),
+                    "coalesce idiom divergence");
+        }
+    }
+
+    /** The inner cells collect for the row-major fixtures: SELECT
+     * LIST(c) FROM (SELECT [v, upper(v)] AS c FROM t) sub. */
+    private static SqlSelect cellsCollect() {
+        SqlSelect inner = SqlSelect.starOf(
+                        new SqlSource.Table("t", "s", List.of()))
+                .withProjections(List.of(new SqlSelect.Projection(
+                                new SqlExpr.ArrayLit(List.of(
+                                        new SqlExpr.Column("s", "v"),
+                                        SqlExpr.Call.of(
+                                                com.legend.sql.SqlFn.UPPER,
+                                                new SqlExpr.Column("s", "v")))),
+                                "c")),
+                        List.of());
+        return SqlSelect.starOf(new SqlSource.Subselect(inner, "sub", null))
+                .withProjections(List.of(new SqlSelect.Projection(
+                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
+                                        new SqlExpr.Column("sub", "c")),
+                                        false, List.of()),
+                                "l")),
+                        List.of());
+    }
+
     // ---- R5b fixture plumbing ----
 
     private static void seed(Statement st) throws Exception {
