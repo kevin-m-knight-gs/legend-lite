@@ -121,6 +121,47 @@ second compiler. The design:
   collection operand is compile-time-known. R3 (`CollectionSource`)
   likewise for parameter-sourced collections.
 
+## 2b. AMENDED by the backend portability study (2026-08-01,
+BACKEND_PORTABILITY.md — read it; execution-grounded, 4 backends)
+
+- **H2 is the OUTLIER, not the template** (§2): Postgres/SQLite/MariaDB
+  all have correlated explosion (LATERAL / row-correlated json_each /
+  JSON_TABLE); only H2 lacks it. The portable strategy vocabulary is
+  therefore THREE-way, capability-driven:
+  1. NATIVE_LISTS — DuckDB (today's emission, golden-pinned);
+  2. JSON_CARRIER — Postgres/SQLite/MariaDB: ONE declared JSON carrier
+     for SqlType.Array (build json_agg-family, explode json_each-family
+     — §3's probe: same query shape, three spellings; native arrays
+     BANNED as carrier — the jagged List<List<T>> trap, three measured
+     silent wrong answers);
+  3. RELATIONAL_FUSION — H2 only (no correlated explosion exists; the
+     grouped-subselect/fusion shapes are its rules).
+  `CarrierStrategies.Mode` becomes a CAPABILITY RECORD (hasNativeLists,
+  hasCorrelatedExplode, jsonCarrier spellings), not a binary enum.
+- **PRE-RUNG P1 (do before R1b; study §5.2 + §7.1): close the stringly
+  aggregate channel.** SqlAgg.Reducer/RankingFn/ValueFn carry raw
+  String fn rendered VERBATIM on every dialect but EngineStyleH2 — the
+  undeclared passthrough AGENTS.md forbids; R1a's
+  ReduceCollection(String reducer) repeated the smell. Fix once: a
+  typed exhaustive aggregate-fn enum shared by Reducer and
+  ReduceCollection; dialects map it like SqlFn (Spellings-style data);
+  unmapped = DialectCapability.
+- **PRE-RUNG P2 (§7.5): render `ARRAY[...]` not `[...]`** — accepted by
+  DuckDB AND Postgres; free portability, byte-verified on the sweep.
+- **NEW RUNG (post-R3): session policy as a per-dialect declared
+  record** (§4) — settings applied AND asserted at connection open
+  (the MariaDB ANSI_QUOTES finding: one flag between correct and
+  uniformly-wrong-silently); generalizes H2Verify.SETTINGS.
+- **Witness-gated singles** (§7.2-7.4, owners assigned when their
+  backend lands): regexp_matches-in-projection + `~` semantics (LIVE
+  risk: the SQLite dialect row reuses Spellings.DUCKDB today);
+  ROUND_HALF_UP needs numeric cast on Postgres; Ddl TEXT for SQLite
+  temporal columns.
+- Unchanged by the study: H2 keeps queue priority (§7.12 — the corpus
+  measures OUR lowering and its evidence lives on H2); tenet #1 and
+  the ratchet (§2.1 endorses); the differential row-oracle (§6 —
+  every defect class that matters executes cleanly).
+
 ## 3. Rungs (each: fix → core 1573 → DuckDB sweep 2180 byte-stable →
 PCT 1109 → h2 sweep (scoreboard must rise) → differential oracle green →
 commit+push)
