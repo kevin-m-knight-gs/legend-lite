@@ -2449,8 +2449,11 @@ public final class TestBody {
         List<Object> values() {
             return switch (result) {
                 case com.legend.exec.ExecutionResult.Scalar sc ->
-                        sc.value() == null ? List.of() : flatten(sc.value());
-                case com.legend.exec.ExecutionResult.Collection c -> c.values();
+                        sc.value() == null ? List.of()
+                                : H2Verify.coerceTemporal(flatten(sc.value()),
+                                        sc.returnType());
+                case com.legend.exec.ExecutionResult.Collection c ->
+                        H2Verify.coerceTemporal(c.values(), c.returnType());
                 case com.legend.exec.ExecutionResult.Tabular t -> {
                     List<Object> out = new ArrayList<>();
                     t.rows().forEach(r -> out.addAll(r.values()));

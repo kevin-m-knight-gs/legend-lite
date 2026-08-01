@@ -212,6 +212,34 @@ public final class H2Verify {
         }
     }
 
+    /** The JSON carrier has NO temporal types — a Date-family element
+     * arrives as its ISO text. The DECLARED pure type drives the
+     * decode back (never value sniffing on non-temporal roots): ISO
+     * date-time text to Timestamp, bare dates to java.sql.Date. */
+    public static java.util.List<Object> coerceTemporal(
+            java.util.List<Object> vals,
+            com.legend.compiler.element.type.Type t) {
+        if (!(t == com.legend.compiler.element.type.Type.Primitive.DATE
+                || t == com.legend.compiler.element.type.Type.Primitive
+                        .DATE_TIME
+                || t == com.legend.compiler.element.type.Type.Primitive
+                        .STRICT_DATE)) {
+            return vals;
+        }
+        java.util.List<Object> out = new java.util.ArrayList<>(vals.size());
+        for (Object v : vals) {
+            if (v instanceof String s
+                    && s.matches("\\d{4}-\\d{2}-\\d{2}(T[\\d:.]+)?")) {
+                out.add(s.contains("T")
+                        ? java.sql.Timestamp.valueOf(s.replace('T', ' '))
+                        : java.sql.Date.valueOf(s));
+            } else {
+                out.add(v);
+            }
+        }
+        return out;
+    }
+
     /** Route by the session backend: an H2 session verifies DIRECTLY
      * (the database already holds every table the test built —
      * model-driven DDL included, which the seed-replay oracle can miss

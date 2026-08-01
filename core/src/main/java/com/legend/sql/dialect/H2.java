@@ -257,6 +257,26 @@ public final class H2 extends AnsiSqlRenderer {
             }
             return sb.append(" NULL ON NULL)").toString();
         }
+        // ordered aggregates pin the reference NULL placement too (the
+        // sortKey pin's aggregate-internal twin — witnessed: sorted
+        // joinStrings led with TDSNull under H2's NULLS-FIRST default)
+        if (!r.orderBy().isEmpty()) {
+            String args = r.args().isEmpty() ? "*" : list(r.args());
+            String order = " ORDER BY " + r.orderBy().stream()
+                    .map(k -> expr(k.expr(), 0)
+                            + (k.ascending() ? " ASC" : " DESC")
+                            + (k.nullOrder() == null
+                                    ? (k.ascending() ? " NULLS LAST"
+                                            : " NULLS FIRST")
+                                    : k.nullOrder() == com.legend.sql
+                                            .SqlSelect.SortKey.NullOrder
+                                            .NULLS_FIRST
+                                            ? " NULLS FIRST"
+                                            : " NULLS LAST"))
+                    .collect(java.util.stream.Collectors.joining(", "));
+            return r.fn() + "(" + (r.distinct() ? "DISTINCT " : "") + args
+                    + order + ")";
+        }
         return super.reducer(r);
     }
 
