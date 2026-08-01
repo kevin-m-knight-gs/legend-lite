@@ -253,6 +253,95 @@ public final class CarrierStrategies extends SqlRewriter {
         //     -> (SELECT NAME(x, extras...) FROM ...)
         // The collect's ORDER KEYS carry over — the ordering contract
         // (insertion order via RowOrder) is preserved, not re-derived.
+        // TYPEOF date dispatch (R5d, witnessed: Fold.jsonDateWrap's
+        // runtime precision probe): typeof(e) = 'DATE' is a LENGTH test
+        // on the VARCHAR cast — probed both engines: a DATE casts to 10
+        // chars, a TIMESTAMP to 19+.
+        if (e instanceof SqlExpr.Call eq
+                && eq.fn() == com.legend.sql.SqlFn.EQUAL
+                && eq.args().size() == 2
+                && eq.args().get(0) instanceof SqlExpr.Call tf
+                && tf.fn() == com.legend.sql.SqlFn.TYPEOF
+                && tf.args().size() == 1
+                && eq.args().get(1) instanceof SqlExpr.StringLit ts
+                && "DATE".equals(ts.value())) {
+            return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH,
+                            new SqlExpr.Cast(tf.args().get(0),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR)),
+                    new SqlExpr.IntLit(10));
+        }
+        // sorted collect VALUE (R5d, witnessed): LIST_SORT(collect) IS
+        // the collect ordered by its value — ASC NULLS LAST (probed
+        // list_sort contract), original collect keys as tiebreak.
+        if (e instanceof SqlExpr.Call ls
+                && ls.fn() == com.legend.sql.SqlFn.LIST_SORT
+                && ls.args().size() == 1) {
+            SqlSelect sel = collectSelect(ls.args().get(0));
+            if (sel != null) {
+                SqlAgg.Reducer collect =
+                        (SqlAgg.Reducer) sel.projections().get(0).expr();
+                SqlExpr raw = collect.args().get(0);
+                List<SqlSelect.SortKey> keys = new ArrayList<>();
+                keys.add(new SqlSelect.SortKey(raw, true,
+                        SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+                keys.addAll(collect.orderBy());
+                return new SqlExpr.ScalarSubquery(sel.withProjections(
+                        List.of(new SqlSelect.Projection(
+                                new SqlAgg.Reducer(SqlAgg.Fn.LIST,
+                                        collect.args(), false, keys),
+                                sel.projections().get(0).alias())),
+                        sel.outputs()));
+            }
+        }
+        // filtered collect VALUE (R5d, witnessed): LIST_FILTER(collect,
+        // lam) pushes the element predicate into the collect's WHERE —
+        // element-wise filter IS a row filter before aggregation, order
+        // preserved.
+        if (e instanceof SqlExpr.Call lf
+                && lf.fn() == com.legend.sql.SqlFn.LIST_FILTER
+                && lf.args().size() == 2
+                && lf.args().get(1) instanceof SqlExpr.Lambda flam
+                && flam.params().size() == 1) {
+            SqlSelect sel = collectSelect(lf.args().get(0));
+            if (sel != null) {
+                SqlAgg.Reducer collect =
+                        (SqlAgg.Reducer) sel.projections().get(0).expr();
+                SqlExpr pred = substParam(flam.body(), flam.params().get(0),
+                        collect.args().get(0));
+                return new SqlExpr.ScalarSubquery(sel.withWhere(
+                        sel.where() == null ? pred
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
+                                        sel.where(), pred)));
+            }
+        }
+        // literal reducer folds (R5d, witnessed): BOOL_AND/BOOL_OR/SUM/
+        // PRODUCT over a compile-time collection — the exact
+        // null-ignoring aggregate fold (all-null -> NULL, probed).
+        if (e instanceof SqlExpr.Call lr && lr.args().size() == 1
+                && lr.args().get(0) instanceof SqlExpr.ArrayLit lra
+                && !lra.elements().isEmpty()) {
+            SqlExpr folded = switch (lr.fn()) {
+                case LIST_BOOL_AND -> litFold(lra.elements(),
+                        new SqlExpr.BoolLit(true), com.legend.sql.SqlFn.AND,
+                        null);
+                case LIST_BOOL_OR -> litFold(lra.elements(),
+                        new SqlExpr.BoolLit(false), com.legend.sql.SqlFn.OR,
+                        null);
+                case LIST_SUM -> litFold(lra.elements(),
+                        new SqlExpr.IntLit(0), com.legend.sql.SqlFn.PLUS,
+                        null);
+                // list product is DOUBLE on the reference (probed 4.0)
+                // — the leading 1.0 factor pins the type.
+                case LIST_PRODUCT -> litFold(lra.elements(),
+                        new SqlExpr.IntLit(1), com.legend.sql.SqlFn.TIMES,
+                        new SqlExpr.FloatLit(1.0));
+                default -> null;
+            };
+            if (folded != null) {
+                return folded;
+            }
+        }
         if (e instanceof SqlExpr.Call lg
                 && lg.fn() == com.legend.sql.SqlFn.LIST_GET
                 && lg.args().size() == 2) {
@@ -618,6 +707,30 @@ public final class CarrierStrategies extends SqlRewriter {
         return null;
     }
 
+    /** The exact null-ignoring aggregate fold over compile-time
+     * elements: {@code CASE WHEN all null THEN NULL ELSE op-chain of
+     * COALESCE(e, neutral) END} (probed: all-null -> NULL, otherwise
+     * NULLs drop out). {@code lead} prepends a type-pinning factor. */
+    private static SqlExpr litFold(List<SqlExpr> elements, SqlExpr neutral,
+            com.legend.sql.SqlFn op, @com.legend.Nullable SqlExpr lead) {
+        SqlExpr allNull = null;
+        SqlExpr chain = lead;
+        for (SqlExpr el : elements) {
+            SqlExpr isNull = SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
+                    el);
+            allNull = allNull == null ? isNull
+                    : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, allNull,
+                            isNull);
+            SqlExpr v = SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, el,
+                    neutral);
+            chain = chain == null ? v : SqlExpr.Call.of(op, chain, v);
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                java.util.Objects.requireNonNull(allNull),
+                new SqlExpr.NullLit())),
+                java.util.Objects.requireNonNull(chain));
+    }
+
     private static SqlSelect.SortKey.@com.legend.Nullable NullOrder flipNulls(
             SqlSelect.SortKey.@com.legend.Nullable NullOrder n) {
         return n == null ? null
@@ -648,6 +761,47 @@ public final class CarrierStrategies extends SqlRewriter {
                         : SqlExpr.Call.of(com.legend.sql.SqlFn.OR, chain, eq);
             }
             return chain == null ? new SqlExpr.BoolLit(false) : chain;
+        }
+        // PUSH-DOWN arms (R5d, witnessed: membership over a runtime-
+        // branched concat of literal collections): membership
+        // distributes over LIST_CONCAT (OR of the arms) and over CASE
+        // (into each branch). Bail whole when any arm has no rule —
+        // the node survives to the wall, never half-rewritten.
+        if (m.collection() instanceof SqlExpr.Call mc
+                && mc.fn() == com.legend.sql.SqlFn.LIST_CONCAT
+                && mc.args().size() >= 2) {
+            SqlExpr chain = null;
+            for (SqlExpr arm : mc.args()) {
+                SqlExpr member = membershipRule(
+                        new SqlExpr.Membership(m.needle(), arm));
+                if (member == null) {
+                    return null;
+                }
+                chain = chain == null ? member
+                        : SqlExpr.Call.of(com.legend.sql.SqlFn.OR, chain,
+                                member);
+            }
+            return chain;
+        }
+        if (m.collection() instanceof SqlExpr.Case cs) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>();
+            for (SqlExpr.Case.When w : cs.whens()) {
+                SqlExpr member = membershipRule(
+                        new SqlExpr.Membership(m.needle(), w.then()));
+                if (member == null) {
+                    return null;
+                }
+                whens.add(new SqlExpr.Case.When(w.condition(), member));
+            }
+            SqlExpr otherwise = null;
+            if (cs.otherwise() != null) {
+                otherwise = membershipRule(
+                        new SqlExpr.Membership(m.needle(), cs.otherwise()));
+                if (otherwise == null) {
+                    return null;
+                }
+            }
+            return new SqlExpr.Case(whens, otherwise);
         }
         if (m.collection() instanceof SqlExpr.ScalarSubquery sq
                 && sq.subquery() instanceof SqlSelect sel

@@ -152,7 +152,12 @@ public final class H2 extends AnsiSqlRenderer {
 
     /** DuckDB's QUANTILE_CONT(v, q) has no H2 spelling — the SQL-standard
      * inverse-distribution form PERCENTILE_CONT(q) WITHIN GROUP (ORDER BY
-     * v), probed 2.1.214. Other reducers render on the base. */
+     * v), probed 2.1.214. The LIST collect rides the JSON carrier:
+     * {@code JSON_ARRAYAGG(x [ORDER BY ... NULLS ...] NULL ON NULL)} —
+     * probed grammar (order clause BEFORE the null clause), zero rows ->
+     * NULL and [null] element parity with DuckDB list(). NULLS placement
+     * renders EXPLICITLY (the base reducer drops nullOrder). Other
+     * reducers render on the base. */
     @Override
     protected String reducer(com.legend.sql.SqlAgg.Reducer r) {
         if (r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT && r.args().size() == 2
@@ -161,7 +166,46 @@ public final class H2 extends AnsiSqlRenderer {
                     + ") WITHIN GROUP (ORDER BY " + expr(r.args().get(0), 0)
                     + ")";
         }
+        if (r.fn() == com.legend.sql.SqlAgg.Fn.LIST && r.args().size() == 1
+                && !r.distinct()) {
+            StringBuilder sb = new StringBuilder("JSON_ARRAYAGG(")
+                    .append(expr(r.args().get(0), 0));
+            if (!r.orderBy().isEmpty()) {
+                sb.append(" ORDER BY ");
+                for (int i = 0; i < r.orderBy().size(); i++) {
+                    var k = r.orderBy().get(i);
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(expr(k.expr(), 0))
+                            .append(k.ascending() ? " ASC" : " DESC");
+                    if (k.nullOrder() != null) {
+                        sb.append(k.nullOrder()
+                                == com.legend.sql.SqlSelect.SortKey
+                                        .NullOrder.NULLS_FIRST
+                                ? " NULLS FIRST" : " NULLS LAST");
+                    }
+                }
+            }
+            return sb.append(" NULL ON NULL)").toString();
+        }
         return super.reducer(r);
+    }
+
+    /** Banker's ROUND (probed on 2.1.214 against DuckDB ROUND_EVEN over
+     * 2.5/3.5/-2.5/0.125/0.135/2.4 — all six equal): exact-.5 fractions
+     * steer to the even integer of the scaled value, everything else is
+     * plain ROUND. */
+    @Override
+    protected String roundHalfEven(List<SqlExpr> a) {
+        String p = a.size() == 1 ? "1"
+                : "POWER(10, " + expr(a.get(1), 0) + ")";
+        String scaled = "(" + expr(a.get(0), 6) + " * " + p + ")";
+        return "(CASE WHEN " + scaled + " - FLOOR(" + scaled + ") = 0.5"
+                + " THEN (CASE WHEN MOD(CAST(FLOOR(" + scaled
+                + ") AS BIGINT), 2) = 0 THEN FLOOR(" + scaled
+                + ") ELSE FLOOR(" + scaled + ") + 1 END)"
+                + " ELSE ROUND(" + scaled + ") END / " + p + ")";
     }
 
     /** SQL-standard constructor, probed on 2.1.214:

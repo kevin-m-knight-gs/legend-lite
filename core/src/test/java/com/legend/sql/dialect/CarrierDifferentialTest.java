@@ -421,6 +421,146 @@ class CarrierDifferentialTest {
         }
     }
 
+    /** TYPEOF date dispatch (R5d): typeof(e) = 'DATE' vs the portable
+     * VARCHAR-cast LENGTH probe — DATE and TIMESTAMP operands. */
+    @Test
+    void typeofDateDispatchRowEqual() throws Exception {
+        for (String col : new String[] {"d", "ts"}) {
+            SqlExpr probe = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.TYPEOF,
+                                    new SqlExpr.Column("s", col)),
+                            new SqlExpr.StringLit("DATE")),
+                    new SqlExpr.StringLit("D"))),
+                    new SqlExpr.StringLit("TS"));
+            SqlSelect q = SqlSelect.starOf(
+                            new SqlSource.Table("t", "s", List.of()))
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(probe, "k")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                st.execute("CREATE TABLE t (d DATE, ts TIMESTAMP)");
+                st.execute("INSERT INTO t VALUES (DATE '2015-08-26',"
+                        + " TIMESTAMP '2015-08-26 01:02:03')");
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "typeof dispatch divergence on " + col);
+            }
+        }
+    }
+
+    /** Sorted collect VALUE (R5d): LIST_SORT(collect) is the collect
+     * ordered by its value ASC NULLS LAST (probed list_sort contract);
+     * the NULL row pins the placement. */
+    @Test
+    void sortedCollectValueRowEqual() throws Exception {
+        SqlExpr sorted = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_SORT,
+                collectOfV());
+        SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                .withProjections(List.of(
+                        new SqlSelect.Projection(sorted, "l")), List.of());
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                Statement st = c.createStatement()) {
+            seed(st);
+            st.execute("INSERT INTO t VALUES (NULL)");
+            assertEquals(one(st, new DuckDb().render(q)),
+                    one(st, portable().render(q)),
+                    "sorted collect divergence");
+        }
+    }
+
+    /** Filtered collect VALUE (R5d): LIST_FILTER(collect, lam) pushes
+     * the element predicate into the collect's WHERE. */
+    @Test
+    void filteredCollectValueRowEqual() throws Exception {
+        SqlExpr filtered = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_FILTER,
+                collectOfV(),
+                new SqlExpr.Lambda(List.of("x"),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
+                                new SqlExpr.Column(null, "x"))));
+        SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                .withProjections(List.of(
+                        new SqlSelect.Projection(filtered, "l")), List.of());
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                Statement st = c.createStatement()) {
+            seed(st);
+            st.execute("INSERT INTO t VALUES (NULL)");
+            assertEquals(one(st, new DuckDb().render(q)),
+                    one(st, portable().render(q)),
+                    "filtered collect divergence");
+        }
+    }
+
+    /** Membership push-down (R5d): membership distributes over
+     * LIST_CONCAT (OR) and CASE (per-branch) — runtime-branched
+     * literal collections, needle present/absent. */
+    @Test
+    void membershipPushDownRowEqual() throws Exception {
+        for (String needle : new String[] {"a", "z"}) {
+            SqlExpr branched = new SqlExpr.Case(List.of(
+                    new SqlExpr.Case.When(
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                                    new SqlExpr.IntLit(1),
+                                    new SqlExpr.IntLit(1)),
+                            new SqlExpr.ArrayLit(List.of(
+                                    new SqlExpr.StringLit("a"),
+                                    new SqlExpr.StringLit("b"))))),
+                    new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("c"))));
+            SqlExpr concat = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_CONCAT,
+                    branched,
+                    new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("d"))));
+            SqlExpr member = SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                    new SqlExpr.Membership(new SqlExpr.StringLit(needle),
+                            concat),
+                    new SqlExpr.BoolLit(false));
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(member, "m")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "membership push-down divergence on " + needle);
+            }
+        }
+    }
+
+    /** Literal reducer folds (R5d): BOOL_AND/BOOL_OR/SUM/PRODUCT over
+     * compile-time collections — null-ignoring, all-null -> NULL
+     * (probed aggregate contract). */
+    @Test
+    void literalReducerFoldsRowEqual() throws Exception {
+        SqlExpr nullInt = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                new SqlExpr.BoolLit(false), new SqlExpr.IntLit(1))), null);
+        record Fx(com.legend.sql.SqlFn fn, List<SqlExpr> elems) { }
+        List<Fx> fixtures = List.of(
+                new Fx(com.legend.sql.SqlFn.LIST_BOOL_AND, List.of(
+                        new SqlExpr.BoolLit(true), new SqlExpr.BoolLit(true))),
+                new Fx(com.legend.sql.SqlFn.LIST_BOOL_OR, List.of(
+                        new SqlExpr.BoolLit(false),
+                        new SqlExpr.BoolLit(false))),
+                new Fx(com.legend.sql.SqlFn.LIST_SUM, List.of(
+                        new SqlExpr.IntLit(1), nullInt,
+                        new SqlExpr.IntLit(2))),
+                new Fx(com.legend.sql.SqlFn.LIST_SUM, List.of(nullInt)),
+                new Fx(com.legend.sql.SqlFn.LIST_PRODUCT, List.of(
+                        new SqlExpr.IntLit(2), nullInt,
+                        new SqlExpr.IntLit(4))));
+        for (Fx fx : fixtures) {
+            SqlExpr fold = SqlExpr.Call.of(fx.fn(),
+                    new SqlExpr.ArrayLit(fx.elems()));
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(fold, "r")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "literal fold divergence on " + fx.fn());
+            }
+        }
+    }
+
     /** The inner cells collect for the row-major fixtures: SELECT
      * LIST(c) FROM (SELECT [v, upper(v)] AS c FROM t) sub. */
     private static SqlSelect cellsCollect() {
