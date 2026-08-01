@@ -85,6 +85,27 @@ public final class H2 extends AnsiSqlRenderer {
             return "(RIGHT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
                     + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
         }
+        // bool = text (P8): the reference COERCES the string to bool
+        // ('N' -> false, probed) where strict H2 rejects the compare —
+        // a parseable literal becomes the boolean it names; anything
+        // else falls through (the type error stays loud).
+        if (c.fn() == SqlFn.EQUAL && a.size() == 2) {
+            for (int i = 0; i < 2; i++) {
+                if (booleanShaped(a.get(i))
+                        && a.get(1 - i) instanceof SqlExpr.StringLit bs) {
+                    String t = bs.value().toLowerCase(java.util.Locale.ROOT);
+                    Boolean b = switch (t) {
+                        case "true", "t", "1", "yes", "y" -> Boolean.TRUE;
+                        case "false", "f", "0", "no", "n" -> Boolean.FALSE;
+                        default -> null;
+                    };
+                    if (b != null) {
+                        return "(" + expr(a.get(i), 4) + " = "
+                                + (b ? "TRUE" : "FALSE") + ")";
+                    }
+                }
+            }
+        }
         // boolean text (P7): H2 CAST prints 'TRUE' — the reference
         // prints 'true'; NULL stays NULL through the CASE.
         if (c.fn() == SqlFn.BOOL_TO_TEXT) {
@@ -401,6 +422,14 @@ public final class H2 extends AnsiSqlRenderer {
         if (jdbcValue instanceof byte[] b
                 && type == com.legend.sql.SqlType.Scalar.JSON) {
             return new String(b, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        // LEGACY-mode H2 hands DOUBLE aggregates back as BigDecimal
+        // ('1E+1' for SUM over DOUBLE — probed; DuckDB hands Double):
+        // the DECLARED column type drives the codec, and every float
+        // print/compare downstream expects the double carrier.
+        if (jdbcValue instanceof java.math.BigDecimal bd
+                && type == com.legend.sql.SqlType.Scalar.DOUBLE) {
+            return bd.doubleValue();
         }
         return jdbcValue;
     }
