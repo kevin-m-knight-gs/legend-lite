@@ -73,6 +73,24 @@ public final class H2 extends AnsiSqlRenderer {
             return "(LEFT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
                     + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
         }
+        // strpos (P3): H2 spells LOCATE with SWAPPED args — probed
+        // 2.1.214 parity on all edges (1-based, miss 0, empty needle 1).
+        if (c.fn() == SqlFn.STRPOS) {
+            return "LOCATE(" + expr(a.get(1), 0) + ", " + expr(a.get(0), 0)
+                    + ")";
+        }
+        // ends_with (P3): the RIGHT/CHAR_LENGTH twin of STARTS_WITH
+        // (probed incl. '%' suffix and needle-longer-than-string).
+        if (c.fn() == SqlFn.ENDS_WITH) {
+            return "(RIGHT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
+                    + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
+        }
+        // error(msg) (P3): SIGNAL raises with the message and is LAZY
+        // under CASE (probed 2.1.214: guarded branches do not fire,
+        // taken branches raise, THEN-arm types unify).
+        if (c.fn() == SqlFn.ERROR) {
+            return "SIGNAL('45000', " + expr(a.get(0), 0) + ")";
+        }
         // split_part (R5c): H2 has no token pick — the probed EXACT
         // spelling (empty tokens KEPT, missing token -> '', matching
         // DuckDB split_part on all 6 probed edges): separator-count CASE

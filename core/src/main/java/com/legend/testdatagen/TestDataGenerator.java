@@ -799,10 +799,16 @@ public final class TestDataGenerator {
                     .append('\n').append(String.join(",", cs.stream()
                             .map(TestDataGenerator::headerCase).toList()))
                     .append('\n');
+            // ORDER BY ordinals, not DuckDB's ORDER BY ALL (P3): same
+            // semantics (all columns left-to-right), every backend.
             try (ResultSet rs = st.executeQuery("select "
                     + String.join(", ", cs.stream().map(
                             TestDataGenerator::q).toList())
-                    + " from (" + union + ") order by all")) {
+                    + " from (" + union + ") order by "
+                    + java.util.stream.IntStream.rangeClosed(1, cs.size())
+                            .mapToObj(String::valueOf)
+                            .collect(java.util.stream.Collectors
+                                    .joining(", ")))) {
                 var md = rs.getMetaData();
                 int n = md.getColumnCount();
                 while (rs.next()) {
