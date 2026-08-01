@@ -86,6 +86,16 @@ public final class CarrierStrategies extends SqlRewriter {
             transform = lam;
             coll = c.args().get(0);
         }
+        // SORTED join (witnessed R1d: sort()->joinStrings): LIST_SORT
+        // between collect and transform — the fused STRING_AGG orders by
+        // the RAW collected value (sort precedes the element transform).
+        boolean sorted = false;
+        if (coll instanceof SqlExpr.Call sc
+                && sc.fn() == com.legend.sql.SqlFn.LIST_SORT
+                && sc.args().size() == 1) {
+            sorted = true;
+            coll = sc.args().get(0);
+        }
         // LITERAL collection (witnessed R1c: makeString over TDS-row
         // cells): the elements are compile-time-known — STRING_AGG
         // expands to the CONCAT chain t(e1)||sep||t(e2)||…; no subquery
@@ -115,13 +125,41 @@ public final class CarrierStrategies extends SqlRewriter {
                 && rc.extras().size() == 1
                 && !cells.elements().isEmpty()) {
             SqlExpr sep = rc.extras().get(0);
-            SqlExpr rowJoined = concatJoin(cells.elements(), transform, sep);
+            if (!sorted) {
+                SqlExpr rowJoined = concatJoin(cells.elements(), transform,
+                        sep);
+                SqlAgg.Reducer fused = new SqlAgg.Reducer(
+                        SqlAgg.Fn.STRING_AGG, List.of(rowJoined, sep),
+                        false, fcollect.orderBy());
+                return new SqlExpr.ScalarSubquery(fsel.withProjections(
+                        List.of(new SqlSelect.Projection(fused,
+                                fsel.projections().get(0).alias())),
+                        fsel.outputs()));
+            }
+            // SORTED row-major join (witnessed R1d): cells sort GLOBALLY
+            // across rows — per-row CONCAT cannot express it. The
+            // no-explode portable form: UNION ALL one branch per
+            // compile-time cell, then STRING_AGG(t(v), sep ORDER BY v).
+            List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+            for (SqlExpr cell : cells.elements()) {
+                branches.add(fsel.withProjections(
+                        List.of(new SqlSelect.Projection(cell, "v")),
+                        List.of()));
+            }
+            com.legend.sql.SqlUnion union =
+                    new com.legend.sql.SqlUnion(branches, true, List.of());
+            SqlExpr vRead = new SqlExpr.Column("_cells", "v");
+            SqlExpr tv = transform == null ? vRead
+                    : substParam(transform.body(),
+                            transform.params().get(0), vRead);
             SqlAgg.Reducer fused = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                    List.of(rowJoined, sep), false, fcollect.orderBy());
-            return new SqlExpr.ScalarSubquery(fsel.withProjections(
-                    List.of(new SqlSelect.Projection(fused,
-                            fsel.projections().get(0).alias())),
-                    fsel.outputs()));
+                    List.of(tv, sep), false,
+                    List.of(SqlSelect.SortKey.asc(vRead)));
+            return new SqlExpr.ScalarSubquery(SqlSelect.starOf(
+                            new com.legend.sql.SqlSource.Subselect(union,
+                                    "_cells", null))
+                    .withProjections(List.of(new SqlSelect.Projection(
+                            fused, null)), List.of()));
         }
         if (!(coll instanceof SqlExpr.ScalarSubquery sq)
                 || !(sq.subquery() instanceof SqlSelect sel)
@@ -133,16 +171,18 @@ public final class CarrierStrategies extends SqlRewriter {
                 || collect.args().size() != 1) {
             return null;
         }
-        SqlExpr value = collect.args().get(0);
+        SqlExpr raw = collect.args().get(0);
+        SqlExpr value = raw;
         if (transform != null) {
             value = substParam(transform.body(), transform.params().get(0),
-                    value);
+                    raw);
         }
         List<SqlExpr> args = new ArrayList<>();
         args.add(value);
         args.addAll(rc.extras());
         SqlAgg.Reducer fused = new SqlAgg.Reducer(rc.reducer(), args, false,
-                collect.orderBy());
+                sorted ? List.of(SqlSelect.SortKey.asc(raw))
+                        : collect.orderBy());
         return new SqlExpr.ScalarSubquery(sel.withProjections(
                 List.of(new SqlSelect.Projection(fused,
                         sel.projections().get(0).alias())),
