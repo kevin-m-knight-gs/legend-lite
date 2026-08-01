@@ -176,10 +176,25 @@ commit+push)
   strategy for a backend with no JSON constructors. Deferred until a
   witness (memory blow-up or a JSON-less target); the envelope stays
   the one strategy until then.
-- **Plan-format interop:** §2 decides we PRODUCE typed plans. Whether
-  we ever consume/emit the ENGINE's plan-JSON format (interop with
-  engine executors/services) is a product decision — default stance is
-  produce-only, our format.
+- **Plan-format interop:** §2 decides we PRODUCE typed plans (our
+  format). Engine-plan interop is DECOUPLED from this leg entirely —
+  plan consumption is POST-render (parse plan JSON, fill its template,
+  execute, shape rows); the carrier redesign is PRE-render. Cost model,
+  layered: (1) the seam signature `execute(enginePlanJson, params,
+  conn) → ExecutionResult` is free and non-speculative (the format is
+  externally fixed) — write it the day it's needed; (2) a stub — plan
+  deserializer for the relational node subset + typed walls — is
+  days-scale and reuses what we own (the plan node model behind the
+  plan-handle walk tests, PlanText's template-function vocabulary, the
+  session/codec/shaping machinery); (3) real implementation — a
+  Freemarker-SUBSET evaluator + node-interpreter loop — is its own
+  multi-rung leg, spec'd by porting the engine's plan-execution tests.
+  TRIGGER: the first real engine-plan artifact we want to run; no stub
+  before then (a seam without a consumer test is speculative API).
+  ASYMMETRY: the PRODUCE direction (emitting engine plan JSON for our
+  parameterized services) would force Freemarker templates back into
+  the artifact §2 designed them out of — if interop ever matters,
+  consume is the direction that fits; resist produce.
 - **Our own dual enum-decode paths:** most frames decode enum codes
   in-SQL (CASE); a residue decodes post-SQL (the c46 witnesses). The
   M1 oracle reconciles the comparison, but the single-compiler spirit
