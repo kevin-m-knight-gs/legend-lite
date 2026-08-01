@@ -161,6 +161,30 @@ public final class H2 extends AnsiSqlRenderer {
         return super.call(c, parentPrec);
     }
 
+    /** H2 window-frame interval bounds want the SQL-standard QUOTED
+     * SINGULAR form ({@code INTERVAL '3' DAY} — probed; DuckDB's bare
+     * plural {@code INTERVAL 3 DAYS} is a syntax error). WEEKS has no
+     * standard interval unit — 7-day multiples. */
+    @Override
+    protected String bound(SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p ->
+                    h2Interval(p.n(), p.unit()) + " PRECEDING";
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
+                    h2Interval(f.n(), f.unit()) + " FOLLOWING";
+            default -> super.bound(b);
+        };
+    }
+
+    private static String h2Interval(long n, String unit) {
+        String u = unit.toUpperCase(java.util.Locale.ROOT);
+        if (u.equals("WEEKS") || u.equals("WEEK")) {
+            return "INTERVAL '" + (n * 7) + "' DAY";
+        }
+        return "INTERVAL '" + n + "' "
+                + (u.endsWith("S") ? u.substring(0, u.length() - 1) : u);
+    }
+
     /** DurationUnit interval-fn name -> H2 dateadd unit keyword (the
      * engine's extensionDefaults mapToDBUnitType; duplicated from the
      * QUARANTINED EngineStyleH2 deliberately — semantic unit data, not

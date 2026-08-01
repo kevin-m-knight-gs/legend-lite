@@ -148,9 +148,25 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
-        try (Connection connection = DriverManager.getConnection("jdbc:duckdb:")) {
-            try (var tzStmt = connection.createStatement()) {
-                tzStmt.execute("SET TimeZone='UTC'");
+        // LEGENDLITE_PCT_BACKEND=h2 runs the SAME suite on the H2
+        // execution dialect (env, not -D: it must survive the surefire
+        // fork) — the session mirrors the portability sweep's settings.
+        boolean h2 = "h2".equalsIgnoreCase(
+                String.valueOf(System.getenv("LEGENDLITE_PCT_BACKEND")));
+        try (Connection connection = DriverManager.getConnection(h2
+                ? "jdbc:h2:mem:" + com.legend.harness.H2Verify.SETTINGS
+                : "jdbc:duckdb:", h2 ? "sa" : null, h2 ? "" : null)) {
+            // DuckDB pins the session to UTC (its driver's Timestamps are
+            // wall-preserving under it). H2 must NOT: its driver funnels
+            // zone-less TIMESTAMPs through the SESSION zone, so a UTC
+            // session + local JVM shifted every wall time by the offset
+            // (witnessed: 2026-01-07T00:00 read back as 01-06T19:00);
+            // the JVM-local default round-trips wall times exactly, the
+            // same contract the corpus sweep runs under.
+            if (!h2) {
+                try (var tzStmt = connection.createStatement()) {
+                    tzStmt.execute("SET TimeZone='UTC'");
+                }
             }
 
             // Inject class definitions from the interpreter's model
@@ -159,7 +175,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     extractClassMetadata(pureExpression, discoveredEnums, processorSupport);
             java.util.List<String> enumDefs =
                     extractEnumDefinitions(pureExpression, discoveredEnums, processorSupport);
-            String model = PURE_MODEL;
+            String model = h2
+                    ? PURE_MODEL.replace("type: DuckDB;", "type: H2;")
+                    : PURE_MODEL;
             if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()) {
                 StringBuilder classDefs = new StringBuilder();
                 for (String ed : enumDefs) {
@@ -169,7 +187,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     classDefs.append(pc.toString()).append("\n");
                 }
                 System.out.println("[LegendLite PCT] Injected model:\n" + classDefs);
-                model = classDefs + PURE_MODEL;
+                model = classDefs + model;
             }
 
             ExecutionResult result = new QueryService().execute(model, pureExpression,

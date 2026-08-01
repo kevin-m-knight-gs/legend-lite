@@ -650,7 +650,7 @@ public class AnsiSqlRenderer implements SqlDialect {
         return fnText + " OVER (" + over + ")";
     }
 
-    protected static String bound(SqlExpr.WindowCall.Frame.Bound b) {
+    protected String bound(SqlExpr.WindowCall.Frame.Bound b) {
         return switch (b) {
             case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> "UNBOUNDED PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.Preceding p -> p.n() + " PRECEDING";
