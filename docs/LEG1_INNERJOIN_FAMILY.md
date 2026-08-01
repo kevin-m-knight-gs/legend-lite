@@ -483,3 +483,40 @@ dropped null-side row). FIX SLICE: dump OUR sql for that assert
 query), compare against the golden's OrderDetails-correlated shape,
 fix the non-literal-date channel; the H2Verify enum arm retires
 (+18 verifiable) once this witness verifies.
+
+## W40 witness — FULL SQL diagnosis (c41, ready to fix)
+
+OUR emission for $o.product($o.orderDetails.settlementDate)
+.classificationType (vs engine golden at
+testBusinessDateMilestoning.pure:820):
+
+  SELECT t0.id, CASE WHEN t4.Product_Classification_type='STOCK' ... 
+  FROM OrderTable t0
+  LEFT JOIN OrderDetailsTable t1 ON t0.id = t1.id
+  LEFT JOIN (ProductTable t2 LEFT JOIN ProductClassificationTable t3
+             ON t2.type = t3.type            -- (3) NO temporal cond!
+  ) t4 ON t0.prodFk = t4.id AND [t4.from_z/thru_z vs t1.settlementDate]
+  WHERE [SAME temporal conds REPEATED]       -- (1) the killer
+
+THREE defects:
+(1) the non-literal temporal condition lands in BOTH the join ON and
+    the WHERE — the WHERE copy converts LEFT to INNER semantics and
+    eliminates order 1's [1|<null>] row (violates the ON-clause seam
+    rule for the non-literal channel);
+(2) OrderDetailsTable joins at TOP level (orders x details row
+    multiplication) — engine materializes it INSIDE a parent-copy
+    subselect (OrderTable x Product x OrderDetails, temporal cond in
+    the subselect WHERE, carrying [id, settlementDate, type]);
+(3) ProductClassificationTable gets NO milestoning condition at all
+    (bare type=type reads ALL versions) — engine correlates
+    pc.from_z/thru_z to the CARRIED ot1.settlementDate.
+(1)+(3) explain [2|STOCK]x4 + dropped id=1 exactly (2 details x 2
+classification versions; WHERE kills order 1).
+FIX ORDER: (1) find the double-plant site (non-literal date stamping
+emits via both the join-cond channel AND a WHERE-bound filter — check
+TemporalFrame's non-literal arm + WhereMerge zones); (3) thread the
+carried date into the nav target's own temporal frame; (2) adopt the
+engine's parent-copy carry if (1)+(3) alone don't converge rows.
+Engine reference SQL verbatim at testBusinessDateMilestoning.pure:820
+(and :821 for the ->adjust variant). Family: task #32 non-literal
+dates (7 tests). Witness gate: golden-on-H2 [1|<null>, 2|STOCK].
