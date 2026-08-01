@@ -540,3 +540,40 @@ the dialect track can run in parallel.
 - **Don't make `EngineStyleH2` the execution dialect.** Its output is byte-pinned to goldens; build a
   sibling and keep Invariant 4d.
 - **Don't create a soft `h2-divergence` bucket** (§10).
+
+---
+
+## Step 10 LANDED (2026-07-31, c43) — the portability sweep executes
+
+`-Drcorpus.backend=h2` opens a FRESH in-memory H2 per test
+(`H2Verify.SETTINGS`, engine H2Manager parity) via `Runner.openSession()`
+— ONE session factory, dialect and connection bound together:
+
+- **H5.4 reconciliation is structural**: `Compiler.dialectOf(ctx,
+  runtimeFqn, connection)` reads the LIVE connection's product name at
+  the one execution seam (`executeResolved`); an H2 session selects the
+  H2 execution dialect and LOUDLY rejects non-H2 declared connection
+  types. Non-H2 sessions resolve exactly as before — the DuckDB
+  reference path is unchanged (verified: full sweep byte-identical,
+  2180 + h2-exec 289/0/135 + PCT 1109 + core 1573).
+- The synthesized driver connection `rcorpus::Conn` now declares the
+  ACTUAL session type (H2 under the flag) — the declaration honesty the
+  reconciliation depends on.
+- **Step 12 fell out**: `SqlDialect.rawH2IsNative()` (H2 dialect: true)
+  gates every `RawSqlBoundary.h2ToDuckDb` call site — corpus raw H2 and
+  module DDL execute VERBATIM on the H2 session, translated only for
+  the DuckDB target.
+- The h2 sweep NEVER writes the scoreboard and skips the DuckDB
+  baseline gate (§10 rule: an H2 FAIL must not touch the DuckDB row);
+  it prints its own `[rcorpus] h2-backend` family lines.
+
+**First measured number: 476/2538 pass (18.8%), 0 failed seeds.**
+Already clean: sqlDialectTranslation 21/21, postprocessor 7/7,
+debugPrint 9/9, modelToModelToRelational 5/5, inClause 3/4,
+lineage/scanRelations 40/49, distinct 11/18. Big honest walls (scoped
+probes): UNNEST collection-carrier (§4.1, deferred — dominates
+calendarAggregation 1/92 and sub-aggregation), LIST_AGG list encoding,
+`rowid` ordering DuckDB-ism inside STRING_AGG (H2 spells `_ROWID_`),
+enum decode (enumeration 0/26), milestoning 9/224 (family-wide cause
+unmeasured — next census target). Next: per-family wall census drives
+step 9 (capability budget) and step 11 (codec rows).
