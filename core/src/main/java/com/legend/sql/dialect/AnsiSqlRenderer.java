@@ -99,7 +99,7 @@ public class AnsiSqlRenderer implements SqlDialect {
      */
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         CarrierStrategies carriers = new CarrierStrategies(
-                CarrierStrategies.Mode.PORTABLE);
+                CarrierStrategies.Caps.H2);
         return supportsQualify()
                 ? java.util.List.of(carriers)
                 : java.util.List.of(carriers, new QualifyToSubselect());

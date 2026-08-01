@@ -29,25 +29,27 @@ import java.util.Locale;
  */
 public final class CarrierStrategies extends SqlRewriter {
 
-    /** How this dialect carries collections. */
-    public enum Mode {
-        /** Native list values exist (DuckDB): semantic nodes render via
-         * the dialect's list hooks — no structural rewrite needed. */
-        NATIVE_LISTS,
-        /** No list values (ANSI/H2): structural rules re-shape semantic
-         * nodes into portable SQL — the engine's shapes. */
-        PORTABLE
+    /** The dialect's collection CAPABILITIES (§2b: a record, not a
+     * binary — SQLite/MariaDB have correlated explosion but no native
+     * lists; H2 has neither; DuckDB has everything). Strategy rules
+     * dispatch on these. */
+    public record Caps(boolean nativeLists, boolean correlatedExplode,
+            boolean jsonCarrier) {
+        public static final Caps DUCKDB = new Caps(true, true, true);
+        /** H2: no native lists, no correlated explosion (the ONLY probed
+         * backend without it), JSON constructors only. */
+        public static final Caps H2 = new Caps(false, false, false);
     }
 
-    private final Mode mode;
+    private final Caps caps;
 
-    public CarrierStrategies(Mode mode) {
-        this.mode = mode;
+    public CarrierStrategies(Caps caps) {
+        this.caps = caps;
     }
 
     @Override
     protected SqlExpr expr(SqlExpr e) {
-        if (mode == Mode.NATIVE_LISTS) {
+        if (caps.nativeLists()) {
             return e;
         }
         // FUSION (R1, the engine's shape — pureToSQLQuery aggregates
@@ -57,25 +59,77 @@ public final class CarrierStrategies extends SqlRewriter {
         //     -> (SELECT NAME(x, extras...) FROM ...)
         // The collect's ORDER KEYS carry over — the ordering contract
         // (insertion order via RowOrder) is preserved, not re-derived.
-        if (e instanceof SqlExpr.ReduceCollection rc
-                && rc.collection() instanceof SqlExpr.ScalarSubquery sq
-                && sq.subquery() instanceof SqlSelect sel
-                && sel.projections().size() == 1
-                && sel.projections().get(0).expr()
-                        instanceof SqlAgg.Reducer collect
-                && collect.fn() == SqlAgg.Fn.LIST
-                && !collect.distinct()
-                && collect.args().size() == 1) {
-            List<SqlExpr> args = new ArrayList<>(collect.args());
-            args.addAll(rc.extras());
-            SqlAgg.Reducer fused = new SqlAgg.Reducer(
-                    rc.reducer(), args,
-                    false, collect.orderBy());
-            return new SqlExpr.ScalarSubquery(sel.withProjections(
-                    List.of(new SqlSelect.Projection(fused,
-                            sel.projections().get(0).alias())),
-                    sel.outputs()));
+        if (e instanceof SqlExpr.ReduceCollection rc) {
+            SqlExpr fusedSub = fuse(rc);
+            if (fusedSub != null) {
+                return fusedSub;
+            }
         }
         return e;
+    }
+
+    /** The fused grouped-subselect, or null when the collection operand
+     * is not a recognized collect shape. Witnessed shapes (R1b, corpus):
+     * a bare collect subselect, and LIST_TRANSFORM(collect, lambda) —
+     * the element transform SUBSTITUTES into the collect projection
+     * (same rows: the transform is element-wise). Order keys carry over
+     * (the ordering contract, never re-derived). */
+    private static @com.legend.Nullable SqlExpr fuse(
+            SqlExpr.ReduceCollection rc) {
+        SqlExpr coll = rc.collection();
+        SqlExpr.Lambda transform = null;
+        if (coll instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.LIST_TRANSFORM
+                && c.args().size() == 2
+                && c.args().get(1) instanceof SqlExpr.Lambda lam
+                && lam.params().size() == 1) {
+            transform = lam;
+            coll = c.args().get(0);
+        }
+        if (!(coll instanceof SqlExpr.ScalarSubquery sq)
+                || !(sq.subquery() instanceof SqlSelect sel)
+                || sel.projections().size() != 1
+                || !(sel.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer collect)
+                || collect.fn() != SqlAgg.Fn.LIST
+                || collect.distinct()
+                || collect.args().size() != 1) {
+            return null;
+        }
+        SqlExpr value = collect.args().get(0);
+        if (transform != null) {
+            value = substParam(transform.body(), transform.params().get(0),
+                    value);
+        }
+        List<SqlExpr> args = new ArrayList<>();
+        args.add(value);
+        args.addAll(rc.extras());
+        SqlAgg.Reducer fused = new SqlAgg.Reducer(rc.reducer(), args, false,
+                collect.orderBy());
+        return new SqlExpr.ScalarSubquery(sel.withProjections(
+                List.of(new SqlSelect.Projection(fused,
+                        sel.projections().get(0).alias())),
+                sel.outputs()));
+    }
+
+    /** Replace bare reads of the lambda parameter with {@code value}. */
+    private static SqlExpr substParam(SqlExpr body, String param,
+            SqlExpr value) {
+        if (body instanceof SqlExpr.Column c && c.table() == null
+                && param.equals(c.name())) {
+            return value;
+        }
+        List<SqlExpr> kids = body.children();
+        if (kids.isEmpty()) {
+            return body;
+        }
+        List<SqlExpr> mapped = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (SqlExpr k : kids) {
+            SqlExpr m = substParam(k, param, value);
+            changed |= m != k;
+            mapped.add(m);
+        }
+        return changed ? body.withChildren(mapped) : body;
     }
 }

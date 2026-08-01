@@ -29,7 +29,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         // carrier strategies FIRST (base contract), then this dialect's
         // structural rewrites
         return java.util.List.of(
-                new CarrierStrategies(CarrierStrategies.Mode.NATIVE_LISTS),
+                new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
                 new UnqualifyPivotArgs(), new FoldToListReduce());
     }
 

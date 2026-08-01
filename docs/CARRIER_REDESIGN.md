@@ -1,6 +1,9 @@
 # Collection-carrier redesign (H2_BACKEND.md §4.1) — the single-compiler leg
 
-Status: R0 LANDED (2026-08-01). Census pins (raw occurrences,
+Status: R1 LANDED (2026-08-01): ReduceCollection semantic node
+(R1a), typed SqlAgg.Fn closing the stringly channel (P1), capability
+record + LIST_TRANSFORM-aware fusion (R1b) — h2 703→715, string_agg
+walls shrinking, DuckDB 2180 byte-stable throughout. Census pins (raw occurrences,
 pre-dialect layers): ArrayLit 34, OrderedListAgg 1, SqlFn.LIST_ 147,
 SqlFn.UNNEST 13 — `CarrierPurityRatchetTest` enforces shrink-only.
 `CarrierStrategies` (identity) wired FIRST in every dialect's passes().
