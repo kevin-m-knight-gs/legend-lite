@@ -107,6 +107,35 @@ class CarrierDifferentialTest {
         }
     }
 
+    /** Literal-collection join (R1c): STRING_AGG over a transformed
+     * ArrayLit expands to the CONCAT chain — both strategies row-equal. */
+    @Test
+    void literalArrayJoinRowEqual() throws Exception {
+        SqlExpr transformed = SqlExpr.Call.of(
+                com.legend.sql.SqlFn.LIST_TRANSFORM,
+                new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("a"),
+                        new SqlExpr.StringLit("b"),
+                        new SqlExpr.StringLit("c"))),
+                new SqlExpr.Lambda(List.of("x"),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER,
+                                new SqlExpr.Column(null, "x"))));
+        SqlExpr reduce = new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG,
+                transformed, List.of(new SqlExpr.StringLit("|")));
+        SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                .withProjections(List.of(
+                                new SqlSelect.Projection(reduce, "joined")),
+                        List.of());
+        String nativeSql = new DuckDb().render(q);
+        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
+                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                Statement st = c.createStatement()) {
+            assertEquals(one(st, nativeSql), one(st, portableSql),
+                    "strategy divergence:\nnative:   " + nativeSql
+                    + "\nportable: " + portableSql);
+        }
+    }
+
     private static String one(Statement st, String sql) throws Exception {
         try (ResultSet rs = st.executeQuery(sql)) {
             rs.next();

@@ -86,6 +86,43 @@ public final class CarrierStrategies extends SqlRewriter {
             transform = lam;
             coll = c.args().get(0);
         }
+        // LITERAL collection (witnessed R1c: makeString over TDS-row
+        // cells): the elements are compile-time-known — STRING_AGG
+        // expands to the CONCAT chain t(e1)||sep||t(e2)||…; no subquery
+        // at all. STRING_AGG only (join semantics).
+        if (coll instanceof SqlExpr.ArrayLit al
+                && rc.reducer() == SqlAgg.Fn.STRING_AGG
+                && rc.extras().size() == 1 && !al.elements().isEmpty()) {
+            return concatJoin(al.elements(), transform, rc.extras().get(0));
+        }
+        // ROW-MAJOR cell collect (witnessed R1c: rowMajorCellList —
+        // FLATTEN(collect-of-ArrayLit)): fuse to STRING_AGG over the
+        // per-row CONCAT of transformed cells, sep between rows AND
+        // between cells (row-major join is separator-uniform).
+        if (coll instanceof SqlExpr.Call fl
+                && fl.fn() == com.legend.sql.SqlFn.LIST_FLATTEN
+                && fl.args().size() == 1
+                && fl.args().get(0) instanceof SqlExpr.ScalarSubquery fsq
+                && fsq.subquery() instanceof SqlSelect fsel
+                && fsel.projections().size() == 1
+                && fsel.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer fcollect
+                && fcollect.fn() == SqlAgg.Fn.LIST
+                && !fcollect.distinct()
+                && fcollect.args().size() == 1
+                && fcollect.args().get(0) instanceof SqlExpr.ArrayLit cells
+                && rc.reducer() == SqlAgg.Fn.STRING_AGG
+                && rc.extras().size() == 1
+                && !cells.elements().isEmpty()) {
+            SqlExpr sep = rc.extras().get(0);
+            SqlExpr rowJoined = concatJoin(cells.elements(), transform, sep);
+            SqlAgg.Reducer fused = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                    List.of(rowJoined, sep), false, fcollect.orderBy());
+            return new SqlExpr.ScalarSubquery(fsel.withProjections(
+                    List.of(new SqlSelect.Projection(fused,
+                            fsel.projections().get(0).alias())),
+                    fsel.outputs()));
+        }
         if (!(coll instanceof SqlExpr.ScalarSubquery sq)
                 || !(sq.subquery() instanceof SqlSelect sel)
                 || sel.projections().size() != 1
@@ -110,6 +147,22 @@ public final class CarrierStrategies extends SqlRewriter {
                 List.of(new SqlSelect.Projection(fused,
                         sel.projections().get(0).alias())),
                 sel.outputs()));
+    }
+
+    /** {@code t(e1) || sep || t(e2) || …} over compile-time elements. */
+    private static SqlExpr concatJoin(List<SqlExpr> elements,
+            SqlExpr.@com.legend.Nullable Lambda transform, SqlExpr sep) {
+        SqlExpr out = null;
+        for (SqlExpr e : elements) {
+            SqlExpr v = transform == null ? e
+                    : substParam(transform.body(), transform.params().get(0),
+                            e);
+            out = out == null ? v
+                    : SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                                    out, sep), v);
+        }
+        return java.util.Objects.requireNonNull(out);
     }
 
     /** Replace bare reads of the lambda parameter with {@code value}. */
