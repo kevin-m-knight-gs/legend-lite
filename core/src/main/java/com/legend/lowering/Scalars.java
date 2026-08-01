@@ -800,8 +800,8 @@ final class Scalars {
                                                 args.get(0), new SqlExpr.Column(null, "x")),
                                         new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                                new SqlExpr.StringLit("string_agg"), strs, sep)),
+                        new SqlExpr.ReduceCollection("string_agg", strs,
+                                List.of(sep)),
                         new SqlExpr.StringLit(""));
                 if (args.size() == 4) {
                     return SqlExpr.Call.of(SqlFn.CONCAT, args.get(1),
@@ -823,8 +823,8 @@ final class Scalars {
                     SqlExpr sep = args.size() == 2 ? args.get(1)
                             : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
                     joined = SqlExpr.Call.of(SqlFn.COALESCE,
-                            new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                                    new SqlExpr.StringLit("string_agg"), args.get(0), sep)),
+                            new SqlExpr.ReduceCollection("string_agg",
+                                    args.get(0), List.of(sep)),
                             new SqlExpr.StringLit(""));
                 }
                 if (args.size() == 4) {
@@ -850,20 +850,19 @@ final class Scalars {
                     SqlExpr p2 = asc ? args.get(1)
                             : SqlExpr.Call.of(SqlFn.MINUS,
                                     new SqlExpr.IntLit(1), args.get(1));
-                    return new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                            new SqlExpr.StringLit("quantile_cont"),
-                            args.get(0), p2));
+                    return new SqlExpr.ReduceCollection("quantile_cont",
+                            args.get(0), List.of(p2));
                 }
                 return pureDiscretePercentile(args.get(0), args.get(1), asc);
             });
         }
         for (String f : Pure.nativeKeysAt("percentileCont")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                    new SqlExpr.StringLit("quantile_cont"), args.get(0), args.get(1))));
+            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(
+                    "quantile_cont", args.get(0), List.of(args.get(1))));
         }
         for (String f : Pure.nativeKeysAt("percentileDisc")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                    new SqlExpr.StringLit("quantile_disc"), args.get(0), args.get(1))));
+            RULES.put(f, (n, args) -> new SqlExpr.ReduceCollection(
+                    "quantile_disc", args.get(0), List.of(args.get(1))));
         }
         // collection sort: bare list_sort; a COMPARATOR must be a bare
         // compare over the two parameters (its argument order IS the
@@ -1177,9 +1176,9 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 boolean sample = n.args().size() <= 1
                         || boolLiteral(n.args().get(1), "variance isBiasCorrected");
-                return new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                        new SqlExpr.StringLit(sample ? "var_samp" : "var_pop"),
-                        numList(args.get(0))));
+                return new SqlExpr.ReduceCollection(
+                        sample ? "var_samp" : "var_pop",
+                        numList(args.get(0)), List.of());
             });
         }
         // first/head/last over a TO-ONE value are the IDENTITY — the list
@@ -2702,9 +2701,8 @@ final class Scalars {
     /** {@code ', '}-joined string list ('' for empty) — composed in SQL. */
     private static SqlExpr joinList(SqlExpr strings) {
         return SqlExpr.Call.of(SqlFn.COALESCE,
-                new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
-                        new SqlExpr.StringLit("string_agg"), strings,
-                        new SqlExpr.StringLit(", "))),
+                new SqlExpr.ReduceCollection("string_agg", strings,
+                        List.of(new SqlExpr.StringLit(", "))),
                 new SqlExpr.StringLit(""));
     }
 

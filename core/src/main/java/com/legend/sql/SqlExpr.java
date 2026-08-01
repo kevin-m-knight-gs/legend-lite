@@ -17,7 +17,7 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
-                SqlExpr.RowOrder, SqlAgg.Reducer {
+                SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlAgg.Reducer {
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
@@ -33,6 +33,12 @@ public sealed interface SqlExpr
         return switch (this) {
             case Column ignored -> List.of();
             case RowOrder ignored -> List.of();
+            case ReduceCollection rc -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                out.add(rc.collection());
+                out.addAll(rc.extras());
+                yield out;
+            }
             case Star ignored -> List.of();
             case StarExcept ignored -> List.of();
             case StringLit ignored -> List.of();
@@ -108,6 +114,8 @@ public sealed interface SqlExpr
         return switch (this) {
             case Column ignored -> this;
             case RowOrder ignored -> this;
+            case ReduceCollection rc -> new ReduceCollection(rc.reducer(),
+                    cs.get(0), cs.subList(1, cs.size()));
             case Star ignored -> this;
             case StarExcept ignored -> this;
             case StringLit ignored -> this;
@@ -215,6 +223,20 @@ public sealed interface SqlExpr
      * per dialect (DuckDB {@code rowid}, H2 {@code _ROWID_}); a plain
      * Column would bake one backend's spelling into the IR. */
     record RowOrder(@com.legend.Nullable String table) implements SqlExpr {
+    }
+
+    /** SEMANTIC collection reduction (CARRIER_REDESIGN.md R1): reduce a
+     * collection VALUE with the named ANSI aggregate ({@code string_agg},
+     * {@code quantile_cont}, {@code var_samp}, ...); {@code extras} are
+     * the aggregate's trailing arguments (separator, quantile). The
+     * dialect strategy layer owns the emission — DuckDB's native
+     * {@code list_aggregate}, or the portable FUSION into the collecting
+     * subselect (the engine's shape). No backend spelling lives here. */
+    record ReduceCollection(String reducer, SqlExpr collection,
+            java.util.List<SqlExpr> extras) implements SqlExpr {
+        public ReduceCollection {
+            extras = java.util.List.copyOf(extras);
+        }
     }
 
     record Column(@com.legend.Nullable String table, String name) implements SqlExpr {

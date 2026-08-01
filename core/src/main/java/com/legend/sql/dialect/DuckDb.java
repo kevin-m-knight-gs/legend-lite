@@ -28,8 +28,20 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         // carrier strategies FIRST (base contract), then this dialect's
         // structural rewrites
-        return java.util.List.of(new CarrierStrategies(),
+        return java.util.List.of(
+                new CarrierStrategies(CarrierStrategies.Mode.NATIVE_LISTS),
                 new UnqualifyPivotArgs(), new FoldToListReduce());
+    }
+
+    /** DuckDB's native list carrier: {@code list_aggregate(list,
+     * 'name', extras...)} — byte-identical to the pre-R1 emission. */
+    @Override
+    protected String reduceCollection(SqlExpr.ReduceCollection rc) {
+        return "list_aggregate(" + expr(rc.collection(), 0) + ", '"
+                + rc.reducer() + "'"
+                + rc.extras().stream().map(x -> ", " + expr(x, 0))
+                        .collect(java.util.stream.Collectors.joining())
+                + ")";
     }
 
     // ---- structural capabilities ----
@@ -157,14 +169,6 @@ public final class DuckDb extends AnsiSqlRenderer {
             case TYPEOF -> fn("typeof", args);
             case LIST_SORT -> fn("list_sort", args);
             case LIST_SORT_DESC -> fn("list_reverse_sort", args);
-            // Generic list aggregation: the AGG NAME rides as a leading
-            // string-literal arg (the EXTRACT part-name pattern).
-            case LIST_AGG -> "list_aggregate(" + expr(args.get(1), 0) + ", "
-                    + expr(args.get(0), 0)
-                    + args.subList(2, args.size()).stream()
-                            .map(x -> ", " + expr(x, 0))
-                            .collect(java.util.stream.Collectors.joining())
-                    + ")";
             case LIST_TAIL -> expr(args.get(0), 8) + "[2:]";
             case LIST_INIT -> expr(args.get(0), 8) + "[:-2]";
             case RANGE_FN -> fn("range", args);

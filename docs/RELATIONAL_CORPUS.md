@@ -8026,7 +8026,7 @@ in-process Alloy-shaped path).
 - 8x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes (no candidates at all)
 - 7x unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
-- 4x LIST_AGG reached a dialect without a list encoding
+- 4x collection reduction 'string_agg' reached a dialect without a list encoding
 - 4x ArrayIndexOutOfBoundsException
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -8073,7 +8073,7 @@ in-process Alloy-shaped path).
 - ERROR testPlanForExecutionOption [executionPlan/tests]: Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - SHAPE testRoutingContextBuilderFunctions [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::pure::metamodel::type::Any has no property 'type'
 - SHAPE testMapWithOpenVariableOutsideBlock [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary): TypedNewInstance[classFqn=meta::pure::executionPlan::tests::Struct, properties={val=TypedCInteger[value=10, info=ExprType[type=INTEGER, multiplicity=
-- ERROR withPlatform [executionPlan/tests]: LIST_AGG reached a dialect without a list encoding
+- ERROR withPlatform [executionPlan/tests]: collection reduction 'string_agg' reached a dialect without a list encoding
 - SHAPE testPreprocessFunctionOnRuntime [executionPlan/tests]: no execute(|...) call [calls meta::pure::executionPlan] — wall: assert form 'assertEquals/2' is not supported yet — plan wall: class 'meta::pure::metamodel::function::FunctionDefinition' has no property 'expressionSequence'
 - ERROR testDatabaseConnectionSQLPopulationLegacy [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - ERROR testDatabaseConnectionSQLPopulation [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -8392,7 +8392,7 @@ in-process Alloy-shaped path).
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - FAIL testFilterTimesWithManyOperands [tests/query]: h2-advisory divergence: golden SQL on H2 gave 12 row(s) [Allen|6556, Firm B|4690, Harris|4900, Hill|3576, Hill|4288], our pipeline gave 46 row(s) [Allen|1012, Allen|1540, Allen|1540, Allen|528, Allen|968]
 - ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
-- ERROR testJoinStringFunction [tests/query]: LIST_AGG reached a dialect without a list encoding
+- ERROR testJoinStringFunction [tests/query]: collection reduction 'string_agg' reached a dialect without a list encoding
 - ERROR testDayOfWeekNumberFunction [tests/query]: no overload of 'meta::pure::functions::date::dayOfWeekNumber' accepts 2 argument(s)
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::tests::functions::sqlstring] — wall: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
@@ -8408,8 +8408,8 @@ in-process Alloy-shaped path).
 - SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsDistinctSQLGeneration [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testGreatestLeast [transform/fromPure/tests]: LIST_GET reached a dialect without a list encoding
-- ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
-- ERROR testHashFunctions [transform/fromPure/tests]: LIST_AGG reached a dialect without a list encoding
+- ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: collection reduction 'string_agg' reached a dialect without a list encoding
+- ERROR testHashFunctions [transform/fromPure/tests]: collection reduction 'string_agg' reached a dialect without a list encoding
 - ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro

@@ -98,10 +98,11 @@ public class AnsiSqlRenderer implements SqlDialect {
      * become this dialect's emission before any other rewrite sees them.
      */
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+        CarrierStrategies carriers = new CarrierStrategies(
+                CarrierStrategies.Mode.PORTABLE);
         return supportsQualify()
-                ? java.util.List.of(new CarrierStrategies())
-                : java.util.List.of(new CarrierStrategies(),
-                        new QualifyToSubselect());
+                ? java.util.List.of(carriers)
+                : java.util.List.of(carriers, new QualifyToSubselect());
     }
 
     // ==================================================================
@@ -318,6 +319,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.FoldCall f -> foldCall(f);
             case SqlExpr.JsonObject j -> jsonObject(j);
             case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(j);
+            case SqlExpr.ReduceCollection rc -> reduceCollection(rc);
             case SqlAgg.Reducer r -> reducer(r);
         };
     }
@@ -325,6 +327,16 @@ public class AnsiSqlRenderer implements SqlDialect {
     /** The backend's physical row-order pseudo-column spelling. */
     protected String rowOrderColumn() {
         return "rowid";
+    }
+
+    /** Reduce a collection VALUE with a named aggregate — a backend
+     * DATA-MODEL capability; the ANSI base has no collection values.
+     * The portable route is the CarrierStrategies FUSION into the
+     * collecting subselect; a node that survives to rendering here is
+     * an honest budget-counted wall. */
+    protected String reduceCollection(SqlExpr.ReduceCollection rc) {
+        throw new DialectCapability("collection reduction '" + rc.reducer()
+                + "' reached a dialect without a list encoding");
     }
 
     /** DuckDB reference JSON-object constructor: alternating key/value
@@ -493,7 +505,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case CURRENT_USER_FN -> "current_user";
             // Lists (dialect-owned; base throws like the lambda family)
             case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
-                 LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_AGG, LIST_SORT,
+                 LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN,
                  LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND, LIST_BOOL_OR,
                  LIST_REVERSE, TYPEOF ->

@@ -38,8 +38,11 @@ class CarrierPurityRatchetTest {
     private static final Map<String, Integer> PINS = Map.of(
             "new SqlExpr\\.ArrayLit\\(", 34,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
-            "SqlFn\\.LIST_", 147,
-            "SqlFn\\.UNNEST", 13);
+            "SqlFn\\.LIST_", 139,
+            "SqlFn\\.UNNEST", 13,
+            // the collect-carrier reducer (R1 recognizes it for fusion;
+            // burns with R3/R4 when sources/values migrate)
+            "new SqlAgg\\.Reducer\\(\"LIST\"", 5);
 
     @Test
     void carrierIdiomsOnlyShrink() throws IOException {

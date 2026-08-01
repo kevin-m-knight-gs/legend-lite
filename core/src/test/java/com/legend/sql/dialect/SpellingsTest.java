@@ -50,7 +50,6 @@ class SpellingsTest {
             SqlFn.LC_FIRST,
             SqlFn.LESS,
             SqlFn.LESS_EQUAL,
-            SqlFn.LIST_AGG,
             SqlFn.LIST_APPEND,
             SqlFn.LIST_AVG,
             SqlFn.LIST_BOOL_AND,
