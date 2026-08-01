@@ -215,7 +215,54 @@ commit+push)
   Java — out of carrier scope, tracked as its own feature leg under
   #102 (never an exclusion).
 
-## 5. Exit criteria
+## 5. H2-era code: what retires, what graduated (the cleanup ledger)
+
+Nothing from the H2 arc was left as an undocumented hack, but the
+classification must be explicit so "temporary" never silently becomes
+"forever":
+
+**Graduated — permanent machinery, NOT cleanup targets:**
+- `H2Verify` (M1 oracle, enum-decode replay, unverifiable census,
+  registry) — this IS the differential-oracle infrastructure this leg
+  runs on.
+- `Runner.openSession()` + `dialectOf(ctx, rt, connection)` — the
+  session/dialect binding is the architecture (H5.4).
+- `RawSqlBoundary.h2ToDuckDb` — inherent to DuckDB being the reference
+  target for H2-flavored corpus seeds; honestly gated by
+  `rawH2IsNative()`. Deletable ONLY if the reference target changes.
+
+**Policy wearing a hack's clothes — re-document, keep:**
+- `case H2 -> distinct.add("DuckDB")` (2-arg `dialectOf`): declared-H2
+  models render DuckDB on DuckDB sessions. Post-H5.4 the session always
+  wins, so this is the REFERENCE-TARGET POLICY, not a danger — its
+  comment should say so (done for the corpus; keep the spelling).
+
+**Real debt this leg retires, rung by rung:**
+- **`AnsiSqlRenderer` is DuckDB wearing an ANSI nameplate**: the base
+  defaults are DuckDB idioms (`//`, `d + to_days(n)`,
+  `json_group_array`/`to_json(list(...))`, `rowid`) and H2 OVERRIDES
+  them — inverted layering. As each rung moves a carrier's emission
+  into the strategy pass, the corresponding base-renderer idiom moves
+  INTO the DuckDB rules; the end-state base is honest ANSI and the
+  current H2 `call()` overrides (INT_DIVIDE, ADD_INTERVAL, EXTRACT,
+  STARTS_WITH, jsonObject/jsonArrayAgg, rowOrderColumn, reducer) SHRINK
+  as the idioms they counteract stop being defaults. Exit check: the
+  H2 dialect class is mostly Spellings/Lexicon DATA + strategy rules,
+  not call-override code.
+- Small duplications to consolidate when touched: `H2.dateUnit` vs
+  `EngineStyleH2.dbUnitOf` (deliberate quarantine copy — merge only if
+  a THIRD consumer appears), `Ddl.H2_RESERVED` vs `Lexicon.H2`.
+
+**Retirement conditions (recorded, trigger-gated):**
+- `EngineStyleH2` + the golden-TEXT advisory channel retire TOGETHER
+  if/when row-verification coverage makes text compares pure noise —
+  a deliberate future decision, not this leg's.
+- H5.5 (Ddl quoting) is FIXED (full-name column quoting); the
+  `tableWithQuotedColumns` census entries are a seed-recording decline
+  (family's raw seeds not reaching the replay), a census bucket to
+  burn, not a DDL bug.
+
+## 6. Exit criteria
 
 - Purity guardrail at ZERO and frozen (tenet #1 mechanically closed).
 - h2-backend sweep ≥ 80% of the DuckDB baseline's passing set, with the
