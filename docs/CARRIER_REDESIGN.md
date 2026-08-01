@@ -1,10 +1,18 @@
 # Collection-carrier redesign (H2_BACKEND.md §4.1) — the single-compiler leg
 
-Status: R3a LANDED (2026-08-01): h2-backend 1283/2538 — 59% of the
-DuckDB passing set (80% exit = 1744). Ladder: R1a/P1/R1b(+12)/R1c(+45)/
-R1d(+10)/R2(+10)/R3a(+503: literal-collection explode -> UNION ALL
-branches; LIST_MIN/MAX/SUM/AVG/MEDIAN -> ReduceCollection fuse).
-UNNEST walls 790 -> 52; remaining buckets re-censused next rung.
+Status: R5b LANDED (2026-08-01): h2-backend 1539/2538 — 88% of the exit
+target (80% of DuckDB's 2180 = 1744; 205 to go). Ladder: R1a/P1/
+R1b(+12)/R1c(+45)/R1d(+10)/R2(+10)/R3a(+503: literal-collection explode
+-> UNION ALL; LIST_* reducer fuse)/R4a(+57 singleton-flatten)/R4b(+7
+JSON carrier for collection VALUES)/R4c(+71 walk-recursion fix)/
+R5a(+74 variantConstruct CAST AS JSON)/R5b(+47: UNNEST explode
+strategies — unnest(NULL) -> WHERE FALSE, explode-of-collect -> the
+collecting row set, sorted explode -> ORDER BY value ASC NULLS LAST,
+LIST_CONCAT const-fold + concat-of-collects -> UNION ALL, through-
+subselect ArrayLit cells -> per-cell branches). Capability budget after
+R5b (139 walls): LIST_GET 39, STRING_AGG 34, TYPEOF 17, LIST_SORT 10,
+LIST_FILTER 6, LIST_BOOL_AND 5, struct 6, UNNEST 4, banker's ROUND 4,
+LIST_CONCAT 3, membership 3, variant-nav 3, tail 5.
 Previous: R1 LANDED: ReduceCollection semantic node
 (R1a), typed SqlAgg.Fn closing the stringly channel (P1), capability
 record + LIST_TRANSFORM-aware fusion (R1b) — h2 703→715, string_agg
