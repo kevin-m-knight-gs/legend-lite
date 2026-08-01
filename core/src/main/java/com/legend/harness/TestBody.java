@@ -1048,7 +1048,9 @@ public final class TestBody {
                     new Variable(var, null, null), "values"), lets,
                     execStmts, execVars, execChains, ctx, imports,
                     runtimeFqn, conn);
-            return H2Verify.verify(
+            // session-direct on an H2 backend, seed-replay elsewhere —
+            // the routing lives with the oracle (H2Verify.verifyAuto)
+            return H2Verify.verifyAuto(conn,
                     com.legend.exec.RawSqlBoundary.recording(), golden,
                     rows.result(), H2Verify.enumDecodeFor(rows.result(),
                             actual, lets, execStmts, ctx, imports));

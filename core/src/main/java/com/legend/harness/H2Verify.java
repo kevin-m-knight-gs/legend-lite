@@ -161,7 +161,8 @@ public final class H2Verify {
      * divergence message; throws {@link Unverifiable} when H2 cannot
      * evaluate the inputs at all.
      */
-    public static @com.legend.Nullable String verify(List<String> seeds, String goldenSql,
+    public static @com.legend.Nullable String verify(
+            java.util.@com.legend.Nullable List<String> seeds, String goldenSql,
             ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
         if (!READY) {
@@ -204,6 +205,62 @@ public final class H2Verify {
                         }
                     }
                 }
+                return goldenRowsCompare(st, goldenSql, tab, enumDecode);
+            }
+        } catch (SQLException e) {
+            throw new Unverifiable("h2 connection: " + e.getMessage(), e);
+        }
+    }
+
+    /** Route by the session backend: an H2 session verifies DIRECTLY
+     * (the database already holds every table the test built —
+     * model-driven DDL included, which the seed-replay oracle can miss
+     * as "Table not found"); anything else replays the recorded seeds
+     * into the fresh oracle. */
+    public static @com.legend.Nullable String verifyAuto(Connection session,
+            java.util.@com.legend.Nullable List<String> seeds,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode)
+            throws SQLException {
+        return "H2".equals(session.getMetaData().getDatabaseProductName())
+                ? verifyOnSession(session, goldenSql, ours, enumDecode)
+                : verify(seeds, goldenSql, ours, enumDecode);
+    }
+
+    /**
+     * The SESSION-direct golden verify (parity workstream 1): the
+     * golden SELECT runs read-only on the session connection and
+     * compares against our rows exactly like the replay path.
+     */
+    public static @com.legend.Nullable String verifyOnSession(
+            Connection session, String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
+        if (!(ours instanceof ExecutionResult.Tabular tab)) {
+            throw new Unverifiable("non-tabular result frame", null);
+        }
+        for (int i = 0; i < tab.columns().size(); i++) {
+            if (tab.columns().get(i).pureType()
+                    instanceof com.legend.compiler.element.type.Type.EnumType
+                    && !enumDecode.containsKey(i)) {
+                throw new Unverifiable(
+                        "enum-decoded column (post-transform rows)", null);
+            }
+        }
+        try (Statement st = session.createStatement()) {
+            return goldenRowsCompare(st, goldenSql, tab, enumDecode);
+        } catch (SQLException e) {
+            throw new Unverifiable("session golden execution: "
+                    + e.getMessage(), e);
+        }
+    }
+
+    /** Run the golden SELECT on {@code st}, compare rows with the frame
+     * as ORDER-INSENSITIVE multisets of normalized cells (shared by the
+     * replay oracle and the session-direct verify). */
+    private static @com.legend.Nullable String goldenRowsCompare(Statement st,
+            String goldenSql, ExecutionResult.Tabular tab,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode)
+            throws SQLException {
                 List<String> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
@@ -238,7 +295,7 @@ public final class H2Verify {
                             + tab.columns().size(), null);
                 }
                 List<String> mine = new ArrayList<>();
-                for (Row r : ours.rows()) {
+                for (Row r : tab.rows()) {
                     StringBuilder row = new StringBuilder();
                     for (int i = 0; i < r.values().size(); i++) {
                         if (i > 0) {
@@ -257,10 +314,6 @@ public final class H2Verify {
                         + theirs.size() + " row(s) " + head(theirs)
                         + ", our pipeline gave " + mine.size() + " row(s) "
                         + head(mine);
-            }
-        } catch (SQLException e) {
-            throw new Unverifiable("h2 connection: " + e.getMessage(), e);
-        }
     }
 
     private static String head(List<String> rows) {
