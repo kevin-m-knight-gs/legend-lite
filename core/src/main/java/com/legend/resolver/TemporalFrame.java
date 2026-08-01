@@ -285,6 +285,13 @@ final class TemporalFrame {
      * column read (#32 part 2). */
     private final Map<String, TypedSpec> deferredOuterSubDates =
             new java.util.LinkedHashMap<>();
+    /** Heads whose outer-dated window RODE THE JOIN ON (the
+     * applyJoinTemporalFilters composition) — the frame-WHERE channel
+     * ({@link #applyOuterNavDateFilters}) must skip them: a WHERE copy
+     * of the same window kills the LEFT semantics (W40: the id=1
+     * NULL-classification row must survive). */
+    private final java.util.Set<String> onWindowedHeads =
+            new java.util.LinkedHashSet<>();
 
     /**
      * {@link #stampForClass} EXCEPT when the context's single-dimension
@@ -1007,6 +1014,13 @@ final class TemporalFrame {
             if (odn == null) {
                 continue;
             }
+            // the join-ON channel already windowed this head — a WHERE
+            // copy over the joined frame would drop the head's LEFT NULL
+            // rows (W40: engine keeps [1|<null>]); the two channels are
+            // EXCLUSIVE per head
+            if (onWindowedHeads.contains(head)) {
+                continue;
+            }
             // SYNTHETIC identities (product#d0, the lifted-head suffix) key
             // the SPEC and their OWN join; bindings speak the REAL
             // property. NEVER fall back to another identity's join — the
@@ -1639,6 +1653,7 @@ final class TemporalFrame {
                     String outerCol = outerColumnDate(specs.get(chainHead), cs,
                             (Type.RelationType) j.left().info().type());
                     if (outerCol != null) {
+                        onWindowedHeads.add(chainHead);
                         TypedSpec processedLeft = applyJoinTemporalFilters(
                                 j.left(), cs, navPrefixToClass,
                                 navPrefixToChain, midPrefixToChain,
@@ -2276,15 +2291,31 @@ final class TemporalFrame {
      */
     TypedSpec filterMilestonedJoinTargets(TypedSpec n,
             TemporalContext c) {
+        return filterMilestonedJoinTargets(n, c, null);
+    }
+
+    /** {@code chainPrefix} form (the nav-composite materialization): an
+     * OUTER-READ context date cannot stamp a slot target in-pipe
+     * ({@link #stampByOwnBlocks} skips it) — REGISTER the deferred
+     * window under {@code <chainPrefix>.<alias>} so the head's join-ON
+     * composes it over the slot's prefixed milestone columns (the
+     * physical-slot form of {@link #stampForClassOrDefer}; the silent
+     * skip fanned classification versions — W40). */
+    TypedSpec filterMilestonedJoinTargets(TypedSpec n,
+            TemporalContext c, @com.legend.Nullable String chainPrefix) {
         if (n instanceof TypedJoin j) {
             TypedSpec right = j.right();
             if (right instanceof TypedTableReference) {
                 right = stampByOwnBlocks(right, c, "nested join target");
+                if (chainPrefix != null && j.prefix().isPresent()) {
+                    deferOuterSlotWindows(j.right(), c, chainPrefix,
+                            j.prefix().orElseThrow());
+                }
             }
             return new TypedJoin(
-                    filterMilestonedJoinTargets(j.left(), c), right,
-                    j.kind(), j.condition(), j.prefix(), j.frameName(),
-                    j.info());
+                    filterMilestonedJoinTargets(j.left(), c, chainPrefix),
+                    right, j.kind(), j.condition(), j.prefix(),
+                    j.frameName(), j.info());
         }
         // SLOT form of the same rule (the view-propagation golden): an
         // UNEXPANDED slot's raw table target stamps by its own blocks —
@@ -2295,9 +2326,14 @@ final class TemporalFrame {
                 && js.target() instanceof TypedTableReference) {
             TypedSpec st = stampByOwnBlocks(js.target(), c,
                     "slot join target");
+            if (chainPrefix != null) {
+                deferOuterSlotWindows(js.target(), c, chainPrefix,
+                        js.alias() + "_");
+            }
             return st == js.target() ? js
                     : new com.legend.compiler.spec.typed.TypedJoinSlot(
-                            filterMilestonedJoinTargets(js.source(), c),
+                            filterMilestonedJoinTargets(js.source(), c,
+                                    chainPrefix),
                             js.alias(), st, js.condition(), js.frameName(),
                             js.info());
         }
@@ -2306,11 +2342,34 @@ final class TemporalFrame {
         java.util.List<TypedSpec> mapped = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec m = filterMilestonedJoinTargets(k, c);
+            TypedSpec m = filterMilestonedJoinTargets(k, c, chainPrefix);
             changed |= m != k;
             mapped.add(m);
         }
         return changed ? n.withChildren(mapped) : n;
+    }
+
+    /** Register deferred windows for a converted SLOT's raw table target
+     * whose own-dimension context date is an OUTER read — mirrors the
+     * {@link #stampByOwnBlocks} skip exactly: every dimension it skips
+     * for out-of-scope reads defers here instead of dropping. */
+    private void deferOuterSlotWindows(TypedSpec target, TemporalContext c,
+            String chainPrefix, String prefix) {
+        if (c.isEmpty()) {
+            return;
+        }
+        String alias = prefix.endsWith("_")
+                ? prefix.substring(0, prefix.length() - 1) : prefix;
+        for (MilestoningStrategy dim : List.of(MilestoningStrategy.PROCESSING,
+                MilestoningStrategy.BUSINESS)) {
+            if (!tableHasBlock(target, dim) || c.rangeAppliesTo(dim)) {
+                continue;
+            }
+            TypedSpec dimDate = c.dateFor(dim);
+            if (dimDate != null && singleVarChain(dimDate) != null) {
+                deferWindow(chainPrefix + "." + alias, dim, target, dimDate);
+            }
+        }
     }
 
     /** Any table scan in the pipeline carrying a SNAPSHOT milestoning block. */

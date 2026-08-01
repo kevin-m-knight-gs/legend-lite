@@ -102,16 +102,16 @@ public final class H2Verify {
         if (!(ours instanceof ExecutionResult.Tabular tab)) {
             throw new Unverifiable("non-tabular result frame", null);
         }
-        // ENUM-typed frames stay declined PENDING a witnessed
-        // investigation (task #103 c40): deleting this arm exposed
-        // testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass
-        // — golden-on-H2 [1|<null>, 2|STOCK] vs our frame FOUR
-        // duplicated [2|STOCK] rows and NO id=1 row, which a LEFT JOIN
-        // from OrderTable cannot produce from the dumped SQL; the
-        // compared frame appears not to be that query's. A REAL latent
-        // divergence is behind this decline — investigate before
-        // retiring the arm (the original post-transform rationale IS
-        // stale: c31 moved enum decode into SQL on both sides).
+        // ENUM-typed frames decline because SOME frames decode enums
+        // POST-SQL: the SQL (ours or golden) selects the raw source code
+        // while the compared frame carries decoded names — a LAYER
+        // mismatch, not a divergence (c42 witnesses: the 4 denorm/
+        // multigrain tests compare [.|1] raw vs [.|CITY] decoded, plus 6
+        // advisory goldens selecting raw codes). Frames whose decode IS
+        // in the SQL (CASE emission — the W40 family) verified CLEAN
+        // when probed (milestoning h2-exec 51/0 with this arm bypassed);
+        // retiring the arm for real means replaying H2 rows through the
+        // SAME post-SQL decode transform the frame ran — its own rung.
         for (com.legend.exec.Column c : tab.columns()) {
             if (c.pureType()
                     instanceof com.legend.compiler.element.type.Type.EnumType) {

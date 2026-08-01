@@ -520,3 +520,57 @@ engine's parent-copy carry if (1)+(3) alone don't converge rows.
 Engine reference SQL verbatim at testBusinessDateMilestoning.pure:820
 (and :821 for the ->adjust variant). Family: task #32 non-literal
 dates (7 tests). Witness gate: golden-on-H2 [1|<null>, 2|STOCK].
+
+## W40 witness FIXED (2026-07-31, c42) — flat engine shape, zero regressions
+
+Root causes found by stack-instrumenting WhereMerge.merge + the ON
+window builder (both prints removed):
+(1) THE WHERE COPY: TemporalFrame.applyOuterNavDateFilters (form 2,
+    StoreResolver:2857) planted the outer-nav window as an UNSTAMPED
+    frame filter — while applyJoinTemporalFilters' outerCol arm had
+    ALREADY composed the same window into the head's join ON
+    (outerColumnDate resolves the nav read against the materialized
+    left row: outerCol=orderDetails_settlementDate). The two channels
+    both fired for the same head. FIX: `onWindowedHeads` set on
+    TemporalFrame — the ON site records the chain head; the frame-
+    WHERE channel skips recorded heads (channels now EXCLUSIVE per
+    head; the WHERE channel stays for routes that never reach the ON
+    composition — grouped/materialize).
+(2) NOT NEEDED — with (1)+(3) the flat shape row-converges (one
+    detail per order in the corpus data; the engine's parent-copy
+    subselect and our flat ON placement are row-equivalent here).
+(3) THE MISSING CLASSIFICATION WINDOW: classificationType maps via a
+    PHYSICAL joinslot (@Product_Classification + EnumerationMapping)
+    inside the Product composite. stampByOwnBlocks:230 skips OUTER-
+    READ context dates assuming "the join-ON composition owns their
+    window" — true for class-typed sub-hops (stampForClassOrDefer
+    registers a deferred window) but NOTHING registered for physical
+    slots: silent version fan (4 STOCK versions = the x4 dupes). FIX:
+    filterMilestonedJoinTargets gained a chainPrefix overload
+    (threaded from NavMaterializer.stampSlotTargets); its join/slot
+    arms call the new deferOuterSlotWindows — every dimension
+    stampByOwnBlocks skips for out-of-scope reads now registers
+    deferWindow(chainPrefix.alias). hoistDeferredOuterSubJoins then
+    consumed the entry and emitted the ENGINE'S EXACT FLAT SHAPE:
+    classification lifted to a top-level sibling LEFT join, window
+    correlated to t1.settlementDate in ITS OWN ON.
+RESULT SQL: OrderTable LEFT JOIN OrderDetails LEFT JOIN Product (ON
+carries product window vs t1.settlementDate) LEFT JOIN
+ProductClassification (ON carries type=type AND classification window
+vs t1.settlementDate). Rows: [1|<null>, 2|STOCK] — golden-equal.
+Gates: core 1573, sweep 2180 BYTE-IDENTICAL scoreboard, h2-exec
+289/0/135, PCT 1109. Milestoning family 209/224 with the enum arm
+bypassed: h2-exec 51 verified 0 diverged — the witness replays clean.
+
+ENUM-ARM RETIREMENT ATTEMPTED AND REVERTED (honest census): removing
+H2Verify's enum decline exposed TWO classes (10 FAILs, all
+comparison-layer artifacts, not row bugs): (a) 6 advisory goldens
+selecting RAW enum codes (engine decodes post-SQL; golden-on-H2 rows
+[.|1] vs our decoded frame [.|CITY]); (b) 4 M1 replays where OUR OWN
+byte-matched SQL selects the raw code but the compared frame is
+post-transform (testDenormMappingOneToManyProjectWithEnum(+2),
+testProjectPersonWithJoinToAddress). The arm's TRUE rationale is the
+POST-SQL-DECODE layer mismatch, not "enum columns are unverifiable"
+— decode-in-SQL frames (the W40/CASE family) verify clean. REAL
+retirement = replay H2 rows through the same post-SQL decode
+transform the frame ran; queued as its own rung (task #103).

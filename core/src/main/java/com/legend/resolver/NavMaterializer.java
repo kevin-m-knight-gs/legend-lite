@@ -319,13 +319,8 @@ final class NavMaterializer {
                     subCs.bindings(),
                     composeSubNavPrefixes(p, sm.getValue().subNavs())));
         }
-        TypedSpec pipe =
-                !slotCtx.isEmpty() && temporal.hasMilestonedSlotTarget(t.pipeline())
-                // milestoned SLOT-TARGET aliases filter by the hop context —
-                // per each table's OWN dimension (cross-dimension takes
-                // nothing; audit 13's own-dimension rule, now structural)
-                ? temporal.filterMilestonedJoinTargets(matM.pipeline(), slotCtx)
-                : matM.pipeline();
+        TypedSpec pipe = stampSlotTargets(temporal, t, matM, slotCtx,
+                chainPrefix);
         pipe = foldAssocSubs(temporal, t, pipe, subTree, assocSubLeaves,
                 chainPrefix);
         pipe = foldExtraSubIdentities(temporal, mappingFqn, t, pipe, subTree,
@@ -337,6 +332,21 @@ final class NavMaterializer {
     }
 
 
+
+    /** Milestoned SLOT-TARGET aliases filter by the hop context — per
+     * each table's OWN dimension (cross-dimension takes nothing; audit
+     * 13's own-dimension rule, now structural). The chain prefix lets an
+     * OUTER-READ hop date register DEFERRED windows for slots it cannot
+     * stamp in-pipe (W40). */
+    private static TypedSpec stampSlotTargets(TemporalFrame temporal,
+            ClassSource t, Pipelines.Materialized matM,
+            TemporalContext slotCtx, @com.legend.Nullable String chainPrefix) {
+        return !slotCtx.isEmpty()
+                && temporal.hasMilestonedSlotTarget(t.pipeline())
+                ? temporal.filterMilestonedJoinTargets(matM.pipeline(),
+                        slotCtx, chainPrefix)
+                : matM.pipeline();
+    }
 
     /** ONE demanded sub-nav target pipeline: recursive materialization,
      * lifted-pred application, per-hop temporal stamping (the materialize
