@@ -293,6 +293,44 @@ public final class Compiler {
      * &mdash; the caller-supplied-connection path) defaults to DuckDB, the
      * reference dialect.
      */
+    /**
+     * H5.4 RECONCILIATION (H2_BACKEND.md §12 step 10): the dialect binds
+     * to the ACTUAL SESSION, never to runtime metadata alone — a dialect
+     * paired with a connection it does not render for is silent
+     * corruption. An H2 session selects the H2 EXECUTION dialect and
+     * requires every declared relational connection type to be H2 (LOUD
+     * mismatch otherwise); any other session resolves exactly as before
+     * (declared-H2-on-DuckDB stays the ANSI-subset DuckDB rendering —
+     * today's reference path, unchanged).
+     */
+    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection) throws java.sql.SQLException {
+        String product = connection.getMetaData().getDatabaseProductName();
+        if (!"H2".equals(product)) {
+            return dialectOf(ctx, runtimeFqn);
+        }
+        if (runtimeFqn != null) {
+            var rt = ctx.findRuntime(runtimeFqn);
+            if (rt.isPresent()) {
+                for (String connFqn : new java.util.TreeSet<>(
+                        rt.get().connectionBindings().values())) {
+                    var decl = ctx.findConnection(connFqn);
+                    if (decl.isPresent() && decl.get().databaseType()
+                            != com.legend.model.ConnectionDefinition
+                                    .DatabaseType.H2) {
+                        throw new com.legend.error.NotImplementedException(
+                                "session is H2 but connection '" + connFqn
+                                + "' of runtime '" + runtimeFqn
+                                + "' declares " + decl.get().databaseType()
+                                + " — dialect/connection mismatch");
+                    }
+                }
+            }
+        }
+        return new com.legend.sql.dialect.H2();
+    }
+
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.Nullable String runtimeFqn) {
         if (runtimeFqn == null) {
@@ -457,7 +495,7 @@ public final class Compiler {
             java.util.function.@com.legend.Nullable Consumer<String> rawSqlFailureSink)
             throws java.sql.SQLException {
         return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn), connection,
+                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
                 rawSqlFailureSink);
     }
 

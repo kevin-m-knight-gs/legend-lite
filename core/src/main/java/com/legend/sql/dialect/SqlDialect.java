@@ -19,4 +19,12 @@ public interface SqlDialect {
         return jdbcValue;
     }
 
+    /** True when corpus-authored raw H2 statements execute NATIVELY on
+     * this dialect's session — the {@code RawSqlBoundary.h2ToDuckDb}
+     * rewrite is a DUCKDB-TARGET adaptation and must be identity here
+     * (H2_BACKEND.md §12 step 12). */
+    default boolean rawH2IsNative() {
+        return false;
+    }
+
 }

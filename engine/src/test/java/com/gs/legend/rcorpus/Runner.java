@@ -28,6 +28,32 @@ import java.util.regex.Pattern;
  */
 public final class Runner {
 
+    /** {@code -Drcorpus.backend=h2}: the PORTABILITY SWEEP (H2_BACKEND.md
+     * §12 step 10) — every test opens a FRESH in-memory H2 with the
+     * engine's session settings instead of DuckDB; the dialect follows
+     * the session at the Compiler H5.4 seam, and raw corpus H2 executes
+     * natively (no boundary translation). The DuckDB reference path is
+     * byte-for-byte untouched when the flag is absent. */
+    static final boolean H2_BACKEND =
+            "h2".equalsIgnoreCase(System.getProperty("rcorpus.backend", ""));
+    private static final java.util.concurrent.atomic.AtomicInteger
+            SESSION_IDS = new java.util.concurrent.atomic.AtomicInteger();
+
+    /** ONE session factory — dialect and connection bind together. */
+    static Connection openSession() throws java.sql.SQLException {
+        if (H2_BACKEND) {
+            return DriverManager.getConnection("jdbc:h2:mem:rcorpus"
+                    + SESSION_IDS.getAndIncrement()
+                    + com.legend.harness.H2Verify.SETTINGS, "sa", "");
+        }
+        Connection conn = DriverManager.getConnection("jdbc:duckdb:");
+        try (var st = conn.createStatement()) {
+            st.execute("SET TimeZone='UTC'");
+            st.execute("SET threads=1");
+        }
+        return conn;
+    }
+
     /** Class-FQN -> defining file (the corpus-wide index, incl. the M2M
      * platform test root) — set by the runner harness; null = disabled. */
     public java.util.function.Function<String, java.nio.file.Path> classLookup;
@@ -987,11 +1013,7 @@ public final class Runner {
         try {
             com.legend.compiler.element.ModelContext ctx =
                     moduleContextFor(moduleRefs, fileOnly);
-            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
-                try (var st = conn.createStatement()) {
-                    st.execute("SET TimeZone='UTC'");
-                    st.execute("SET threads=1");
-                }
+            try (Connection conn = openSession()) {
                 List<String> ledger = new ArrayList<>();
                 com.legend.harness.TestBody.Outcome o =
                         com.legend.harness.TestBody.run(ctx, body,
@@ -1172,11 +1194,7 @@ public final class Runner {
         try {
             com.legend.compiler.element.ModelContext ctx =
                     moduleContextFor(moduleRefs, fileOnlyRefs);
-            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
-                try (var st = conn.createStatement()) {
-                    st.execute("SET TimeZone='UTC'");
-                    st.execute("SET threads=1");
-                }
+            try (Connection conn = openSession()) {
                 List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
                         ctx, conn);
                 seedFailures.addAll(failedSeeds);
@@ -1572,8 +1590,11 @@ public final class Runner {
                 conns.append(db.qualifiedName()).append(": [ c: rcorpus::Conn ]");
             }
         }
+        // the synthesized driver connection DESCRIBES THE ACTUAL SESSION —
+        // the H5.4 reconciliation is only honest if the declaration is
         parseable.add(new com.legend.Compiler.ModelSource("rcorpus-runtime.pure",
-                "RelationalDatabaseConnection rcorpus::Conn { type: DuckDB;"
+                "RelationalDatabaseConnection rcorpus::Conn { type: "
+                        + (H2_BACKEND ? "H2" : "DuckDB") + ";"
                         + " specification: InMemory { }; auth: NoAuth { }; }\n"
                         + "Runtime rcorpus::Rt { mappings: [ "
                         + String.join(", ", mappingRefs)
@@ -1656,7 +1677,10 @@ public final class Runner {
         List<String> failedSeeds = new ArrayList<>();
         for (String sql : allSeeds) {
             for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
-                String stmt = com.legend.exec.RawSqlBoundary.h2ToDuckDb(raw);
+                // module DDL adapts to the SESSION: raw for the H2 sweep,
+                // the DuckDB-target boundary translation otherwise
+                String stmt = H2_BACKEND ? raw
+                        : com.legend.exec.RawSqlBoundary.h2ToDuckDb(raw);
                 // prepare(): DuckDB JDBC masks Statement.execute errors
                 try (var st = conn.prepareStatement(stmt)) {
                     st.execute();

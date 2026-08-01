@@ -36,6 +36,11 @@ public final class H2 extends AnsiSqlRenderer {
     }
 
     @Override
+    public boolean rawH2IsNative() {
+        return true;
+    }
+
+    @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         // integer division: the base renderer spells DuckDB's `a // b`,

@@ -2845,6 +2845,15 @@ final class StatementExecutor {
      * evaluation. The blob is dialect-adapted, split on top-level
      * {@code ;}, and executed statement by statement.
      */
+    /** Corpus-authored raw H2 adapts to the SESSION: identity on a
+     * dialect that executes H2 natively, the boundary translator for the
+     * DuckDB reference target (H2_BACKEND.md §12 step 12 — the rewrite
+     * is a DuckDB-target adaptation, never generic). */
+    private static String adaptRaw(String sql, ExecEnv env) {
+        return env.dialect().rawH2IsNative() ? sql
+                : com.legend.exec.RawSqlBoundary.h2ToDuckDb(sql);
+    }
+
     static ExecutionResult executeInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env)
@@ -2855,8 +2864,7 @@ final class StatementExecutor {
         // boundary translator — never a dialect renderer (R0 rule).
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
             try {
-                Executor.executeRaw(env.connection(),
-                        com.legend.exec.RawSqlBoundary.h2ToDuckDb(stmt));
+                Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
             } catch (java.sql.SQLException e) {
                 if (env.rawSqlFailureSink() == null) {
                     throw e;
@@ -2920,9 +2928,9 @@ final class StatementExecutor {
                                 "dropAndCreateTableInDb: no table '" + lookup
                                         + "' in store " + db.fullPath()));
         Executor.executeRaw(connection,
-                com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.dropTable(schema, table)));
+                adaptRaw(Ddl.dropTable(schema, table), env));
         Executor.executeRaw(connection,
-                com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.createTable(def, schema)));
+                adaptRaw(Ddl.createTable(def, schema), env));
         // the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY
         // constraints; our DuckDB DDL deliberately omits them (milestoned
         // re-seeds) — the H2 second target's stream keeps the engine

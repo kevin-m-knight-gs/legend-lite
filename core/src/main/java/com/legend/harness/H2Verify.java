@@ -73,7 +73,10 @@ public final class H2Verify {
     public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
             new java.util.concurrent.atomic.LongAdder();
 
-    private static final String SETTINGS =
+    /** The engine's H2 session settings (H2Manager parity) — shared with
+     * the {@code -Drcorpus.backend=h2} portability sweep so the replay
+     * oracle and the real backend open IDENTICAL sessions. */
+    public static final String SETTINGS =
             // CASE_INSENSITIVE_IDENTIFIERS mirrors DuckDB's matching —
             // the SAME recorded statements already ran there; quoted
             // model-DDL case vs unquoted corpus-INSERT case must not

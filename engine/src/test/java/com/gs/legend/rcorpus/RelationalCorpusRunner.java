@@ -171,6 +171,35 @@ public class RelationalCorpusRunner {
         // the COMMITTED baseline reads BEFORE the sweep rewrites it
         Map<String, Integer> baseline =
                 readBaseline(Path.of("../docs/RELATIONAL_CORPUS.md"));
+        if (Runner.H2_BACKEND) {
+            // the PORTABILITY SWEEP is a different execution target: its
+            // ledger never clobbers the DuckDB scoreboard and the DuckDB
+            // baseline gate does not apply (H2_BACKEND.md §10 — an H2
+            // FAIL must not touch the DuckDB row)
+            long p = byFamily.values().stream().flatMap(List::stream)
+                    .filter(o -> o.status() == Runner.Status.PASS).count();
+            long n = byFamily.values().stream().mapToLong(List::size).sum();
+            System.out.println("[rcorpus] h2-backend sweep: " + p + "/" + n
+                    + " pass — scoreboard NOT written (DuckDB baseline"
+                    + " untouched)");
+            byFamily.forEach((f, outs) -> {
+                long fp = outs.stream()
+                        .filter(o -> o.status() == Runner.Status.PASS).count();
+                System.out.println("[rcorpus] h2-backend " + f + ": " + fp
+                        + "/" + outs.size() + " pass");
+            });
+            if (!onlyFilters.isEmpty()) {
+                // scoped h2 probe: per-test detail, exactly like the
+                // scoped DuckDB run
+                byFamily.forEach((f, outs) -> outs.stream()
+                        .filter(o -> o.status() != Runner.Status.PASS)
+                        .forEach(o -> System.out.println("[rcorpus]   "
+                                + o.status() + " " + o.test() + ": "
+                                + o.detail())));
+            }
+            System.out.println("[rcorpus] failed seeds: " + seedFails.size());
+            return;
+        }
         if (onlyFilters.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);
