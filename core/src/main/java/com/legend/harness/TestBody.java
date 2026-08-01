@@ -956,12 +956,10 @@ public final class TestBody {
                         ps), lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
                 if (java.util.Objects.equals(golden, sql)) {
-                    // MILESTONE 1 (H2_BACKEND.md §12 step 5): the matched
-                    // text IS our rendering — execute it on the H2 second
-                    // target and hold its rows to our DuckDB rows. A
-                    // divergence here is a REAL renderer/execution bug
-                    // (the H5.1 class), never advisory; unverifiable
-                    // inputs only count.
+                    // MILESTONE 1 (H2_BACKEND.md §12.5): the matched text
+                    // IS our rendering — execute it on H2, hold its rows
+                    // to our DuckDB rows; a divergence is a REAL renderer
+                    // bug (H5.1 class), never advisory.
                     String h2rows = h2Upgrade(args, lets, execStmts,
                             execVars, execChains, ctx, imports,
                             runtimeFqn, conn);
@@ -996,6 +994,13 @@ public final class TestBody {
     }
 
 
+
+    /** ONE counted decline channel for every h2-replay early-out
+     * (§12.4) — the frozen System.err site lives HERE only. */
+    private static void h2Decline(String reason) {
+        System.err.println("[h2-unverifiable] replay declined: " + reason);
+    }
+
     /** #67: a pure golden-SQL assert upgrades to ROW-VERIFIED when the
      * H2 second target can replay the test's raw seeds (recorded at the
      * RawSqlBoundary — H2-flavored BY DEFINITION) and execute the golden
@@ -1012,6 +1017,13 @@ public final class TestBody {
         if (!H2Verify.ready()
                 || com.legend.exec.RawSqlBoundary.recording() == null
                 || args.size() != 2) {
+            // COUNTED decline (H2_BACKEND.md §12 step 4): these
+            // early-outs were the two silent ADVISORY_MARKER paths —
+            // without the print the sweep's unverifiable total lied low
+            h2Decline(!H2Verify.ready() ? "h2 driver not ready"
+                    : com.legend.exec.RawSqlBoundary.recording() == null
+                            ? "no recorded seed statements"
+                            : "assert arity " + args.size() + " != 2");
             return ADVISORY_MARKER;
         }
         String golden = null;
@@ -1027,6 +1039,8 @@ public final class TestBody {
         String var = actual == null ? null
                 : rootExecVar(actual, execVars, lets);
         if (golden == null || var == null) {
+            h2Decline(golden == null ? "no foldable golden string"
+                    : "no root exec variable in the actual arg");
             return ADVISORY_MARKER;
         }
         try {
@@ -1043,7 +1057,7 @@ public final class TestBody {
             // back to advisory. The fallback stays (pre-#67 status quo;
             // hardening it to FAIL waits on the CsvSeed producer fix),
             // but every sweep now COUNTS it: grep '\[h2-unverifiable\]'.
-            System.err.println("[h2-unverifiable] replay/verify failed: "
+            h2Decline("replay/verify failed: "
                     + String.valueOf(e.getMessage()).replace('\n', ' '));
             return ADVISORY_MARKER;
         }

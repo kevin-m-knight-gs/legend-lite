@@ -472,7 +472,14 @@ on it.
 
 **Milestone 1 — connect two halves that already exist. Refactors nothing.**
 > **MEASURED (2026-07-31, landed):** `h2-exec (our SQL on H2): 289 verified, 0 diverged,
-> 135 unverifiable` — corpus-wide, first sweep. Zero divergences: every byte-matched
+> 135 unverifiable` — corpus-wide, first sweep. Unverifiable census (both replay paths):
+> 445 non-tabular frames (the F2 layer gap — class/graph carriers), 18 enum-decoded-column
+> arm (re-verify: c31 moved decode into SQL, the arm may be stale), 6 tempTableForIn_N
+> (engine-RUNTIME temp tables inside the golden — registry entries), 9 'Duplicate column
+> name' (the engine's forked H2 tolerates duplicate columns in derived tables where stock
+> 2.1.214 rejects — §7's fork, registry candidates), 1 legend_h2_extension_base64 UDF
+> golden (registry). The step-2 CsvSeed fix RETIRED the entire ~39-row
+> 'Table already exists' class. Zero divergences: every byte-matched
 > rendering executes on real H2 2.1.214 with rows identical to DuckDB.
 
 > For every corpus test that today produces a **golden-matching `toSQLString(H2)`** and a **tabular**

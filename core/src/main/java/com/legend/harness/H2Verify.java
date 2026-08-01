@@ -199,12 +199,26 @@ public final class H2Verify {
         }
         if (v instanceof Number) {
             try {
-                // 10 significant digits: H2's DECIMAL division carries
-                // ~30 digits where DuckDB's double carries 15 — the
-                // VALUE contract is what row equality means, not the
-                // engine's precision tail
-                return new BigDecimal(v.toString())
-                        .round(new java.math.MathContext(10))
+                BigDecimal d = new BigDecimal(v.toString());
+                // INTEGRAL values compare EXACTLY — the old blanket
+                // MathContext(10) made two epoch-millis differing in the
+                // last 3 digits compare EQUAL (H2_BACKEND.md §12 step 3:
+                // a silent false PASS on BOTH sides of the oracle).
+                if (d.stripTrailingZeros().scale() <= 0) {
+                    return d.stripTrailingZeros().toPlainString();
+                }
+                // FLOATING values keep a CROSS-ENGINE tolerance of 10
+                // significant digits: H2 divides in exact DECIMAL,
+                // DuckDB in binary double, and the tails genuinely
+                // diverge around digit 11-12 WITH rounding-boundary
+                // straddles (witness: testUnionWithWtdAndPwa raw
+                // ...394497 vs ...39455 rounds apart at BOTH 11 and 12).
+                // Fixed-digit normalization cannot separate 1-ulp tails
+                // from real sub-1e-10 differences; 10 digits is the
+                // empirically-clean cross-engine floor. The REAL defect
+                // (integral collapse — epoch-millis comparing equal) is
+                // fixed above by the exact integral arm.
+                return d.round(new java.math.MathContext(10))
                         .stripTrailingZeros().toPlainString();
             } catch (NumberFormatException e) {
                 return v.toString();
