@@ -71,7 +71,52 @@ SqlWriter, Dialect = data. This leg adds ONE pass and a node family.
   form of tenet #1 — the same freeze discipline as string-dispatch/110
   and System.err/40.
 
-## 2. Rungs (each: fix → core 1573 → DuckDB sweep 2180 byte-stable →
+## 2. Precompiled services with parameters — the bind-time face of the
+same nodes (IMPORTANT, user-set scope)
+
+legend-lite compiles per-execution today (literals baked at compile
+time). The service pattern — compile ONCE, execute many times with
+parameter values — must work WITHOUT a templating layer and WITHOUT a
+second compiler. The design:
+
+- **The precompiled artifact is a TYPED PLAN, not a text template.**
+  `SqlExpr.PlanParam` (already in the IR) carries the declared Pure
+  type, multiplicity, and enum-ness of each parameter position. Per
+  dialect, the plan renders ONCE into SQL with real JDBC bind
+  placeholders; execution binds values via `PreparedStatement`. No
+  string splicing anywhere — which buys injection safety, database-side
+  plan caching, and no re-parse per execution (all three are what the
+  engine's Freemarker `${...}` text-templating gives up). For
+  multi-backend deployment the artifact is the PRE-DIALECT MIR: one
+  compilation, N rendered statement texts sharing one bind map — the
+  standalone-SQL-library story (LEGEND_SQL_VISION.md).
+- **Collection parameters are the SAME semantic nodes** (`Membership`,
+  `CollectionSource`) with the value arriving at bind time — so the
+  strategy pass picks the BIND FORM per dialect exactly as it picks the
+  literal form:
+  1. **array bind** where the backend takes array-typed parameters
+     (DuckDB yes; H2 documents `IN(UNNEST(?))` with an array parameter
+     — PROBE before trusting, standing rule);
+  2. **arity-bucketed expansion** otherwise — `IN (?,?,?)` rendered per
+     collection size class, one cached PreparedStatement per bucket;
+  3. **temp-table join above a size threshold** — the engine's
+     tempTableForIn, reframed from registered wall to the deliberate
+     large-N strategy: the EXECUTOR creates/loads/drops a local temp
+     table, the precompiled query joins it. Values still evaluate in
+     SQL (tenet #4); only the loading is orchestration.
+- **The engine's other template jobs map to typed equivalents**:
+  `collectionSize` validation guards → the executor checks bound values
+  against the PlanParam's declared multiplicity BEFORE binding; enum
+  parameters bind their SOURCE code (`Status.ACTIVE` → `'A'`) via the
+  enumeration mapping at bind time — the c46 `enumDecodeFor` machinery
+  run in the inverse direction; milestoning date params are scalar
+  binds.
+- **Rung impact**: R2 (`Membership`) designs its node with the
+  parameter case IN SCOPE from day one — the node must not assume its
+  collection operand is compile-time-known. R3 (`CollectionSource`)
+  likewise for parameter-sourced collections.
+
+## 3. Rungs (each: fix → core 1573 → DuckDB sweep 2180 byte-stable →
 PCT 1109 → h2 sweep (scoreboard must rise) → differential oracle green →
 commit+push)
 
@@ -85,8 +130,9 @@ commit+push)
   engine's grouped-subselect form is already implemented for chained-nav
   aggregates (#77) — this rung generalizes it to a strategy rule.
 - **R2 — `Membership`** (LIST_CONTAINS 30 + IN-over-collection share;
-  interplay with the registered tempTableForIn gap: the engine's temp
-  table route stays a wall; literal/join forms cover the corpus share).
+  the node's collection operand may be literal OR PlanParam — §2's bind
+  strategies are this node's rules; tempTableForIn graduates from
+  registered wall to the large-N bind strategy when §2 lands).
 - **R3 — `CollectionSource`** (UNNEST 792 — the giant; probed H2 forms:
   `VALUES`, UNION-of-literals; the engine's per-construct shapes read at
   rung head). Expect this rung to split into sub-rungs by source kind
@@ -99,7 +145,7 @@ commit+push)
   or budget-counted wall, decided per construct with the engine as the
   bar; zero silent drops).
 
-## 3. Exit criteria
+## 4. Exit criteria
 
 - Purity guardrail at ZERO and frozen (tenet #1 mechanically closed).
 - h2-backend sweep ≥ 80% of the DuckDB baseline's passing set, with the
