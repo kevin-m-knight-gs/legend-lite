@@ -165,6 +165,39 @@ public final class CarrierStrategies extends SqlRewriter {
                 && rc.extras().size() == 1 && !al.elements().isEmpty()) {
             return concatJoin(al.elements(), transform, rc.extras().get(0));
         }
+        // SINGLETON-FLATTEN UNWRAP (witnessed R4: calendar date ranges —
+        // each row carries a ONE-element ArrayLit; FLATTEN(collect) of
+        // singletons IS a collect of the elements): rewrite the inner
+        // projection to the bare element and drop the FLATTEN, then the
+        // generic collect rules apply (MIN/STRING_AGG/sorted...).
+        if (coll instanceof SqlExpr.Call ufl
+                && ufl.fn() == com.legend.sql.SqlFn.LIST_FLATTEN
+                && ufl.args().size() == 1
+                && ufl.args().get(0) instanceof SqlExpr.ScalarSubquery usq
+                && usq.subquery() instanceof SqlSelect usel
+                && usel.projections().size() == 1
+                && usel.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer ucollect
+                && ucollect.fn() == SqlAgg.Fn.LIST
+                && !ucollect.distinct()
+                && ucollect.args().size() == 1
+                && ucollect.args().get(0) instanceof SqlExpr.Column ucol
+                && usel.from() instanceof com.legend.sql.SqlSource.Subselect
+                        usub
+                && usub.inner() instanceof SqlSelect uinner
+                && uinner.projections().size() == 1
+                && ucol.name().equals(uinner.projections().get(0).alias())
+                && uinner.projections().get(0).expr()
+                        instanceof SqlExpr.ArrayLit ual
+                && ual.elements().size() == 1) {
+            SqlSelect newInner = uinner.withProjections(
+                    List.of(new SqlSelect.Projection(ual.elements().get(0),
+                            uinner.projections().get(0).alias())),
+                    uinner.outputs());
+            coll = new SqlExpr.ScalarSubquery(usel.withFrom(
+                    new com.legend.sql.SqlSource.Subselect(newInner,
+                            usub.alias(), usub.frameName())));
+        }
         // ROW-MAJOR cell collect (witnessed R1c: rowMajorCellList —
         // FLATTEN(collect-of-ArrayLit)): fuse to STRING_AGG over the
         // per-row CONCAT of transformed cells, sep between rows AND
