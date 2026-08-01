@@ -14,7 +14,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 59 | 15 | 11 | 25 | 0 |
-| functions/tests | 258 | 227 | 8 | 18 | 5 | 80 |
+| functions/tests | 258 | 227 | 8 | 18 | 5 | 79 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 132 | 6 | 14 | 3 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 3 | 1 | 1 | 1 | 0 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
-| milestoning/tests | 224 | 209 | 3 | 2 | 10 | 35 |
+| milestoning/tests | 224 | 209 | 3 | 2 | 10 | 33 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 | 0 |
@@ -75,7 +75,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2180** | 71 | 153 | 134 | 258 |
+| **total** | 2538 | **2180** | 71 | 153 | 134 | 255 |
 
 ### mapping walls (dropped at assembly)
 

@@ -637,3 +637,24 @@ enumeration 0/26 is 20 carrier walls (NOT an enum-decode issue);
 executionPlan's gap is plan-TEXT asserts + 4 ArrayIndexOutOfBounds (real
 bug, unfiled); postprocessor is golden-text contracts (0/30 on DuckDB
 too — not an H2 gap).
+
+## Enum-decode replay + M1 gate pinning (2026-08-01, c46)
+
+- **The enum-decode replay rung landed**: `H2Verify.enumDecodeFor`
+  recovers, per EnumType frame column, the SAME source→name transform
+  the frame ran post-SQL — the exec call's mapping (import-wildcard
+  resolved) supplies its EnumerationMapping; String/Integer source
+  values decode, cross-enum refs keep the counted decline for the WHOLE
+  column (no half-decoded comparisons). `verify` applies the decode to
+  the H2 replay rows only. The blanket enum arm is RETIRED — declines
+  now happen per-column and only when underivable.
+- M1: 289 → **296 verified, 0 diverged, 128 unverifiable**; the c42
+  witnesses (denorm/multigrain) replay clean; 3 passes upgraded from
+  advisory-sqldiff to real row verification (scoreboard sqldiff-pass
+  258 → 255, pass/fail/error/shape identical).
+- **M1 gate pinned** (step 13's gate half): a full DuckDB sweep FAILS
+  on any M1 divergence or a verified count under the 296 floor.
+
+Remaining step-13 half: the declared-gap REGISTRY rows (tempTableForIn
+6, Duplicate-column 9, base64 1) with §9 semantics — needs per-reason
+unverifiable counters (single M1_UNVERIFIABLE today), next cycle.

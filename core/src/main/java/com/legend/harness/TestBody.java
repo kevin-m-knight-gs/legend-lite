@@ -1050,7 +1050,8 @@ public final class TestBody {
                     runtimeFqn, conn);
             return H2Verify.verify(
                     com.legend.exec.RawSqlBoundary.recording(), golden,
-                    rows.result());
+                    rows.result(), H2Verify.enumDecodeFor(rows.result(),
+                            actual, lets, execStmts, ctx, imports));
         } catch (java.sql.SQLException | RuntimeException e) {
             // audit (TENET V2.1): this decline was visible ONLY under
             // LL_H2_DEBUG — a row-verification opportunity silently fell

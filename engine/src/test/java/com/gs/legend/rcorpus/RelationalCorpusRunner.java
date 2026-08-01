@@ -244,6 +244,20 @@ public class RelationalCorpusRunner {
                 + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
                 + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
                 + " unverifiable");
+        // M1 GATE PINNING (H2_BACKEND.md §12 step 13): on a FULL sweep,
+        // any divergence fails the build (they already FAIL per-test —
+        // this pins the aggregate against silent scoring drift), and the
+        // verified count must hold its floor (289 at c43, 296 after the
+        // c46 enum-decode rung; ratchet on deliberate gains).
+        if (onlyFilters.isEmpty()) {
+            org.junit.jupiter.api.Assertions.assertEquals(0,
+                    com.legend.harness.H2Verify.M1_DIVERGED.sum(),
+                    "M1 h2-exec divergences on a full sweep");
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 296,
+                    "M1 h2-exec verified fell below the 296 floor: "
+                    + com.legend.harness.H2Verify.M1_VERIFIED.sum());
+        }
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (onlyFilters.isEmpty()) {

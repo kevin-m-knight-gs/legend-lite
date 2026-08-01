@@ -96,7 +96,8 @@ public final class H2Verify {
      * evaluate the inputs at all.
      */
     public static @com.legend.Nullable String verify(List<String> seeds, String goldenSql,
-            ExecutionResult ours) {
+            ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
         if (!READY) {
             throw new Unverifiable("h2 driver not on classpath", null);
         }
@@ -105,19 +106,16 @@ public final class H2Verify {
         if (!(ours instanceof ExecutionResult.Tabular tab)) {
             throw new Unverifiable("non-tabular result frame", null);
         }
-        // ENUM-typed frames decline because SOME frames decode enums
-        // POST-SQL: the SQL (ours or golden) selects the raw source code
-        // while the compared frame carries decoded names — a LAYER
-        // mismatch, not a divergence (c42 witnesses: the 4 denorm/
-        // multigrain tests compare [.|1] raw vs [.|CITY] decoded, plus 6
-        // advisory goldens selecting raw codes). Frames whose decode IS
-        // in the SQL (CASE emission — the W40 family) verified CLEAN
-        // when probed (milestoning h2-exec 51/0 with this arm bypassed);
-        // retiring the arm for real means replaying H2 rows through the
-        // SAME post-SQL decode transform the frame ran — its own rung.
-        for (com.legend.exec.Column c : tab.columns()) {
-            if (c.pureType()
-                    instanceof com.legend.compiler.element.type.Type.EnumType) {
+        // ENUM-typed frames compare through the SAME decode the frame
+        // ran: some queries select the RAW source code (the engine
+        // decodes post-SQL) while the frame carries decoded names — the
+        // caller supplies the per-column source->name map (c46, the
+        // enum-decode replay rung; c42 witnesses in the ledger). A
+        // column with NO derivable map keeps the counted decline.
+        for (int i = 0; i < tab.columns().size(); i++) {
+            if (tab.columns().get(i).pureType()
+                    instanceof com.legend.compiler.element.type.Type.EnumType
+                    && !enumDecode.containsKey(i)) {
                 throw new Unverifiable(
                         "enum-decoded column (post-transform rows)", null);
             }
@@ -151,7 +149,13 @@ public final class H2Verify {
                             if (i > 1) {
                                 row.append('|');
                             }
-                            row.append(norm(rs.getObject(i)));
+                            String cell = norm(rs.getObject(i));
+                            // raw source code -> decoded name, the same
+                            // transform the compared frame ran (0-based
+                            // frame column = 1-based JDBC index - 1)
+                            var dec = enumDecode.get(i - 1);
+                            row.append(dec == null ? cell
+                                    : dec.getOrDefault(cell, cell));
                         }
                         theirs.add(row.toString());
                     }
@@ -195,6 +199,88 @@ public final class H2Verify {
 
     private static String head(List<String> rows) {
         return rows.subList(0, Math.min(rows.size(), 5)).toString();
+    }
+
+    /** The per-column enum decode (frame column index -> raw source
+     * value -> decoded name) for a Tabular frame — the SAME transform
+     * the frame ran post-SQL, recovered from the exec call's MAPPING
+     * (its EnumerationMapping for the column's enum). Columns whose
+     * mapping is underivable get NO entry — {@link #verify} keeps the
+     * counted decline for them (never a guessed decode). */
+    static java.util.Map<Integer, java.util.Map<String, String>> enumDecodeFor(
+            com.legend.exec.@com.legend.Nullable ExecutionResult result,
+            com.legend.model.spec.@com.legend.Nullable ValueSpecification actual,
+            java.util.Map<String, com.legend.model.spec.ValueSpecification> lets,
+            List<com.legend.model.spec.ValueSpecification> execStmts,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.model.ImportScope imports) {
+        if (!(result instanceof ExecutionResult.Tabular tab)) {
+            return java.util.Map.of();
+        }
+        boolean anyEnum = tab.columns().stream().anyMatch(c -> c.pureType()
+                instanceof com.legend.compiler.element.type.Type.EnumType);
+        if (!anyEnum) {
+            return java.util.Map.of();
+        }
+        var exec = ExecCallFinder.find(actual, lets, execStmts);
+        String mappingRef = exec != null && exec.parameters().size() >= 2
+                && exec.parameters().get(1) instanceof
+                        com.legend.model.spec.PackageableElementPtr p
+                ? p.fullPath() : null;
+        if (mappingRef == null) {
+            return java.util.Map.of();
+        }
+        // the pointer carries the SOURCE spelling — resolve simple names
+        // through the test's import wildcards (findLegacyMapping wants
+        // the FQN)
+        String mappingFqn = mappingRef;
+        if (!mappingRef.contains("::")
+                && ctx.findLegacyMapping(mappingRef).isEmpty()) {
+            for (String w : imports.wildcards()) {
+                if (ctx.findLegacyMapping(w + "::" + mappingRef)
+                        .isPresent()) {
+                    mappingFqn = w + "::" + mappingRef;
+                    break;
+                }
+            }
+        }
+        var out = new java.util.LinkedHashMap<Integer,
+                java.util.Map<String, String>>();
+        for (int i = 0; i < tab.columns().size(); i++) {
+            if (!(tab.columns().get(i).pureType() instanceof
+                    com.legend.compiler.element.type.Type.EnumType et)) {
+                continue;
+            }
+            var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
+                    et.fqn());
+            if (em == null) {
+                continue;
+            }
+            var dec = new java.util.LinkedHashMap<String, String>();
+            boolean whole = true;
+            for (var vm : em.valueMappings()) {
+                for (var sv : vm.sourceValues()) {
+                    switch (sv) {
+                        case com.legend.model.EnumerationMapping.SourceValue
+                                .StringValue s ->
+                                dec.put(s.value(), vm.enumValue());
+                        case com.legend.model.EnumerationMapping.SourceValue
+                                .IntegerValue n ->
+                                dec.put(String.valueOf(n.value()),
+                                        vm.enumValue());
+                        // cross-enum source: not decodable here — the
+                        // WHOLE column keeps the decline (a partial map
+                        // would half-decode)
+                        case com.legend.model.EnumerationMapping.SourceValue
+                                .EnumRef ignored -> whole = false;
+                    }
+                }
+            }
+            if (whole) {
+                out.put(i, dec);
+            }
+        }
+        return out;
     }
 
     /** One normalization for BOTH sides: JDBC drivers disagree on exact
