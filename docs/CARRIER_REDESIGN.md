@@ -44,6 +44,53 @@ tail 9. legend-engine passes these same tests on H2 — the walls are OUR
 lowering's DuckDB-native carrier choices, not H2 limits. The engine's SQL
 for each construct is the existence proof and the port source.
 
+## 0b. H2 parity arc (P1–P8) — COMPLETE 2026-08-01
+
+After the carrier exit (1820), the parity arc closed the gap to
+**2148/2538 — 98.5% of DuckDB's 2180** — via intersection-driven rungs
+(h2-only non-pass = h2 sweep minus DuckDB-shared fails; witness one
+test per bucket, probe the H2 spelling, rule for witnessed shapes,
+sequential gates every rung; DuckDB 2180 byte-stable + M1 296/0
+throughout):
+
+- P1 +117: session-direct golden verify — on an H2 backend the session
+  db already holds every table (model-driven DDL included); the
+  seed-replay oracle's "Table not found" declines had turned sql-text
+  asserts into failures (H2Verify.verifyAuto).
+- P2 +52: FORMATDATETIME java.time patterns (H2.formatText — %-codes
+  parsed as garbage) + LIST_LENGTH strategies (literal fold, COUNT(*)).
+- P3 +89: strpos -> LOCATE (swapped args), ends_with -> RIGHT/LENGTH,
+  error() -> SIGNAL (probed lazy under CASE), tdg ORDER BY ordinals.
+- P4 +24: NULL sort placement pinned to the reference (H2 defaults
+  NULLS FIRST asc) + HUGEINT -> NUMERIC(38) + split token count.
+- P5 +19: temporal carrier decode by DECLARED type (JSON has no
+  temporal types) + the ordered-AGGREGATE null pin.
+- P6 +9: structurally-boolean cast text ('true' vs H2's 'TRUE') +
+  reserved `right` alias (stock 2.1.214; the engine's fork is laxer).
+- P7 +7: BOOL_TO_TEXT SEMANTIC node (emitted where the compiler knows
+  the type; per-dialect spelling, DuckDB/EngineStyle byte-stable) +
+  DATEDIFF + anchored REGEXP_LIKE.
+- P8 +11: LEGACY-mode BigDecimal -> Double codec by declared type
+  (H2 returns SUM(DOUBLE) as BigDecimal '1E+1') + bool-vs-text literal
+  coercion ('N' -> false, probed reference behavior).
+
+HONEST CEILING (the remaining 32-test gap, 45 listed incl. flappers):
+- Correlation through a FROM-position derived table (4): witnessed
+  outer refs two subselect levels deep; probed impossible on H2 (no
+  LATERAL through 2.4.240) — the graph-envelope isolation shape.
+- Typed walls (15): struct carrier 6, LIST_CONCAT 3 / LIST_GET 2 /
+  LIST_FILTER 2 / LIST_SORT 1 / UNNEST 1 residual shapes (unwitnessed
+  singleton forms), variant navigation 3+1 (H2 has no JSON field
+  access; engine route is a Java UDF we ban), SUBSEC_MIN %g trim.
+- Forked-H2 leniencies (3): duplicate result columns (registry rows).
+- UDF-only routes (3): to_base64, flatten-in-JSON_ARRAY composition.
+- Value-format singletons (~10): residual float-repr in multiset
+  compares, month-name parse ('Nov1995'), epoch_ms, one byte[]
+  channel, tolerance arithmetic over mixed carriers, metadata
+  assertContains (feature machinery), one tdsJoin syntax shape,
+  Cast-shaped boolean compare (2 — the booleanShaped Cast arm is the
+  known one-line follow-up), 2 SHAPE flappers.
+
 ## 0. Tenets (ordered; #1 is HARD and user-set)
 
 1. **ONE COMPILER — total migration, no dual paths.** The Lowerer and
