@@ -464,3 +464,22 @@ BLAST: every query with BOTH filter and projection navs changes join
 order + aliases — full-sweep referee; rows unaffected.
 testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR unread
 this cycle (re-diff after the order slice).
+
+## W40 witness root-caused to the NON-LITERAL-DATE family (2026-07-31, c41)
+
+testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass
+[milestoning, PASSES on its own weak assert] carries a LATENT WRONG
+ANSWER exposed by the H2 row replay (enum arm bypass, LL_W40_DEBUG):
+its SECOND golden assert — `$order.product(settlementDate).
+classification.type` shaped: golden-on-H2 joins OrderTable ->
+(OrderTable x OrderDetails.settlementDate x ProductTable) and returns
+[1|<null>, 2|STOCK]; OUR frame returns FOUR duplicated [2|STOCK] rows
+and NO id=1 row. The temporal context is the order's OWN
+settlementDate (a NON-LITERAL milestone date, task #32 long-tail
+'non-literal dates (7)') — our emission apparently fails to correlate
+the per-row date and loses LEFT preservation (row multiplication x4 +
+dropped null-side row). FIX SLICE: dump OUR sql for that assert
+(LEGEND_LITE_DUMP_SQL scoped run, the productClassificationType
+query), compare against the golden's OrderDetails-correlated shape,
+fix the non-literal-date channel; the H2Verify enum arm retires
+(+18 verifiable) once this witness verifies.
