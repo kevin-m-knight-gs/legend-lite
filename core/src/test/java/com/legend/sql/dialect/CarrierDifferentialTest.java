@@ -561,6 +561,30 @@ class CarrierDifferentialTest {
         }
     }
 
+    /** LIST_LENGTH (P2): literal collections fold to their size (NULL
+     * elements count); collects become COUNT(*) over the same rows. */
+    @Test
+    void listLengthRowEqual() throws Exception {
+        SqlExpr litLen = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
+                new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("a"),
+                        new SqlExpr.NullLit(), new SqlExpr.StringLit("b"))));
+        SqlExpr collLen = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
+                collectOfV());
+        for (SqlExpr len : List.of(litLen, collLen)) {
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                            new SqlSelect.Projection(len, "n")), List.of());
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                seed(st);
+                st.execute("INSERT INTO t VALUES (NULL)");
+                assertEquals(one(st, new DuckDb().render(q)),
+                        one(st, portable().render(q)),
+                        "list length divergence");
+            }
+        }
+    }
+
     /** The inner cells collect for the row-major fixtures: SELECT
      * LIST(c) FROM (SELECT [v, upper(v)] AS c FROM t) sub. */
     private static SqlSelect cellsCollect() {

@@ -253,6 +253,27 @@ public final class CarrierStrategies extends SqlRewriter {
         //     -> (SELECT NAME(x, extras...) FROM ...)
         // The collect's ORDER KEYS carry over — the ordering contract
         // (insertion order via RowOrder) is preserved, not re-derived.
+        // LIST_LENGTH (P2, witnessed: the at() out-of-bounds guard over
+        // literal collections, and length over collects): a literal
+        // collection's length is COMPILE-TIME (len counts elements,
+        // NULLs included); a collect's length is COUNT(*) over the same
+        // rows (a LIST of N rows has N elements, NULLs included).
+        if (e instanceof SqlExpr.Call ll
+                && ll.fn() == com.legend.sql.SqlFn.LIST_LENGTH
+                && ll.args().size() == 1) {
+            if (ll.args().get(0) instanceof SqlExpr.ArrayLit la) {
+                return new SqlExpr.IntLit(la.elements().size());
+            }
+            SqlSelect sel = collectSelect(ll.args().get(0));
+            if (sel != null) {
+                return new SqlExpr.ScalarSubquery(sel.withProjections(
+                        List.of(new SqlSelect.Projection(
+                                new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                                        List.of(), false, List.of()),
+                                sel.projections().get(0).alias())),
+                        sel.outputs()));
+            }
+        }
         // TYPEOF date dispatch (R5d, witnessed: Fold.jsonDateWrap's
         // runtime precision probe): typeof(e) = 'DATE' is a LENGTH test
         // on the VARCHAR cast — probed both engines: a DATE casts to 10

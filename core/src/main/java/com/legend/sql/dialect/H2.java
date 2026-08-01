@@ -150,6 +150,43 @@ public final class H2 extends AnsiSqlRenderer {
         return "_ROWID_";
     }
 
+    /** FORMATDATETIME wants java.time patterns, not %-codes (probed
+     * 2.1.214 byte-equal to DuckDB strftime on iso-micro, date, month/
+     * weekday names, 12-hour + AM/PM). Literal text quotes ALWAYS —
+     * the 'T' separator would otherwise parse as an era directive; the
+     * enclosing {@code stringLit} doubles the quotes for SQL. */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        StringBuilder out = new StringBuilder();
+        for (com.legend.sql.DateFmt p : fl.parts()) {
+            out.append(switch (p) {
+                case com.legend.sql.DateFmt.Text t ->
+                        "'" + t.s().replace("'", "''") + "'";
+                case com.legend.sql.DateFmt.Part part -> switch (part) {
+                    case YEAR4 -> "yyyy";
+                    case MONTH2 -> "MM";
+                    case DAY2 -> "dd";
+                    case HOUR2 -> "HH";
+                    case MIN2 -> "mm";
+                    case SEC2 -> "ss";
+                    case SUBSEC_MICRO -> "SSSSSS";
+                    // DuckDB %g trims trailing zeros — java.time has no
+                    // trim token; the shape stays loud until witnessed.
+                    case SUBSEC_MIN -> throw new DialectCapability(
+                            "minimal-fraction date format reached a"
+                            + " dialect without a trim-zeros token");
+                    case MONTH_ABBREV -> "MMM";
+                    case MONTH_NAME -> "MMMM";
+                    case WEEKDAY_NAME -> "EEEE";
+                    case HOUR12 -> "hh";
+                    case HOUR12_NOPAD -> "h";
+                    case AMPM -> "a";
+                };
+            });
+        }
+        return out.toString();
+    }
+
     /** DuckDB's QUANTILE_CONT(v, q) has no H2 spelling — the SQL-standard
      * inverse-distribution form PERCENTILE_CONT(q) WITHIN GROUP (ORDER BY
      * v), probed 2.1.214. The LIST collect rides the JSON carrier:
