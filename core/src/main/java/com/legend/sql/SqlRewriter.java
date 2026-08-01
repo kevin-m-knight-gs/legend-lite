@@ -116,14 +116,15 @@ public abstract class SqlRewriter {
             case SqlExpr.Column c -> c;
             case SqlExpr.RowOrder r -> r;
             case SqlExpr.Membership m -> {
-                SqlExpr n2 = expr(m.needle());
-                SqlExpr c2 = expr(m.collection());
+                SqlExpr n2 = rewriteExpr(m.needle());
+                SqlExpr c2 = rewriteExpr(m.collection());
                 yield n2 == m.needle() && c2 == m.collection() ? m
                         : new SqlExpr.Membership(n2, c2);
             }
             case SqlExpr.ReduceCollection rc -> {
-                SqlExpr col = expr(rc.collection());
-                java.util.List<SqlExpr> ex = mapList(rc.extras(), this::expr);
+                SqlExpr col = rewriteExpr(rc.collection());
+                java.util.List<SqlExpr> ex = mapList(rc.extras(),
+                        this::rewriteExpr);
                 yield col == rc.collection() && ex == rc.extras() ? rc
                         : new SqlExpr.ReduceCollection(rc.reducer(), col, ex);
             }
