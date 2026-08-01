@@ -76,7 +76,12 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
             "row", "rownum", "select", "table", "true", "union", "unique",
             "unknown", "using", "values", "where", "window", "with",
             "_rowid_", "both", "groups", "ilike", "leading", "over",
-            "partition", "range", "regexp", "rows", "top", "trailing"));
+            "partition", "range", "regexp", "rows", "top", "trailing",
+            // stock 2.1.214 rejects these in ALIAS position (witnessed:
+            // `AS right` -> syntax error); the engine's own list omits
+            // them — its FORK is laxer. Execution-dialect-only: the
+            // golden text channel uses ENGINE_STYLE (no quoting).
+            "right"));
 
     public static final Lexicon ENGINE_STYLE = new Lexicon('"', Set.of());
 }

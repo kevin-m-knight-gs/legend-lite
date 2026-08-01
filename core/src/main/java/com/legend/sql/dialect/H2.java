@@ -335,6 +335,39 @@ public final class H2 extends AnsiSqlRenderer {
         return sb.append("), JSON '[]')").toString();
     }
 
+    /** Boolean-to-text diverges: H2 CAST(bool AS VARCHAR) prints
+     * 'TRUE', the reference 'true' (witnessed: assertEquals true vs
+     * TRUE). A STRUCTURALLY BOOLEAN value casting to VARCHAR spells the
+     * reference text via CASE — detection is by node shape (EXISTS,
+     * literals, comparisons, logic, null tests, membership), never by
+     * guessing a column's type. */
+    @Override
+    protected String variantAwareCast(SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.VARCHAR
+                && booleanShaped(c.value())) {
+            String v = expr(c.value(), 0);
+            return "CASE WHEN " + v + " THEN 'true' WHEN NOT " + v
+                    + " THEN 'false' END";
+        }
+        return super.variantAwareCast(c);
+    }
+
+    private static boolean booleanShaped(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.BoolLit ignored -> true;
+            case SqlExpr.Exists ignored -> true;
+            case SqlExpr.Membership ignored -> true;
+            case SqlExpr.Group g -> booleanShaped(g.inner());
+            case SqlExpr.Call c -> switch (c.fn()) {
+                case AND, OR, NOT, XOR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL,
+                     GREATER, GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN,
+                     IS_DISTINCT, STARTS_WITH, ENDS_WITH -> true;
+                default -> false;
+            };
+            default -> false;
+        };
+    }
+
     /** H2 hands JSON values back as {@code byte[]} (UTF-8 text) — the
      * canonical envelope representation is the STRING (probed 2.1.214;
      * H2_BACKEND.md §12 step 11's first codec row). */
