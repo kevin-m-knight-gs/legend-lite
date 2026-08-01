@@ -244,6 +244,43 @@ public class RelationalCorpusRunner {
                 + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
                 + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
                 + " unverifiable");
+        // step 13 registry feed: the per-reason unverifiable census
+        com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue().sum(),
+                        a.getValue().sum()))
+                .forEach(e -> System.out.println(
+                        "[rcorpus] h2-unverifiable-census " + e.getValue().sum()
+                        + "x " + e.getKey()));
+        // DECLARED-GAP REGISTRY (step 13, §9 semantics): each registered
+        // H2-oracle gap has an EXPECTED count measured at registration
+        // (c47 census) — GROWTH is a FAIL (silent scope creep), SHRINK
+        // prints a retire hint (the row is stale, tighten it).
+        if (onlyFilters.isEmpty()) {
+            java.util.Map<String, Integer> registry = java.util.Map.of(
+                    // forked-H2 leniency: the engine's own 2.1.214 fork
+                    // relaxes duplicate result columns; stock H2 rejects
+                    "Duplicate column name", 10,
+                    // engine plan-level temp-table for IN lists — a
+                    // machinery gap, not a rendering one
+                    "tempTableForIn", 6,
+                    // engine Java-extension UDFs, a route we ban (no
+                    // CREATE ALIAS) — today only base64 surfaces
+                    "legend_h2_extension_", 1);
+            registry.forEach((needle, expected) -> {
+                long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
+                        .entrySet().stream()
+                        .filter(e -> e.getKey().contains(needle))
+                        .mapToLong(e -> e.getValue().sum()).sum();
+                org.junit.jupiter.api.Assertions.assertTrue(got <= expected,
+                        "registered H2-oracle gap '" + needle + "' grew: "
+                        + got + " > " + expected);
+                if (got < expected) {
+                    System.out.println("[rcorpus] registered gap '" + needle
+                            + "' shrank (" + got + " < " + expected
+                            + ") — retire/tighten the registry row");
+                }
+            });
+        }
         // M1 GATE PINNING (H2_BACKEND.md §12 step 13): on a FULL sweep,
         // any divergence fails the build (they already FAIL per-test —
         // this pins the aggregate against silent scoring drift), and the

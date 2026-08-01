@@ -73,6 +73,43 @@ public final class H2Verify {
     public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
             new java.util.concurrent.atomic.LongAdder();
 
+    /** Per-reason UNVERIFIABLE census (H2_BACKEND.md §12 step 13): every
+     * replay decline funnels through {@link #decline}, keyed by a
+     * CANONICAL bucket — the declared-gap registry asserts against these
+     * counts on full sweeps (growth in a registered bucket = FAIL). */
+    public static final java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.atomic.LongAdder> UNVERIFIABLE_CENSUS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** The ONE decline funnel: prints (the frozen System.err site) and
+     * counts under the canonical bucket. */
+    public static void decline(String reason) {
+        System.err.println("[h2-unverifiable] replay declined: " + reason);
+        UNVERIFIABLE_CENSUS.computeIfAbsent(bucketOf(reason),
+                k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    /** Canonical census bucket: the decline CHANNEL plus the failure's
+     * leading words — stable across runs (no identifiers/row values),
+     * specific enough to key registry rows. */
+    private static String bucketOf(String reason) {
+        String r = reason;
+        for (String ch : new String[]{"replay/verify failed: ",
+                "seed replay: ", "golden execution: "}) {
+            int i = r.indexOf(ch);
+            if (i >= 0) {
+                r = r.substring(0, i + ch.length() - 2) + "/"
+                        + r.substring(i + ch.length());
+            }
+        }
+        // strip statement tails and volatile identifiers
+        int cut = r.indexOf(";");
+        if (cut > 0) {
+            r = r.substring(0, cut);
+        }
+        return r.length() > 70 ? r.substring(0, 70) : r;
+    }
+
     /** The engine's H2 session settings (H2Manager parity) — shared with
      * the {@code -Drcorpus.backend=h2} portability sweep so the replay
      * oracle and the real backend open IDENTICAL sessions. */

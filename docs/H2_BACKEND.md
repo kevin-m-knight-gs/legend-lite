@@ -658,3 +658,24 @@ too — not an H2 gap).
 Remaining step-13 half: the declared-gap REGISTRY rows (tempTableForIn
 6, Duplicate-column 9, base64 1) with §9 semantics — needs per-reason
 unverifiable counters (single M1_UNVERIFIABLE today), next cycle.
+
+## Step 13 COMPLETE (2026-08-01, c47) — the declared-gap registry
+
+- Every replay decline funnels through `H2Verify.decline` (the print
+  moved out of TestBody with the frozen System.err budget intact),
+  which counts under a CANONICAL bucket; full DuckDB sweeps print the
+  `h2-unverifiable-census` (structural: non-tabular 445, no-root-exec
+  20, enum-underivable 7, no-foldable-golden 5, arity 2 — plus the
+  oracle gaps).
+- THE REGISTRY (asserted on every full sweep, §9 semantics): Duplicate
+  column name ≤ 10 (forked-H2 leniency; doc said 9, the census
+  measured 10 — honest), tempTableForIn ≤ 6 (engine plan-level IN
+  temp tables), legend_h2_extension_ UDFs ≤ 1 (banned CREATE ALIAS
+  route). Growth FAILS the build; shrink prints a retire hint.
+- Also: `QUANTILE_CONT(v, q)` → `PERCENTILE_CONT(q) WITHIN GROUP
+  (ORDER BY v)` on the H2 execution dialect (probed c45).
+
+**All 13 steps of §12 are now LANDED.** Remaining H2-backend headroom:
+the ~1,250-test collection-carrier redesign (§4.1, exactly sized at
+c45 — a user decision), ~590 non-carrier singles (census-classified),
+and witness-driven codec rows as they surface.

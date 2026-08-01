@@ -995,10 +995,10 @@ public final class TestBody {
 
 
 
-    /** ONE counted decline channel for every h2-replay early-out
-     * (§12.4) — the frozen System.err site lives HERE only. */
+    /** ONE decline channel for every h2-replay early-out (§12.4) —
+     * printing and the per-reason census live in {@link H2Verify#decline}. */
     private static void h2Decline(String reason) {
-        System.err.println("[h2-unverifiable] replay declined: " + reason);
+        H2Verify.decline(reason);
     }
 
     /** #67: a pure golden-SQL assert upgrades to ROW-VERIFIED when the

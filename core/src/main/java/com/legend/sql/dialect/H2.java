@@ -104,6 +104,20 @@ public final class H2 extends AnsiSqlRenderer {
         return "_ROWID_";
     }
 
+    /** DuckDB's QUANTILE_CONT(v, q) has no H2 spelling — the SQL-standard
+     * inverse-distribution form PERCENTILE_CONT(q) WITHIN GROUP (ORDER BY
+     * v), probed 2.1.214. Other reducers render on the base. */
+    @Override
+    protected String reducer(com.legend.sql.SqlAgg.Reducer r) {
+        if ("QUANTILE_CONT".equals(r.fn()) && r.args().size() == 2
+                && !r.distinct() && r.orderBy().isEmpty()) {
+            return "PERCENTILE_CONT(" + expr(r.args().get(1), 0)
+                    + ") WITHIN GROUP (ORDER BY " + expr(r.args().get(0), 0)
+                    + ")";
+        }
+        return super.reducer(r);
+    }
+
     /** SQL-standard constructor, probed on 2.1.214:
      * {@code JSON_OBJECT('k': v, ...)}. The kv list alternates
      * key-expression, value-expression. */
