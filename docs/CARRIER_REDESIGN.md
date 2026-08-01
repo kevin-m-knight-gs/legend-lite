@@ -129,10 +129,20 @@ commit+push)
   UNNEST tests). Smallest semantic surface, biggest prior art: the
   engine's grouped-subselect form is already implemented for chained-nav
   aggregates (#77) — this rung generalizes it to a strategy rule.
+  **CRUX: ordering determinism.** The list()/OrderedListAgg carriers
+  encode Pure's insertion-order semantics (ORDER BY the RowOrder
+  pseudo-column — the joinStrings goldens); every strategy rule must
+  state and reproduce the SAME element order contract, not discover it
+  through red differential gates.
 - **R2 — `Membership`** (LIST_CONTAINS 30 + IN-over-collection share;
   the node's collection operand may be literal OR PlanParam — §2's bind
   strategies are this node's rules; tempTableForIn graduates from
   registered wall to the large-N bind strategy when §2 lands).
+  **CRUX: NULL semantics.** SQL `IN` and LIST_CONTAINS differ around
+  NULL needles/elements, and Pure-vs-SQL null semantics is a known bug
+  family here (the `!=`-drops-NULL-rows class). Every Membership rule
+  pins its NULL truth table against Pure semantics explicitly; the
+  differential oracle includes NULL-edge fixtures, not just happy rows.
 - **R3 — `CollectionSource`** (UNNEST 792 — the giant; probed H2 forms:
   `VALUES`, UNION-of-literals; the engine's per-construct shapes read at
   rung head). Expect this rung to split into sub-rungs by source kind
@@ -145,7 +155,52 @@ commit+push)
   or budget-counted wall, decided per construct with the engine as the
   bar; zero silent drops).
 
-## 4. Exit criteria
+## 4. Deferred decisions (named so they stay decisions, not drift)
+
+- **"Dialect idiom" definition for the purity ratchet (R0 settles):**
+  `SqlFn` entries are SEMANTIC vocabulary (Spellings maps them) — legal
+  upstream of the strategy pass. The violation class is nodes that
+  presuppose a backend's DATA MODEL: list/array values and their
+  functions, `json_group_array`/`to_json(list(...))` composites,
+  physical pseudo-columns spelled as plain Columns. R0's census applies
+  this definition and pins the ratchet number.
+- **Performance stance:** correctness first. DuckDB cannot regress BY
+  CONSTRUCTION (its rules reproduce today's emission, golden-pinned).
+  Flipping any dialect to a different strategy later requires a
+  MEASURED reason; no perf harness exists yet — deferred deliberately,
+  not forgotten.
+- **Graph envelope at scale:** the JSON envelope materializes the whole
+  graph as one SQL value. The engine's level-wise batched fetching
+  (flat selects per tree level, IN over parent keys, host assembly) is
+  BOTH the streaming story for huge graphs AND the natural fallback
+  strategy for a backend with no JSON constructors. Deferred until a
+  witness (memory blow-up or a JSON-less target); the envelope stays
+  the one strategy until then.
+- **Plan-format interop:** §2 decides we PRODUCE typed plans. Whether
+  we ever consume/emit the ENGINE's plan-JSON format (interop with
+  engine executors/services) is a product decision — default stance is
+  produce-only, our format.
+- **Our own dual enum-decode paths:** most frames decode enum codes
+  in-SQL (CASE); a residue decodes post-SQL (the c46 witnesses). The
+  M1 oracle reconciles the comparison, but the single-compiler spirit
+  wants ONE decode layer — converge (decode-in-SQL everywhere, or one
+  declared post-SQL transform) as its own small rung after R1.
+- **Variant/JSON navigation on H2:** permanent stock-H2 wall (no field
+  navigation in any version through 2.4.240; the engine uses a banned
+  Java UDF). Revisit trigger: if the variant family ever matters on
+  H2, re-open the version pin (2.2+ buys array INDEXING only —
+  H2_BACKEND.md verification addendum).
+- **Known singles parked with owners:** executionPlan 4x
+  ArrayIndexOutOfBounds (real bug — diagnose under #102);
+  STRING_AGG ORDER BY qualified `_ROWID_` failure (probe the aliased
+  form); the H2 `extract()` unit map is blanket-uppercase and WILL fail
+  loudly on non-trivial units (`isodow` → needs a probed unit table);
+  step-11 BOOLEAN/DECIMAL codec rows stay witness-driven.
+- **XStore / in-memory stores:** host-side stitching the engine does in
+  Java — out of carrier scope, tracked as its own feature leg under
+  #102 (never an exclusion).
+
+## 5. Exit criteria
 
 - Purity guardrail at ZERO and frozen (tenet #1 mechanically closed).
 - h2-backend sweep ≥ 80% of the DuckDB baseline's passing set, with the
