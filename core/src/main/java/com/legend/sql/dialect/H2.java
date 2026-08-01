@@ -113,6 +113,14 @@ public final class H2 extends AnsiSqlRenderer {
                 + " NULL ON NULL)";
     }
 
+    /** Scalar -> variant JSON: {@code CAST(x AS JSON)} — probed
+     * 2.1.214: numbers stay JSON numbers, booleans true/false, strings
+     * quote; exact toVariant semantics. */
+    @Override
+    protected String variantConstruct(List<SqlExpr> a) {
+        return "CAST(" + expr(a.get(0), 0) + " AS JSON)";
+    }
+
     /** H2's row-order pseudo-column (probed 2.1.214: bare and inside
      * STRING_AGG's ORDER BY). */
     @Override
