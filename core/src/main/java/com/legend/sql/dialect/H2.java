@@ -168,6 +168,19 @@ public final class H2 extends AnsiSqlRenderer {
         return "_ROWID_";
     }
 
+    /** DEFAULT NULL placement diverges: H2 sorts NULLS FIRST ascending,
+     * the reference target NULLS LAST (witnessed: sorted chains led
+     * with TDSNull on H2). A key with no explicit placement pins the
+     * REFERENCE default — ASC NULLS LAST / DESC NULLS FIRST. */
+    @Override
+    protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
+        String s = super.sortKey(k);
+        if (k.nullOrder() == null) {
+            s += k.ascending() ? " NULLS LAST" : " NULLS FIRST";
+        }
+        return s;
+    }
+
     /** FORMATDATETIME wants java.time patterns, not %-codes (probed
      * 2.1.214 byte-equal to DuckDB strftime on iso-micro, date, month/
      * weekday names, 12-hour + AM/PM). Literal text quotes ALWAYS —

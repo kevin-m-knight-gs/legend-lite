@@ -264,6 +264,26 @@ public final class CarrierStrategies extends SqlRewriter {
             if (ll.args().get(0) instanceof SqlExpr.ArrayLit la) {
                 return new SqlExpr.IntLit(la.elements().size());
             }
+            // token count over a split (witnessed: the at() guard over
+            // split tokens): separator occurrences + 1 — single-char
+            // literal separator only (the count is LENGTH-difference).
+            if (ll.args().get(0) instanceof SqlExpr.Call sp2
+                    && sp2.fn() == com.legend.sql.SqlFn.SPLIT
+                    && sp2.args().size() == 2
+                    && sp2.args().get(1) instanceof SqlExpr.StringLit sl2
+                    && sl2.value().length() == 1) {
+                SqlExpr s0 = sp2.args().get(0);
+                return SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS,
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS,
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH,
+                                        s0),
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH,
+                                        SqlExpr.Call.of(
+                                                com.legend.sql.SqlFn.REPLACE,
+                                                s0, sp2.args().get(1),
+                                                new SqlExpr.StringLit("")))),
+                        new SqlExpr.IntLit(1));
+            }
             SqlSelect sel = collectSelect(ll.args().get(0));
             if (sel != null) {
                 return new SqlExpr.ScalarSubquery(sel.withProjections(

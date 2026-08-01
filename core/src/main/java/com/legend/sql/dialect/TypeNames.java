@@ -32,8 +32,17 @@ public record TypeNames(Map<SqlType.Scalar, String> scalarNames,
 
     /** H2 2.1.214: standard names; JSON exists as a type but maps to
      * byte[] on read-back (codec row pending, H2_BACKEND.md step 11);
-     * no STRUCT. */
-    public static final TypeNames H2 = new TypeNames(base(), false);
+     * no STRUCT. HUGEINT has no H2 name — NUMERIC(38) (probed: cast
+     * rounding and VARCHAR print parity with DuckDB HUGEINT on
+     * 2.7/2.0/-3.9); JSON casts spell JSON (the R5a variant carrier). */
+    public static final TypeNames H2 = new TypeNames(h2(), false);
+
+    private static Map<SqlType.Scalar, String> h2() {
+        Map<SqlType.Scalar, String> m = base();
+        m.put(SqlType.Scalar.HUGEINT, "NUMERIC(38)");
+        m.put(SqlType.Scalar.JSON, "JSON");
+        return m;
+    }
 
     private static Map<SqlType.Scalar, String> base() {
         Map<SqlType.Scalar, String> m = new EnumMap<>(SqlType.Scalar.class);
