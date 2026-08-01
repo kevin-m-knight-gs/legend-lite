@@ -1,6 +1,11 @@
 # Collection-carrier redesign (H2_BACKEND.md §4.1) — the single-compiler leg
 
-Status: R1 LANDED (2026-08-01): ReduceCollection semantic node
+Status: R3a LANDED (2026-08-01): h2-backend 1283/2538 — 59% of the
+DuckDB passing set (80% exit = 1744). Ladder: R1a/P1/R1b(+12)/R1c(+45)/
+R1d(+10)/R2(+10)/R3a(+503: literal-collection explode -> UNION ALL
+branches; LIST_MIN/MAX/SUM/AVG/MEDIAN -> ReduceCollection fuse).
+UNNEST walls 790 -> 52; remaining buckets re-censused next rung.
+Previous: R1 LANDED: ReduceCollection semantic node
 (R1a), typed SqlAgg.Fn closing the stringly channel (P1), capability
 record + LIST_TRANSFORM-aware fusion (R1b) — h2 703→715, string_agg
 walls shrinking, DuckDB 2180 byte-stable throughout. Census pins (raw occurrences,

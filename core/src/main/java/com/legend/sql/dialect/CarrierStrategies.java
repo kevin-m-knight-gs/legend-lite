@@ -48,9 +48,63 @@ public final class CarrierStrategies extends SqlRewriter {
     }
 
     @Override
+    protected com.legend.sql.SqlQuery select(SqlSelect s) {
+        if (caps.nativeLists()) {
+            return s;
+        }
+        // LITERAL-COLLECTION EXPLODE (R3a, witnessed): SELECT
+        // unnest([e1..eN]) FROM dual — the portable form is UNION ALL of
+        // one-row selects (duplicates preserved, order = branch order).
+        // Conservative witnessed shape only: single projection, bare
+        // Dual, no clauses.
+        if (s.from() instanceof com.legend.sql.SqlSource.Dual
+                && s.projections().size() == 1
+                && s.where() == null && s.groupBy().isEmpty()
+                && s.having() == null && s.qualify() == null
+                && s.orderBy().isEmpty() && s.limit() == null
+                && s.offset() == null && !s.distinct()
+                && s.projections().get(0).expr() instanceof SqlExpr.Call u
+                && u.fn() == com.legend.sql.SqlFn.UNNEST
+                && u.args().size() == 1
+                && u.args().get(0) instanceof SqlExpr.ArrayLit al
+                && !al.elements().isEmpty()) {
+            String alias = s.projections().get(0).alias();
+            List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+            for (SqlExpr el : al.elements()) {
+                branches.add(s.withProjections(
+                        List.of(new SqlSelect.Projection(el, alias)),
+                        s.outputs()));
+            }
+            return new com.legend.sql.SqlUnion(branches, true, s.outputs());
+        }
+        return s;
+    }
+
+    /** LIST_* reducers over collection values ARE ReduceCollection —
+     * mapped here so the fuse rules apply (portable mode only; DuckDB
+     * keeps its native list fns). */
+    private static final java.util.Map<com.legend.sql.SqlFn, SqlAgg.Fn>
+            LIST_REDUCERS = java.util.Map.of(
+                    com.legend.sql.SqlFn.LIST_MIN, SqlAgg.Fn.MIN,
+                    com.legend.sql.SqlFn.LIST_MAX, SqlAgg.Fn.MAX,
+                    com.legend.sql.SqlFn.LIST_SUM, SqlAgg.Fn.SUM,
+                    com.legend.sql.SqlFn.LIST_AVG, SqlAgg.Fn.AVG,
+                    com.legend.sql.SqlFn.LIST_MEDIAN, SqlAgg.Fn.MEDIAN);
+
+    @Override
     protected SqlExpr expr(SqlExpr e) {
         if (caps.nativeLists()) {
             return e;
+        }
+        if (e instanceof SqlExpr.Call lc && lc.args().size() == 1) {
+            SqlAgg.Fn red = LIST_REDUCERS.get(lc.fn());
+            if (red != null) {
+                SqlExpr fused = fuse(new SqlExpr.ReduceCollection(red,
+                        lc.args().get(0), List.of()));
+                if (fused != null) {
+                    return fused;
+                }
+            }
         }
         // FUSION (R1, the engine's shape — pureToSQLQuery aggregates
         // inside the isolated grouped subselect, never a list value):
