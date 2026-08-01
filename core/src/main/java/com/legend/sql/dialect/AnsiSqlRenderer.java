@@ -168,7 +168,7 @@ public class AnsiSqlRenderer implements SqlDialect {
      * No ANSI spelling exists — the base is a capability statement.
      */
     protected String sourceUrl(String url) {
-        throw new IllegalStateException("sourceUrl reached a dialect without"
+        throw new DialectCapability("sourceUrl reached a dialect without"
                 + " an external-source encoding: " + url);
     }
 
@@ -179,7 +179,7 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     /** Emit the native QUALIFY clause (only called when {@link #supportsQualify()}). */
     protected void appendQualify(StringBuilder sb, SqlSelect s, int depth) {
-        throw new IllegalStateException("QUALIFY reached a dialect without native support");
+        throw new DialectCapability("QUALIFY reached a dialect without native support");
     }
 
     protected String projection(SqlSelect.Projection p) {
@@ -258,12 +258,12 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */
     protected void pivotSource(StringBuilder sb, SqlSource.Pivot p, int depth) {
-        throw new IllegalStateException("pivot reached a dialect without a PIVOT strategy");
+        throw new DialectCapability("pivot reached a dialect without a PIVOT strategy");
     }
 
     /** The AS-OF join clause keyword(s); no ANSI form exists. */
     protected String asOfJoinClause() {
-        throw new IllegalStateException("asOfJoin reached a dialect without an AS-OF strategy");
+        throw new DialectCapability("asOfJoin reached a dialect without an AS-OF strategy");
     }
 
     // ==================================================================
@@ -518,21 +518,21 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     /** Pure ROUND is HALF-EVEN (banker's) — every dialect must honor it. */
     protected String roundHalfEven(List<SqlExpr> a) {
-        throw new IllegalStateException("banker's ROUND reached a dialect without a spelling");
+        throw new DialectCapability("banker's ROUND reached a dialect without a spelling");
     }
 
     protected String bitOp(SqlFn fnName, List<SqlExpr> a) {
-        throw new IllegalStateException(fnName + " reached a dialect without bit-op support");
+        throw new DialectCapability(fnName + " reached a dialect without bit-op support");
     }
 
     /** Construct a variant (JSON) value from any value. */
     protected String variantConstruct(List<SqlExpr> a) {
-        throw new IllegalStateException("toVariant reached a dialect without JSON support");
+        throw new DialectCapability("toVariant reached a dialect without JSON support");
     }
 
     /** Fold with PURE (element, accumulator) lambda; the encoding is the dialect's. */
     protected String foldCall(SqlExpr.FoldCall f) {
-        throw new IllegalStateException("fold reached a dialect without a fold encoding");
+        throw new DialectCapability("fold reached a dialect without a fold encoding");
     }
 
     /**
@@ -541,39 +541,39 @@ public class AnsiSqlRenderer implements SqlDialect {
      * {@code forAll([]) = true}.
      */
     protected String listExists(List<SqlExpr> args) {
-        throw new IllegalStateException("collection exists reached a dialect"
+        throw new DialectCapability("collection exists reached a dialect"
                 + " without a list-predicate encoding");
     }
 
     /** Contract includes Pure's empty-collection semantics: {@code forAll([]) = true}. */
     protected String listForAll(List<SqlExpr> args) {
-        throw new IllegalStateException("collection forAll reached a dialect"
+        throw new DialectCapability("collection forAll reached a dialect"
                 + " without a list-predicate encoding");
     }
 
     /** map/filter/concat/contains over list values. */
     protected String listCall(SqlFn fn, List<SqlExpr> args) {
-        throw new IllegalStateException(fn + " reached a dialect without a list encoding");
+        throw new DialectCapability(fn + " reached a dialect without a list encoding");
     }
 
     /** Explode a collection into rows, aligned with sibling projections. */
     protected String unnestProjection(List<SqlExpr> args) {
-        throw new IllegalStateException("UNNEST reached a dialect without an unnest placement");
+        throw new DialectCapability("UNNEST reached a dialect without an unnest placement");
     }
 
     /** The elements of a variant (JSON) array value. */
     protected String variantElements(List<SqlExpr> args) {
-        throw new IllegalStateException("variant navigation reached a dialect without JSON support");
+        throw new DialectCapability("variant navigation reached a dialect without JSON support");
     }
 
     /** JSON access ({@code v -> key}). */
     protected String variantGet(List<SqlExpr> args) {
-        throw new IllegalStateException("variant navigation reached a dialect without JSON support");
+        throw new DialectCapability("variant navigation reached a dialect without JSON support");
     }
 
     /** Lambda expression — only dialects with lambda-capable functions render these. */
     protected String lambda(SqlExpr.Lambda l) {
-        throw new IllegalStateException("a lambda reached a dialect without lambda support");
+        throw new DialectCapability("a lambda reached a dialect without lambda support");
     }
 
     /**
@@ -682,15 +682,15 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     protected String arrayLit(List<SqlExpr> elements) {
-        throw new IllegalStateException("an array literal reached a dialect without array support");
+        throw new DialectCapability("an array literal reached a dialect without array support");
     }
 
     protected String structLit(SqlExpr.StructLit s) {
-        throw new IllegalStateException("a struct literal reached a dialect without struct support");
+        throw new DialectCapability("a struct literal reached a dialect without struct support");
     }
 
     protected String structGet(SqlExpr.StructGet g) {
-        throw new IllegalStateException("a struct extraction reached a dialect without struct support");
+        throw new DialectCapability("a struct extraction reached a dialect without struct support");
     }
 
     /** SQL type → CAST spelling: scalar LEAVES from {@link TypeNames}
@@ -712,7 +712,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     "MAP(" + castTypeName(m.key()) + ", " + castTypeName(m.value()) + ")";
             case com.legend.sql.SqlType.Struct st -> {
                 if (!typeNames.structSupport()) {
-                    throw new IllegalStateException(
+                    throw new DialectCapability(
                             "a STRUCT type reached a dialect without struct support");
                 }
                 yield "STRUCT(" + st.fields().stream()

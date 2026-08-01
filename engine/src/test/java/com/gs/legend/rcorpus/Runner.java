@@ -66,7 +66,11 @@ public final class Runner {
         }
     }
 
-    public enum Status { PASS, FAIL, ERROR, SHAPE }
+    /** UNSUPPORTED is a PORTABILITY-SWEEP-ONLY outcome (H2_BACKEND.md
+     * §10): the renderer threw a typed {@code DialectCapability} wall —
+     * honest, expected, budget-counted. The DuckDB scoreboard never
+     * produces it. */
+    public enum Status { PASS, FAIL, ERROR, SHAPE, UNSUPPORTED }
 
     private final List<String> walls = new ArrayList<>();
     /** Shared-file table DDL — replayed FIRST, before ANY data. */
@@ -1216,9 +1220,26 @@ public final class Runner {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
                 e.printStackTrace();
             }
+            if (H2_BACKEND && capabilityWall(e) != null) {
+                return new Outcome(t.fqn(), Status.UNSUPPORTED,
+                        exceptionText(java.util.Objects.requireNonNull(
+                                capabilityWall(e))));
+            }
             return new Outcome(t.fqn(), Status.ERROR,
                     exceptionText(e));
         }
+    }
+
+    /** The typed renderer capability wall in {@code e}'s cause chain —
+     * the portability sweep's UNSUPPORTED classifier (§10); null when
+     * the failure is anything else. */
+    private static @com.legend.Nullable Throwable capabilityWall(Throwable e) {
+        for (Throwable c = e; c != null; c = c.getCause()) {
+            if (c instanceof com.legend.sql.dialect.DialectCapability) {
+                return c;
+            }
+        }
+        return null;
     }
 
     /** A MESSAGE-LESS exception must not render as the literal "null"
@@ -2049,6 +2070,9 @@ public final class Runner {
                         buckets.merge(o.detail(), 1, Integer::sum);
                     }
                     case SHAPE -> sh++;
+                    case UNSUPPORTED -> throw new IllegalStateException(
+                            "UNSUPPORTED is a portability-sweep outcome —"
+                            + " the DuckDB scoreboard must never see it");
                 }
             }
             pass += p;

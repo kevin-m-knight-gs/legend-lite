@@ -609,3 +609,31 @@ milestoning 9→19, extends 4→10. No family regressed. DuckDB reference
 path: byte-identical counts (2180, h2-exec 289/0/135, core 1573, PCT
 1109); one SHAPE wall-diagnosis TEXT flapped on testResultToJsonStream
 (assembly-order detail on an already-walled test, count unchanged).
+
+## Step 9 LANDED (2026-08-01, c45) — UNSUPPORTED vs FAIL + the measured budget
+
+- `DialectCapability extends IllegalStateException` — all 19 renderer
+  capability walls in `AnsiSqlRenderer` are TYPED now; the portability
+  sweep classifies them `UNSUPPORTED` by type (cause-chain walk in
+  `Runner.capabilityWall`), never by message matching. The DuckDB
+  scoreboard THROWS if it ever sees the status (h2-sweep-only outcome).
+- The sweep prints the CAPABILITY BUDGET — per-reason counts, sorted:
+  growth in a bucket is a visible decision.
+
+**Measured budget (full h2 sweep, 703/2538 pass):** 1249 UNSUPPORTED =
+UNNEST 792 + array-literal 226 + LIST_AGG 133 + LIST_CONTAINS 30 +
+LIST_GET 20 + TYPEOF 17 + toVariant 8 + LIST_BOOL_AND 5 + struct 5 +
+banker's ROUND 4 + tail 9. The §4.1 collection-carrier redesign is
+therefore an EXACTLY-SIZED ~1,250-test decision; the non-carrier
+headroom above 703 is ~590 tests (SHAPE/ERROR/FAIL残).
+
+Also landed (census round 2, all probed on the real jar):
+`dateadd(UNIT, n, d)` for ADD_INTERVAL (the DuckDB `d + to_days(n)`
+idiom failed everywhere dates shift on H2 — tds/milestoning/functions),
+`extract(UNIT FROM x)` for EXTRACT (H2 has no date_part), and
+`LEFT/CHAR_LENGTH` equality for STARTS_WITH (no LIKE-escape hazard,
+probed with '%' in the prefix). h2-backend 679 → 703. Census verdicts:
+enumeration 0/26 is 20 carrier walls (NOT an enum-decode issue);
+executionPlan's gap is plan-TEXT asserts + 4 ArrayIndexOutOfBounds (real
+bug, unfiled); postprocessor is golden-text contracts (0/30 on DuckDB
+too — not an H2 gap).

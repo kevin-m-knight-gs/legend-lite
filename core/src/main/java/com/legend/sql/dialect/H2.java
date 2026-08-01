@@ -51,7 +51,50 @@ public final class H2 extends AnsiSqlRenderer {
             return "CAST(" + expr(a.get(0), 6) + " / " + expr(a.get(1), 6)
                     + " AS BIGINT)";
         }
+        // date arithmetic: the ANSI base spells DuckDB's interval idiom
+        // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
+        // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
+        // CAST-around composition.
+        if (c.fn() == SqlFn.ADD_INTERVAL) {
+            return "dateadd(" + dateUnit(((SqlExpr.StringLit) a.get(0))
+                    .value()) + ", " + expr(a.get(1), 0) + ", "
+                    + expr(a.get(2), 0) + ")";
+        }
+        // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
+        // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
+        if (c.fn() == SqlFn.EXTRACT) {
+            return "extract(" + ((SqlExpr.StringLit) a.get(0)).value()
+                    .toUpperCase(java.util.Locale.ROOT) + " FROM "
+                    + expr(a.get(1), 0) + ")";
+        }
+        // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
+        // incl. '%' in the prefix: no LIKE-escaping hazard)
+        if (c.fn() == SqlFn.STARTS_WITH) {
+            return "(LEFT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
+                    + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
+        }
         return super.call(c, parentPrec);
+    }
+
+    /** DurationUnit interval-fn name -> H2 dateadd unit keyword (the
+     * engine's extensionDefaults mapToDBUnitType; duplicated from the
+     * QUARANTINED EngineStyleH2 deliberately — semantic unit data, not
+     * golden formatting). */
+    private static String dateUnit(String unitFn) {
+        return switch (unitFn) {
+            case "to_years" -> "YEAR";
+            case "to_months" -> "MONTH";
+            case "to_weeks" -> "WEEK";
+            case "to_days" -> "DAY";
+            case "to_hours" -> "HOUR";
+            case "to_minutes" -> "MINUTE";
+            case "to_seconds" -> "SECOND";
+            case "to_milliseconds" -> "MILLISECOND";
+            case "to_microseconds" -> "MICROSECOND";
+            default -> throw new DialectCapability(
+                    "interval unit '" + unitFn
+                    + "' reached a dialect without a dateadd unit");
+        };
     }
 
     /** H2's row-order pseudo-column (probed 2.1.214: bare and inside

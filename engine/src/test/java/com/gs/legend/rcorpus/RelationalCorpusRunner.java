@@ -178,10 +178,30 @@ public class RelationalCorpusRunner {
             // FAIL must not touch the DuckDB row)
             long p = byFamily.values().stream().flatMap(List::stream)
                     .filter(o -> o.status() == Runner.Status.PASS).count();
+            long u = byFamily.values().stream().flatMap(List::stream)
+                    .filter(o -> o.status() == Runner.Status.UNSUPPORTED)
+                    .count();
             long n = byFamily.values().stream().mapToLong(List::size).sum();
             System.out.println("[rcorpus] h2-backend sweep: " + p + "/" + n
-                    + " pass — scoreboard NOT written (DuckDB baseline"
+                    + " pass, " + u + " unsupported (typed capability"
+                    + " walls) — scoreboard NOT written (DuckDB baseline"
                     + " untouched)");
+            // the CAPABILITY BUDGET (§9/§10): every declared renderer gap,
+            // counted — growth in a bucket is a visible decision, never
+            // silent scope creep
+            Map<String, Long> budget = byFamily.values().stream()
+                    .flatMap(List::stream)
+                    .filter(o -> o.status() == Runner.Status.UNSUPPORTED)
+                    .collect(java.util.stream.Collectors.groupingBy(
+                            o -> o.detail(),
+                            java.util.TreeMap::new,
+                            java.util.stream.Collectors.counting()));
+            budget.entrySet().stream()
+                    .sorted(Map.Entry.<String, Long>comparingByValue()
+                            .reversed())
+                    .forEach(e -> System.out.println(
+                            "[rcorpus] h2-capability " + e.getValue() + "x "
+                            + e.getKey()));
             byFamily.forEach((f, outs) -> {
                 long fp = outs.stream()
                         .filter(o -> o.status() == Runner.Status.PASS).count();
