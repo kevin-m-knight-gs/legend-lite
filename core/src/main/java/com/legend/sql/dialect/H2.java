@@ -97,6 +97,22 @@ public final class H2 extends AnsiSqlRenderer {
         };
     }
 
+    /** Collection VALUES ride the JSON carrier (§2b, probed 2.1.214):
+     * {@code JSON_ARRAY(e1, ..., eN NULL ON NULL)} — NULL ON NULL keeps
+     * DuckDB's [null] element semantics (default ABSENT drops them);
+     * dates serialize as ISO strings. The executor's unwrap parses the
+     * JSON text back to the element list. */
+    @Override
+    protected String arrayLit(java.util.List<SqlExpr> elements) {
+        if (elements.isEmpty()) {
+            return "JSON_ARRAY()";
+        }
+        return "JSON_ARRAY(" + elements.stream()
+                .map(e -> expr(e, 0))
+                .collect(java.util.stream.Collectors.joining(", "))
+                + " NULL ON NULL)";
+    }
+
     /** H2's row-order pseudo-column (probed 2.1.214: bare and inside
      * STRING_AGG's ORDER BY). */
     @Override

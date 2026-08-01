@@ -315,6 +315,19 @@ public final class Executor {
             }
             return m;
         }
+        // the JSON carrier (H2 and any list-less backend, §2b): an
+        // Array-typed cell arriving as JSON TEXT parses back to the
+        // element list — the declared type drives the decode, never the
+        // value's runtime class alone
+        if (type instanceof com.legend.sql.SqlType.Array
+                && (v instanceof byte[] || v instanceof String)) {
+            String text = v instanceof byte[] b
+                    ? new String(b, java.nio.charset.StandardCharsets.UTF_8)
+                    : (String) v;
+            if (text.startsWith("[")) {
+                return Json.parse(text);
+            }
+        }
         if (type instanceof com.legend.sql.SqlType.Array at && v instanceof java.sql.Array a) {
             Object[] elements = (Object[]) a.getArray();
             List<Object> out = new ArrayList<>(elements.length);
