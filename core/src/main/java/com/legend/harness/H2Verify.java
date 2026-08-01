@@ -98,13 +98,20 @@ public final class H2Verify {
             throw new Unverifiable("h2 driver not on classpath", null);
         }
         // only FLAT TABULAR frames compare cell-for-cell against raw SQL
-        // rows: class/graph carriers wrap rows in JSON, and an
-        // enum-decoded column is POST-transform where the golden's raw
-        // read is PRE-transform (the engine decodes at the TDS layer) —
-        // both are layer gaps, not divergences
+        // rows: class/graph carriers wrap rows in JSON.
         if (!(ours instanceof ExecutionResult.Tabular tab)) {
             throw new Unverifiable("non-tabular result frame", null);
         }
+        // ENUM-typed frames stay declined PENDING a witnessed
+        // investigation (task #103 c40): deleting this arm exposed
+        // testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass
+        // — golden-on-H2 [1|<null>, 2|STOCK] vs our frame FOUR
+        // duplicated [2|STOCK] rows and NO id=1 row, which a LEFT JOIN
+        // from OrderTable cannot produce from the dumped SQL; the
+        // compared frame appears not to be that query's. A REAL latent
+        // divergence is behind this decline — investigate before
+        // retiring the arm (the original post-transform rationale IS
+        // stale: c31 moved enum decode into SQL on both sides).
         for (com.legend.exec.Column c : tab.columns()) {
             if (c.pureType()
                     instanceof com.legend.compiler.element.type.Type.EnumType) {
