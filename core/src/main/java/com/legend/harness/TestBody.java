@@ -2475,16 +2475,10 @@ public final class TestBody {
             if (v instanceof List<?> l) {
                 return new ArrayList<>(l);
             }
-            if (v instanceof java.sql.Array arr) {
-                try {
-                    // Arrays.asList: NULL ELEMENTS survive (SQL NULL cells)
-                    return new ArrayList<>(java.util.Arrays.asList(
-                            (Object[]) arr.getArray()));
-                } catch (java.sql.SQLException e) {
-                    throw new IllegalStateException(e);
-                }
-            }
-            return List.of(v);
+            // native java.sql.Array and byte[] JSON-carrier arrivals —
+            // one decoder, hoisted (H2Verify.carrierList)
+            List<Object> carried = H2Verify.carrierList(v);
+            return carried != null ? carried : List.of(v);
         }
     }
 

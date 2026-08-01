@@ -83,6 +83,35 @@ public final class H2Verify {
 
     /** The ONE decline funnel: prints (the frozen System.err site) and
      * counts under the canonical bucket. */
+    /** An ARRAY-valued scalar cell's element list, or null when the
+     * value is no collection carrier. Two carrier arrivals (TestBody's
+     * Eval.flatten, hoisted here for the file cap): the native
+     * {@code java.sql.Array} (DuckDB), and the JSON carrier's byte[]
+     * text on a list-less backend (§2b — H2 hands JSON back as bytes;
+     * only a JSON-array lexeme parses, anything else stays opaque). */
+    public static java.util.@com.legend.Nullable List<Object> carrierList(
+            Object v) {
+        if (v instanceof java.sql.Array arr) {
+            try {
+                // Arrays.asList: NULL ELEMENTS survive (SQL NULL cells)
+                return new java.util.ArrayList<>(java.util.Arrays.asList(
+                        (Object[]) arr.getArray()));
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        if (v instanceof byte[] b) {
+            String text = new String(b,
+                    java.nio.charset.StandardCharsets.UTF_8);
+            if (text.startsWith("[")
+                    && com.legend.exec.Json.parse(text)
+                            instanceof java.util.List<?> l) {
+                return new java.util.ArrayList<>(l);
+            }
+        }
+        return null;
+    }
+
     public static void decline(String reason) {
         System.err.println("[h2-unverifiable] replay declined: " + reason);
         UNVERIFIABLE_CENSUS.computeIfAbsent(bucketOf(reason),
