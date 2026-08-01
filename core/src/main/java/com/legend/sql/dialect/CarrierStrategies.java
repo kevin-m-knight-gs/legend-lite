@@ -52,23 +52,46 @@ public final class CarrierStrategies extends SqlRewriter {
         if (caps.nativeLists()) {
             return s;
         }
-        // LITERAL-COLLECTION EXPLODE (R3a, witnessed): SELECT
-        // unnest([e1..eN]) FROM dual — the portable form is UNION ALL of
-        // one-row selects (duplicates preserved, order = branch order).
-        // Conservative witnessed shape only: single projection, bare
-        // Dual, no clauses.
-        if (s.from() instanceof com.legend.sql.SqlSource.Dual
-                && s.projections().size() == 1
+        // EXPLODE PLACEMENTS (R3a + R5b, witnessed): a single-projection
+        // SELECT unnest(arg) with no other clauses — the portable form
+        // is decided by the ARG shape (literal / NULL / collect
+        // subselect / sorted collect / concat / through-subselect
+        // literal cells). Unwitnessed args survive to the renderer wall.
+        if (s.projections().size() == 1
                 && s.where() == null && s.groupBy().isEmpty()
                 && s.having() == null && s.qualify() == null
                 && s.orderBy().isEmpty() && s.limit() == null
                 && s.offset() == null && !s.distinct()
                 && s.projections().get(0).expr() instanceof SqlExpr.Call u
                 && u.fn() == com.legend.sql.SqlFn.UNNEST
-                && u.args().size() == 1
-                && u.args().get(0) instanceof SqlExpr.ArrayLit al
+                && u.args().size() == 1) {
+            com.legend.sql.SqlQuery ex = explode(u.args().get(0), s,
+                    s.projections().get(0).alias());
+            if (ex != null) {
+                return ex;
+            }
+        }
+        return s;
+    }
+
+    /** The portable form of {@code SELECT unnest(arg) AS alias} for the
+     * WITNESSED arg shapes (R5b), or null (the renderer wall stays).
+     * Except the through-subselect arm, every rewriting arm requires a
+     * bare Dual source (the exploded form replaces the whole select). */
+    private @com.legend.Nullable com.legend.sql.SqlQuery explode(SqlExpr arg,
+            SqlSelect s, @com.legend.Nullable String alias) {
+        boolean dual = s.from() instanceof com.legend.sql.SqlSource.Dual;
+        // unnest(NULL) yields ZERO rows (probed on DuckDB) — keep the
+        // select shape, kill it with WHERE FALSE.
+        if (arg instanceof SqlExpr.NullLit) {
+            return s.withProjections(List.of(new SqlSelect.Projection(
+                            new SqlExpr.NullLit(), alias)), s.outputs())
+                    .withWhere(new SqlExpr.BoolLit(false));
+        }
+        // LITERAL-COLLECTION EXPLODE (R3a): UNION ALL of one-row selects
+        // (duplicates preserved, order = branch order).
+        if (dual && arg instanceof SqlExpr.ArrayLit al
                 && !al.elements().isEmpty()) {
-            String alias = s.projections().get(0).alias();
             List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
             for (SqlExpr el : al.elements()) {
                 branches.add(s.withProjections(
@@ -77,7 +100,110 @@ public final class CarrierStrategies extends SqlRewriter {
             }
             return new com.legend.sql.SqlUnion(branches, true, s.outputs());
         }
-        return s;
+        // EXPLODE-OF-COLLECT (R5b, witnessed): unnest((SELECT LIST(x)
+        // FROM ...)) IS the collecting row set — the inner select
+        // projecting the bare element, collect order keys carried over.
+        if (dual) {
+            SqlSelect coll = collectSelect(arg);
+            if (coll != null) {
+                SqlAgg.Reducer collect =
+                        (SqlAgg.Reducer) coll.projections().get(0).expr();
+                return coll.withProjections(
+                                List.of(new SqlSelect.Projection(
+                                        collect.args().get(0), alias)),
+                                s.outputs())
+                        .withOrderBy(collect.orderBy());
+            }
+        }
+        // SORTED EXPLODE (R5b, witnessed): unnest(LIST_SORT(collect)) —
+        // list_sort is ASC NULLS LAST (probed on DuckDB); the collect
+        // keys stay secondary (stable-sort parity).
+        if (dual && arg instanceof SqlExpr.Call so
+                && so.fn() == com.legend.sql.SqlFn.LIST_SORT
+                && so.args().size() == 1) {
+            SqlSelect coll = collectSelect(so.args().get(0));
+            if (coll != null) {
+                SqlAgg.Reducer collect =
+                        (SqlAgg.Reducer) coll.projections().get(0).expr();
+                SqlExpr raw = collect.args().get(0);
+                List<SqlSelect.SortKey> keys = new ArrayList<>();
+                keys.add(new SqlSelect.SortKey(raw, true,
+                        SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+                keys.addAll(collect.orderBy());
+                return coll.withProjections(
+                                List.of(new SqlSelect.Projection(raw, alias)),
+                                s.outputs())
+                        .withOrderBy(keys);
+            }
+        }
+        // CONCAT EXPLODE (R5b, witnessed): unnest(list_concat(a, b)) =
+        // the branches of a then the branches of b.
+        if (dual && arg instanceof SqlExpr.Call cc
+                && cc.fn() == com.legend.sql.SqlFn.LIST_CONCAT
+                && cc.args().size() >= 2) {
+            List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+            for (SqlExpr arm : cc.args()) {
+                com.legend.sql.SqlQuery b = explode(arm, s, alias);
+                if (b == null) {
+                    return null;
+                }
+                if (b instanceof com.legend.sql.SqlUnion bu) {
+                    branches.addAll(bu.branches());
+                } else {
+                    branches.add(b);
+                }
+            }
+            return new com.legend.sql.SqlUnion(branches, true, s.outputs());
+        }
+        // THROUGH-SUBSELECT CELLS (R5b, witnessed): SELECT unnest(c)
+        // FROM (SELECT [e1..ek] AS c FROM T ...) — k branches of the
+        // INNER select each projecting one cell. k = 1 is exact; k > 1
+        // is column-major row order where DuckDB unnest is row-major —
+        // an observed divergence fails the sweep loudly, never silently.
+        if (arg instanceof SqlExpr.Column c
+                && s.from() instanceof com.legend.sql.SqlSource.Subselect us
+                && us.inner() instanceof SqlSelect inner
+                && !inner.distinct() && inner.groupBy().isEmpty()
+                && inner.having() == null && inner.qualify() == null
+                && inner.orderBy().isEmpty() && inner.limit() == null
+                && inner.offset() == null) {
+            SqlExpr src = null;
+            for (SqlSelect.Projection ip : inner.projections()) {
+                if (c.name().equals(ip.alias())) {
+                    src = ip.expr();
+                }
+            }
+            if (src instanceof SqlExpr.ArrayLit cells
+                    && !cells.elements().isEmpty()) {
+                List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
+                for (SqlExpr cell : cells.elements()) {
+                    branches.add(inner.withProjections(
+                            List.of(new SqlSelect.Projection(cell, alias)),
+                            s.outputs()));
+                }
+                return branches.size() == 1 ? branches.get(0)
+                        : new com.legend.sql.SqlUnion(branches, true,
+                                s.outputs());
+            }
+        }
+        return null;
+    }
+
+    /** The collect SELECT beneath a ScalarSubquery — single projection,
+     * a bare non-distinct one-arg LIST reducer, no other clauses — or
+     * null. */
+    private static @com.legend.Nullable SqlSelect collectSelect(SqlExpr e) {
+        return e instanceof SqlExpr.ScalarSubquery sq
+                && sq.subquery() instanceof SqlSelect sel
+                && sel.projections().size() == 1
+                && sel.projections().get(0).expr() instanceof SqlAgg.Reducer r
+                && r.fn() == SqlAgg.Fn.LIST && !r.distinct()
+                && r.args().size() == 1
+                && sel.groupBy().isEmpty() && sel.having() == null
+                && sel.qualify() == null && sel.orderBy().isEmpty()
+                && sel.limit() == null && sel.offset() == null
+                && !sel.distinct()
+                ? sel : null;
     }
 
     /** LIST_* reducers over collection values ARE ReduceCollection —
@@ -95,6 +221,20 @@ public final class CarrierStrategies extends SqlRewriter {
     protected SqlExpr expr(SqlExpr e) {
         if (caps.nativeLists()) {
             return e;
+        }
+        // LIST_CONCAT over compile-time collections FOLDS (R5b,
+        // witnessed: month-name lists concatenated before explode).
+        // Bottom-up walk: nested concats fold inside-out.
+        if (e instanceof SqlExpr.Call cf
+                && cf.fn() == com.legend.sql.SqlFn.LIST_CONCAT
+                && !cf.args().isEmpty()
+                && cf.args().stream()
+                        .allMatch(x -> x instanceof SqlExpr.ArrayLit)) {
+            List<SqlExpr> els = new ArrayList<>();
+            for (SqlExpr x : cf.args()) {
+                els.addAll(((SqlExpr.ArrayLit) x).elements());
+            }
+            return new SqlExpr.ArrayLit(els);
         }
         if (e instanceof SqlExpr.Call lc && lc.args().size() == 1) {
             SqlAgg.Fn red = LIST_REDUCERS.get(lc.fn());
