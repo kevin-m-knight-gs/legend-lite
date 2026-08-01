@@ -35,6 +35,7 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.Column c -> new SqlExpr.Column(null, c.name());
             case SqlExpr.RowOrder ignored -> new SqlExpr.RowOrder(null);
             case SqlExpr.ReduceCollection rc -> rc;
+            case SqlExpr.Membership m2 -> m2;
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
                     c.args().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()), c.target());

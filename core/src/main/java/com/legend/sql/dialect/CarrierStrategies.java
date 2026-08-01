@@ -59,6 +59,12 @@ public final class CarrierStrategies extends SqlRewriter {
         //     -> (SELECT NAME(x, extras...) FROM ...)
         // The collect's ORDER KEYS carry over — the ordering contract
         // (insertion order via RowOrder) is preserved, not re-derived.
+        if (e instanceof SqlExpr.Membership m) {
+            SqlExpr rewritten = membershipRule(m);
+            if (rewritten != null) {
+                return rewritten;
+            }
+        }
         if (e instanceof SqlExpr.ReduceCollection rc) {
             SqlExpr fusedSub = fuse(rc);
             if (fusedSub != null) {
@@ -203,6 +209,50 @@ public final class CarrierStrategies extends SqlRewriter {
                                     out, sep), v);
         }
         return java.util.Objects.requireNonNull(out);
+    }
+
+    /** Portable membership (R2). LITERAL collection: the OR-chain
+     * {@code needle = e1 OR needle = e2 ...} — EXACT list_contains
+     * semantics (probed): NULL needle -> NULL, absent -> FALSE once
+     * NULL-literal elements are DROPPED (x = NULL is never true, which
+     * is precisely list_contains's no-match-on-NULL-element), empty ->
+     * FALSE. COLLECT subselect: EXISTS with the equality pushed into
+     * the WHERE (correlation preserved; the emission sites wrap
+     * COALESCE(_, false), which absorbs the NULL-needle edge). */
+    private static @com.legend.Nullable SqlExpr membershipRule(
+            SqlExpr.Membership m) {
+        if (m.collection() instanceof SqlExpr.ArrayLit al) {
+            SqlExpr chain = null;
+            for (SqlExpr el : al.elements()) {
+                if (el instanceof SqlExpr.NullLit) {
+                    continue;
+                }
+                SqlExpr eq = SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                        m.needle(), el);
+                chain = chain == null ? eq
+                        : SqlExpr.Call.of(com.legend.sql.SqlFn.OR, chain, eq);
+            }
+            return chain == null ? new SqlExpr.BoolLit(false) : chain;
+        }
+        if (m.collection() instanceof SqlExpr.ScalarSubquery sq
+                && sq.subquery() instanceof SqlSelect sel
+                && sel.projections().size() == 1
+                && sel.projections().get(0).expr()
+                        instanceof SqlAgg.Reducer collect
+                && collect.fn() == SqlAgg.Fn.LIST
+                && !collect.distinct()
+                && collect.args().size() == 1) {
+            SqlExpr eq = SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                    collect.args().get(0), m.needle());
+            SqlSelect inner = sel.withProjections(
+                    List.of(new SqlSelect.Projection(
+                            new SqlExpr.IntLit(1), null)), List.of());
+            SqlSelect withEq = inner.withWhere(inner.where() == null ? eq
+                    : SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
+                            inner.where(), eq));
+            return new SqlExpr.Exists(withEq);
+        }
+        return null;
     }
 
     /** Replace bare reads of the lambda parameter with {@code value}. */

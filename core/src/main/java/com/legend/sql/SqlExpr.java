@@ -17,7 +17,8 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
-                SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlAgg.Reducer {
+                SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
+                SqlAgg.Reducer {
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
@@ -33,6 +34,7 @@ public sealed interface SqlExpr
         return switch (this) {
             case Column ignored -> List.of();
             case RowOrder ignored -> List.of();
+            case Membership m -> List.of(m.needle(), m.collection());
             case ReduceCollection rc -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 out.add(rc.collection());
@@ -116,6 +118,7 @@ public sealed interface SqlExpr
             case RowOrder ignored -> this;
             case ReduceCollection rc -> new ReduceCollection(rc.reducer(),
                     cs.get(0), cs.subList(1, cs.size()));
+            case Membership m -> new Membership(cs.get(0), cs.get(1));
             case Star ignored -> this;
             case StarExcept ignored -> this;
             case StringLit ignored -> this;
@@ -237,6 +240,19 @@ public sealed interface SqlExpr
         public ReduceCollection {
             extras = java.util.List.copyOf(extras);
         }
+    }
+
+    /** SEMANTIC collection membership (CARRIER_REDESIGN.md R2):
+     * {@code needle} in the collection VALUE. NULL TRUTH TABLE (probed
+     * DuckDB 1.5 list_contains, the reference semantics): NULL needle
+     * -> NULL; needle absent (even with NULL elements) -> FALSE; needle
+     * present -> TRUE; empty collection -> FALSE. SQL {@code IN}
+     * differs ONLY when a NULL element exists and the needle is absent
+     * (NULL, not FALSE) — indistinguishable in filter position; the
+     * portable rule CASE-wraps in the NULL-element-literal case. The
+     * collection may be a PlanParam at bind time (§2). */
+    record Membership(SqlExpr needle, SqlExpr collection)
+            implements SqlExpr {
     }
 
     record Column(@com.legend.Nullable String table, String name) implements SqlExpr {

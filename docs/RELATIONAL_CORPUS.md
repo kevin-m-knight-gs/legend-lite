@@ -8289,7 +8289,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
 - SHAPE testConnectionEqualityAllSameStatic [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityAllButOnePropertySame [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityTypeDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)

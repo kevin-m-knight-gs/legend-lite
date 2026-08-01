@@ -55,7 +55,6 @@ class SpellingsTest {
             SqlFn.LIST_BOOL_AND,
             SqlFn.LIST_BOOL_OR,
             SqlFn.LIST_CONCAT,
-            SqlFn.LIST_CONTAINS,
             SqlFn.LIST_DISTINCT,
             SqlFn.LIST_EXISTS,
             SqlFn.LIST_FILTER,

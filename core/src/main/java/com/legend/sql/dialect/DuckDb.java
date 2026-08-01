@@ -44,6 +44,13 @@ public final class DuckDb extends AnsiSqlRenderer {
                 + ")";
     }
 
+    /** DuckDB native membership (byte-identical to the pre-R2 call). */
+    @Override
+    protected String membership(SqlExpr.Membership m) {
+        return "list_contains(" + expr(m.collection(), 0) + ", "
+                + expr(m.needle(), 0) + ")";
+    }
+
     // ---- structural capabilities ----
 
     @Override
@@ -148,7 +155,6 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LIST_FLATTEN -> fn("flatten", args);
             case LIST_CONCAT -> fn("list_concat", args);
             case JSON_MERGE_PATCH -> fn("json_merge_patch", args);
-            case LIST_CONTAINS -> fn("list_contains", args);
             case LIST_GET -> fn("list_extract", args);
             case LIST_POSITION -> fn("list_position", args);
             case LIST_ZIP -> fn("list_zip", args);

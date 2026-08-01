@@ -320,6 +320,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.JsonObject j -> jsonObject(j);
             case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(j);
             case SqlExpr.ReduceCollection rc -> reduceCollection(rc);
+            case SqlExpr.Membership m -> membership(m);
             case SqlAgg.Reducer r -> reducer(r);
         };
     }
@@ -334,6 +335,13 @@ public class AnsiSqlRenderer implements SqlDialect {
      * The portable route is the CarrierStrategies FUSION into the
      * collecting subselect; a node that survives to rendering here is
      * an honest budget-counted wall. */
+    /** Collection membership — backend data-model capability; the
+     * portable route is the CarrierStrategies IN-rewrite. */
+    protected String membership(SqlExpr.Membership m) {
+        throw new DialectCapability("collection membership reached a"
+                + " dialect without a list encoding");
+    }
+
     protected String reduceCollection(SqlExpr.ReduceCollection rc) {
         throw new DialectCapability("collection reduction '" + rc.reducer()
                 + "' reached a dialect without a list encoding");
@@ -513,7 +521,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case TO_VARIANT -> variantConstruct(a);
             // Idiom points — no ANSI spelling; the dialect decides or dies.
             case UNNEST -> unnestProjection(a);
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_CONTAINS, LIST_GET,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,
                  LIST_POSITION ->
                     listCall(c.fn(), a);
             case LIST_EXISTS -> listExists(a);

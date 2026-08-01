@@ -1886,8 +1886,9 @@ final class Scalars {
                 // legitimately contain an instance (audit: class-in-mixed-list
                 // containment was constant FALSE).
                 if (PlatformTypes.isAny(elem)) {
-                    return new SqlExpr.Call(SqlFn.LIST_CONTAINS, List.of(args.get(0),
-                            SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1))));
+                    return new SqlExpr.Membership(
+                            SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1)),
+                            args.get(0));
                 }
                 // Pure equality never relates an instance to a primitive —
                 // CONCRETE cross-kind containment is statically FALSE (SQL
@@ -1898,7 +1899,7 @@ final class Scalars {
                 // NULL-safe: containment in a NULL list (toMany over JSON
                 // null) is pure's empty-collection FALSE, not SQL NULL.
                 return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Call(SqlFn.LIST_CONTAINS, args),
+                        new SqlExpr.Membership(args.get(1), args.get(0)),
                         new SqlExpr.BoolLit(false));
             });
         }
@@ -2247,8 +2248,7 @@ final class Scalars {
             if (n.args().get(1).info().type()
                     instanceof Type.RelationType) {
                 return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Call(SqlFn.LIST_CONTAINS,
-                                List.of(args.get(1), needle)),
+                        new SqlExpr.Membership(needle, args.get(1)),
                         new SqlExpr.BoolLit(false));
             }
             List<SqlExpr> flat = new ArrayList<>();

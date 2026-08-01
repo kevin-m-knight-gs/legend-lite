@@ -115,6 +115,12 @@ public abstract class SqlRewriter {
         SqlExpr out = switch (e) {
             case SqlExpr.Column c -> c;
             case SqlExpr.RowOrder r -> r;
+            case SqlExpr.Membership m -> {
+                SqlExpr n2 = expr(m.needle());
+                SqlExpr c2 = expr(m.collection());
+                yield n2 == m.needle() && c2 == m.collection() ? m
+                        : new SqlExpr.Membership(n2, c2);
+            }
             case SqlExpr.ReduceCollection rc -> {
                 SqlExpr col = expr(rc.collection());
                 java.util.List<SqlExpr> ex = mapList(rc.extras(), this::expr);

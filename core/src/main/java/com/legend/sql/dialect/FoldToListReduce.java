@@ -64,6 +64,7 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.Column c -> c;
             case SqlExpr.RowOrder r2 -> r2;
             case SqlExpr.ReduceCollection rc -> rc;
+            case SqlExpr.Membership m2 -> m2;
             case SqlExpr.StarExcept se -> se;
             case SqlExpr.OrderedListAgg ola -> ola;   // no elem refs inside
             case SqlExpr.Call call -> new SqlExpr.Call(call.fn(),

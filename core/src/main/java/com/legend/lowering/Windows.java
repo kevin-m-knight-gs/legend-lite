@@ -149,6 +149,7 @@ final class Windows {
             case SqlExpr.Column ignored -> e;
             case SqlExpr.RowOrder ignored -> e;
             case SqlExpr.ReduceCollection ignored -> e;
+            case SqlExpr.Membership ignored -> e;
             case SqlExpr.Star ignored -> e;
             case SqlExpr.StarExcept ignored -> e;
             case SqlExpr.StringLit ignored -> e;

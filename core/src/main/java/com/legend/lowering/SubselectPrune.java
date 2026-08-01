@@ -151,6 +151,10 @@ final class SubselectPrune {
         switch (e) {
             case SqlExpr.Column c -> r.col(c.table(), c.name());
             case SqlExpr.RowOrder ro -> { }
+            case SqlExpr.Membership m -> {
+                collectExpr(m.needle(), r);
+                collectExpr(m.collection(), r);
+            }
             case SqlExpr.ReduceCollection rc -> {
                 collectExpr(rc.collection(), r);
                 rc.extras().forEach(x -> collectExpr(x, r));

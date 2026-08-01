@@ -136,6 +136,46 @@ class CarrierDifferentialTest {
         }
     }
 
+    /** Membership NULL truth table (R2 crux): needle NULL, element
+     * NULL + absent needle, present needle, empty — both strategies on
+     * DuckDB. Filter-position equality is the row contract; the
+     * projected false-vs-NULL difference on absent-with-NULL-element is
+     * ABSORBED by the emission sites' COALESCE(_, false) wrapper, which
+     * this fixture reproduces. */
+    @Test
+    void membershipNullEdgesRowEqual() throws Exception {
+        record Cse(SqlExpr needle, java.util.List<SqlExpr> elems) { }
+        java.util.List<Cse> cases = java.util.List.of(
+                new Cse(new SqlExpr.StringLit("a"),
+                        java.util.List.of(new SqlExpr.StringLit("a"),
+                                new SqlExpr.NullLit())),
+                new Cse(new SqlExpr.StringLit("x"),
+                        java.util.List.of(new SqlExpr.StringLit("a"),
+                                new SqlExpr.NullLit())),
+                new Cse(new SqlExpr.NullLit(),
+                        java.util.List.of(new SqlExpr.StringLit("a"))),
+                new Cse(new SqlExpr.StringLit("a"), java.util.List.of()));
+        for (Cse cse : cases) {
+            SqlExpr member = SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                    new SqlExpr.Membership(cse.needle(),
+                            new SqlExpr.ArrayLit(cse.elems())),
+                    new SqlExpr.BoolLit(false));
+            SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
+                    .withProjections(List.of(
+                                    new SqlSelect.Projection(member, "m")),
+                            List.of());
+            String nativeSql = new DuckDb().render(q);
+            String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
+                    TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
+                    Statement st = c.createStatement()) {
+                assertEquals(one(st, nativeSql), one(st, portableSql),
+                        "membership divergence:\nnative:   " + nativeSql
+                        + "\nportable: " + portableSql);
+            }
+        }
+    }
+
     private static String one(Statement st, String sql) throws Exception {
         try (ResultSet rs = st.executeQuery(sql)) {
             rs.next();
