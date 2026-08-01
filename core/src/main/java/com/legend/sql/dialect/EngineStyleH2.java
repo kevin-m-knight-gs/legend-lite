@@ -1071,6 +1071,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // engine h2 parseInteger dynaFn golden spelling; execution
             // dialects keep the 64-bit BIGINT cast
             case PARSE_INT -> "cast(" + expr(a.get(0), 0) + " as integer)";
+            // bool text keeps the golden cast spelling byte-for-byte
+            case BOOL_TO_TEXT -> "cast(" + expr(a.get(0), 0)
+                    + " as varchar)";
             case CHR -> "char(" + expr(a.get(0), 0) + ")";
             case LENGTH -> "char_length(" + expr(a.get(0), 0) + ")";
             case REVERSE_STRING -> "legend_h2_extension_reverse_string("

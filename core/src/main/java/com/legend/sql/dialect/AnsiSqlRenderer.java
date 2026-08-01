@@ -519,6 +519,9 @@ public class AnsiSqlRenderer implements SqlDialect {
                  LIST_REVERSE, TYPEOF ->
                     listCall(c.fn(), a);
             case TO_VARIANT -> variantConstruct(a);
+            // boolean text: the reference cast spelling (semantic node —
+            // dialects with a diverging bool print override)
+            case BOOL_TO_TEXT -> "CAST(" + expr(a.get(0), 0) + " AS VARCHAR)";
             // Idiom points — no ANSI spelling; the dialect decides or dies.
             case UNNEST -> unnestProjection(a);
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,

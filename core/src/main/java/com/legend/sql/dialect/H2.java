@@ -85,6 +85,30 @@ public final class H2 extends AnsiSqlRenderer {
             return "(RIGHT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
                     + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
         }
+        // boolean text (P7): H2 CAST prints 'TRUE' — the reference
+        // prints 'true'; NULL stays NULL through the CASE.
+        if (c.fn() == SqlFn.BOOL_TO_TEXT) {
+            String v = expr(a.get(0), 0);
+            return "CASE WHEN " + v + " THEN 'true' WHEN NOT " + v
+                    + " THEN 'false' END";
+        }
+        // date_diff (P7): DATEDIFF(UNIT, a, b) — probed sign parity
+        // (10 / -10) with the reference date_diff('unit', a, b).
+        if (c.fn() == SqlFn.DATE_DIFF
+                && a.get(0) instanceof SqlExpr.StringLit du) {
+            return "DATEDIFF(" + du.value()
+                    .toUpperCase(java.util.Locale.ROOT) + ", "
+                    + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+        }
+        // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
+        // probed partial-vs-full parity; literal patterns anchor at
+        // build time, dynamic ones through CONCAT.
+        if (c.fn() == SqlFn.REGEXP_FULL_MATCH) {
+            String pat = a.get(1) instanceof SqlExpr.StringLit pl
+                    ? stringLit("^(?:" + pl.value() + ")$")
+                    : "CONCAT('^(?:', " + expr(a.get(1), 0) + ", ')$')";
+            return "REGEXP_LIKE(" + expr(a.get(0), 0) + ", " + pat + ")";
+        }
         // error(msg) (P3): SIGNAL raises with the message and is LAZY
         // under CASE (probed 2.1.214: guarded branches do not fire,
         // taken branches raise, THEN-arm types unify).

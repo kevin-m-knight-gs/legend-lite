@@ -20,6 +20,7 @@ class SpellingsTest {
 
     /** Fns rendered by CODE (infix, shape logic, composites, idiom points). */
     private static final Set<SqlFn> CODED = Set.of(
+            SqlFn.BOOL_TO_TEXT,
             SqlFn.ADD_INTERVAL,
             SqlFn.AND,
             SqlFn.BIT_AND,

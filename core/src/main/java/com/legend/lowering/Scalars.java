@@ -2773,6 +2773,12 @@ final class Scalars {
             throw new com.legend.error.NotImplementedException(
                     "toString over " + t + " is not modeled");
         }
+        // boolean text is a SEMANTIC node (P7): the reference prints
+        // 'true'/'false', H2's VARCHAR cast prints 'TRUE' — the arg
+        // type is known HERE, the spelling is each dialect's.
+        if (t == Type.Primitive.BOOLEAN) {
+            return SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, x);
+        }
         return new SqlExpr.Cast(x, PureSql.type(Type.Primitive.STRING));
     }
 

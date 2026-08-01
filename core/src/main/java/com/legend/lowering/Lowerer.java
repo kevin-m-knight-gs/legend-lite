@@ -2640,8 +2640,7 @@ public final class Lowerer {
                 List<SqlExpr> elems = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
                     elems.add(SqlExpr.Call.of(SqlFn.COALESCE,
-                            new SqlExpr.Cast(scalar(e, columns),
-                                    SqlType.Scalar.VARCHAR),
+                            Fold.cellText(e.info().type(), scalar(e, columns)),
                             new SqlExpr.StringLit(com.legend.compiler.element.type
                                         .PlatformTypes.TDS_NULL_CELL)));
                 }

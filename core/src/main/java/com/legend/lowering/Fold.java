@@ -630,4 +630,15 @@ final class Fold {
     }
 
 
+
+    /** A TDS cell's print text (the Lowerer's makeString-over-row-cells
+     * arm): booleans ride the semantic node — the reference prints
+     * 'true', H2's VARCHAR cast would print 'TRUE'; everything else is
+     * the VARCHAR cast. */
+    static SqlExpr cellText(com.legend.compiler.element.type.Type t,
+            SqlExpr v) {
+        return t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+                ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
+                : new SqlExpr.Cast(v, com.legend.sql.SqlType.Scalar.VARCHAR);
+    }
 }

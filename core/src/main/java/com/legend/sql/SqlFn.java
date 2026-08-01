@@ -69,7 +69,7 @@ public enum SqlFn {
     LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT, STRFTIME, STRPTIME, LIST_REVERSE, TYPEOF,
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
     // Variant construction
-    TO_VARIANT,
+    TO_VARIANT, BOOL_TO_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE
 }
