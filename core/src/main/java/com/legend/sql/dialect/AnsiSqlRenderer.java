@@ -277,6 +277,8 @@ public class AnsiSqlRenderer implements SqlDialect {
                     "plan parameter '${" + p.name() + "}' reached an"
                     + " executable dialect — plan templates render via the"
                     + " engine-style dialect only");
+            case SqlExpr.RowOrder r -> (r.table() == null ? ""
+                    : ident(r.table()) + ".") + rowOrderColumn();
             case SqlExpr.Column c -> c.table() == null
                     ? ident(c.name()) : ident(c.table()) + "." + ident(c.name());
             case SqlExpr.Star s -> s.table() == null ? "*" : ident(s.table()) + ".*";
@@ -310,25 +312,43 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Lambda l -> lambda(l);
             case SqlExpr.Cast c -> variantAwareCast(c);
             case SqlExpr.FoldCall f -> foldCall(f);
-            case SqlExpr.JsonObject j -> "json_object(" + j.kv().stream()
-                    .map(kvE -> expr(kvE, 0)).collect(Collectors.joining(", ")) + ")";
-            // COALESCE: an aggregate over ZERO rows is SQL NULL; the graph
-            // contract says empty collection = the EMPTY ARRAY.
-            // ordered form: json_group_array is a DuckDB MACRO (no ORDER
-            // BY) — list() is a real aggregate that takes one, and to_json
-            // over the JSON list yields the same array value
-            case SqlExpr.JsonArrayAgg j -> j.orderKeys().isEmpty()
-                    ? "coalesce(json_group_array(" + expr(j.value(), 0) + "), '[]')"
-                    : "coalesce(to_json(list(" + expr(j.value(), 0)
-                            + " ORDER BY " + j.orderKeys().stream()
-                                    .map(k -> expr(k.expr(), 0)
-                                            + (k.desc() ? " DESC" : " ASC")
-                                            + " NULLS LAST")
-                                    .collect(java.util.stream.Collectors
-                                            .joining(", "))
-                            + ")), '[]')";
+            case SqlExpr.JsonObject j -> jsonObject(j);
+            case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(j);
             case SqlAgg.Reducer r -> reducer(r);
         };
+    }
+
+    /** The backend's physical row-order pseudo-column spelling. */
+    protected String rowOrderColumn() {
+        return "rowid";
+    }
+
+    /** DuckDB reference JSON-object constructor: alternating key/value
+     * arguments. Dialects with the SQL-standard {@code KEY: VALUE} form
+     * override. */
+    protected String jsonObject(SqlExpr.JsonObject j) {
+        return "json_object(" + j.kv().stream()
+                .map(kvE -> expr(kvE, 0)).collect(Collectors.joining(", ")) + ")";
+    }
+
+    /**
+     * COALESCE: an aggregate over ZERO rows is SQL NULL; the graph
+     * contract says empty collection = the EMPTY ARRAY.
+     * ordered form: json_group_array is a DuckDB MACRO (no ORDER
+     * BY) — list() is a real aggregate that takes one, and to_json
+     * over the JSON list yields the same array value
+     */
+    protected String jsonArrayAgg(SqlExpr.JsonArrayAgg j) {
+        return j.orderKeys().isEmpty()
+                ? "coalesce(json_group_array(" + expr(j.value(), 0) + "), '[]')"
+                : "coalesce(to_json(list(" + expr(j.value(), 0)
+                        + " ORDER BY " + j.orderKeys().stream()
+                                .map(k -> expr(k.expr(), 0)
+                                        + (k.desc() ? " DESC" : " ASC")
+                                        + " NULLS LAST")
+                                .collect(java.util.stream.Collectors
+                                        .joining(", "))
+                        + ")), '[]')";
     }
 
     /**

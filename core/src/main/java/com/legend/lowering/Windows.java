@@ -147,6 +147,7 @@ final class Windows {
             // Leaves: no reducer can hide below.
             case SqlExpr.PlanParam ignored -> e;
             case SqlExpr.Column ignored -> e;
+            case SqlExpr.RowOrder ignored -> e;
             case SqlExpr.Star ignored -> e;
             case SqlExpr.StarExcept ignored -> e;
             case SqlExpr.StringLit ignored -> e;

@@ -150,6 +150,7 @@ final class SubselectPrune {
     private static void collectExpr(SqlExpr e, Refs r) {
         switch (e) {
             case SqlExpr.Column c -> r.col(c.table(), c.name());
+            case SqlExpr.RowOrder ro -> { }
             case SqlExpr.Star st -> {
                 if (st.table() != null) {
                     r.starred().add(st.table());

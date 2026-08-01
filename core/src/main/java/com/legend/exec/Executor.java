@@ -116,7 +116,13 @@ public final class Executor {
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
                 case GRAPH -> new ExecutionResult.Graph(
-                        rs.next() ? String.valueOf(rs.getObject(1)) : "[]", rootType.type());
+                        // the envelope is JSON TEXT by contract — the
+                        // dialect codec canonicalizes driver-flavored
+                        // carriers (H2 hands JSON back as byte[])
+                        rs.next() ? String.valueOf(dialect.normalize(
+                                rs.getObject(1),
+                                com.legend.sql.SqlType.Scalar.JSON)) : "[]",
+                        rootType.type());
             };
         }
     }

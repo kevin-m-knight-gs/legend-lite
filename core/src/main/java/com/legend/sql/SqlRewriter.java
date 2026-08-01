@@ -114,6 +114,7 @@ public abstract class SqlRewriter {
     protected final SqlExpr rewriteExpr(SqlExpr e) {
         SqlExpr out = switch (e) {
             case SqlExpr.Column c -> c;
+            case SqlExpr.RowOrder r -> r;
             case SqlExpr.Star st -> st;
             case SqlExpr.StarExcept se -> se;
             case SqlExpr.StringLit l -> l;

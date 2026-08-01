@@ -16,7 +16,8 @@ public sealed interface SqlExpr
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
-                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlAgg.Reducer {
+                SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
+                SqlExpr.RowOrder, SqlAgg.Reducer {
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
@@ -31,6 +32,7 @@ public sealed interface SqlExpr
     default List<SqlExpr> children() {
         return switch (this) {
             case Column ignored -> List.of();
+            case RowOrder ignored -> List.of();
             case Star ignored -> List.of();
             case StarExcept ignored -> List.of();
             case StringLit ignored -> List.of();
@@ -105,6 +107,7 @@ public sealed interface SqlExpr
     default SqlExpr withChildren(List<SqlExpr> cs) {
         return switch (this) {
             case Column ignored -> this;
+            case RowOrder ignored -> this;
             case Star ignored -> this;
             case StarExcept ignored -> this;
             case StringLit ignored -> this;
@@ -207,6 +210,13 @@ public sealed interface SqlExpr
     /** A column reference, optionally qualified by a source alias. */
     /** {@code table} null = unqualified reference (lambda params,
      * pivot args, post-unqualify rewrites). */
+    /** The backend's PHYSICAL ROW-ORDER pseudo-column — the determinism
+     * key for insertion-ordered aggregation (joinStrings parity). Spelled
+     * per dialect (DuckDB {@code rowid}, H2 {@code _ROWID_}); a plain
+     * Column would bake one backend's spelling into the IR. */
+    record RowOrder(@com.legend.Nullable String table) implements SqlExpr {
+    }
+
     record Column(@com.legend.Nullable String table, String name) implements SqlExpr {
     }
 

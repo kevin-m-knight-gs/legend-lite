@@ -749,6 +749,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return c.table() == null ? phys(c.name())
                     : '"' + rename(c.table()) + "\"." + phys(c.name());
         }
+        // the row-order pseudo-column rides the SAME alias plan as
+        // ordinary column reads
+        if (e instanceof SqlExpr.RowOrder ro) {
+            return ro.table() == null ? "rowid"
+                    : '"' + rename(ro.table()) + "\".rowid";
+        }
         String dd = engineDateDiff(e);
         if (dd != null) {
             return dd;

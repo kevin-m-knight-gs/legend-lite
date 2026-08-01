@@ -577,3 +577,35 @@ calendarAggregation 1/92 and sub-aggregation), LIST_AGG list encoding,
 enum decode (enumeration 0/26), milestoning 9/224 (family-wide cause
 unmeasured — next census target). Next: per-family wall census drives
 step 9 (capability budget) and step 11 (codec rows).
+
+## Step 10 census + first burn (2026-08-01, c44) — 476 → 679/2538
+
+CENSUS (scoped probes, reasons bucketed by count): the corpus-wide H2
+walls rank (1) UNNEST collection-carrier (§4.1, deferred: 72 milestoning
++ 134 functions + 116 tds + 12 enumeration in the four probes alone),
+(2) the JSON GRAPH ENVELOPE — DuckDB spellings executing raw on H2,
+(3) array-literal/LIST_AGG/LIST_GET/TYPEOF list encodings (carrier
+family), (4) small singles (`rowid` order key, parseJSON/alloyConfig
+platform fns, executeLegendQuery overloads).
+
+LANDED (everything probed on the real 2.1.214 jar first):
+- `SqlExpr.RowOrder` — the physical row-order pseudo-column is now an
+  IR NODE spelled per dialect (DuckDB `rowid`, H2 `_ROWID_`), not a
+  DuckDB string baked into the Lowerer's STRING_AGG determinism key.
+- `AnsiSqlRenderer.jsonObject/jsonArrayAgg` became dialect hooks; H2
+  overrides with the probed SQL-standard forms `JSON_OBJECT('k': v)`
+  and `COALESCE(JSON_ARRAYAGG(v ORDER BY …), JSON '[]')`.
+- Step 11 codec row #1: H2 hands JSON back as `byte[]` —
+  `H2.normalize` canonicalizes to the UTF-8 string; `Executor`'s GRAPH
+  envelope read now routes through `dialect.normalize` (the raw
+  `String.valueOf(byte[])` produced `[B@…`, which the Json parser
+  surfaced as `For input string: ""` across 110 graph tests).
+- EngineStyleH2 renders RowOrder through its alias plan (golden text
+  unchanged).
+
+RESULT: h2-backend 679/2538. Movers: graphFetch 2→95/143 (+union
+0→12/15, domain 1/1), functions 11→45, query 0→13, advanced 12→24,
+milestoning 9→19, extends 4→10. No family regressed. DuckDB reference
+path: byte-identical counts (2180, h2-exec 289/0/135, core 1573, PCT
+1109); one SHAPE wall-diagnosis TEXT flapped on testResultToJsonStream
+(assembly-order detail on an already-walled test, count unchanged).

@@ -1091,7 +1091,7 @@ public final class Lowerer {
                 && value instanceof SqlExpr.Column vc
                 && aliasIsBaseTable(base.from(), vc.table())) {
             aggOrder = List.of(new SqlSelect.SortKey(
-                    new SqlExpr.Column(vc.table(), "rowid"), true, null, null));
+                    new SqlExpr.RowOrder(vc.table()), true, null, null));
         }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate.
