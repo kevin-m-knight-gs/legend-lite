@@ -619,12 +619,12 @@ public final class TestBody {
      * (the caller reports Unsupported, never a false verdict). */
     private static @com.legend.Nullable Object jsonValueOf(Eval e) {
         if (e.result instanceof com.legend.exec.ExecutionResult.Graph g) {
-            return com.legend.exec.Json.parse(g.json());
+            return com.legend.sql.Json.parse(g.json());
         }
         List<Object> vals = e.values();
         if (vals.size() == 1 && vals.get(0) instanceof String str) {
             try {
-                return com.legend.exec.Json.parse(str);
+                return com.legend.sql.Json.parse(str);
             } catch (RuntimeException notJson) {
                 return null;
             }
@@ -2440,7 +2440,7 @@ public final class TestBody {
                 case com.legend.exec.ExecutionResult.Collection c -> c.values().size();
                 case com.legend.exec.ExecutionResult.Tabular t -> t.rows().size();
                 case com.legend.exec.ExecutionResult.Graph g -> {
-                    Object p = com.legend.exec.Json.parse(g.json());
+                    Object p = com.legend.sql.Json.parse(g.json());
                     yield p instanceof List<?> l ? l.size() : 1;
                 }
             };
@@ -2460,7 +2460,7 @@ public final class TestBody {
                     yield out;
                 }
                 case com.legend.exec.ExecutionResult.Graph g -> {
-                    Object p = com.legend.exec.Json.parse(g.json());
+                    Object p = com.legend.sql.Json.parse(g.json());
                     yield p instanceof List<?> l ? new ArrayList<>(l) : List.of(p);
                 }
             };

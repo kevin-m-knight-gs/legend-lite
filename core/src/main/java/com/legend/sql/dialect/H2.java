@@ -40,6 +40,17 @@ public final class H2 extends AnsiSqlRenderer {
         return true;
     }
 
+    /** Native QUALIFY (probed capability note above) — the clause
+     * renders like DuckDB's; the base default walls, which stranded
+     * the one PCT qualify test despite supportsQualify(). */
+    @Override
+    protected void appendQualify(StringBuilder sb, com.legend.sql.SqlSelect s,
+            int depth) {
+        nl(sb, depth).append("QUALIFY ").append(expr(
+                java.util.Objects.requireNonNull(s.qualify(),
+                        "appendQualify without a qualify clause"), 0));
+    }
+
     /** No native dynamic PIVOT — the two-phase staticization pre-pass
      * pins the key values, then the static emulation strategy runs. */
     @Override

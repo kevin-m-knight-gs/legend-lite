@@ -1,5 +1,7 @@
 package com.legend.exec;
 
+import com.legend.sql.Json;
+
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;

@@ -72,7 +72,7 @@ final class JsonSourceFrame {
         }
         // one object = one row; [array] = n rows; CONCATENATED objects
         // ({..}{..}) = the engine's row-stream spelling, one per row
-        List<Object> values = com.legend.exec.Json.parseAll(
+        List<Object> values = com.legend.sql.Json.parseAll(
                 url.substring(prefix.length()));
         List<Map<?, ?>> objects = new ArrayList<>();
         for (Object payload : values) {

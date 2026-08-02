@@ -52,6 +52,39 @@ public final class CarrierStrategies extends SqlRewriter {
         if (caps.nativeLists()) {
             return s;
         }
+        // FULL OUTER emulation (PV3, witnessed: H2 rejects FULL OUTER
+        // JOIN outright, RIGHT works — probed): LEFT branch UNION ALL
+        // RIGHT branch anti-joined on a fresh copy of the LEFT source
+        // (rows already covered by the LEFT branch drop out).
+        if (s.from() instanceof com.legend.sql.SqlSource.Join fj
+                && fj.kind() == com.legend.sql.SqlSource.Join.Kind.FULL
+                && fj.on() != null) {
+            com.legend.sql.SqlSource leftCopy =
+                    copyWithAlias(fj.left(), "_full");
+            if (leftCopy != null) {
+                SqlSelect leftBranch = s.withFrom(new com.legend.sql
+                        .SqlSource.Join(fj.left(), fj.right(),
+                                com.legend.sql.SqlSource.Join.Kind.LEFT,
+                                fj.on()));
+                SqlExpr anti = SqlExpr.Call.of(com.legend.sql.SqlFn.NOT,
+                        new SqlExpr.Exists(SqlSelect.starOf(leftCopy)
+                                .withProjections(List.of(
+                                        new SqlSelect.Projection(
+                                                new SqlExpr.IntLit(1), null)),
+                                        List.of())
+                                .withWhere(remapAlias(fj.on(),
+                                        fj.left().alias(), "_full"))));
+                SqlSelect rightBranch = s.withFrom(new com.legend.sql
+                        .SqlSource.Join(fj.left(), fj.right(),
+                                com.legend.sql.SqlSource.Join.Kind.RIGHT,
+                                fj.on()))
+                        .withWhere(s.where() == null ? anti
+                                : SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
+                                        s.where(), anti));
+                return new com.legend.sql.SqlUnion(
+                        List.of(leftBranch, rightBranch), true, s.outputs());
+            }
+        }
         // EXPLODE PLACEMENTS (R3a + R5b, witnessed): a single-projection
         // SELECT unnest(arg) with no other clauses — the portable form
         // is decided by the ARG shape (literal / NULL / collect
@@ -171,18 +204,7 @@ public final class CarrierStrategies extends SqlRewriter {
         if (rightKey == null) {
             return null;
         }
-        com.legend.sql.SqlSource copy = switch (j.right()) {
-            case com.legend.sql.SqlSource.Table t ->
-                    new com.legend.sql.SqlSource.Table(t.name(), "_asof",
-                            t.outputs());
-            case com.legend.sql.SqlSource.Subselect sub ->
-                    new com.legend.sql.SqlSource.Subselect(sub.inner(),
-                            "_asof", null);
-            case com.legend.sql.SqlSource.Values v ->
-                    new com.legend.sql.SqlSource.Values(v.rows(),
-                            v.columns(), "_asof", v.outputs());
-            default -> null;
-        };
+        com.legend.sql.SqlSource copy = copyWithAlias(j.right(), "_asof");
         if (copy == null) {
             return null;
         }
@@ -210,6 +232,25 @@ public final class CarrierStrategies extends SqlRewriter {
                         new SqlExpr.ScalarSubquery(pick)));
         return new com.legend.sql.SqlSource.Join(j.left(), j.right(),
                 com.legend.sql.SqlSource.Join.Kind.LEFT, on);
+    }
+
+    /** A fresh re-aliased copy of a simple source (Table / Subselect /
+     * Values), or null — the correlated-copy pattern the ASOF and FULL
+     * emulations share. */
+    private static com.legend.sql.@com.legend.Nullable SqlSource copyWithAlias(
+            com.legend.sql.SqlSource src, String alias) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.Table t ->
+                    new com.legend.sql.SqlSource.Table(t.name(), alias,
+                            t.outputs());
+            case com.legend.sql.SqlSource.Subselect sub ->
+                    new com.legend.sql.SqlSource.Subselect(sub.inner(),
+                            alias, null);
+            case com.legend.sql.SqlSource.Values v ->
+                    new com.legend.sql.SqlSource.Values(v.rows(),
+                            v.columns(), alias, v.outputs());
+            default -> null;
+        };
     }
 
     private static void flattenAnd(SqlExpr e, List<SqlExpr> out) {
@@ -271,6 +312,20 @@ public final class CarrierStrategies extends SqlRewriter {
     private @com.legend.Nullable com.legend.sql.SqlQuery explode(SqlExpr arg,
             SqlSelect s, @com.legend.Nullable String alias) {
         boolean dual = s.from() instanceof com.legend.sql.SqlSource.Dual;
+        // an ARRAY-cast wrapper over a folded literal unwraps: the cast
+        // only re-types the elements the literal already pins
+        if (arg instanceof SqlExpr.Cast ac
+                && ac.target() instanceof com.legend.sql.SqlType.Array) {
+            String jl = jsonLiteral(ac.value());
+            if (jl != null
+                    && com.legend.sql.Json.parse(jl) instanceof List<?> ll) {
+                List<SqlExpr> els = new ArrayList<>(ll.size());
+                for (Object el : ll) {
+                    els.add(jsonLitExpr(el));
+                }
+                arg = new SqlExpr.ArrayLit(els);
+            }
+        }
         // unnest(NULL) yields ZERO rows (probed on DuckDB) — keep the
         // select shape, kill it with WHERE FALSE.
         if (arg instanceof SqlExpr.NullLit) {
@@ -482,6 +537,53 @@ public final class CarrierStrategies extends SqlRewriter {
                                         List.of(), false, List.of()),
                                 sel.projections().get(0).alias())),
                         sel.outputs()));
+            }
+        }
+        // LITERAL-VARIANT const-folds (PV3, witnessed: PCT navigates
+        // CAST('[...]' AS JSON) literal chains): the JSON text is
+        // compile-time — VARIANT_GET picks the sub-node, ELEMENTS
+        // explodes to the literal array; each survivor re-emits as a
+        // JSON cast literal so further navigation keeps folding.
+        // elements of an already-literal collection ARE the collection
+        if (e instanceof SqlExpr.Call ve
+                && ve.fn() == com.legend.sql.SqlFn.VARIANT_ELEMENTS
+                && ve.args().size() == 1
+                && ve.args().get(0) instanceof SqlExpr.ArrayLit) {
+            return ve.args().get(0);
+        }
+        if (e instanceof SqlExpr.Call vg
+                && (vg.fn() == com.legend.sql.SqlFn.VARIANT_GET
+                        || vg.fn() == com.legend.sql.SqlFn.VARIANT_ELEMENTS)) {
+            String lit = jsonLiteral(vg.args().get(0));
+            if (lit != null) {
+                Object node = com.legend.sql.Json.parse(lit);
+                if (vg.fn() == com.legend.sql.SqlFn.VARIANT_GET
+                        && vg.args().size() == 2) {
+                    Object picked = null;
+                    boolean ok = false;
+                    if (vg.args().get(1) instanceof SqlExpr.IntLit ix
+                            && node instanceof List<?> l
+                            && ix.value() >= 0 && ix.value() < l.size()) {
+                        picked = l.get((int) ix.value());
+                        ok = true;
+                    } else if (vg.args().get(1) instanceof SqlExpr.StringLit k
+                            && node instanceof java.util.Map<?, ?> m
+                            && m.containsKey(k.value())) {
+                        picked = m.get(k.value());
+                        ok = true;
+                    }
+                    if (ok) {
+                        return jsonLitExpr(picked);
+                    }
+                }
+                if (vg.fn() == com.legend.sql.SqlFn.VARIANT_ELEMENTS
+                        && node instanceof List<?> l) {
+                    List<SqlExpr> els = new ArrayList<>(l.size());
+                    for (Object el : l) {
+                        els.add(jsonLitExpr(el));
+                    }
+                    return new SqlExpr.ArrayLit(els);
+                }
             }
         }
         // TYPEOF date dispatch (R5d, witnessed: Fold.jsonDateWrap's
@@ -936,6 +1038,75 @@ public final class CarrierStrategies extends SqlRewriter {
             }
         }
         return null;
+    }
+
+    /** The compile-time JSON text of a literal variant, or null:
+     * CAST('...' AS JSON) and bare JSON-text string literals. */
+    private static @com.legend.Nullable String jsonLiteral(SqlExpr e) {
+        if (e instanceof SqlExpr.Cast c
+                && c.target() == com.legend.sql.SqlType.Scalar.JSON
+                && c.value() instanceof SqlExpr.StringLit sl) {
+            return sl.value();
+        }
+        return null;
+    }
+
+    /** A parsed JSON node re-emitted as the literal it prints as — a
+     * JSON cast for composites (further navigation keeps folding),
+     * plain literals for scalars. */
+    private static SqlExpr jsonLitExpr(@com.legend.Nullable Object node) {
+        if (node == null) {
+            return new SqlExpr.NullLit();
+        }
+        if (node instanceof String s2) {
+            return new SqlExpr.StringLit(s2);
+        }
+        if (node instanceof Long l) {
+            return new SqlExpr.IntLit(l);
+        }
+        if (node instanceof Integer i) {
+            return new SqlExpr.IntLit(i);
+        }
+        if (node instanceof Double d) {
+            return new SqlExpr.FloatLit(d);
+        }
+        if (node instanceof Boolean b) {
+            return new SqlExpr.BoolLit(b);
+        }
+        return new SqlExpr.Cast(new SqlExpr.StringLit(jsonText(node)),
+                com.legend.sql.SqlType.Scalar.JSON);
+    }
+
+    /** Minimal JSON writer for re-emitting folded composite nodes. */
+    private static String jsonText(Object node) {
+        if (node == null) {
+            return "null";
+        }
+        if (node instanceof String s2) {
+            return '"' + s2.replace("\\", "\\\\")
+                    .replace("\"", "\\\"") + '"';
+        }
+        if (node instanceof List<?> l) {
+            StringBuilder b = new StringBuilder("[");
+            for (int i = 0; i < l.size(); i++) {
+                b.append(i > 0 ? "," : "").append(jsonText(l.get(i)));
+            }
+            return b.append("]").toString();
+        }
+        if (node instanceof java.util.Map<?, ?> m) {
+            StringBuilder b = new StringBuilder("{");
+            boolean first = true;
+            for (var en : m.entrySet()) {
+                if (!first) {
+                    b.append(",");
+                }
+                first = false;
+                b.append(jsonText(String.valueOf(en.getKey()))).append(":")
+                        .append(jsonText(en.getValue()));
+            }
+            return b.append("}").toString();
+        }
+        return String.valueOf(node);
     }
 
     /** The exact null-ignoring aggregate fold over compile-time

@@ -104,7 +104,7 @@ public final class H2Verify {
             String text = new String(b,
                     java.nio.charset.StandardCharsets.UTF_8);
             if (text.startsWith("[")
-                    && com.legend.exec.Json.parse(text)
+                    && com.legend.sql.Json.parse(text)
                             instanceof java.util.List<?> l) {
                 return new java.util.ArrayList<>(l);
             }
