@@ -16,6 +16,9 @@
     <description>Pure Compatibility Testing for Legend Lite using legend-engine's PCT framework.</description>
 
     <properties>
+        <!-- direct pin beats core's transitive 2.1.214: run the modern
+             profile with -Dh2.version=2.4.240 (PV4) -->
+        <h2.version>2.1.214</h2.version>
         <!-- Legend Engine versions (isolated to this module only) -->
         <legend.engine.version>4.133.0</legend.engine.version>
         <legend.pure.version>5.88.0</legend.pure.version>
@@ -23,6 +26,12 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
+            <scope>test</scope>
+        </dependency>
         <!-- Legend-Lite Engine (the code we're testing) -->
         <dependency>
             <groupId>org.finos.legend</groupId>

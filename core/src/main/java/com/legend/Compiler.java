@@ -328,7 +328,14 @@ public final class Compiler {
                 }
             }
         }
-        return new com.legend.sql.dialect.H2();
+        // CAPABILITY BY CONNECTED VERSION (the session-policy seam):
+        // 2.3+ has typed-JSON navigation ((j)."f", 1-based [i]) — the
+        // modern profile spells it natively; the 2.1 engine-parity
+        // target keeps the walls.
+        String ver = connection.getMetaData().getDatabaseProductVersion();
+        return ver.startsWith("2.1") || ver.startsWith("2.2")
+                ? new com.legend.sql.dialect.H2()
+                : new com.legend.sql.dialect.H2Modern();
     }
 
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,

@@ -21,10 +21,12 @@ import java.util.List;
  * <p>Capability notes (probed, see the doc's verification addendum):
  * native QUALIFY; NO correlated table-function arguments in any version
  * through 2.4.240 (LATERAL absent — the collection-carrier family walls);
- * JSON array indexing only at 2.2+ (no object-field navigation in any
- * version — the engine uses a Java UDF there, a route this dialect bans).
+ * NO typed-JSON navigation on 2.1.214 (the engine uses a Java UDF, a
+ * route this dialect bans) — 2.3+ HAS it ((j)."field" quoted-key,
+ * 1-based [i], typed-JSON values only): {@link H2Modern}, selected by
+ * CONNECTED VERSION, spells it natively.
  */
-public final class H2 extends AnsiSqlRenderer {
+public class H2 extends AnsiSqlRenderer {
 
     public H2() {
         super(Lexicon.H2, TypeNames.H2, Spellings.H2);
