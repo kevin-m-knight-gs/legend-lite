@@ -31,7 +31,26 @@
 >   fixed by adding the missing imports / qualifying the queries, never by
 >   relaxing the resolver. The 2072→1593 reorder collapse recorded in
 >   Runner.java did NOT recur: own-package visibility was the missing piece.
-> - **§8 (compile the corpus once)** is now UNBLOCKED.
+> - **§8 (compile the corpus once): DONE (2026-08-02).** The runner
+>   registers every family BEFORE the first test (two-phase
+>   register/run), builds ONE strict-parse global model (543 sources,
+>   ~9.4k elements, zero parse walls, zero duplicate FQNs, 5 element
+>   walls), and hands each test an allocation-cheap per-test
+>   RuntimeDefinition/ConnectionDefinition EXECUTION OVERLAY
+>   (`PureModelContext.withExecutionOverlay`) instead of a module
+>   recompile; the runner's throwaway validate-parse died with it
+>   (`parseSources` wall-sink overload). DDL stays module-scoped
+>   (`ddlScopeDbs`) because corpus table names collide across families.
+>   Full sweep 2180 EXACT / h2 2148 EXACT; wall-clock ~185s. Two latent
+>   collisions the always-visible corpus surfaced, fixed engine-true:
+>   scoring/unification disagreement on `[]`-as-Nil (InferenceKernel),
+>   and call-position candidates now UNION the prelude natives instead
+>   of tiering them away (real pure has no user/platform tiering for
+>   function matching — legend-pure's `schema(db,name)` coexists with
+>   core_relational's `relation::schema(rel)`); `createDbConfig` joined
+>   the platform-owned set (its corpus body evals the engine's dialect
+>   registry). Library sources (m2m tree, pureToSQLQuery) now join the
+>   global model like the engine's own graph.
 
 > **Severity: correctness. Production path. Silent wrong SQL.**
 >

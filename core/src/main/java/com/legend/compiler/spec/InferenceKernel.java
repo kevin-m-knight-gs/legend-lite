@@ -798,8 +798,17 @@ public final class InferenceKernel {
             }
         }
         if (winners.isEmpty()) {
+            StringBuilder detail = new StringBuilder();
+            for (ExprType a : args) {
+                detail.append(detail.length() == 0 ? "" : ", ").append(a);
+            }
+            StringBuilder cands = new StringBuilder();
+            for (TypedFunction c : arityMatches) {
+                cands.append("; ").append(c.parameters());
+            }
             throw new TypeInferenceException("no overload of '" + name
-                    + "' structurally matches the argument types");
+                    + "' structurally matches the argument types ("
+                    + detail + ")" + cands);
         }
         if (winners.size() > 1) {
             // DUPLICATE-SIGNATURE tolerance: distinct FQNs registering the
@@ -930,6 +939,13 @@ public final class InferenceKernel {
         Type na = unwrapFunction(actual);
         if (nf != formal || na != actual) {
             return paramTypeScore(nf, na);
+        }
+        // Nil is BOTTOM (the []-born value): it conforms to EVERY formal —
+        // scoring must agree with unify's Nil arm, or a multi-overload
+        // call rejects the [] argument the single-candidate path accepts
+        // (createDbConfig($dbType, []) against corpus + prelude overloads).
+        if (isNil(actual)) {
+            return 0;
         }
         return switch (formal) {
             case Type.ClassType c when c.fqn().equals(ANY_FQN) -> 0;

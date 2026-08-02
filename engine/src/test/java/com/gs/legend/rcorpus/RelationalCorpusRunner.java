@@ -136,6 +136,14 @@ public class RelationalCorpusRunner {
             }
         }
 
+        // PHASE 1 — REGISTER EVERY family (unscoped: the ONE global model
+        // always compiles the whole corpus, so scoped probes see exactly
+        // the model a full sweep sees). PHASE 2 runs tests. Interleaving
+        // these froze the global compile at the first family's sources.
+        Map<String, Map<Path, String>> familyTests = new LinkedHashMap<>();
+        for (String family : allFamilies()) {
+            familyTests.put(family, registerFamily(runner, family));
+        }
         Map<String, List<Runner.Outcome>> byFamily = new LinkedHashMap<>();
         // -Drcorpus.only=<family-substring>[,<substring>...] scopes the run
         // for fast leg iteration; a scoped run NEVER writes the scoreboard
@@ -143,12 +151,14 @@ public class RelationalCorpusRunner {
         String only = System.getProperty("rcorpus.only", "").trim();
         List<String> onlyFilters = only.isEmpty() ? List.of()
                 : List.of(only.split(","));
-        for (String family : allFamilies()) {
+        for (Map.Entry<String, Map<Path, String>> fam : familyTests.entrySet()) {
+            String family = fam.getKey();
             if (!onlyFilters.isEmpty()
                     && onlyFilters.stream().noneMatch(family::contains)) {
                 continue;
             }
-            List<Runner.Outcome> outcomes = runFamily(runner, family);
+            List<Runner.Outcome> outcomes = runFamily(runner, family,
+                    fam.getValue());
             if (!outcomes.isEmpty()) {
                 byFamily.put(family, outcomes);
             }
@@ -297,6 +307,10 @@ public class RelationalCorpusRunner {
         }
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
+        if (System.getProperty("rcorpus.walls") != null) {
+            runner.walls().forEach(w ->
+                    System.out.println("[rcorpus] WALL " + w));
+        }
         if (onlyFilters.isEmpty()) {
             System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
         }
@@ -374,12 +388,44 @@ public class RelationalCorpusRunner {
      * per-test run. */
     public static List<Runner.Outcome> runFamily(Runner runner, String family)
             throws Exception {
+        return runFamily(runner, family, registerFamily(runner, family));
+    }
+
+    /** RUN phase (two-phase compile-once protocol): every family is
+     * already registered; re-point the runner and execute. */
+    public static List<Runner.Outcome> runFamily(Runner runner, String family,
+            Map<Path, String> testSources) throws Exception {
+        runner.selectFamily(family);
+        List<Runner.Outcome> outcomes = new ArrayList<>();
+        String onlyTest = System.getProperty("rcorpus.test", "").trim();
+        for (Map.Entry<Path, String> e : testSources.entrySet()) {
+            runner.selectFile(e.getKey().toString());
+            // Phase C: discovery through the REAL parser — stereotyped
+            // functions off the parsed unit, body as AST
+            // -Drcorpus.test=<name-substring> narrows a scoped run to
+            // matching TEST functions (fast single-test iteration; the
+            // family model still assembles in full)
+            for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
+                if (!onlyTest.isEmpty() && !t.fqn().contains(onlyTest)) {
+                    continue;
+                }
+                outcomes.add(runner.run(t));
+            }
+        }
+        return outcomes;
+    }
+
+    /** REGISTRATION phase: assemble the family's source set (setups,
+     * parent inheritance, cross-family closure) and register it with the
+     * runner. Must run for EVERY family before the first test executes —
+     * the global model compiles ONCE over the completed registry. */
+    public static Map<Path, String> registerFamily(Runner runner,
+            String family) throws Exception {
         Path p = Corpus.RELATIONAL.resolve(family);
         List<Path> files = new ArrayList<>();
         try (Stream<Path> s = Files.list(p)) {
             s.filter(f -> f.toString().endsWith(".pure")).sorted().forEach(files::add);
         }
-        List<Runner.Outcome> outcomes = new ArrayList<>();
         for (Path f : files) {
             runner.addBeforePackages(Files.readString(f));
         }
@@ -547,20 +593,8 @@ public class RelationalCorpusRunner {
         runner.useFamily(family, familySources, modelOnly, parentKey);
         for (Map.Entry<Path, String> e : testSources.entrySet()) {
             runner.useFile(e.getKey().toString(), e.getValue());
-            // Phase C: discovery through the REAL parser — stereotyped
-            // functions off the parsed unit, body as AST
-            // -Drcorpus.test=<name-substring> narrows a scoped run to
-            // matching TEST functions (fast single-test iteration; the
-            // family model still assembles in full)
-            String onlyTest = System.getProperty("rcorpus.test", "").trim();
-            for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
-                if (!onlyTest.isEmpty() && !t.fqn().contains(onlyTest)) {
-                    continue;
-                }
-                outcomes.add(runner.run(t));
-            }
         }
-        return outcomes;
+        return testSources;
     }
 
     /** Database FQNs defined in {@code src} (line-level indexing only —

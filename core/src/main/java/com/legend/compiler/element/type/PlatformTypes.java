@@ -201,6 +201,14 @@ public final class PlatformTypes {
      * replacing their stub bodies. executeInDb is NOT owned: the corpus's
      * 2-arg wrapper there is legitimate pure code over the 4-arg leaf.
      */
+    /** The dialect-config handle feeding toSQLString/DebugContext — the
+     * corpus bodies build DbConfig by eval'ing stored dialect lambdas
+     * (loadDbExtension), M3 machinery this platform K-dispatches instead.
+     * Per-module compiles never carried the corpus definitions; the
+     * global corpus compile always does, so ownership must be explicit. */
+    public static final String CREATE_DB_CONFIG =
+            "meta::relational::functions::sqlQueryToString::createDbConfig";
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
@@ -210,6 +218,7 @@ public final class PlatformTypes {
                 || EXECUTION_PLAN.equals(fqn)
                 || PLAN_TO_STRING.equals(fqn)
                 || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
+                || CREATE_DB_CONFIG.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 

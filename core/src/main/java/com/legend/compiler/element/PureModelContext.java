@@ -42,9 +42,14 @@ public final class PureModelContext implements ModelContext {
     private final ClassCompiler classes;
 
     // Demand-driven materialization caches (Work; memoized).
-    private final Map<String, TypedClass> classCache = new HashMap<>();
-    private final Map<String, TypedEnum> enumCache = new HashMap<>();
-    private final Map<String, List<TypedFunction>> functionCache = new HashMap<>();
+    private final Map<String, TypedClass> classCache;
+    private final Map<String, TypedEnum> enumCache;
+    private final Map<String, List<TypedFunction>> functionCache;
+    /** DRIVER-SUPPLIED execution elements (PHASE_K_EXECUTION.md §4):
+     * an overlay VIEW resolves exactly these two fqns to the supplied
+     * records; null on ordinary contexts. */
+    private final com.legend.model.@com.legend.Nullable RuntimeDefinition overlayRuntime;
+    private final com.legend.model.@com.legend.Nullable ConnectionDefinition overlayConnection;
 
     public PureModelContext(ModelBuilder model) {
         this(model, null);
@@ -59,6 +64,11 @@ public final class PureModelContext implements ModelContext {
         this.classifier = new TypeClassifier(model);
         this.functions = new FunctionCompiler(model, classifier);
         this.classes = new ClassCompiler(classifier, functions);
+        this.classCache = new HashMap<>();
+        this.enumCache = new HashMap<>();
+        this.functionCache = new HashMap<>();
+        this.overlayRuntime = null;
+        this.overlayConnection = null;
         // F.a + F.b: THE eager reference-safety pass — every reference every
         // element makes (types, realizers, mapping bindings, association ends)
         // is checked once, whole-model, before this context exists.
@@ -229,12 +239,68 @@ public final class PureModelContext implements ModelContext {
     public java.util.Optional<com.legend.model.RuntimeDefinition> findRuntime(
             @com.legend.Nullable String fqn) {
         Objects.requireNonNull(fqn, "fqn");
+        if (overlayRuntime != null
+                && overlayRuntime.qualifiedName().equals(fqn)) {
+            return java.util.Optional.of(overlayRuntime);
+        }
         return model.findRuntime(fqn);
+    }
+
+    /** Overlay view: SHARES the base context wholesale (model, compilers,
+     * memo caches) and adds the driver-supplied runtime + connection. */
+    private PureModelContext(PureModelContext base,
+            com.legend.model.RuntimeDefinition runtime,
+            com.legend.model.ConnectionDefinition connection) {
+        this.model = base.model;
+        this.classifier = base.classifier;
+        this.functions = base.functions;
+        this.classes = base.classes;
+        this.classCache = base.classCache;
+        this.enumCache = base.enumCache;
+        this.functionCache = base.functionCache;
+        this.overlayRuntime = Objects.requireNonNull(runtime, "runtime");
+        this.overlayConnection = Objects.requireNonNull(connection, "connection");
+    }
+
+    /**
+     * DRIVER-SUPPLIED execution context (PHASE_K_EXECUTION.md §4): the
+     * runtime and its connection arrive as API records — a harness's
+     * per-test dispatch context, a service's ambient runtime — never as
+     * model text. The returned VIEW resolves exactly those two fqns;
+     * everything else (elements, typed caches) is this context, shared,
+     * so overlays are allocation-cheap per call. ADD, never SHADOW: an
+     * overlay must not redefine an element the MODEL declares.
+     */
+    public PureModelContext withExecutionOverlay(
+            com.legend.model.RuntimeDefinition runtime,
+            com.legend.model.ConnectionDefinition connection) {
+        if (model.findRuntime(runtime.qualifiedName()).isPresent()
+                || model.findConnection(connection.qualifiedName()).isPresent()) {
+            throw new IllegalArgumentException("execution overlay would"
+                    + " shadow a model-declared element: '"
+                    + runtime.qualifiedName() + "' / '"
+                    + connection.qualifiedName() + "'");
+        }
+        // EAGER ref check — stronger than model text (ModelIntegrity does
+        // not verify runtime refs): a typo'd mapping fails HERE by name,
+        // never mid-query
+        for (String m : runtime.mappings()) {
+            if (findMapping(m).isEmpty() && findLegacyMapping(m).isEmpty()) {
+                throw new IllegalArgumentException("execution overlay"
+                        + " runtime '" + runtime.qualifiedName()
+                        + "' names unknown mapping '" + m + "'");
+            }
+        }
+        return new PureModelContext(this, runtime, connection);
     }
 
     @Override
     public java.util.Optional<com.legend.model.ConnectionDefinition> findConnection(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
+        if (overlayConnection != null
+                && overlayConnection.qualifiedName().equals(fqn)) {
+            return java.util.Optional.of(overlayConnection);
+        }
         return model.findConnection(fqn);
     }
 
@@ -255,8 +321,8 @@ public final class PureModelContext implements ModelContext {
         Objects.requireNonNull(fqn, "fqn");
         return model.findMapping(fqn).isPresent()
                 || model.findLegacyMapping(fqn).isPresent()
-                || model.findRuntime(fqn).isPresent()
-                || model.findConnection(fqn).isPresent()
+                || findRuntime(fqn).isPresent()
+                || findConnection(fqn).isPresent()
                 || model.findDatabase(fqn).isPresent();
     }
 

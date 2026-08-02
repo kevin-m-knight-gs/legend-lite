@@ -130,6 +130,31 @@ class NameResolutionContractTest {
                 "the import claims the name; own package stays the fallback");
     }
 
+    /** CALL position has NO user/prelude tiering (real pure): a user
+     * function capturing a bare call name must not HIDE same-named
+     * prelude natives — both travel as candidates and the signature
+     * picks. Regression: corpus relation::schema(rel) newly visible in
+     * the global compile starved toDDL's schema($db, $name) 2-arg call
+     * of the platform schema(Database,String). */
+    @Test
+    @DisplayName("prelude natives join user candidates at call position")
+    void preludeNativesJoinCallCandidates() {
+        var imports = new com.legend.model.ImportScope.Builder()
+                .add("app::fns::*").build();
+        var call = new com.legend.model.spec.AppliedFunction("schema",
+                List.of(new com.legend.model.spec.Variable("db"),
+                        new com.legend.model.spec.CString("default")));
+        var resolved = (com.legend.model.spec.AppliedFunction)
+                com.legend.compiler.NameResolver.resolveQuery(call, imports,
+                        java.util.Set.of("app::fns::schema"));
+        assertTrue(resolved.candidateFqns().contains("app::fns::schema"),
+                "the user wildcard candidate is carried");
+        assertTrue(resolved.candidateFqns().contains(
+                        "meta::relational::metamodel::schema"),
+                "the prelude native joins the candidate set instead of"
+                        + " being shadowed");
+    }
+
     /** The prelude tier still serves names the user made no claim on. */
     @Test
     @DisplayName("prelude resolves when no user candidate exists")

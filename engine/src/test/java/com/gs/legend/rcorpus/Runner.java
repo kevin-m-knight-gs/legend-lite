@@ -92,8 +92,14 @@ public final class Runner {
     private final Map<String, com.legend.Compiler.ModelSource> fileRaw =
             new LinkedHashMap<>();
     private final Map<String, String> familyParent = new LinkedHashMap<>();
-    private final Map<String, com.legend.Compiler.BuiltModule> moduleCache =
+    private com.legend.Compiler.@com.legend.Nullable BuiltModule globalBuilt;
+    private com.legend.Compiler.@com.legend.Nullable ParsedModule globalParsed;
+    private java.util.Map<String, String> allDbBindings = java.util.Map.of();
+    private com.legend.model.@com.legend.Nullable ConnectionDefinition rcorpusConn;
+    private final Map<String, com.legend.compiler.element.ModelContext> overlayMemo =
             new LinkedHashMap<>();
+    /** Databases whose DDL the CURRENT test's session replays. */
+    private java.util.Set<String> currentDdlDbs = java.util.Set.of();
     private final java.util.Set<String> reportedModuleWalls = new java.util.HashSet<>();
 
     public Runner(List<String> sharedSources, List<String> seedSources) {
@@ -175,7 +181,15 @@ public final class Runner {
         for (com.legend.model.PackageableElement el : unit.elements()) {
             elementSource.putIfAbsent(el.qualifiedName(), source);
         }
+        // the GLOBAL compile carries the library like the engine's own
+        // graph does (the m2m test tree, pureToSQLQuery) — text-identical
+        // corpus files dedup at assembly
+        libraryRaw.add(new com.legend.Compiler.ModelSource(
+                "library-" + libraryRaw.size() + ".pure", source));
     }
+
+    private final List<com.legend.Compiler.ModelSource> libraryRaw =
+            new ArrayList<>();
 
     /** {@code familyKey}: the corpus family this source belongs to — the
      * cross-family module pull unit (a family's files close over each
@@ -354,6 +368,25 @@ public final class Runner {
         fileRaw.put(key, new com.legend.Compiler.ModelSource(key, source));
         collectSetups(source);
     }
+
+    /** Two-phase protocol (compile-once, §8): registration of EVERY
+     * family completes before the first test runs — the run phase
+     * re-points the current family/file without re-assembly. */
+    public void selectFamily(String familyKey) {
+        if (!familyRaw.containsKey(familyKey)) {
+            throw new IllegalStateException(
+                    "family not registered: " + familyKey);
+        }
+        currentFamilyKey = familyKey;
+    }
+
+    public void selectFile(String key) {
+        if (!fileRaw.containsKey(key)) {
+            throw new IllegalStateException("file not registered: " + key);
+        }
+        currentFileKey = key;
+    }
+
 
 
 
@@ -1300,150 +1333,8 @@ public final class Runner {
     }
 
 
-    /**
-     * MODULE-assembled context (Phase B): the shared + parent + family +
-     * test-file RAW sources compile TOGETHER through the real parser —
-     * per-file import sections, structured per-element walls, no text
-     * extraction. The synthesized Runtime is one more source unit; its
-     * connections come from the module's own parsed Database elements.
-     */
-    /** Database names a mapping's PMs reference that resolve to NO
-     * Database in the module: qualified via the element's import scope
-     * against the estate index, each match pulls its defining file. */
-    private List<com.legend.Compiler.ModelSource> pullUnresolvedMappingStores(
-            com.legend.Compiler.ParsedModule pre,
-            java.util.Set<String> present) {
-        java.util.Set<String> moduleDbs = new java.util.HashSet<>();
-        for (com.legend.model.PackageableElement el : pre.model().elements()) {
-            if (el instanceof com.legend.model.DatabaseDefinition db) {
-                String q = db.qualifiedName();
-                moduleDbs.add(q);
-                moduleDbs.add(q.contains("::")
-                        ? q.substring(q.lastIndexOf("::") + 2) : q);
-            }
-        }
-        List<com.legend.Compiler.ModelSource> pulls = new ArrayList<>();
-        for (com.legend.model.PackageableElement el : pre.model().elements()) {
-            if (!(el instanceof com.legend.model.LegacyMappingDefinition md)) {
-                continue;
-            }
-            java.util.Set<String> refs = new java.util.LinkedHashSet<>();
-            collectMappingDbRefs(md, refs);
-            com.legend.model.ImportScope scope =
-                    pre.model().elementImports().get(md.qualifiedName());
-            for (String r : refs) {
-                if (r == null) {
-                    continue;
-                }
-                String qualified = null;
-                if (r.contains("::")) {
-                    if (moduleDbs.contains(r)) {
-                        continue;
-                    }
-                    qualified = elementSource.containsKey(r) ? r : null;
-                } else {
-                    // IMPORT-SCOPE FIRST: a shared module db with the same
-                    // SIMPLE name (the corpus's tests::db) must not shadow
-                    // the element's scope-qualified store (milestoning::db
-                    // via milestoning::* — the graph milestoning-union trio)
-                    boolean inModule = false;
-                    if (scope != null) {
-                        for (String pkg : scope.wildcards()) {
-                            String cand = pkg + "::" + r;
-                            if (moduleDbs.contains(cand)) {
-                                inModule = true;
-                                break;
-                            }
-                            if (qualified == null
-                                    && elementSource.containsKey(cand)) {
-                                qualified = cand;
-                            }
-                        }
-                    }
-                    if (inModule
-                            || (qualified == null && moduleDbs.contains(r))) {
-                        continue;
-                    }
-                }
-                if (qualified == null) {
-                    continue;
-                }
-                String defining = elementSource.get(qualified);
-                if (defining != null && present.add(defining)) {
-                    pulls.add(new com.legend.Compiler.ModelSource(
-                            "xdb-" + Integer.toHexString(defining.hashCode())
-                                    + ".pure", defining));
-                }
-            }
-        }
-        return pulls;
-    }
 
-    /** Every database name a mapping's class/association PMs spell
-     * ([db] mainTable / column / join-chain pointers) — structural walk
-     * over the parsed model, no text extraction. */
-    private static void collectMappingDbRefs(
-            com.legend.model.LegacyMappingDefinition md,
-            java.util.Set<String> out) {
-        for (com.legend.model.ClassMapping cm : md.classMappings()) {
-            if (!(cm instanceof com.legend.model.ClassMapping.Relational r)) {
-                continue;
-            }
-            if (r.mainTable() != null) {
-                out.add(r.mainTable().database());
-            }
-            for (com.legend.model.PropertyMapping pm : r.propertyMappings()) {
-                collectPmDbRefs(pm, out);
-            }
-        }
-        for (com.legend.model.AssociationMapping am : md.associationMappings()) {
-            if (am instanceof com.legend.model.AssociationMapping.Relational rel) {
-                for (com.legend.model.AssociationPropertyMapping apm
-                        : rel.propertyMappings()) {
-                    collectPmDbRefs(apm.body(), out);
-                }
-            }
-        }
-    }
 
-    private static void collectPmDbRefs(com.legend.model.PropertyMapping pm,
-            java.util.Set<String> out) {
-        switch (pm) {
-            case com.legend.model.PropertyMapping.Column c ->
-                    out.add(c.database());
-            case com.legend.model.PropertyMapping.Join j -> {
-                out.add(j.database());
-                for (com.legend.model.JoinChainElement e : j.joins()) {
-                    if (e.databaseName() != null) {
-                        out.add(e.databaseName());
-                    }
-                }
-            }
-            case com.legend.model.PropertyMapping.JoinTerminalColumn jtc -> {
-                out.add(jtc.database());
-                for (com.legend.model.JoinChainElement e : jtc.joins()) {
-                    if (e.databaseName() != null) {
-                        out.add(e.databaseName());
-                    }
-                }
-            }
-            case com.legend.model.PropertyMapping.Embedded emb -> {
-                for (com.legend.model.PropertyMapping sub
-                        : emb.propertyMappings()) {
-                    collectPmDbRefs(sub, out);
-                }
-            }
-            case com.legend.model.PropertyMapping.OtherwiseEmbedded oe -> {
-                for (com.legend.model.PropertyMapping sub : oe.embedded()) {
-                    collectPmDbRefs(sub, out);
-                }
-                collectPmDbRefs(oe.fallback(), out);
-            }
-            case com.legend.model.PropertyMapping.LocalProperty lp ->
-                    collectPmDbRefs(lp.body(), out);
-            default -> { }
-        }
-    }
 
     private com.legend.compiler.element.ModelContext moduleContextFor(
             List<String> mappingRefs) {
@@ -1452,189 +1343,151 @@ public final class Runner {
 
     private com.legend.compiler.element.ModelContext moduleContextFor(
             List<String> mappingRefs, List<String> fileOnlyRefs) {
-        // the runtime's mappings list matters: NESTED getAll resolution
-        // routes through runtime->mappings when no explicit from() context
-        // reaches it — the test's own execute() mapping refs go in
-        String cacheKey = currentFamilyKey + "|" + currentFileKey + "|"
-                + String.join(",", mappingRefs) + "|"
-                + String.join(",", fileOnlyRefs);
-        com.legend.Compiler.BuiltModule cached = moduleCache.get(cacheKey);
-        if (cached != null) {
-            return cached.context();
+        com.legend.Compiler.BuiltModule built = globalModule();
+        // DDL SCOPE stays MODULE-SHAPED under the global compile: the
+        // session replays only the old per-module source set's tables
+        // (shared + parent family + family + file + the refs' defining
+        // families) — a global DDL would create every family's tables
+        // in every test session
+        currentDdlDbs = ddlScopeDbs(mappingRefs, fileOnlyRefs);
+        // per-test EXECUTION OVERLAY (PHASE_K §4): the runtime's mappings
+        // list drives class-query dispatch, so it is per-test API data —
+        // an allocation over the ONE compiled context, never a recompile.
+        // The incoming refs are the module-pull grab-bag (mappings +
+        // called fn/element fqns + runtimes) — the runtime declares only
+        // the ACTUAL mappings among them (the old model-text runtime
+        // tolerated the rest; the typed overlay validates eagerly).
+        com.legend.compiler.element.PureModelContext base =
+                (com.legend.compiler.element.PureModelContext) built.context();
+        List<String> rtMappings = new ArrayList<>();
+        for (String ref : new java.util.LinkedHashSet<>(mappingRefs)) {
+            if (base.findMapping(ref).isPresent()
+                    || base.findLegacyMapping(ref).isPresent()) {
+                rtMappings.add(ref);
+            }
+        }
+        String key = String.join(",", rtMappings);
+        return overlayMemo.computeIfAbsent(key, k ->
+                base.withExecutionOverlay(
+                        new com.legend.model.RuntimeDefinition(
+                                "rcorpus::Rt",
+                                List.copyOf(rtMappings),
+                                allDbBindings, List.of()),
+                        rcorpusConn));
+    }
+
+    /** THE global corpus compile (NAME_RESOLUTION_BUG.md §8): every
+     * registered source in ONE model — deterministic registration order,
+     * STRICT parse (the census burned parse walls to zero; a new
+     * unparseable file fails the sweep loudly by name), STRICT
+     * duplicates (the corpus tree carries none), tolerant per-element
+     * build (the unported-platform backlog walls individually). */
+    private com.legend.Compiler.BuiltModule globalModule() {
+        if (globalBuilt != null) {
+            return globalBuilt;
         }
         List<com.legend.Compiler.ModelSource> sources = new ArrayList<>(sharedRaw);
+        java.util.Set<String> present = new java.util.HashSet<>();
+        for (com.legend.Compiler.ModelSource sh : sharedRaw) {
+            present.add(sh.text());
+        }
+        for (List<com.legend.Compiler.ModelSource> fam : familyRaw.values()) {
+            for (com.legend.Compiler.ModelSource src : fam) {
+                if (present.add(src.text())) {
+                    sources.add(src);
+                }
+            }
+        }
+        for (com.legend.Compiler.ModelSource f : fileRaw.values()) {
+            if (present.add(f.text())) {
+                sources.add(f);
+            }
+        }
+        for (com.legend.Compiler.ModelSource lib : libraryRaw) {
+            if (present.add(lib.text())) {
+                sources.add(lib);
+            }
+        }
+        List<String> parseWalls = new ArrayList<>();
+        globalParsed = com.legend.Compiler.parseSources(sources,
+                (name, err) -> parseWalls.add(name + " => " + err));
+        if (!parseWalls.isEmpty()) {
+            throw new IllegalStateException(
+                    "corpus parse walls (expected ZERO): " + parseWalls);
+        }
+        if (!globalParsed.duplicateElements().isEmpty()) {
+            throw new IllegalStateException(
+                    "corpus duplicate elements (expected ZERO): "
+                            + globalParsed.duplicateElements());
+        }
+        globalBuilt = com.legend.Compiler.buildModule(globalParsed.model());
+        globalBuilt.walls().forEach((fqn, msg) ->
+                wallOnce("global " + fqn + " => " + msg));
+        java.util.Map<String, String> binds = new LinkedHashMap<>();
+        for (com.legend.model.PackageableElement el
+                : globalParsed.model().elements()) {
+            if (el instanceof com.legend.model.DatabaseDefinition db) {
+                binds.put(db.qualifiedName(), "rcorpus::Conn");
+            }
+        }
+        allDbBindings = java.util.Collections.unmodifiableMap(binds);
+        rcorpusConn = new com.legend.model.ConnectionDefinition(
+                "rcorpus::Conn", null,
+                H2_BACKEND
+                        ? com.legend.model.ConnectionDefinition.DatabaseType.H2
+                        : com.legend.model.ConnectionDefinition.DatabaseType.DuckDB,
+                new com.legend.model.ConnectionSpecification.InMemory(),
+                new com.legend.model.AuthenticationSpec.NoAuth());
+        return globalBuilt;
+    }
+
+    /** The CURRENT test's DDL scope: databases whose defining source sat
+     * in the old per-module assembly (by TEXT identity, the same inputs
+     * the retired module compile used). */
+    private java.util.Set<String> ddlScopeDbs(List<String> mappingRefs,
+            List<String> fileOnlyRefs) {
+        java.util.Set<String> texts = new java.util.HashSet<>();
+        for (com.legend.Compiler.ModelSource sh : sharedRaw) {
+            texts.add(sh.text());
+        }
         String parent = familyParent.get(currentFamilyKey);
         if (parent != null && familyRaw.containsKey(parent)) {
-            sources.addAll(familyRaw.get(parent));
+            for (com.legend.Compiler.ModelSource src : familyRaw.get(parent)) {
+                texts.add(src.text());
+            }
         }
-        sources.addAll(familyRaw.getOrDefault(currentFamilyKey, List.of()));
+        for (com.legend.Compiler.ModelSource src
+                : familyRaw.getOrDefault(currentFamilyKey, List.of())) {
+            texts.add(src.text());
+        }
         com.legend.Compiler.ModelSource file = fileRaw.get(currentFileKey);
         if (file != null) {
-            sources.add(file);
+            texts.add(file.text());
         }
-        // CROSS-FAMILY mapping refs: a test executing against another
-        // family's mapping (graphFetch over the embedded family's model)
-        // pulls that mapping's DEFINING file into the module — otherwise
-        // bare class names in trees resolve to the SHARED model's
-        // same-named classes and fail with misleading no-such-property
-        // errors. The engine compiles the whole project; per-family
-        // modules must at least close over what the test names.
-        java.util.Set<String> present = new java.util.HashSet<>();
-        for (com.legend.Compiler.ModelSource src : sources) {
-            present.add(src.text());
-        }
-        // TRANSITIVE closure was PROBED AND REVERTED (1219->1200): pulling
-        // the pulled files' own reference families drags whole foreign
-        // model estates into ~25 modules — first-wins dedup keeps the
-        // test's definitions but the FOREIGN families' unique same-name
-        // elements still poison resolution. One LEVEL of pull (what the
-        // test itself names) is the stable point; the remaining trio
-        // (GenerationFeaturesConfig via removeUnionOrJoins) needs a
-        // NARROWER vehicle — pull the single DEFINING FILE (not family)
-        // for refs found in pulled sources, or model it platform-side.
         for (String ref : mappingRefs) {
             String defining = elementSource.get(ref);
             if (defining == null) {
                 continue;
             }
-            // pull the defining file's whole FAMILY: a family's files
-            // close over each other's models (the single file did not —
-            // milestoned mappings reference sibling-file classes).
-            // first-wins dedup keeps the test's OWN definitions
-            // authoritative over same-FQN foreign ones.
             String fam = sourceFamily.get(defining);
-            List<String> pull = fam != null
+            texts.addAll(fam != null
                     ? familySources.getOrDefault(fam, List.of(defining))
-                    : List.of(defining);
-            int i = 0;
-            for (String src : pull) {
-                if (present.add(src)) {
-                    sources.add(new com.legend.Compiler.ModelSource(
-                            "xfam-" + Integer.toHexString(src.hashCode())
-                                    + "-" + (i++) + ".pure", src));
-                }
-            }
+                    : List.of(defining));
         }
-        // PLATFORM M2M CLASS PULL (single-file vehicle): a pulled mapping
-        // file may declare class heads whose CLASSES live in the platform
-        // M2M test root (shared.pure: `_Person : Relational` under
-        // `import shared::src::*`; the class is engine-core
-        // core/store/m2m/tests). Resolve heads through the mapping file's
-        // own imports and pull ONLY defining files under the M2M root —
-        // the narrow vehicle that cannot poison relational resolution.
-        if (classLookup != null) {
-            List<com.legend.Compiler.ModelSource> snapshot =
-                    new ArrayList<>(sources);
-            for (com.legend.Compiler.ModelSource src : snapshot) {
-                List<String> imps = src.text().lines().map(String::strip)
-                        .filter(l -> l.startsWith("import ")
-                                && l.endsWith("::*;"))
-                        .map(l -> l.substring(7, l.length() - 4)).toList();
-                if (imps.isEmpty()) {
-                    continue;
-                }
-                java.util.regex.Matcher m2 = java.util.regex.Pattern.compile(
-                        "(?m)^ *\\*?([\\w]+) *(\\[[\\w,]+\\])? *: *(Relational|Pure)\\b")
-                        .matcher(src.text());
-                while (m2.find()) {
-                    for (String imp : imps) {
-                        java.nio.file.Path def =
-                                classLookup.apply(imp + "::" + m2.group(1));
-                        if (def != null && def.toString().contains(
-                                "/core/store/m2m/tests/")) {
-                            try {
-                                String txt = java.nio.file.Files
-                                        .readString(def);
-                                if (present.add(txt)) {
-                                    sources.add(new com.legend.Compiler
-                                            .ModelSource("xm2m-"
-                                            + Integer.toHexString(
-                                                    txt.hashCode())
-                                            + ".pure", txt));
-                                }
-                            } catch (java.io.IOException ignored) {
-                                // unreadable platform file: stays a wall
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // the SINGLE-DEFINING-FILE vehicle: bare-resolved element refs pull
-        // just the file that defines them — whole foreign families poison
-        // resolution (the reverted transitive-closure probe, 1219->1200).
         for (String ref : fileOnlyRefs) {
             String defining = elementSource.get(ref);
-            if (defining != null && present.add(defining)) {
-                sources.add(new com.legend.Compiler.ModelSource(
-                        "xfile-" + Integer.toHexString(defining.hashCode())
-                                + ".pure", defining));
+            if (defining != null) {
+                texts.add(defining);
             }
         }
-        // per-source tolerant PARSE: an unparseable file is a FILE wall,
-        // never a family poison
-        List<com.legend.Compiler.ModelSource> parseable = new ArrayList<>(sources.size());
-        for (com.legend.Compiler.ModelSource src : sources) {
-            try {
-                com.legend.parser.ElementParser.parse(src.text());
-                parseable.add(src);
-            } catch (RuntimeException e) {
-                wallOnce("file " + src.name() + " => "
-                        + String.valueOf(e.getMessage()).split("\n")[0]);
+        java.util.Set<String> dbs = new java.util.LinkedHashSet<>();
+        for (java.util.Map.Entry<String, String> e : elementSource.entrySet()) {
+            if (allDbBindings.containsKey(e.getKey())
+                    && texts.contains(e.getValue())) {
+                dbs.add(e.getKey());
             }
         }
-        com.legend.Compiler.ParsedModule pre =
-                com.legend.Compiler.parseSources(parseable);
-        // CROSS-FAMILY STORE REFS: a family mapping's [db]@join pointers may
-        // name a Database defined in ANOTHER family (graphFetch
-        // union/propertyLevel imports tests::mapping::union::* and spells
-        // [myDB]) — qualify unresolved db names through the ELEMENT's own
-        // import scope and pull the single DEFINING FILE (the narrow
-        // vehicle; whole foreign families poison resolution), then reparse.
-        List<com.legend.Compiler.ModelSource> dbPulls =
-                pullUnresolvedMappingStores(pre, present);
-        if (!dbPulls.isEmpty()) {
-            for (com.legend.Compiler.ModelSource src : dbPulls) {
-                try {
-                    com.legend.parser.ElementParser.parse(src.text());
-                    parseable.add(src);
-                } catch (RuntimeException e) {
-                    wallOnce("file " + src.name() + " => "
-                            + String.valueOf(e.getMessage()).split("\n")[0]);
-                }
-            }
-            pre = com.legend.Compiler.parseSources(parseable);
-        }
-        // the Runtime references every Database the MODULE declares —
-        // enumerated from parsed elements, not regex
-        StringBuilder conns = new StringBuilder();
-        for (com.legend.model.PackageableElement el : pre.model().elements()) {
-            if (el instanceof com.legend.model.DatabaseDefinition db) {
-                if (conns.length() > 0) {
-                    conns.append(", ");
-                }
-                conns.append(db.qualifiedName()).append(": [ c: rcorpus::Conn ]");
-            }
-        }
-        // the synthesized driver connection DESCRIBES THE ACTUAL SESSION —
-        // the H5.4 reconciliation is only honest if the declaration is
-        parseable.add(new com.legend.Compiler.ModelSource("rcorpus-runtime.pure",
-                "RelationalDatabaseConnection rcorpus::Conn { type: "
-                        + (H2_BACKEND ? "H2" : "DuckDB") + ";"
-                        + " specification: InMemory { }; auth: NoAuth { }; }\n"
-                        + "Runtime rcorpus::Rt { mappings: [ "
-                        + String.join(", ", mappingRefs)
-                        + " ]; connections: [ " + conns + " ] }\n"));
-        com.legend.Compiler.ParsedModule module =
-                com.legend.Compiler.parseSources(parseable);
-        module.duplicateElements().forEach(d ->
-                wallOnce(currentFamilyKey + " duplicate " + d));
-        com.legend.Compiler.BuiltModule built =
-                com.legend.Compiler.buildModule(module.model());
-        built.walls().forEach((fqn, msg) ->
-                wallOnce(currentFamilyKey + " " + fqn + " => " + msg));
-        moduleCache.put(cacheKey, built);
-        return built.context();
+        return dbs;
     }
 
     private void wallOnce(String wall) {
@@ -1649,12 +1502,18 @@ public final class Runner {
      * arc S4: Compiler's statement orchestration + executeInDb dispatch).
      * Setups the TEST BODY calls run at their own statement position in
      * TestBody — no pre-replay, engine-exact ordering. */
-    private static List<String> moduleDdl(
+    private List<String> moduleDdl(
             com.legend.compiler.element.ModelContext ctx) {
         List<String> out = new ArrayList<>();
         java.util.Set<String> seenTables = new java.util.HashSet<>();
         java.util.Set<String> seenSchemas = new java.util.HashSet<>();
         for (String fqn : ctx.elementFqns()) {
+            // GLOBAL-COMPILE scope guard: the one context holds every
+            // corpus database — the session creates only the old
+            // per-module source set's tables (ddlScopeDbs)
+            if (!currentDdlDbs.contains(fqn)) {
+                continue;
+            }
             var dbOpt = ctx.findDatabase(fqn);
             if (dbOpt.isEmpty()) {
                 continue;

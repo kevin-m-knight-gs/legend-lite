@@ -343,6 +343,28 @@ class InferenceKernelTest {
     }
 
     @Test
+    void overload_emptyCollectionMatchesOptionalParamAcrossCandidates() {
+        // createDbConfig($dbType, []) regression: with SEVERAL arity
+        // matches, scoring must accept Nil (the []-born bottom) for a
+        // [0..1] param exactly like single-candidate unification does —
+        // the two kernel halves agreeing is a stated invariant.
+        TypedFunction anyParam = overload("R::AnyTz",
+                List.of(param(new Type.ClassType("meta::pure::metamodel::type::Any"),
+                                Multiplicity.Bounded.ONE),
+                        param(Type.Primitive.STRING, Multiplicity.Bounded.ZERO_ONE)));
+        TypedFunction enumParam = overload("R::EnumTz",
+                List.of(param(new Type.EnumType("R::DbType"), Multiplicity.Bounded.ONE),
+                        param(Type.Primitive.STRING, Multiplicity.Bounded.ZERO_ONE)));
+        InferenceKernel.Resolution r = kernel().resolveOverload(
+                List.of(anyParam, enumParam),
+                List.of(et(new Type.EnumType("R::DbType"), Multiplicity.Bounded.ONE),
+                        et(new Type.ClassType("meta::pure::metamodel::type::Nil"),
+                                new Multiplicity.Bounded(0, 0))));
+        // the EXACT enum overload wins; the [] argument disqualifies neither
+        assertEquals(new Type.ClassType("R::EnumTz"), r.output().type());
+    }
+
+    @Test
     void overload_incomparableSignaturesAreAmbiguous() {
         // f(Integer, Number) and f(Number, Integer) on (Integer, Integer): both score 2+1 — a true tie.
         TypedFunction a = overload("R::A",

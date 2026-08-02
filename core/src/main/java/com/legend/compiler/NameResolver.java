@@ -1340,7 +1340,33 @@ public final class NameResolver {
                 // CALL position: several imported packages defining the name
                 // is NOT an error — the candidates travel on the node and
                 // the Typer unions their overloads (real pure's function
-                // matching collects across imports; signature picks)
+                // matching collects across imports; signature picks).
+                // The platform prelude JOINS the union rather than being
+                // shadowed: real pure has no user/platform tiering for
+                // function matching — legend-pure's platform schema(db,
+                // name) coexists with core_relational's relation::
+                // schema(rel) and the call's shape picks (the global
+                // corpus compile made both visible at once).
+                boolean captured = !(matches.size() == 1
+                        && matches.get(0).equals(af.function()));
+                if (captured && scope.prelude()
+                        && !af.function().contains("::")) {
+                    List<String> merged = null;
+                    for (var nf : com.legend.builtin.Pure
+                            .nativeFunctionsAt(af.function())) {
+                        String nfq = nf.qualifiedName();
+                        if (!matches.contains(nfq)
+                                && (merged == null || !merged.contains(nfq))) {
+                            if (merged == null) {
+                                merged = new ArrayList<>(matches);
+                            }
+                            merged.add(nfq);
+                        }
+                    }
+                    if (merged != null) {
+                        matches = merged;
+                    }
+                }
                 String fn = matches.size() == 1
                         ? normalizePlatformFunction(matches.get(0))
                         : af.function();
