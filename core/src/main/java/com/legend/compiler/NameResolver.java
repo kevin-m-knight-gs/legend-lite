@@ -429,6 +429,36 @@ public final class NameResolver {
         return fn;
     }
 
+    /**
+     * Mapping SET-TARGET positions ({@code View: Pure {...}}, {@code ~src
+     * Raw}) name USER MODEL classes — a prelude metaclass
+     * (relation::View, metamodel::Schema…) is never a legal mapping
+     * target, so a user class reachable via the file's wildcard imports
+     * beats the prelude type-import that shadows it everywhere else
+     * (prelude-first stays load-bearing for expression positions; this
+     * consults the wildcards ONLY when the prelude would win the name).
+     */
+    private static String resolveMappedClassName(String name, Scope scope) {
+        if (name == null || name.isEmpty() || name.contains("::")
+                || scope.typeParams().contains(name)
+                || !scope.imports().typeImports().containsKey(name)) {
+            return resolveName(name, scope);
+        }
+        List<String> user = new ArrayList<>(1);
+        for (String pkg : scope.imports().wildcards()) {
+            String candidate = pkg + "::" + name;
+            if (scope.knownFqns().contains(candidate)) {
+                user.add(candidate);
+            }
+        }
+        if (user.size() > 1) {
+            throw new com.legend.error.ResolutionException(
+                    "ambiguous reference '" + name + "' — matches via imports: "
+                    + user + ". Use a fully qualified name.");
+        }
+        return user.size() == 1 ? user.get(0) : resolveName(name, scope);
+    }
+
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
         List<String> matches = resolveNameMulti(name, scope);
@@ -797,7 +827,7 @@ public final class NameResolver {
             ClassMapping cm, Scope scope) {
         return switch (cm) {
             case ClassMapping.Relational r -> {
-                String className = resolveName(r.className(), scope);
+                String className = resolveMappedClassName(r.className(), scope);
                 TableReference mainTable = resolveTableReference(r.mainTable(), scope);
                 FilterMapping filter = resolveFilterMapping(r.filter(), scope);
                 List<RelationalOperation> groupBy = resolveRelOpList(r.groupBy(), scope);
@@ -815,19 +845,19 @@ public final class NameResolver {
                         r.propertyTargetSets());
             }
             case ClassMapping.Union u -> {
-                String className = resolveName(u.className(), scope);
+                String className = resolveMappedClassName(u.className(), scope);
                 yield className.equals(u.className()) ? u
                         : new ClassMapping.Union(className, u.setId(),
                                 u.extendsSetId(), u.root(), u.memberSetIds());
             }
             case ClassMapping.Inheritance ih -> {
-                String className = resolveName(ih.className(), scope);
+                String className = resolveMappedClassName(ih.className(), scope);
                 yield className.equals(ih.className()) ? ih
                         : new ClassMapping.Inheritance(className, ih.setId(),
                                 ih.extendsSetId(), ih.root());
             }
             case ClassMapping.RelationFunction rf -> {
-                String className = resolveName(rf.className(), scope);
+                String className = resolveMappedClassName(rf.className(), scope);
                 String funcRef = resolveName(rf.funcRef(), scope);
                 yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
                         ? rf
@@ -835,9 +865,9 @@ public final class NameResolver {
                                 rf.extendsSetId(), rf.root(), funcRef, rf.columns());
             }
             case ClassMapping.Pure p -> {
-                String className = resolveName(p.className(), scope);
+                String className = resolveMappedClassName(p.className(), scope);
                 String sourceClass = p.sourceClass() == null
-                        ? null : resolveName(p.sourceClass(), scope);
+                        ? null : resolveMappedClassName(p.sourceClass(), scope);
                 ValueSpecification filter = resolveVs(p.filter(), scope);
                 List<ClassMapping.Pure.PropertyBinding> bindings = resolvePropertyBindings(
                         p.propertyBindings(), scope);

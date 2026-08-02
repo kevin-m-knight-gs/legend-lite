@@ -532,9 +532,11 @@ class UserFunctionIntegrationTest {
                         test::recurse($x)
                     }
                     """);
-            // Cycle detection now runs at ingest (PureModelBuilder.buildPureFunctions),
-            // so the error surfaces from addSource inside plan() — before the query is
-            // even compiled. Message mentions the cycle path and names recursion.
+            // CORE contract (UserCallInlinerTest.recursionIsLoud, the
+            // relationalMapper leg): a recursive call no longer throws at
+            // ingest — it STANDS (host call frames consume standing calls)
+            // and SQL-bound use fails LOUDLY at the resolver's
+            // TypedUserCall wall, which names the recursion cycle.
             var ex = assertThrows(RuntimeException.class, () ->
                     plan(model, "|model::Person.all()->project([x|test::recurse($x.age)], ['val'])"));
             assertTrue(ex.getMessage().contains("test::recurse/1")

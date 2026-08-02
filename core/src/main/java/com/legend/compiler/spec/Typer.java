@@ -1625,8 +1625,12 @@ final class Typer {
         }
         TypedFunction best = null;
         long bestScore = -1;
+        String arityRejection = null;
         for (TypedFunction c : arity) {
             if (raw != null && !lambdaAritiesFit(c, raw, typed)) {
+                if (arityRejection == null) {
+                    arityRejection = lambdaArityMismatch(c, raw, typed);
+                }
                 continue;
             }
             long s = kernel.scoreNonLambda(c, argTypes);
@@ -1636,8 +1640,13 @@ final class Typer {
             }
         }
         if (best == null) {
+            // when every candidate died on a deferred lambda's parameter
+            // count, say THAT — the generic line hides the actual defect
+            // from the caller (the engine-suite arity pin)
             throw new TypeInferenceException(
-                    "no overload of '" + name + "' matches the argument types");
+                    "no overload of '" + name + "' matches the argument types"
+                            + (arityRejection != null
+                                    ? " (" + arityRejection + ")" : ""));
         }
         return best;
     }
@@ -1681,6 +1690,40 @@ final class Typer {
             }
         }
         return true;
+    }
+
+    /** The first lambda-vs-function-type parameter-count mismatch that
+     * made {@code lambdaAritiesFit} reject {@code c}, spelled for the
+     * no-overload diagnostic ("lambda has 2 parameter(s) but the
+     * function type expects 1"). */
+    private static @com.legend.Nullable String lambdaArityMismatch(
+            TypedFunction c, List<ValueSpecification> raw, TypedSpec[] typed) {
+        for (int i = 0; i < raw.size() && i < c.parameters().size(); i++) {
+            if (typed[i] != null
+                    || c.parameters().get(i).type() instanceof Type.TypeVar) {
+                continue;
+            }
+            int want;
+            try {
+                want = extractFunctionType(c.parameters().get(i).type())
+                        .params().size();
+            } catch (TypeInferenceException e) {
+                continue;
+            }
+            LambdaFunction lf = raw.get(i) instanceof LambdaFunction l ? l
+                    : raw.get(i) instanceof PureCollection pc
+                            ? pc.values().stream()
+                                    .filter(v -> v instanceof LambdaFunction l2
+                                            && l2.parameters().size() != want)
+                                    .map(v -> (LambdaFunction) v)
+                                    .findFirst().orElse(null)
+                            : null;
+            if (lf != null && lf.parameters().size() != want) {
+                return "lambda has " + lf.parameters().size()
+                        + " parameter(s) but the function type expects " + want;
+            }
+        }
+        return null;
     }
 
     /** Type a lambda argument against its function-type parameter, with type vars partly solved in {@code b}. */

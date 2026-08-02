@@ -264,15 +264,18 @@ public class H2 extends AnsiSqlRenderer {
         return "_ROWID_";
     }
 
-    /** DEFAULT NULL placement diverges: H2 sorts NULLS FIRST ascending,
-     * the reference target NULLS LAST (witnessed: sorted chains led
-     * with TDSNull on H2). A key with no explicit placement pins the
-     * REFERENCE default — ASC NULLS LAST / DESC NULLS FIRST. */
+    /** DEFAULT NULL placement diverges: H2 sorts null SMALLEST (NULLS
+     * FIRST ascending), the reference target NULLS LAST in BOTH
+     * directions (DuckDB default_null_order — witnessed: sorted chains
+     * led with TDSNull on H2, and DESC-sorted tds/groupBy chains led
+     * with the null group when this pinned the WINDOW convention's
+     * DESC-FIRST instead). A key with no explicit placement pins the
+     * reference default: NULLS LAST, ascending or not. */
     @Override
     protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
         String s = super.sortKey(k);
         if (k.nullOrder() == null) {
-            s += k.ascending() ? " NULLS LAST" : " NULLS FIRST";
+            s += " NULLS LAST";
         }
         return s;
     }

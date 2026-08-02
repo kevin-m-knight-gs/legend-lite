@@ -331,16 +331,18 @@ final class Fold {
         return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
     }
 
-    /** Top-level ORDER BY null placement (C1.2): the engine emits NO
-     * NULLS clause (extensionDefaults.pure processOrderBy) and its
-     * goldens executed on H2, whose default sorts null SMALLEST — ASC
-     * nulls first, DESC nulls last. DuckDB defaults to NULLS LAST in
-     * both directions, so the placement must be explicit. (The WINDOW
-     * sort convention is the opposite engine pin — duckdbExtension.pure
-     * emits ASC NULLS LAST / DESC NULLS FIRST — and stays separate.) */
-    static SqlSelect.SortKey.NullOrder sortNulls(boolean ascending) {
-        return ascending ? SqlSelect.SortKey.NullOrder.NULLS_FIRST
-                : SqlSelect.SortKey.NullOrder.NULLS_LAST;
+    /** Top-level ORDER BY null placement (C1.2, REVERTED): the engine
+     * emits NO NULLS clause on ANY target (extensionDefaults.pure
+     * processOrderBy — the DuckDB extension overrides only the WINDOW
+     * convention, ASC NULLS LAST / DESC NULLS FIRST), so placement is
+     * the connected database's default. The earlier global ASC->FIRST
+     * pin forced H2's null-smallest onto DuckDB, bought zero corpus
+     * tests (the two DIFF goldens it targeted were row-count
+     * mismatches) and broke five engine sort/groupBy pins. A dialect
+     * that needs explicit placement for cross-target row parity says
+     * so in ITS sortKey (H2 does). */
+    static SqlSelect.SortKey.@com.legend.Nullable NullOrder sortNulls(boolean ascending) {
+        return null;
     }
 
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */

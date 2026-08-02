@@ -1481,8 +1481,9 @@ public final class Lowerer {
         // the engine form — subselect(A union B) named by the unionAlias
         // frame, plain outer re-projection of the output columns (SQL
         // UNION dedups; never a distinct wrapper)
+        // whole-row iff columns cover the SOURCE schema (output row is narrowed)
         boolean wholeRow = d.columns().isEmpty()
-                || d.columns().equals(((Type.RelationType) d.info().type())
+                || d.columns().equals(((Type.RelationType) d.source().info().type())
                         .columns().stream().map(Type.Column::name).toList());
         if (wholeRow && d.source() instanceof TypedConcatenate tc) {
             SqlUnion u = union(tc);

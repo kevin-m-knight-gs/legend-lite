@@ -1345,9 +1345,11 @@ public final class ElementParser implements TokenStreamCursor {
                                 java.util.Objects.requireNonNull(props.get("database"),
                                         "Static datasource requires"
                                         + " 'database'"));
-                        case "LocalH2" -> new ConnectionSpecification.LocalH2(java.util.Objects.requireNonNull(
-                                props.get("url"),
-                                "LocalH2 connection requires 'url'"));
+                        // no url is the engine's own shape (LocalH2
+                        // DatasourceSpecification has no url field — the
+                        // engine synthesizes an in-memory database)
+                        case "LocalH2" -> new ConnectionSpecification.LocalH2(
+                                props.get("url"));
                         default -> throw error("unknown specification flavor '" + specType
                                 + "' (expected InMemory / LocalFile / LocalH2 / Static)");
                     };

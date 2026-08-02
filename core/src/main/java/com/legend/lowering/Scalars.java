@@ -2762,6 +2762,12 @@ final class Scalars {
                 && rt.columns().size() == 1
                 && rt.dynamicColumns().isEmpty()
                 && rt.columns().get(0).type() instanceof Type.Primitive;
+        // Nil (the []-born bottom) has no inhabitants: the value is
+        // provably EMPTY — SQL NULL, cast for the string context
+        if (t instanceof Type.ClassType nil0 && PlatformTypes.isNil(nil0)) {
+            return new SqlExpr.Cast(new SqlExpr.NullLit(),
+                    com.legend.sql.SqlType.Scalar.VARCHAR);
+        }
         if ((t instanceof Type.RelationType && !scalarCell)
                 || t instanceof Type.FunctionType
                 || t instanceof Type.SchemaAlgebra

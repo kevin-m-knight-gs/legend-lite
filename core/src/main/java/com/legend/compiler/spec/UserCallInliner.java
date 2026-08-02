@@ -222,6 +222,31 @@ public final class UserCallInliner {
         }
     }
 
+    /** DIRECT self-recursion in the callee's (resolved) definition body —
+     * the reason {@link #inlineCall} let the call stand, recovered at the
+     * resolver's TypedUserCall wall so its message names the cycle.
+     * Indirect cycles keep the generic did-not-&beta;-reduce line (naming
+     * them needs the whole call graph). Lives HERE, not at the wall: the
+     * resolver never touches the untyped value-spec AST (invariant 6c). */
+    public static boolean selfRecursive(
+            com.legend.compiler.element.TypedFunction callee) {
+        if (!(callee.definition()
+                instanceof com.legend.model.FunctionDefinition fd)) {
+            return false;
+        }
+        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+                new java.util.ArrayDeque<>(fd.body());
+        while (!work.isEmpty()) {
+            var vs = work.poll();
+            if (vs instanceof com.legend.model.spec.AppliedFunction af
+                    && af.function().equals(callee.qualifiedName())) {
+                return true;
+            }
+            work.addAll(vs.children());
+        }
+        return false;
+    }
+
     /** The row type of a relation-valued type: bare RelationType, or Relation<(...)>. */
     private static com.legend.compiler.element.type.Type rowType(
             com.legend.compiler.element.type.Type t) {

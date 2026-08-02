@@ -273,9 +273,11 @@ class ResolveSimpleClassTest {
                         + " not plangen's unshared scalar subquery:\n" + sql);
         assertEquals(1, count(sql, "SELECT"), sql);
         assertTrue(sql.contains("ORDER BY t1.LEGAL"), sql);
-        assertEquals(List.of("null", "ACME"), exec(sql),
-                "C1.2 engine parity: ascending sorts null SMALLEST (H2"
-                        + " default), emitted as an explicit NULLS FIRST");
+        assertEquals(List.of("ACME", "null"), exec(sql),
+                "engine parity: top-level ORDER BY carries NO NULLS clause"
+                        + " (extensionDefaults.pure processOrderBy) — the"
+                        + " connected target's default places nulls; DuckDB"
+                        + " sorts them LAST ascending");
     }
 
     // ---- fixture 20b: plain object-space sortBy folds flat ----

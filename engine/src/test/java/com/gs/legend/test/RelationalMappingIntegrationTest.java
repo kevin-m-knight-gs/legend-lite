@@ -899,7 +899,11 @@ class RelationalMappingIntegrationTest {
                         OrderStatus: EnumerationMapping StatusMap { ACTIVE: 'A', INACTIVE: 'I', CANCELLED: 'C' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "model::Order.all()->filter({o|$o.status == 'ACTIVE'})->project(~[status:o|$o.status])");
+            // enum VALUE comparison — routes through toSourceValues
+            // (STATUS_CODE = 'A'); a bare string 'ACTIVE' would compare the
+            // RAW column verbatim per engine parity (pureToSQLQuery only
+            // inverts Enum-typed literals) and match nothing
+            var r = exec(m, "model::Order.all()->filter({o|$o.status == model::OrderStatus.ACTIVE})->project(~[status:o|$o.status])");
             assertEquals(2, r.rowCount());
         }
 
@@ -939,7 +943,9 @@ class RelationalMappingIntegrationTest {
                         Status: EnumerationMapping SM { ACTIVE: ['A', 'ACT', 'ACTIVE'], INACTIVE: 'I' }
                     )
                     """, "store::DB", "model::M");
-            var r = exec(m, "model::Item.all()->filter({i|$i.status == 'ACTIVE'})->project(~[status:i|$i.status])");
+            // enum VALUE comparison: ACTIVE's three source values invert to
+            // an OR/IN over 'A','ACT','ACTIVE' (engine toSourceValues)
+            var r = exec(m, "model::Item.all()->filter({i|$i.status == model::Status.ACTIVE})->project(~[status:i|$i.status])");
             assertEquals(3, r.rowCount());
         }
     }
@@ -2487,7 +2493,10 @@ class RelationalMappingIntegrationTest {
                 )
                 """, "store::DB", "test::M");
 
-            // Only project empId + empName (local columns) — deptName's JOIN should be pruned
+            // DEMAND-GATED view joins (lean-SQL advance BEYOND the engine,
+            // which renders a view's full definition): a join-carried view
+            // column nobody reads contributes NO join — same access-path
+            // doctrine as slot elision on direct join PMs.
             String sql = planSql(model,
                     "test::Employee.all()->project(~[empId, empName])");
             assertFalse(sql.toUpperCase().contains("JOIN"),
@@ -4047,8 +4056,10 @@ class RelationalMappingIntegrationTest {
                         model::Ticket_User: Relational { AssociationMapping ( tickets: [store::DB]@Ticket_User, assignee: [store::DB]@Ticket_User ) }
 )
                     """, "store::DB", "model::M");
-            // Filter by HIGH priority, project assignee name
-            var r = exec(m, "model::Ticket.all()->filter({t|$t.priority == 'HIGH'})->project(~[title:t|$t.title, assignee:t|$t.assignee.name])");
+            // Filter by HIGH priority (enum VALUE — toSourceValues gives
+            // PRIORITY_CODE = 'H'; a bare 'HIGH' string compares raw per
+            // engine parity), project assignee name
+            var r = exec(m, "model::Ticket.all()->filter({t|$t.priority == model::Priority.HIGH})->project(~[title:t|$t.title, assignee:t|$t.assignee.name])");
             assertEquals(2, r.rowCount());
             for (var row : r.rows()) assertEquals("Alice", row.get(1).toString());
         }
@@ -4080,9 +4091,9 @@ class RelationalMappingIntegrationTest {
                         model::Order_Cust: Relational { AssociationMapping ( orders: [store::DB]@Order_Cust, customer: [store::DB]@Order_Cust ) }
 )
                     """, "store::DB", "model::M");
-            // Active orders only, total per customer
+            // Active orders only (enum VALUE — STATUS = 'A'), total per customer
             var r = exec(m,
-                    "model::Order.all()->filter({o|$o.status == 'ACTIVE'})->project(~[customer:o|$o.customer.name, amount:o|$o.amount])->groupBy([{r|$r.customer}], [agg({r|$r.amount}, {y|$y->sum()})], ['customer', 'total'])");
+                    "model::Order.all()->filter({o|$o.status == model::Status.ACTIVE})->project(~[customer:o|$o.customer.name, amount:o|$o.amount])->groupBy([{r|$r.customer}], [agg({r|$r.amount}, {y|$y->sum()})], ['customer', 'total'])");
             Map<String, Integer> results = new HashMap<>();
             for (var row : r.rows()) results.put(row.get(0).toString(), ((Number) row.get(1)).intValue());
             assertEquals(300, results.get("Alice")); // 100+200

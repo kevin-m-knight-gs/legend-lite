@@ -2721,7 +2721,7 @@ public final class StoreResolver {
         boolean implicitSerialize = phase1.implicitSerialize();
         TypedGetAll g = phase1.getAll();
         context = phase1.context();
-        ClassSource cs = phase1.cs();
+        ClassSource cs0 = phase1.cs();
 
         // 2. Demand scan over ALL the chain's user lambdas (one funnel with
         //    the substitution — they cannot drift), close over slot
@@ -2736,20 +2736,20 @@ public final class StoreResolver {
         Set<List<String>> projectionPaths = new LinkedHashSet<>();
         Map<String, List<AggDemand>> aggDemands =
                 new LinkedHashMap<>();
-        collectOpDemand(ops, cs, filterPaths, projectionPaths, aggDemands);
-        CorrelatedSubselects.aggScanFilters(ops, cs, aggDemands,
+        collectOpDemand(ops, cs0, filterPaths, projectionPaths, aggDemands);
+        CorrelatedSubselects.aggScanFilters(ops, cs0, aggDemands,
                 this::isToManyAssocHead, this::isAssocOrNavHead);
         if (tree == null && implicitSerialize) {
-            tree = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).synthesizeScalarTree(cs);
+            tree = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).synthesizeScalarTree(cs0);
         }
         if (tree != null) {
             // GRAPH terminal: LEAF paths feed slot demand; class-typed
             // children correlate — buildGraphNode materializes them
-            InnerDemand.treeDemandPaths(tree, cs, ctx, projectionPaths);
+            InnerDemand.treeDemandPaths(tree, cs0, ctx, projectionPaths);
         } else {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {
-                    CorrelatedSubselects.aggScan(b, fn.parameters().get(0), cs,
+                    CorrelatedSubselects.aggScan(b, fn.parameters().get(0), cs0,
                             aggDemands, projectionPaths,
                             this::isToManyAssocHead, this::isAssocOrNavHead);
                 }
@@ -2771,6 +2771,10 @@ public final class StoreResolver {
         // consuming head join (materializeRoot) so the composed date
         // column sits on the head's LEFT row for the outer-date window.
         paths = InnerDemand.withNavDatePaths(paths, chainSpecs.values());
+
+        // View-join pruning on the FRAME path: un-read join-navigating
+        // view columns release their frame slots (Pipelines.narrowFrameSource)
+        final ClassSource cs = Pipelines.narrowFrameSource(cs0, paths);
 
         NavPlan navPlan = registerNavigations(cs, paths,
                 InnerDemand.occurrenceSplitChains(filterPaths, projectionPaths));

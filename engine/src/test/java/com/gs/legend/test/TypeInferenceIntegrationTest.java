@@ -2099,34 +2099,42 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         // ==================== String indexOf / substring / joinStrings / sort tests
         // ====================
 
+        // Relational indexOf is ONE-based: every engine dialect emits its
+        // position function verbatim (h2Extension2_1_214.pure LOCATE,
+        // duckdbExtension.pure instr — no -1), and the engine's own DuckDB
+        // PCT ledgers pure's 0-based indexOf::testSimple as an EXPECTED
+        // failure ("expected: 4 actual: 5"). These pins hold the engine
+        // semantics, not pure's (C1.5c).
+
         @Test
         void testStringIndexOf() throws SQLException {
-                // PCT: |'c'->indexOf('c') should return 0 (0-based)
+                // engine relational: |'c'->indexOf('c') = 1 (1-based LOCATE)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'c'->meta::pure::functions::string::indexOf('c')",
                                 "test::TestRuntime", connection);
-                assertScalarInteger(result, 0);
+                assertScalarInteger(result, 1);
         }
 
         @Test
         void testStringIndexOfSimple() throws SQLException {
-                // PCT: |'the quick brown fox'->indexOf('quick') should return 4 (0-based)
+                // engine relational: indexOf('quick') = 5 (1-based; pure's
+                // 0-based 4 is the ledgered PCT divergence)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'the quick brown fox jumps over the lazy dog'->meta::pure::functions::string::indexOf('quick')",
                                 "test::TestRuntime", connection);
-                assertScalarInteger(result, 4);
+                assertScalarInteger(result, 5);
         }
 
         @Test
         void testStringIndexOfFromIndex() throws SQLException {
-                // PCT: |'the the'->indexOf('h', 0) should return 1 (0-based)
+                // engine relational: |'the the'->indexOf('h', 0) = 2 (1-based)
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'the the'->meta::pure::functions::string::indexOf('h', 0)",
                                 "test::TestRuntime", connection);
-                assertScalarInteger(result, 1);
+                assertScalarInteger(result, 2);
         }
 
         @Test

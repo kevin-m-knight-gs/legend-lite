@@ -43,6 +43,7 @@ final class ModelIntegrity {
                 () -> checkClass(cd, classifier, functions), wallSink));
         model.functions().forEach(f -> withElement(f.qualifiedName(),
                 () -> checkFunction(f, classifier), wallSink));
+        checkDuplicateSignatures(model, wallSink);
         model.associations().forEach(a -> withElement(a.qualifiedName(), () -> {
             classifier.classify(a.property1().targetClass(), List.of());
             classifier.classify(a.property2().targetClass(), List.of());
@@ -94,6 +95,28 @@ final class ModelIntegrity {
             functions.requireFunction(fqn, site);
             functions.requireShape(fqn, FunctionCompiler::returnsBooleanOne,
                     site, "returning Boolean[1]");
+        }
+    }
+
+    /** Two definitions with the SAME dispatch identity
+     * ({@link Function#signatureKey()} — name + canonical parameter
+     * spellings) can never be told apart at a call site: real pure
+     * rejects the second definition; silently letting one win answers
+     * calls with an arbitrary body. */
+    private static void checkDuplicateSignatures(ModelBuilder model,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Function f : model.functions().toList()) {
+            String key = f.signatureKey();
+            if (!seen.add(key)) {
+                withElement(f.qualifiedName(), () -> {
+                    throw new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.MODEL,
+                            "function '" + f.qualifiedName()
+                                    + "' is defined more than once with the same"
+                                    + " signature — calls would be ambiguous");
+                }, wallSink);
+            }
         }
     }
 

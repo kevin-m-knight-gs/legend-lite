@@ -8049,7 +8049,7 @@ in-process Alloy-shaped path).
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - 1x Index 0 out of bounds for length 0
-- 1x no overload of 'executionPlan' matches the argument types
+- 1x no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x scalar lowering not yet implemented for TypedSerializeGraph
 - 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
@@ -8099,7 +8099,7 @@ in-process Alloy-shaped path).
 - SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'store'
 - FAIL testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: assertEquals: expected true, got false
 - FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
-- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types
+- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'sqlComment'
 - ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: graphFetch expects (classCollection, #{Class{…}}#)
 - FAIL testQuoteIdentifiersFlagWithGraphFetch [executionPlan/tests]: assertEquals: expected PureExp(type=Stringexpression=->serialize(#{meta::relational::tests::model::simple::Product{name}}#)(StoreMappingGlobalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],propertiesWithParameters=[name]]resultSizeRange=*store=meta::relational::tests::dblocalGraphFetchExecutionNode=RelationalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],propertiesWithParameters=[name]]nodeIndex=0relationalNode=SQL(type=meta::pure::metamodel::type::AnyresultColumns=[("pk_0",INT),("name",VARCHAR(200))]sql=select"root"."ID"as"pk_0","root"."NAME"as"name"from"productSchema"."productTable"as"root"connection=TestDatabaseConnection(type="H2"))children=[])children=[]localTreeIndices=[0,1]dependencyIndices=[]))), got Relational(type=Class[impls=(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)]asmeta::relational::tests::model::simple::ProductresultSizeRange=1resultColumns=[("pk_0",INT),("name",VARCHAR(200))]sql=select"root"."ID"as"pk_0","root"."NAME"as"name"from"productSchema"."productTable"as"root"connection=TestDatabaseConnection(type="H2"))

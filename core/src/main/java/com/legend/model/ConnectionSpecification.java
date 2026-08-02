@@ -25,9 +25,14 @@ public sealed interface ConnectionSpecification
      */
     record LocalFile(String path) implements ConnectionSpecification {}
 
-    /** Local H2-style test datasource ({@code LocalH2 { url: '...' }}); the
-     *  url is optional in source and carried verbatim. */
-    record LocalH2(String url) implements ConnectionSpecification {}
+    /** Local H2-style test datasource ({@code LocalH2 {}} or
+     *  {@code LocalH2 { url: '...' }}). The engine's
+     *  LocalH2DatasourceSpecification carries NO url at all (it
+     *  synthesizes an in-memory database) — a bare {@code LocalH2 {}}
+     *  is the common grammar form; an explicit url is carried verbatim
+     *  when present. */
+    record LocalH2(@com.legend.Nullable String url)
+            implements ConnectionSpecification {}
 
     /**
      * Static datasource with explicit host/port/database. Used for remote servers.

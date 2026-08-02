@@ -256,6 +256,88 @@ final class Pipelines {
         return closed;
     }
 
+    /** View-join pruning entry: narrow {@code cs}'s frame project to the
+     * columns the demanded heads' bindings read — the macro path's demand
+     * gating, restored for Leg 4 frames. Identity when nothing narrows. */
+    static ClassSource narrowFrameSource(ClassSource cs,
+            Set<List<String>> paths) {
+        Set<String> frameReads = new LinkedHashSet<>();
+        for (List<String> path : paths) {
+            TypedSpec hb = cs.bindings().get(
+                    SyntheticHeads.realHead(path.get(0)));
+            if (hb != null) {
+                collectVarReads(hb, cs.rowVar(), frameReads);
+            }
+        }
+        TypedSpec narrowed = narrowViewFrame(cs.pipeline(), frameReads);
+        return narrowed == cs.pipeline() ? cs
+                : new ClassSource(cs.mappingFqn(), cs.classFqn(), cs.setId(),
+                        narrowed, cs.rowVar(), cs.bindings(), cs.rowType(),
+                        cs.sourceClass());
+    }
+
+    /**
+     * View-join pruning on the FRAME path (Leg 4): narrow a view frame's
+     * project to the columns the query READS, so the frame's internal
+     * join slots behind un-read join-navigating view columns strip at
+     * materialization (walkJoinSlot's JOIN CANCELLED arm) — the same
+     * access-path demand gating the macro path always had. Only
+     * SLOT-READING projections drop (local columns stay available for
+     * later join-key reads); a read of a dropped column fails LOUDLY at
+     * resolution, never a silent NULL. Row-set-DEFINING frames are left
+     * whole: descent stops at anything but a filter (a ~distinct or
+     * ~groupBy frame reads every declared column by definition).
+     */
+    static TypedSpec narrowViewFrame(TypedSpec pipeline, Set<String> readCols) {
+        return switch (pipeline) {
+            case TypedFilter f -> {
+                // filters above the frame read frame columns too
+                Set<String> reads = new LinkedHashSet<>(readCols);
+                String rv = f.predicate().parameters().get(0);
+                for (TypedSpec b : f.predicate().body()) {
+                    collectVarReads(b, rv, reads);
+                }
+                TypedSpec src = narrowViewFrame(f.source(), reads);
+                yield src == f.source() ? pipeline
+                        : new TypedFilter(src, f.predicate(),
+                                new ExprType(src.info().type(),
+                                        f.info().multiplicity()),
+                                f.stamp());
+            }
+            case TypedProject pr when containsSlot(pr.source()) -> {
+                Set<String> slots = slotAliases(pr.source());
+                List<TypedFuncCol> kept = new ArrayList<>(pr.columns().size());
+                for (TypedFuncCol col : pr.columns()) {
+                    boolean readsSlot = false;
+                    String rv = col.fn().parameters().get(0);
+                    for (TypedSpec b : col.fn().body()) {
+                        if (referencesAliasOn(b, rv, slots)) {
+                            readsSlot = true;
+                            break;
+                        }
+                    }
+                    if (!readsSlot || readCols.contains(col.name())) {
+                        kept.add(col);
+                    }
+                }
+                if (kept.size() == pr.columns().size()) {
+                    yield pipeline;
+                }
+                Set<String> keptNames = new LinkedHashSet<>();
+                for (TypedFuncCol col : kept) {
+                    keptNames.add(col.name());
+                }
+                Type.RelationType rt = (Type.RelationType) pr.info().type();
+                List<Type.Column> cols = rt.columns().stream()
+                        .filter(c -> keptNames.contains(c.name())).toList();
+                yield new TypedProject(pr.source(), kept,
+                        new ExprType(new Type.RelationType(cols),
+                                pr.info().multiplicity()));
+            }
+            default -> pipeline;
+        };
+    }
+
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     String classFqn) {
         return materialize(pipeline, demanded, Set.of(), classFqn, null);

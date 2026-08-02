@@ -608,7 +608,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     abc
                     #->extend(~pos: x | $x.str->indexOf('o'))""");
             int idx = colIdx(result, "pos");
-            assertEquals(4L, ((Number) result.rows().get(0).get(idx)).longValue());
+            // 1-based: engine dialects emit the position function verbatim
+            // (LOCATE/instr, no -1) — 'o' in 'hello world' is position 5
+            assertEquals(5L, ((Number) result.rows().get(0).get(idx)).longValue());
         }
 
         @Test
@@ -1181,7 +1183,12 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @DisplayName("parseDecimal()")
         void testParseDecimal() throws SQLException {
             var r = executeRelation("|#TDS\nstr:String\n3.14159\n#->extend(~d: x | $x.str->parseDecimal())");
-            assertEquals(3.14159, ((Number) r.rows().get(0).get(colIdx(r, "d"))).doubleValue(), 0.00001);
+            // 1-arg parseDecimal over a COLUMN has no scale to read from the
+            // string: the engine's contract is a hardcoded decimal(5,2)
+            // (h2Extension transformParseDecimalH2; corpus golden rounds
+            // 123.450021 -> 123.45). Pure's full-scale BigDecimal semantics
+            // exist only for literal arguments.
+            assertEquals(3.14, ((Number) r.rows().get(0).get(colIdx(r, "d"))).doubleValue(), 0.00001);
         }
 
         @Test

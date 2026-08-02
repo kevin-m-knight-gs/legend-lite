@@ -119,7 +119,7 @@ class LowerRelationTest {
                 SELECT t0.NAME, t0.AGE
                 FROM T_PERSON AS t0
                 WHERE t0.AGE > 30
-                ORDER BY t0.AGE DESC NULLS LAST
+                ORDER BY t0.AGE DESC
                 LIMIT 2""", sql);
         assertEquals(List.of("Dan|55", "Cat|45"), exec(sql));
     }
@@ -178,9 +178,10 @@ class LowerRelationTest {
         String flat = sqlOf("#>{test::DB.T_PERSON}#->select(~FIRM)->distinct()"
                 + "->sort(~FIRM->ascending())");
         assertEquals(1, count(flat, "SELECT"), "distinct before sort is flat: " + flat);
-        // C1.2 engine parity: ASC sorts null SMALLEST (H2 default) — the
-        // NULL firm leads, where DuckDB's own default would trail it
-        assertEquals(List.of("null", "ACME", "Widget"), exec(flat), "deduped AND sorted values");
+        // engine parity (C1.2 reverted): top-level ORDER BY emits NO NULLS
+        // clause — the connected target's default places nulls, and DuckDB
+        // trails them ascending
+        assertEquals(List.of("ACME", "Widget", "null"), exec(flat), "deduped AND sorted values");
 
         // Full-row dedup COMMUTES with sort — G desugars distinct() to all
         // columns, so this stays FLAT (leaner than master, still correct).

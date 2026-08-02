@@ -1537,6 +1537,24 @@ final class Substitution {
             // $x->toOne().name — the value IS the instance set.
             case com.legend.compiler.spec.typed.TypedGraphFetch gf ->
                     rewrite(gf.source());
+            // a STANDING user call (the inliner's recursion-defer
+            // contract: host channels consume standing calls; the SQL
+            // path walls here) — say WHY it stands, naming a detected
+            // self-recursion cycle instead of dumping the node
+            case com.legend.compiler.spec.typed.TypedUserCall uc -> {
+                String shown = uc.callee().qualifiedName() + "/"
+                        + uc.callee().parameters().size();
+                throw new NotImplementedException(
+                        com.legend.compiler.spec.UserCallInliner
+                                .selfRecursive(uc.callee())
+                        ? "TypedUserCall '" + shown + "' stands: recursion"
+                                + " cycle involving " + shown + " (" + shown
+                                + " -> " + shown + ") — recursive functions"
+                                + " cannot lower to SQL"
+                        : "object-space TypedUserCall '" + shown + "' did"
+                                + " not β-reduce and cannot lower to"
+                                + " SQL (H2 vocabulary)");
+            }
             default -> {
                 String shape = String.valueOf(n);
                 throw new NotImplementedException(

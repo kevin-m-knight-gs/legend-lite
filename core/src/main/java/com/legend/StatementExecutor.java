@@ -2666,6 +2666,12 @@ final class StatementExecutor {
         // effect guard as the ctor arm: nested effects never drop silently.
         if (root.info().type()
                 instanceof com.legend.compiler.element.type.Type.ClassType hct
+                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
+                // including Connection — but a Nil-typed root is an empty
+                // VALUE ([]->tail() is an empty collection), never an
+                // orchestration handle: the handle arm returned Scalar(null)
+                // where the caller expects an empty Collection
+                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
                 && ("meta::core::runtime::Runtime".equals(hct.fqn())
                         || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
                         || env.ctx().isSubtype(hct.fqn(),

@@ -124,7 +124,21 @@ excludes any select whose projections contain a `SqlExpr.WindowCall`. The doc co
 `:317-321` states the mistaken premise verbatim — *"WHERE is fine (windows evaluate after
 it)"* — true only when the window is added *after* the filter in the chain.
 
-### C1.2 — Top-level sort emits no NULL ordering · **LIKELY** · passing-by-luck
+### C1.2 — Top-level sort emits no NULL ordering · **REVERTED 2026-08-02**
+
+The global ASC→NULLS FIRST stamp was wrong and is reverted: the real
+engine emits NO NULLS clause on ANY target (extensionDefaults.pure
+processOrderBy — only the WINDOW convention is dialect-pinned), the two
+DIFF goldens it targeted were row-count mismatches (the pin bought zero
+corpus tests), and it broke five engine-suite sort/groupBy pins by
+forcing H2 placement onto DuckDB. Placement now lives where it belongs:
+`Fold.sortNulls` returns null (dialect default), and H2's dialect pins
+NULLS LAST both directions for unspecified keys (`H2.sortKey` — the
+reference target's default; the DESC side originally copied the window
+convention's NULLS FIRST and flipped 13 h2 tds/groupBy tests). Original
+finding kept below for the record.
+
+### C1.2 (original finding) — Top-level sort emits no NULL ordering · **LIKELY** · passing-by-luck
 `Lowerer.java` sort sites pass `nullOrder = null`; the renderer emits a clause only when
 non-null (`AnsiSqlRenderer.java:160-167`), so we inherit DuckDB's NULLS-LAST default.
 Two independent goldens want **NULLS FIRST** (one DESC, one ASC).
