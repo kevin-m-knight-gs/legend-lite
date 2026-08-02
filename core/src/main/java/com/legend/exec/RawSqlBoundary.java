@@ -77,6 +77,31 @@ public final class RawSqlBoundary {
     private static final Pattern INSERT_COLS = Pattern.compile(
             "(?i)^(\\s*insert\\s+into\\s+[\\w.\"]+\\s*\\()([^)]*)(\\))");
 
+    // Hoisted out of String.replaceAll/matches call sites, which recompile
+    // the pattern on EVERY invocation. Measured hot: a JFR profile of the
+    // corpus sweep put Pattern.compile at 149 execution samples, 93 of them
+    // under h2ToDuckDb and 75 under quoteCreateColumns — this boundary runs
+    // per seeded statement, per test, across 2,019 corpus tests. Semantics
+    // are unchanged: String.replaceAll(re, r) IS
+    // Pattern.compile(re).matcher(s).replaceAll(r).
+    private static final Pattern CURRENT_TS = Pattern.compile(
+            "(?i)\\bCURRENT_TIMESTAMP\\(\\)");
+
+    private static final Pattern DROP_SCHEMA = Pattern.compile(
+            "(?i)\\bdrop\\s+schema\\s+(\\w+)\\s+if\\s+exists\\b");
+
+    private static final Pattern CREATE_SCHEMA = Pattern.compile(
+            "(?i)\\bcreate\\s+schema\\s+(?!if\\b)(\\w+)");
+
+    private static final Pattern NON_COLUMN_HEAD = Pattern.compile(
+            "(?i)primary|constraint|foreign|unique|check");
+
+    private static final Pattern FLOAT_KIND = Pattern.compile("(?i)\\bFLOAT\\b");
+
+    private static final Pattern BIT_KIND = Pattern.compile("(?i)\\bBIT\\b");
+
+    private static final Pattern CLOB_KIND = Pattern.compile("(?i)\\bCLOB\\b");
+
     /**
      * One corpus-authored H2 statement, translated for DuckDB execution:
      * quote keyword column names in CREATE/INSERT column lists (legal
@@ -91,20 +116,16 @@ public final class RawSqlBoundary {
         if (sink != null) {
             sink.add(sql);
         }
-        String out = sql.replaceAll("(?i)\\bCURRENT_TIMESTAMP\\(\\)", "CURRENT_TIMESTAMP");
+        String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
         // H2 accepts name-first `Drop schema <name> if exists cascade`
         // (corpus testTDSJoin.pure:1047); DuckDB only parses IF EXISTS
         // before the name
-        out = out.replaceAll(
-                "(?i)\\bdrop\\s+schema\\s+(\\w+)\\s+if\\s+exists\\b",
-                "Drop schema if exists $1");
+        out = DROP_SCHEMA.matcher(out).replaceAll("Drop schema if exists $1");
         // schema creation is idempotent at this boundary: H2 test dbs are
         // per-connection ephemeral, the DuckDB catalog persists across a
         // family's seeds — a re-run `create schema X` must not abort the
         // seed chain
-        out = out.replaceAll(
-                "(?i)\\bcreate\\s+schema\\s+(?!if\\b)(\\w+)",
-                "Create schema if not exists $1");
+        out = CREATE_SCHEMA.matcher(out).replaceAll("Create schema if not exists $1");
         Matcher cm = CREATE_HEAD.matcher(out);
         if (cm.find()) {
             return quoteCreateColumns(out, cm.end());
@@ -177,21 +198,28 @@ public final class RawSqlBoundary {
                 // TYPE PART still needs the H2->DuckDB kind mapping
                 int endq = col.indexOf('"', 1);
                 out.append(col, 0, endq + 1)
-                        .append(col.substring(endq + 1)
-                                .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE")
-                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN")
-                                .replaceAll("(?i)\\bCLOB\\b", "TEXT"));
-            } else if (head.matches("(?i)primary|constraint|foreign|unique|check")) {
+                        .append(mapColumnTypes(col.substring(endq + 1)));
+            } else if (NON_COLUMN_HEAD.matcher(head).matches()) {
                 out.append(col);
             } else {
                 // H2 semantics on the TYPE PART only: FLOAT is an 8-byte
                 // double; BIT is a boolean (DuckDB's BIT is a bitstring)
-                out.append('\"').append(head).append('\"').append(
-                        col.substring(sp).replaceAll("(?i)\\bFLOAT\\b", "DOUBLE")
-                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN")
-                                .replaceAll("(?i)\\bCLOB\\b", "TEXT"));
+                out.append('\"').append(head).append('\"')
+                        .append(mapColumnTypes(col.substring(sp)));
             }
         }
         return sql.substring(0, bodyStart) + out + sql.substring(end - 1);
+    }
+
+    /**
+     * H2 semantics on the TYPE PART only: FLOAT is an 8-byte double; BIT is a
+     * boolean (DuckDB's BIT is a bitstring). Extracted so the three patterns
+     * are compiled once rather than per column per statement per test — this
+     * ran on the corpus seed path 2,019 times over.
+     */
+    private static String mapColumnTypes(String typePart) {
+        String t = FLOAT_KIND.matcher(typePart).replaceAll("DOUBLE");
+        t = BIT_KIND.matcher(t).replaceAll("BOOLEAN");
+        return CLOB_KIND.matcher(t).replaceAll("TEXT");
     }
 }
