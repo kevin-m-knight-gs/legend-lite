@@ -290,7 +290,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             // DuckDB's EXCLUDE spelling (the one PIVOT backend); the dropped
             // names quote UNCONDITIONALLY — the corpus pins the quoted form.
             case SqlExpr.StarExcept se -> (se.table() == null ? "*" : ident(se.table()) + ".*")
-                    + " EXCLUDE (" + se.except().stream()
+                    + " " + starExceptKeyword() + " (" + se.except().stream()
                             .map(n -> quoteChar() + n + quoteChar())
                             .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case SqlExpr.StringLit s -> stringLit(s.value());
@@ -323,6 +323,12 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Membership m -> membership(m);
             case SqlAgg.Reducer r -> reducer(r);
         };
+    }
+
+    /** The star-exclusion keyword: DuckDB spells EXCLUDE, the SQL
+     * dialects with the standard-ish form spell EXCEPT. */
+    protected String starExceptKeyword() {
+        return "EXCLUDE";
     }
 
     /** The backend's physical row-order pseudo-column spelling. */

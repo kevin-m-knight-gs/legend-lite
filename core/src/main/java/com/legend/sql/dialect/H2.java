@@ -40,6 +40,13 @@ public final class H2 extends AnsiSqlRenderer {
         return true;
     }
 
+    /** No native dynamic PIVOT — the two-phase staticization pre-pass
+     * pins the key values, then the static emulation strategy runs. */
+    @Override
+    public boolean needsStaticPivot() {
+        return true;
+    }
+
     @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
@@ -228,6 +235,13 @@ public final class H2 extends AnsiSqlRenderer {
     @Override
     protected String variantConstruct(List<SqlExpr> a) {
         return "CAST(" + expr(a.get(0), 0) + " AS JSON)";
+    }
+
+    /** {@code SELECT * EXCEPT (...)} (probed 2.1.214, qualified and
+     * bare — DuckDB's EXCLUDE is a syntax error here). */
+    @Override
+    protected String starExceptKeyword() {
+        return "EXCEPT";
     }
 
     /** H2's row-order pseudo-column (probed 2.1.214: bare and inside

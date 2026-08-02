@@ -2791,9 +2791,11 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm()
                 .lower(withQueryLetPrefix(body, env, ctx));
-        plan = com.legend.lowering.SqlPostProcessors.apply(plan,
-                env.tableReplace());
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
+        // post-process, then two-phase dynamic pivot (DynamicPivot doc)
+        plan = com.legend.exec.DynamicPivot.staticize(
+                com.legend.lowering.SqlPostProcessors.apply(plan,
+                        env.tableReplace()), dialect, connection);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive
@@ -2811,12 +2813,17 @@ final class StatementExecutor {
                 collectionDeclared ? com.legend.exec.ResultShape.COLLECTION
                         : com.legend.exec.ResultShape.of(root),
                 connection, dialect);
-        // rows->toOne() READER enforcement (audit 22b F1): the lowering is
-        // row-identical to the relation (engine toOne throws at the READER,
-        // never in SQL) — so THE reader enforces exactly-one here for a
-        // TABULAR-consumed toOne root; the scalar arm's second-row guard
-        // covers scalar reads, this covers whole-TDS consumption and the
-        // ZERO-row lower bound.
+        enforceToOneReader(root, res);
+        return res;
+    }
+
+    /** rows->toOne() READER enforcement (audit 22b F1): the lowering is
+     * row-identical to the relation (engine toOne throws at the READER,
+     * never in SQL) — the reader enforces exactly-one for a
+     * TABULAR-consumed toOne root; the scalar arm's second-row guard
+     * covers scalar reads, this covers whole-TDS consumption and the
+     * ZERO-row lower bound. */
+    private static void enforceToOneReader(TypedSpec root, ExecutionResult res) {
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
                 && "meta::pure::functions::multiplicity::toOne"
                         .equals(tw.callee().qualifiedName())
@@ -2829,7 +2836,6 @@ final class StatementExecutor {
                     + tab.rows().size() + " row(s) — the exactly-one contract"
                     + " (engine reader semantics)");
         }
-        return res;
     }
 
     /**

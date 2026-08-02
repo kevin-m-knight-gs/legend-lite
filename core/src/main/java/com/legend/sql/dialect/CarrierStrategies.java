@@ -74,6 +74,65 @@ public final class CarrierStrategies extends SqlRewriter {
         return s;
     }
 
+    /** STATIC PIVOT EMULATION (PV1, witnessed: the PCT pivot family):
+     * a PIVOT whose IN values are compile-time literals is GROUP BY
+     * over the non-pivoted columns with one filtered aggregate per
+     * value x using — {@code AGG(CASE WHEN on = v THEN arg END) AS
+     * "v__|__alias"} (the reference's pivot-column naming). Dynamic
+     * pivot (empty IN) stays a loud wall — the output columns are
+     * data-dependent. Single ON key only (the witnessed shape). */
+    @Override
+    protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
+        if (caps.nativeLists()) {
+            return s;
+        }
+        if (!(s instanceof com.legend.sql.SqlSource.Pivot p)
+                || p.in().isEmpty() || p.on().size() != 1) {
+            return s;
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        List<SqlExpr> group = new ArrayList<>();
+        for (com.legend.sql.OutputCol oc : p.outputs()) {
+            if (!oc.name().contains("__|__")) {
+                SqlExpr g = new SqlExpr.Column(p.source().alias(), oc.name());
+                group.add(g);
+                ps.add(new SqlSelect.Projection(g, oc.name()));
+            }
+        }
+        for (SqlExpr v : p.in()) {
+            for (com.legend.sql.SqlSource.Pivot.Using u : p.usings()) {
+                SqlAgg.Reducer agg = u.agg();
+                List<SqlExpr> args = new ArrayList<>(agg.args());
+                if (args.isEmpty()) {
+                    return s;   // COUNT(*)-style using: unwitnessed
+                }
+                args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                                p.on().get(0), v),
+                        args.get(0))), null));
+                ps.add(new SqlSelect.Projection(
+                        new SqlAgg.Reducer(agg.fn(), args, agg.distinct(),
+                                agg.orderBy()),
+                        litText(v) + "__|__" + u.alias()));
+            }
+        }
+        SqlSelect sel = SqlSelect.starOf(p.source())
+                .withProjections(ps, p.outputs())
+                .withGroupBy(group);
+        return new com.legend.sql.SqlSource.Subselect(sel, p.alias(), null);
+    }
+
+    /** A pivot IN literal's COLUMN-NAME text (the reference prints the
+     * value verbatim: strings bare, numbers plain). */
+    private static String litText(SqlExpr v) {
+        return switch (v) {
+            case SqlExpr.StringLit s2 -> s2.value();
+            case SqlExpr.IntLit i -> String.valueOf(i.value());
+            case SqlExpr.BoolLit b -> String.valueOf(b.value());
+            default -> v.toString();
+        };
+    }
+
     /** The portable form of {@code SELECT unnest(arg) AS alias} for the
      * WITNESSED arg shapes (R5b), or null (the renderer wall stays).
      * Except the through-subselect arm, every rewriting arm requires a

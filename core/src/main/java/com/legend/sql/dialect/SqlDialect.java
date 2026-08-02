@@ -23,6 +23,13 @@ public interface SqlDialect {
      * this dialect's session — the {@code RawSqlBoundary.h2ToDuckDb}
      * rewrite is a DUCKDB-TARGET adaptation and must be identity here
      * (H2_BACKEND.md §12 step 12). */
+    /** Whether dynamic PIVOT needs the two-phase staticization
+     * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
+     * dynamic pivot on this backend). */
+    default boolean needsStaticPivot() {
+        return false;
+    }
+
     default boolean rawH2IsNative() {
         return false;
     }
