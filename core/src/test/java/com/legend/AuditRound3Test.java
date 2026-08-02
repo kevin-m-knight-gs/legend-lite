@@ -94,15 +94,18 @@ class AuditRound3Test {
     }
 
     @Test
-    @DisplayName("audit: a UNIQUE bare class name resolves (FQN stamped); ambiguity stays loud")
+    @DisplayName("audit: a SECTIONLESS query resolves user elements by FQN only (no global scan)")
     void bareNameResolutionPinnedPositively() throws Exception {
-        var typed = Compiler.compileQuery(MODEL, "A.all()");
-        assertEquals("test::A", typed.info().type().typeName(),
-                "the node carries the RESOLVED FQN");
-        // Two same-simple-name classes: ambiguous — loud with the hint.
-        var ex = assertThrows(Exception.class, () -> Compiler.compileQuery(
-                MODEL + "Class other::A { z: Integer[1]; }\n", "A.all()"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"), ex.getMessage());
+        // NAME_RESOLUTION_BUG.md: the global unique-match scan bound
+        // elements no scope made visible — deleted. An ad-hoc query has
+        // no import section, so a bare user name is unresolvable, LOUD,
+        // with the qualification hint; the FQN spelling works.
+        var ex = assertThrows(Exception.class,
+                () -> Compiler.compileQuery(MODEL, "A.all()"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"),
+                ex.getMessage());
+        var typed = Compiler.compileQuery(MODEL, "test::A.all()");
+        assertEquals("test::A", typed.info().type().typeName());
     }
 
     @Test

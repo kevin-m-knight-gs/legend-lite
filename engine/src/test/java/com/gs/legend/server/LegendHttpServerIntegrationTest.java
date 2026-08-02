@@ -294,7 +294,7 @@ class LegendHttpServerIntegrationTest {
         // Use the sample model with query appended
         String pureCodeWithQuery = buildSampleModel() + """
 
-                Person.all()
+                model::Person.all()
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])
                 """;
 
@@ -448,7 +448,7 @@ class LegendHttpServerIntegrationTest {
         System.out.println("\n=== E2E STEP 4: Execute Pure Query ===");
         String pureQuery = pureModel + """
 
-                Employee.all()
+                model::Employee.all()
                     ->filter(e | $e.department == 'Engineering')
                     ->project(~[name:e|$e.name, salary:e|$e.salary])
                 """;

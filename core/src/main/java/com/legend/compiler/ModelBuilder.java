@@ -544,21 +544,7 @@ public final class ModelBuilder {
         if (exact != null) {
             return Optional.of(exact);
         }
-        // A BARE class name (Person.all() under `import model::*;`) resolves
-        // by simple name when UNIQUE across the model — the same lenient
-        // reference findDatabase gives stores; ambiguity stays a miss.
-        if (!fqn.contains("::")) {
-            ClassDefinition found = null;
-            for (ClassDefinition cd : classes) {
-                if (cd != null && cd.qualifiedName().endsWith("::" + fqn)) {
-                    if (found != null) {
-                        return Optional.empty();
-                    }
-                    found = cd;
-                }
-            }
-            return Optional.ofNullable(found);
-        }
+        // EXACT-FQN ONLY (NAME_RESOLUTION_BUG.md) — see findDatabase.
         return Optional.empty();
     }
 
@@ -774,21 +760,11 @@ public final class ModelBuilder {
         if (exact != null) {
             return Optional.of(exact);
         }
-        // A BARE store name ([PersonDatabase] T_EMPLOYEE) resolves by simple
-        // name when UNIQUE across the model — the engine's lenient store
-        // reference; ambiguity stays a miss (the caller's error names the ref).
-        if (!fqn.contains("::")) {
-            DatabaseDefinition found = null;
-            for (DatabaseDefinition db : databases) {
-                if (db != null && db.qualifiedName().endsWith("::" + fqn)) {
-                    if (found != null) {
-                        return Optional.empty();
-                    }
-                    found = db;
-                }
-            }
-            return Optional.ofNullable(found);
-        }
+        // EXACT-FQN ONLY (NAME_RESOLUTION_BUG.md): the global suffix scan
+        // that resolved a bare name against the whole model bound elements
+        // the referring file never imported — silent wrong SQL. A bare
+        // name reaching this lookup is an upstream qualification failure
+        // and stays a MISS; the caller's error names the reference.
         return Optional.empty();
     }
 
@@ -927,29 +903,7 @@ public final class ModelBuilder {
                 }
             }
         }
-        // BARE store reference ([myDB]@join) with several same-named
-        // databases in the model: the engine resolves by the file's
-        // imports; our lenient equivalent picks the one db that DECLARES
-        // the join — ambiguity (declared in two) stays a miss, exactly
-        // the findDatabase unique-name discipline.
-        if (!dbFqn.contains("::")) {
-            JoinDefinition hit = null;
-            for (DatabaseDefinition db2 : databases) {
-                if (db2 == null
-                        || !db2.qualifiedName().endsWith("::" + dbFqn)) {
-                    continue;
-                }
-                Optional<JoinDefinition> h = findJoin(
-                        db2.qualifiedName(), joinName, seen);
-                if (h.isPresent()) {
-                    if (hit != null) {
-                        return Optional.empty();
-                    }
-                    hit = h.get();
-                }
-            }
-            return Optional.ofNullable(hit);
-        }
+        // EXACT-FQN ONLY (NAME_RESOLUTION_BUG.md) — see findDatabase.
         return Optional.empty();
     }
 

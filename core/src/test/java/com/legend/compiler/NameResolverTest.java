@@ -1218,12 +1218,29 @@ class NameResolverTest {
 
     @Test
     void emptyImportScopeReturnsSameInstanceForUnresolvableNames() {
-        var cd = simpleClass("model::Sub",
+        // 'Person' from a DIFFERENT package with no import is genuinely
+        // unresolvable (own-package no longer applies \u2014 other::Sub's own
+        // package holds no Person)
+        var cd = simpleClass("other::Sub",
                 List.of(nameRef("Person")), List.of());
         var model = new ParsedModel(List.of(cd), EMPTY);
         var r = NameResolver.resolve(model, FQNS);
         assertSame(model, r,
-                "no imports + simple name with no wildcard match \u2192 no change");
+                "no imports + simple name with no candidate \u2192 no change");
+    }
+
+    @Test
+    void ownPackageSiblingResolvesWithoutImports() {
+        // real pure's implicit same-package import: model::Sub sees
+        // model::Person bare (NAME_RESOLUTION_BUG.md \u00a72.4b)
+        var cd = simpleClass("model::Sub",
+                List.of(nameRef("Person")), List.of());
+        var model = new ParsedModel(List.of(cd), EMPTY);
+        var r = NameResolver.resolve(model, FQNS);
+        var rcd = (ClassDefinition) r.elements().get(0);
+        assertEquals("model::Person",
+                ((TypeExpression.NameRef) rcd.superClasses().get(0)).name(),
+                "own-package sibling qualifies bare");
     }
 
     // =================================================================

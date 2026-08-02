@@ -461,7 +461,12 @@ public final class Runner {
         }
         int cut = t.fqn().lastIndexOf("::");
         if (cut > 0) {
-            wildcards.add(t.fqn().substring(0, cut));
+            String ownPkg = t.fqn().substring(0, cut);
+            // dedup: a file importing its own package must not list it
+            // twice (two copies of one FQN read as a fake ambiguity)
+            if (!wildcards.contains(ownPkg)) {
+                wildcards.add(ownPkg);
+            }
         }
         return new com.legend.model.ImportScope(wildcards, typeImports);
     }

@@ -166,12 +166,11 @@ public final class NameResolver {
     public static ParsedModel resolve(ParsedModel parsed,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
-        java.util.Map<String, ImportScope> perElement = new java.util.HashMap<>();
-        parsed.elementImports().forEach((fqn, sc) -> perElement.put(fqn, withPrelude(sc)));
-        ParsedModel scoped = new ParsedModel(parsed.elements(), withPrelude(parsed.imports()),
-                parsed.source(), parsed.elementOffsets(), perElement,
-                parsed.elementSources());
-        return resolve(scoped, knownFqns(parsed.elements()), wallSink);
+        // USER scopes stay pure — the platform prelude is a FALLBACK
+        // consulted inside resolveNameMulti, never merged into the
+        // element's own imports (merging let prelude names OVERWRITE
+        // explicit user type-imports: Builder.add is last-wins)
+        return resolve(parsed, knownFqns(parsed.elements()), wallSink, true);
     }
 
     /**
@@ -187,15 +186,26 @@ public final class NameResolver {
     /** {@link #resolve(ParsedModel, Set)} with an optional tolerant wall sink. */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
-        Scope globalScope = Scope.of(model.imports(), knownFqns);
+        return resolve(model, knownFqns, wallSink, false);
+    }
+
+    private static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
+            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            boolean preludeOn) {
         // SECTION-scoped resolution (real pure): each element resolves in
         // ITS OWN section's imports when recorded; the union scope is the
-        // fallback (single-source models, synthesized elements).
+        // fallback (single-source models, synthesized elements). The
+        // element's OWN PACKAGE is always visible bare (real pure's
+        // implicit same-package import — §2.4b of the resolution audit).
         List<PackageableElement> resolved = new ArrayList<>(model.elements().size());
         boolean changed = false;
         for (PackageableElement el : model.elements()) {
             ImportScope own = model.elementImports().get(el.qualifiedName());
-            Scope scope = own == null ? globalScope : Scope.of(own, knownFqns);
+            String fqn0 = el.qualifiedName();
+            int cut0 = fqn0.lastIndexOf("::");
+            String ownPkg = cut0 > 0 ? fqn0.substring(0, cut0) : null;
+            Scope scope = new Scope(own == null ? model.imports() : own,
+                    knownFqns, Set.of(), ownPkg, preludeOn);
             PackageableElement r;
             try {
                 r = resolveElement(el, scope);
@@ -226,22 +236,24 @@ public final class NameResolver {
                         model.elementSources());
     }
 
-    /** User imports merged with the always-in-scope platform prelude. */
-    private static ImportScope withPrelude(ImportScope user) {
-        ImportScope.Builder b = new ImportScope.Builder();
-        for (String wildcard : user.wildcards()) {
-            b.add(wildcard + "::*");
+    /** The platform prelude as a bare-name index (simple -> FQN) — the
+     * FALLBACK tier of {@link #resolveNameMulti}: consulted only when the
+     * user's explicit imports, wildcards, and own package claim nothing.
+     * Within-prelude collisions keep an arbitrary winner here and are
+     * tie-broken by the file's wildcards ({@link #PRELUDE_COLLISIONS}). */
+    private static final Map<String, String> PRELUDE_TYPES = preludeTypes();
+
+    private static Map<String, String> preludeTypes() {
+        Map<String, String> bySimple = new HashMap<>();
+        List<String> all = new ArrayList<>(Pure.nativeClassFqns());
+        all.addAll(Pure.nativeEnumFqns());
+        for (String fqn : all) {
+            int cut = fqn.lastIndexOf("::");
+            if (cut > 0) {
+                bySimple.put(fqn.substring(cut + 2), fqn);
+            }
         }
-        for (String fqn : user.typeImports().values()) {
-            b.add(fqn);
-        }
-        for (String fqn : Pure.nativeClassFqns()) {
-            b.add(fqn);
-        }
-        for (String fqn : Pure.nativeEnumFqns()) {
-            b.add(fqn);
-        }
-        return b.build();
+        return bySimple;
     }
 
     /** Simple names claimed by MORE THAN ONE prelude class/enum (Table:
@@ -347,8 +359,7 @@ public final class NameResolver {
         known.addAll(Pure.nativeEnumFqns());
         known.addAll(modelFqns);
         return Objects.requireNonNull(
-                resolveVs(query, Scope.of(withPrelude(imports),
-                        Set.copyOf(known))));
+                resolveVs(query, Scope.preludeOf(imports, Set.copyOf(known))));
     }
 
     /** The sectionless-query scope: prelude imports only; the native FQN universe. */
@@ -357,7 +368,7 @@ public final class NameResolver {
     private static Scope querycope() {
         Set<String> known = new HashSet<>(Pure.nativeClassFqns());
         known.addAll(Pure.nativeEnumFqns());
-        return Scope.of(withPrelude(new ImportScope.Builder().build()), Set.copyOf(known));
+        return Scope.preludeOf(new ImportScope.Builder().build(), Set.copyOf(known));
     }
 
     private static @com.legend.Nullable TypeExpression resolveType(
@@ -429,36 +440,6 @@ public final class NameResolver {
         return fn;
     }
 
-    /**
-     * Mapping SET-TARGET positions ({@code View: Pure {...}}, {@code ~src
-     * Raw}) name USER MODEL classes — a prelude metaclass
-     * (relation::View, metamodel::Schema…) is never a legal mapping
-     * target, so a user class reachable via the file's wildcard imports
-     * beats the prelude type-import that shadows it everywhere else
-     * (prelude-first stays load-bearing for expression positions; this
-     * consults the wildcards ONLY when the prelude would win the name).
-     */
-    private static String resolveMappedClassName(String name, Scope scope) {
-        if (name == null || name.isEmpty() || name.contains("::")
-                || scope.typeParams().contains(name)
-                || !scope.imports().typeImports().containsKey(name)) {
-            return resolveName(name, scope);
-        }
-        List<String> user = new ArrayList<>(1);
-        for (String pkg : scope.imports().wildcards()) {
-            String candidate = pkg + "::" + name;
-            if (scope.knownFqns().contains(candidate)) {
-                user.add(candidate);
-            }
-        }
-        if (user.size() > 1) {
-            throw new com.legend.error.ResolutionException(
-                    "ambiguous reference '" + name + "' — matches via imports: "
-                    + user + ". Use a fully qualified name.");
-        }
-        return user.size() == 1 ? user.get(0) : resolveName(name, scope);
-    }
-
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
         List<String> matches = resolveNameMulti(name, scope);
@@ -485,17 +466,49 @@ public final class NameResolver {
         // reference, not a Pure FQN. Skip import resolution.
         if (scope.typeParams().contains(name)) return List.of(name);
         if (name.contains("::")) return List.of(name);
+        // PRECEDENCE (real pure; NAME_RESOLUTION_BUG.md remediation):
+        // 1. the file's EXPLICIT type imports — most specific, win outright
+        // 2. the file's wildcards + the element's OWN package (implicit
+        //    same-package import) over the declared+platform universe
+        // 3. the platform prelude — a FALLBACK, shadowed by anything the
+        //    user made visible (this tier subsumes the retired
+        //    mapping-set-target special case)
         Map<String, String> typeImports = scope.imports().typeImports();
         if (typeImports.containsKey(name)) {
-            String mapped = typeImports.get(name);
+            return List.of(typeImports.get(name));
+        }
+        // DISTINCT candidates: a package listed twice (harness-built
+        // scopes, own-package duplicating an explicit import) is ONE
+        // referent, never an ambiguity
+        List<String> matches = new ArrayList<>(0);
+        for (String pkg : scope.imports().wildcards()) {
+            String candidate = pkg + "::" + name;
+            if (scope.knownFqns().contains(candidate)
+                    && !matches.contains(candidate)) {
+                matches.add(candidate);
+            }
+        }
+        if (!matches.isEmpty()) return matches;
+        // OWN PACKAGE is a tier BELOW imports, never a peer: the corpus's
+        // own testUnionPartial.pure resolves bare 'Address' to the
+        // IMPORTED simple::Address in an import-bearing section and to
+        // the same-package partial::Address in an import-less one — the
+        // engine compiles both, so an import match must never turn
+        // same-package visibility into a fake ambiguity
+        if (scope.ownPackage() != null) {
+            String candidate = scope.ownPackage() + "::" + name;
+            if (scope.knownFqns().contains(candidate)) {
+                return List.of(candidate);
+            }
+        }
+        String prelude = scope.prelude() ? PRELUDE_TYPES.get(name) : null;
+        if (prelude != null) {
             List<String> colliding = PRELUDE_COLLISIONS.get(name);
-            if (colliding != null && colliding.contains(mapped)) {
+            if (colliding != null) {
                 // WITHIN-PRELUDE collision (Table: relation vs the sql
-                // protocol) — the type-import map kept one ARBITRARILY
-                // (last registration wins); the file's wildcard imports
-                // choose among the colliding prelude classes. Prelude
-                // still shadows USER elements (load-bearing) — only
-                // prelude-vs-prelude ties consult the wildcards.
+                // protocol) — the index kept one ARBITRARILY; the file's
+                // wildcard imports choose among the colliding prelude
+                // classes.
                 List<String> byWildcard = new ArrayList<>(1);
                 for (String pkg : scope.imports().wildcards()) {
                     String candidate = pkg + "::" + name;
@@ -507,15 +520,9 @@ public final class NameResolver {
                     return byWildcard;
                 }
             }
-            return List.of(mapped);
+            return List.of(prelude);
         }
-        List<String> matches = new ArrayList<>(0);
-        for (String pkg : scope.imports().wildcards()) {
-            String candidate = pkg + "::" + name;
-            if (scope.knownFqns().contains(candidate)) matches.add(candidate);
-        }
-        if (matches.isEmpty()) return List.of(name);
-        return matches;
+        return List.of(name);
     }
 
     // =================================================================
@@ -827,7 +834,7 @@ public final class NameResolver {
             ClassMapping cm, Scope scope) {
         return switch (cm) {
             case ClassMapping.Relational r -> {
-                String className = resolveMappedClassName(r.className(), scope);
+                String className = resolveName(r.className(), scope);
                 TableReference mainTable = resolveTableReference(r.mainTable(), scope);
                 FilterMapping filter = resolveFilterMapping(r.filter(), scope);
                 List<RelationalOperation> groupBy = resolveRelOpList(r.groupBy(), scope);
@@ -845,19 +852,19 @@ public final class NameResolver {
                         r.propertyTargetSets());
             }
             case ClassMapping.Union u -> {
-                String className = resolveMappedClassName(u.className(), scope);
+                String className = resolveName(u.className(), scope);
                 yield className.equals(u.className()) ? u
                         : new ClassMapping.Union(className, u.setId(),
                                 u.extendsSetId(), u.root(), u.memberSetIds());
             }
             case ClassMapping.Inheritance ih -> {
-                String className = resolveMappedClassName(ih.className(), scope);
+                String className = resolveName(ih.className(), scope);
                 yield className.equals(ih.className()) ? ih
                         : new ClassMapping.Inheritance(className, ih.setId(),
                                 ih.extendsSetId(), ih.root());
             }
             case ClassMapping.RelationFunction rf -> {
-                String className = resolveMappedClassName(rf.className(), scope);
+                String className = resolveName(rf.className(), scope);
                 String funcRef = resolveName(rf.funcRef(), scope);
                 yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
                         ? rf
@@ -865,9 +872,9 @@ public final class NameResolver {
                                 rf.extendsSetId(), rf.root(), funcRef, rf.columns());
             }
             case ClassMapping.Pure p -> {
-                String className = resolveMappedClassName(p.className(), scope);
+                String className = resolveName(p.className(), scope);
                 String sourceClass = p.sourceClass() == null
-                        ? null : resolveMappedClassName(p.sourceClass(), scope);
+                        ? null : resolveName(p.sourceClass(), scope);
                 ValueSpecification filter = resolveVs(p.filter(), scope);
                 List<ClassMapping.Pure.PropertyBinding> bindings = resolvePropertyBindings(
                         p.propertyBindings(), scope);
@@ -1606,7 +1613,9 @@ public final class NameResolver {
     public record Scope(
             ImportScope imports,
             Set<String> knownFqns,
-            Set<String> typeParams) {
+            Set<String> typeParams,
+            @com.legend.Nullable String ownPackage,
+            boolean prelude) {
 
         public Scope {
             Objects.requireNonNull(imports, "imports");
@@ -1614,9 +1623,18 @@ public final class NameResolver {
             Objects.requireNonNull(typeParams, "typeParams");
         }
 
-        /** Empty type-param scope. Most call sites construct via this. */
+        /** Empty type-param scope, no own package, NO prelude — the raw
+         * {@code resolve(model, knownFqns)} entry's contract (bare
+         * primitives pass through for the downstream primitive
+         * machinery; prelude fires only at the prelude-aware entries). */
         public static Scope of(ImportScope imports, Set<String> knownFqns) {
-            return new Scope(imports, knownFqns, Set.of());
+            return new Scope(imports, knownFqns, Set.of(), null, false);
+        }
+
+        /** Prelude-aware scope — the {@code resolve(ParsedModel)} and
+         * query entries (the old withPrelude wiring, as a fallback tier). */
+        public static Scope preludeOf(ImportScope imports, Set<String> knownFqns) {
+            return new Scope(imports, knownFqns, Set.of(), null, true);
         }
 
         /**
@@ -1629,7 +1647,8 @@ public final class NameResolver {
             if (params == null || params.isEmpty()) return this;
             HashSet<String> merged = new HashSet<>(typeParams);
             merged.addAll(params);
-            return new Scope(imports, knownFqns, Set.copyOf(merged));
+            return new Scope(imports, knownFqns, Set.copyOf(merged), ownPackage,
+                    prelude);
         }
     }
 }

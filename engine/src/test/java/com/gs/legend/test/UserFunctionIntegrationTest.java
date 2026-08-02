@@ -1001,6 +1001,8 @@ class UserFunctionIntegrationTest {
         void testSubtypeAccepted() throws SQLException {
             // Full standalone model: Employee extends Person, own table, own mapping
             String model = """
+                    import store::*;
+
                     Class model::Person
                     {
                         firstName: String[1];

@@ -114,6 +114,7 @@ public abstract class AbstractDatabaseTest {
      */
     protected static final String PERSON_MAPPING = """
             import model::*;
+            import store::*;
 
             Mapping model::PersonMapping
             (

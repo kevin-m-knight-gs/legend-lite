@@ -185,6 +185,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_SCALAR + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         Order: Relational {
@@ -221,6 +222,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_SCALAR + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         OrderItem: Relational {
@@ -287,6 +289,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_ORDER_JSON + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         Order: Relational {
@@ -329,6 +332,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_ORDER_JSON + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         Order: Relational {
@@ -395,6 +399,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_ITEM_JSON + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         OrderItem: Relational {
@@ -438,6 +443,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_ITEM_JSON + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         OrderItem: Relational {
@@ -509,6 +515,7 @@ class JsonMappingIntegrationTest {
                     }
                     """ + DATABASE_BOTH_JSON + """
                     import model::*;
+                    import store::*;
 
                     Mapping model::OrderMapping (
                         Order: Relational {

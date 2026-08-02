@@ -1,5 +1,38 @@
 # Name resolution: unimported elements bind silently — the bug, the repro, the fix
 
+> **STATUS: FIXED 2026-08-02** (task #110). §7 executed end to end:
+>
+> - **Step 0 (measured):** instrumented S1–S3; the full corpus sweep showed
+>   **22 unique scan-bindings** (1,335 total hits — relationalDB 791, myDB 44,
+>   bare class names in constraint/milestoning contexts).
+> - **Step 1 (classified):** every corpus binding traced to OUR qualification
+>   gaps, not corpus authoring — chiefly §2.4(b): no implicit own-package
+>   import.
+> - **Steps 2–3 (fixed):** `resolveNameMulti` precedence is now explicit
+>   user imports → user wildcards + OWN PACKAGE → prelude FALLBACK (gated by
+>   `Scope.prelude`; the raw `resolve(model, knownFqns)` entry keeps it off so
+>   bare primitives pass through). The prelude no longer overwrites explicit
+>   user imports (it lived in the same last-wins map). The
+>   `resolveMappedClassName` positional special case is DELETED — subsumed by
+>   the wildcard/own-package tier. Residual census after the fix: **zero
+>   corpus scan-bindings**.
+> - **Step 4 (deleted + pinned):** the S1–S3 bare-name arms are gone —
+>   `findDatabase`/`findClass`/`findJoin` are exact-FQN-only (S4–S6 inherit;
+>   S7's exact-first ordering is mooted — a bare name can no longer
+>   exact-hit). The §2 repro is pinned failing-before/passing-after in
+>   `core NameResolutionContractTest`, plus own-package, user-shadows-prelude,
+>   and prelude-fallback pins.
+> - **Blast radius (actual):** corpus **ZERO** (2180 exact, per-test
+>   byte-stable; one SHAPE wall message moved a step deeper) — the §8
+>   ordering (fix resolution BEFORE deleting the fallback) is why. The §3.1
+>   ≥19 estimate materialized instead as ~130 failures in OUR OWN engine
+>   integration tests whose hand-written models were invalid Pure (no
+>   imports, bare `[PersonDatabase]`-style refs held up by the scan) — all
+>   fixed by adding the missing imports / qualifying the queries, never by
+>   relaxing the resolver. The 2072→1593 reorder collapse recorded in
+>   Runner.java did NOT recur: own-package visibility was the missing piece.
+> - **§8 (compile the corpus once)** is now UNBLOCKED.
+
 > **Severity: correctness. Production path. Silent wrong SQL.**
 >
 > A reference that fails import qualification is resolved by scanning the **entire model** for any
