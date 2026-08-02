@@ -91,6 +91,38 @@ HONEST CEILING (the remaining 32-test gap, 45 listed incl. flappers):
   Cast-shaped boolean compare (2 — the booleanShaped Cast arm is the
   known one-line follow-up), 2 SHAPE flappers.
 
+## 0c. H2 Relation PCT vs legend-engine's own H2 adapter — COMPLETE
+
+**legend-lite on H2: 313/348 (90.0%). legend-engine's H2 adapter:
+309/348 (88.8%, 39 expected failures).** legend-lite passes MORE of
+the engine's own compatibility suite on H2 than the engine itself.
+DuckDB Relation PCT carries ONE expected failure throughout.
+
+The PCT-arc ladder (each rung full-gated: core, DuckDB corpus 2180
+EXACT + M1 296/0, h2 corpus 2148, full DuckDB PCT):
+- 286: backend switch (LEGENDLITE_PCT_BACKEND=h2) + quoted-interval
+  window frames (INTERVAL 'n' UNIT — 40 RANGE-frame errors) + the
+  session-time-zone trap (H2 materializes zone-less TIMESTAMPs through
+  the SESSION zone: UTC session + local JVM shifted every wall time).
+- 306: static pivot emulation (GROUP BY + filtered aggregates,
+  'v__|__alias' naming) + TWO-PHASE dynamic pivot (needsStaticPivot
+  dialects discover the key values on the session connection and pin
+  them as literals pre-render) + star-EXCEPT keyword hook.
+- 310: ASOF join emulation — LEFT JOIN with the right key pinned to
+  the correlated MAX/MIN over a re-aliased copy of the right source.
+- 313: FULL OUTER emulation (LEFT UNION ALL RIGHT + NOT EXISTS anti;
+  H2 rejects FULL, probed), native QUALIFY clause, literal-variant
+  const-folds (VARIANT_GET/ELEMENTS over JSON literals evaluate at
+  strategy time).
+
+HONEST RESIDUAL (35): JSON/struct access on REAL columns — impossible
+on stock H2 2.1.214 without the Java-UDF route this dialect bans
+(VARIANT_GET/ELEMENTS on columns 8, STRUCT_GET on columns 4, list
+ops/fold/membership over per-row JSON values ~15, the
+remove-duplicates positional idiom, 2 row-assert singletons). Engine's
+own 39 failures are the mirror image: everything variant/flatten/
+lateral — which legend-lite passes via the JSON carrier + strategies.
+
 ## 0. Tenets (ordered; #1 is HARD and user-set)
 
 1. **ONE COMPILER — total migration, no dual paths.** The Lowerer and
