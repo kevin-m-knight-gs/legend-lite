@@ -14,16 +14,23 @@ A/Bs old code).
 |---|------|--------------------------|-------------|
 | 1 | Core suite | `mvn -pl core test` | 1595, 0 failures (NullAway, ArchUnit, code-shape included) |
 | 2 | Core install | `mvn -pl core install -DskipTests` | — |
-| 3 | FULL engine suite | `mvn -pl engine test` | 2721, 0 failures (includes RelationalCorpusRunner: DuckDB corpus 2180 EXACT + M1 h2-exec 296 floor / 0 divergences) |
-| 4 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2` | ≥ 2148/2538 (portability sweep; scoreboard not written) |
-| 5 | PCT full (DuckDB) | `cd pct && mvn -o test` | green (1 ledgered Relation expected-failure) |
-| 6 | PCT h2 Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT` | 313/348 |
-| 7 | PCT h2modern guard | as #6 plus `-Dh2.version=2.4.240` | 325/348 |
+| 3 | Engine suite (corpus excluded — gate 4 owns it) | `mvn -pl engine test '-Dtest=!RelationalCorpusRunner'` | 0 failures (~21s) |
+| 4 | DuckDB corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner` | 2180 EXACT + M1 h2-exec 296 floor / 0 divergences (~115s) |
+| 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2` | ≥ 2148/2538 (portability sweep; scoreboard not written) (~45s) |
+| 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | green (1 ledgered Relation expected-failure) (~30-80s) |
+| 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | 325/348 (~25s) |
 
-PCT gates run OFFLINE (`mvn -o`): the pct module carries 9
+Budget: the WHOLE chain is ~5-6 minutes (core 8s + engine 21s +
+DuckDB corpus 115s + h2 corpus 45s + PCT full 30-80s + PCT h2modern
+25s, sequential; measured 2026-08-02). Two failure modes to know:
+(1) PCT gates run OFFLINE (`mvn -o`) — the pct module carries 9
 legend-engine dependencies and an online run re-checks remote
-metadata for them — measured 26s offline vs 10–16 MINUTES online
-(2026-08-02; identical results). Gates 5–7 are required whenever
+metadata for them: measured 26s offline vs 10-16 MINUTES online,
+identical results. (2) INTERMITTENT stall: after many back-to-back
+JVM-heavy runs this machine can block a single PCT test (observed:
+timeBucket, 854s wall / ~0 cpu — memory pressure, same constraint
+as the no-parallel-gates rule); the identical suite re-runs in
+seconds — re-run before diagnosing. Gates 6-7 are required whenever
 core is touched; 6–7 whenever a
 dialect (H2/H2Modern/shared renderer) or the lowering changes.
 
