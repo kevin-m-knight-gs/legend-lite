@@ -86,6 +86,14 @@ public final class CarrierStrategies extends SqlRewriter {
         if (caps.nativeLists()) {
             return s;
         }
+        if (s instanceof com.legend.sql.SqlSource.Join aj
+                && aj.kind() == com.legend.sql.SqlSource.Join.Kind.ASOF_LEFT
+                && aj.on() != null) {
+            com.legend.sql.SqlSource em = asOfEmulation(aj);
+            if (em != null) {
+                return em;
+            }
+        }
         if (!(s instanceof com.legend.sql.SqlSource.Pivot p)
                 || p.in().isEmpty() || p.on().size() != 1) {
             return s;
@@ -120,6 +128,129 @@ public final class CarrierStrategies extends SqlRewriter {
                 .withProjections(ps, p.outputs())
                 .withGroupBy(group);
         return new com.legend.sql.SqlSource.Subselect(sel, p.alias(), null);
+    }
+
+    /** AS-OF EMULATION (PV2): {@code l ASOF LEFT JOIN r ON eqs AND
+     * ineq} joins each left row to THE right row with the extreme
+     * as-of key satisfying the inequality — portable form: a plain
+     * LEFT JOIN whose ON pins the right key to the correlated
+     * MAX (key bounded above) / MIN (bounded below) over a fresh copy
+     * of the right source. No match -> the pick is NULL -> the LEFT
+     * JOIN null-extends, exactly ASOF's miss behavior. Right sources
+     * beyond Table/Subselect (or an unrecognizable inequality) decline
+     * to the loud wall. */
+    private static com.legend.sql.@com.legend.Nullable SqlSource asOfEmulation(
+            com.legend.sql.SqlSource.Join j) {
+        String rightAlias = j.right().alias();
+        List<SqlExpr> conjuncts = new ArrayList<>();
+        flattenAnd(java.util.Objects.requireNonNull(j.on()), conjuncts);
+        SqlExpr rightKey = null;
+        boolean pickMax = false;
+        for (SqlExpr c : conjuncts) {
+            if (c instanceof SqlExpr.Call cc && cc.args().size() == 2) {
+                boolean r0 = mentionsAlias(cc.args().get(0), rightAlias);
+                boolean r1 = mentionsAlias(cc.args().get(1), rightAlias);
+                if (r0 == r1) {
+                    continue;
+                }
+                switch (cc.fn()) {
+                    case GREATER_EQUAL, GREATER -> {
+                        rightKey = r1 ? cc.args().get(1) : cc.args().get(0);
+                        pickMax = r1;      // l >= r: bounded above -> MAX
+                    }
+                    case LESS_EQUAL, LESS -> {
+                        rightKey = r0 ? cc.args().get(0) : cc.args().get(1);
+                        pickMax = r0;      // r <= l: bounded above -> MAX
+                    }
+                    default -> {
+                        continue;
+                    }
+                }
+            }
+        }
+        if (rightKey == null) {
+            return null;
+        }
+        com.legend.sql.SqlSource copy = switch (j.right()) {
+            case com.legend.sql.SqlSource.Table t ->
+                    new com.legend.sql.SqlSource.Table(t.name(), "_asof",
+                            t.outputs());
+            case com.legend.sql.SqlSource.Subselect sub ->
+                    new com.legend.sql.SqlSource.Subselect(sub.inner(),
+                            "_asof", null);
+            case com.legend.sql.SqlSource.Values v ->
+                    new com.legend.sql.SqlSource.Values(v.rows(),
+                            v.columns(), "_asof", v.outputs());
+            default -> null;
+        };
+        if (copy == null) {
+            return null;
+        }
+        List<SqlExpr> remapped = new ArrayList<>();
+        for (SqlExpr c : conjuncts) {
+            remapped.add(remapAlias(c, rightAlias, "_asof"));
+        }
+        SqlExpr where = null;
+        for (SqlExpr c : remapped) {
+            where = where == null ? c
+                    : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, where, c);
+        }
+        SqlSelect pick = SqlSelect.starOf(copy)
+                .withProjections(List.of(new SqlSelect.Projection(
+                        new SqlAgg.Reducer(pickMax ? SqlAgg.Fn.MAX
+                                : SqlAgg.Fn.MIN,
+                                List.of(remapAlias(rightKey, rightAlias,
+                                        "_asof")),
+                                false, List.of()),
+                        null)), List.of())
+                .withWhere(where);
+        SqlExpr on = SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
+                java.util.Objects.requireNonNull(j.on()),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, rightKey,
+                        new SqlExpr.ScalarSubquery(pick)));
+        return new com.legend.sql.SqlSource.Join(j.left(), j.right(),
+                com.legend.sql.SqlSource.Join.Kind.LEFT, on);
+    }
+
+    private static void flattenAnd(SqlExpr e, List<SqlExpr> out) {
+        if (e instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.AND) {
+            for (SqlExpr a : c.args()) {
+                flattenAnd(a, out);
+            }
+            return;
+        }
+        out.add(e);
+    }
+
+    private static boolean mentionsAlias(SqlExpr e, String alias) {
+        if (e instanceof SqlExpr.Column c && alias.equals(c.table())) {
+            return true;
+        }
+        for (SqlExpr k : e.children()) {
+            if (mentionsAlias(k, alias)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static SqlExpr remapAlias(SqlExpr e, String from, String to) {
+        if (e instanceof SqlExpr.Column c && from.equals(c.table())) {
+            return new SqlExpr.Column(to, c.name());
+        }
+        List<SqlExpr> kids = e.children();
+        if (kids.isEmpty()) {
+            return e;
+        }
+        List<SqlExpr> mapped = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (SqlExpr k : kids) {
+            SqlExpr m = remapAlias(k, from, to);
+            changed |= m != k;
+            mapped.add(m);
+        }
+        return changed ? e.withChildren(mapped) : e;
     }
 
     /** A pivot IN literal's COLUMN-NAME text (the reference prints the
