@@ -94,6 +94,13 @@ Three aggravators, all measured:
 
 ## 3. The regression: the corpus sweep, +41%
 
+> **Superseded in part — see `CORPUS_SWEEP_PERF.md`.** A later JFR profile showed this section's
+> diagnosis (per-test database reseeding) is **not** the dominant cost: `openSession` is 0.1% of
+> samples and there are no JDBC frames in the top 25. The sweep is dominated by **module
+> recompilation** (`moduleContextFor`, 61.7%), of which 66% is redundant. That document also records
+> the −21% fix that landed and five other falsified hypotheses. Read it before acting on this
+> section.
+
 `RelationalCorpusRunner` reseeds **the entire family database per test**
 (`Runner.java:1200-1203`): a fresh DuckDB, then DDL for every table of every database in the module
 emitted statement-by-statement through `h2ToDuckDb` + `prepareStatement`, then every setup Pure
