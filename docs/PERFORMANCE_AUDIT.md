@@ -33,6 +33,28 @@ audit was wrong and was killed by measurement** — see §5.
 - **The kills are arithmetic, not a leak.** §3.
 - **The compiler's own algorithms are chronically, not recently, slow.** §5.
 
+### 1.1 In plain terms
+
+**Why parallel runs die:** nobody ever set a memory budget. DuckDB decides on startup that it may
+use 80% of all RAM — *per instance*, with no knowledge that other suites exist. Java defaults to
+8 GB. The build tool has no configuration at all, so neither gets overridden. The tests then create
+~2,000 database instances per run, each with its own 10 threads on a 10-core machine. One component
+genuinely does grow without limit (the corpus runner's per-test cache), and that is what dies first.
+On top of all of it, **two checkouts under two user accounts run gates on this machine at the same
+time**. It is not a leak — three programs were each told they may take more memory than the machine
+has, and two people are running them at once.
+
+**Why it got slower:** only one suite did. The corpus sweep rebuilds the entire database from
+scratch for every one of its 2,019 tests — new database, every table recreated one statement at a
+time, all setup code re-run through the full compiler. That is the equivalent of reinstalling the
+operating system before each unit test. Everything else is healthy, and the engine unit tests are an
+order of magnitude faster than the "2 minutes" they were remembered as.
+
+**The one thing to know about the compiler:** there is a cache built for exactly this problem, whose
+own Javadoc calls it *"the one sanctioned cache in core"*, and **nothing in production calls it**
+(§5.2). Meanwhile every model compile redoes the full parse-and-check across ~4,200 tests that
+mostly compile identical models.
+
 ---
 
 ## 2. Why parallel runs get killed
@@ -149,6 +171,22 @@ identity-preserving; exactly one fixpoint loop in the entire codebase.
   user's home, which **exists and is readable from this account**. Any sweep run without
   `-Dlegend.engine.root` silently reads a tree that a different session is actively modifying.
   Make it fail loudly instead of defaulting.
+
+  **This is not theoretical — it was demonstrated accidentally during this audit.** The sweep
+  **rewrites `docs/RELATIONAL_CORPUS.md` in place** as a side effect. Running it with
+  `-Dlegend.engine.root=/Users/neemsandv/legend/legend-engine` (this account's checkout, at
+  `a337991e9eb`, 2026-07-17) produced a scoreboard that disagreed with the committed one:
+
+  | row | committed | this account's engine checkout |
+  |---|---:|---:|
+  | `executionPlan/tests` | 110 tests, 59 pass | **108 tests, 58 pass** |
+  | `tests/mapping/modelJoin` | 47 tests, 1 fail | **48 tests, 2 fail** |
+
+  So **the engine root silently changes the denominator**, and the committed scoreboard is only
+  meaningful next to the engine revision that produced it. Two consequences worth fixing together:
+  record the engine-checkout revision alongside the scoreboard, and be aware that **running the
+  sweep dirties the working tree** — the diff above was reverted, not committed, and anyone timing
+  the sweep needs to do the same.
 - **`main` has 23 engine test failures** (20 failures, 3 errors) — `expected: <Acme> but was:
   <null>`, `expected: <3> but was: <4>`. **Identical counts at the pre-carrier commit `85ff6c8a`**,
   so they are pre-existing, not carrier-arc damage. But `AGENTS.md` makes engine-green a
@@ -157,6 +195,16 @@ identity-preserving; exactly one fixpoint loop in the entire codebase.
 ---
 
 ## 7. Fix order — this order matters
+
+**There are two independent goals here, and they want different work.** Do either half first, but
+keep the order *within* a half.
+
+**Half A — "stop killing my machine" (steps 1-3).** Nothing here makes the suite faster; it makes
+concurrent runs survivable. This is the half to do if the complaint is that engine + PCT + corpus
+can't run together.
+
+**Half B — "make the loop fast" (steps 4-6).** Steps 4 and 5 are pure wall-clock; step 6 is the
+largest single lever in `core/` and also the most invasive.
 
 Applying these out of order makes things **worse**, not better: anything that adds forks or
 concurrency before memory is bounded multiplies the kill.
