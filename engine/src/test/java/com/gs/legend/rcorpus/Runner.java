@@ -1154,9 +1154,34 @@ public final class Runner {
     public Outcome run(ParsedTest t) {
         // #67: record every raw corpus statement this test executes —
         // the H2 advisory second target replays them verbatim to verify
-        // golden-SQL asserts by ROWS. Fresh list per test; the next run
-        // replaces it.
-        com.legend.exec.RawSqlBoundary.record(new ArrayList<>());
+        // golden-SQL asserts by ROWS. Under a FAMILY session (#112) the
+        // recording starts from the session's ledger (earlier tests'
+        // seeds and mutations are part of this test's visible state);
+        // after the run the ledger becomes the recording.
+        List<String> recording = new ArrayList<>();
+        com.legend.exec.RawSqlBoundary.record(recording);
+        lastRunShared = false;
+        try {
+            return run0(t, recording);
+        } finally {
+            if (lastRunShared) {
+                familySeedLedger.clear();
+                familySeedLedger.addAll(recording);
+            }
+            if (System.getenv("LL_LEDGER_DUMP") != null
+                    && t.fqn().contains(System.getenv("LL_LEDGER_DUMP"))) {
+                try {
+                    java.nio.file.Files.write(
+                            java.nio.file.Path.of("/tmp/ledger-dump.sql"),
+                            recording);
+                } catch (java.io.IOException ignore) {
+                    // debug channel only
+                }
+            }
+        }
+    }
+
+    private Outcome run0(ParsedTest t, List<String> recording) {
         // Statement-position HELPER calls β-expand (params bound as lets)
         // for TWO reasons, verified separable by experiment (audit 20
         // follow-up): (a) DISCOVERY — executeMappingRefs must see execute
@@ -1236,9 +1261,31 @@ public final class Runner {
         try {
             com.legend.compiler.element.ModelContext ctx =
                     moduleContextFor(moduleRefs, fileOnlyRefs);
-            try (Connection conn = openSession()) {
+            // the FAMILY session when one is open AND this test's DDL
+            // scope agrees with the session's established shapes; a
+            // conflicting test gets a PRIVATE session (old per-test
+            // semantics) — a clobber would orphan the shared state
+            boolean shared = familyConn != null
+                    && !ddlConflictsWithSession(ctx);
+            lastRunShared = shared;
+            if (shared) {
+                int cut = t.fqn().lastIndexOf("::");
+                String pkg = cut > 0 ? t.fqn().substring(0, cut) : t.fqn();
+                if (!pkg.equals(currentSetupPkg)) {
+                    familySetupsDone.clear();
+                    familyCrossDone.clear();
+                    currentSetupPkg = pkg;
+                }
+            }
+            Connection conn = shared ? familyConn : openSession();
+            if (shared) {
+                // this test's visible state includes everything the
+                // session executed before it — the mirror replays it
+                recording.addAll(0, familySeedLedger);
+            }
+            try {
                 List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
-                        ctx, conn);
+                        ctx, conn, shared);
                 seedFailures.addAll(failedSeeds);
                 if (System.getenv("LL_TMP_DEBUG") != null
                         || System.getenv("LL_ORD_COUNT") != null) {
@@ -1253,6 +1300,10 @@ public final class Runner {
                 // run) join the run-wide report too (audit 17)
                 seedFailures.addAll(failedSeeds);
                 return score(t.fqn(), o);
+            } finally {
+                if (!shared) {
+                    conn.close();
+                }
             }
         } catch (Exception e) {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
@@ -1502,9 +1553,13 @@ public final class Runner {
      * arc S4: Compiler's statement orchestration + executeInDb dispatch).
      * Setups the TEST BODY calls run at their own statement position in
      * TestBody — no pre-replay, engine-exact ordering. */
-    private List<String> moduleDdl(
+    /** One module-DDL unit: the session-dedup KEY (physical table
+     * identity), the drop spelling for shape-clobber, and the create. */
+    record DdlUnit(String key, String dropSql, String createSql) {}
+
+    private List<DdlUnit> moduleDdl(
             com.legend.compiler.element.ModelContext ctx) {
-        List<String> out = new ArrayList<>();
+        List<DdlUnit> out = new ArrayList<>();
         java.util.Set<String> seenTables = new java.util.HashSet<>();
         java.util.Set<String> seenSchemas = new java.util.HashSet<>();
         for (String fqn : ctx.elementFqns()) {
@@ -1521,14 +1576,17 @@ public final class Runner {
             var db = dbOpt.get();
             for (var td : db.tables()) {
                 if (seenTables.add(td.name().toLowerCase())) {
-                    out.add(com.legend.exec.Ddl.createTable(td, null));
+                    out.add(new DdlUnit(td.name().toLowerCase(),
+                            "DROP TABLE IF EXISTS " + td.name(),
+                            com.legend.exec.Ddl.createTable(td, null)));
                 }
             }
             for (var schema : db.schemas()) {
                 boolean defaultSchema = schema.name().isEmpty()
                         || "default".equals(schema.name());
                 if (!defaultSchema && seenSchemas.add(schema.name())) {
-                    out.add("CREATE SCHEMA IF NOT EXISTS " + schema.name());
+                    out.add(new DdlUnit("schema:" + schema.name(), "",
+                            "CREATE SCHEMA IF NOT EXISTS " + schema.name()));
                 }
                 for (var td : schema.tables()) {
                     // default-schema tables share the FLAT key — the same
@@ -1536,8 +1594,12 @@ public final class Runner {
                     String key = defaultSchema ? td.name().toLowerCase()
                             : (schema.name() + "." + td.name()).toLowerCase();
                     if (seenTables.add(key)) {
-                        out.add(com.legend.exec.Ddl.createTable(td,
-                                defaultSchema ? null : schema.name()));
+                        String qual = defaultSchema ? td.name()
+                                : schema.name() + "." + td.name();
+                        out.add(new DdlUnit(key,
+                                "DROP TABLE IF EXISTS " + qual,
+                                com.legend.exec.Ddl.createTable(td,
+                                        defaultSchema ? null : schema.name())));
                     }
                 }
             }
@@ -1547,32 +1609,150 @@ public final class Runner {
 
     private List<String> replaySeeds(String fqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn) {
-        return replaySeeds(fqn, List.of(), ctx, conn);
+        return replaySeeds(fqn, List.of(), ctx, conn, false);
+    }
+
+    /** Wall-clock spent in seed replay across the run — the per-family
+     * seeding leg's before/after instrument (task #112). */
+    public static final java.util.concurrent.atomic.AtomicLong SEED_NANOS =
+            new java.util.concurrent.atomic.AtomicLong();
+    public static final java.util.concurrent.atomic.AtomicLong SEED_CALLS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** PER-FAMILY SESSION (task #112, engine beforePackage semantics):
+     * one connection per family, seeds replayed INCREMENTALLY — the
+     * family's first test seeds its scope, later tests only add DDL
+     * statements and setup fns not yet run this session. State carries
+     * across a family's tests exactly like the engine's shared server
+     * carries it across a package's tests; per-test order is unchanged. */
+    private @com.legend.Nullable Connection familyConn;
+    private final java.util.Map<String, String> familyDdlShapes =
+            new java.util.HashMap<>();
+    private final java.util.Set<String> familySetupsDone = new java.util.HashSet<>();
+    /** CROSS-channel session dedup — SEPARATE from the own-family set:
+     * the corpus ordering contract is cross-first / own-LAST (own wins),
+     * so a cross replay must never suppress the own-family replay. */
+    private final java.util.Set<String> familyCrossDone = new java.util.HashSet<>();
+    /** The package whose setups the session last replayed — the engine
+     * runs BeforePackage functions per PACKAGE, so a package transition
+     * re-arms the whole setup set (drop+create+fill re-establishes the
+     * shared tables the previous package's setups clobbered). */
+    private @com.legend.Nullable String currentSetupPkg;
+    /** Every raw statement the family session has executed, in order —
+     * the H2 advisory mirror replays a test's WHOLE session history
+     * (skipped re-seeds included), or its fresh mirror starts empty. */
+    private final List<String> familySeedLedger = new ArrayList<>();
+    /** Whether the LAST run(t) executed on the shared family session —
+     * a test whose DDL scope CONFLICTS with the session's established
+     * table shapes runs on a private per-test session instead (its
+     * state and recording never join the family ledger). */
+    private boolean lastRunShared;
+
+    /** True when any table this test's scope declares already exists in
+     * the family session under a DIFFERENT shape. */
+    private boolean ddlConflictsWithSession(
+            com.legend.compiler.element.ModelContext ctx) {
+        for (DdlUnit unit : moduleDdl(ctx)) {
+            String prev = familyDdlShapes.get(unit.key());
+            if (prev != null && !prev.equals(unit.createSql())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void beginFamilySession() throws java.sql.SQLException {
+        endFamilySession();
+        // -Drcorpus.perTestSessions bypasses family sessions (A/B lever:
+        // familyConn == null routes every test through the old per-test
+        // fresh-session path)
+        if (System.getProperty("rcorpus.perTestSessions") != null) {
+            return;
+        }
+        familyConn = openSession();
+    }
+
+    public void endFamilySession() {
+        if (familyConn != null) {
+            try {
+                familyConn.close();
+            } catch (Exception ignore) {
+                // a session that fails to close cannot poison the next
+                // family: the reference is dropped either way
+            }
+            familyConn = null;
+        }
+        familyDdlShapes.clear();
+        familySetupsDone.clear();
+        familyCrossDone.clear();
+        familySeedLedger.clear();
+        currentSetupPkg = null;
+    }
+
+    /** True when {@code fnFqn} already ran this family session (and
+     * marks it run). Per-test mode (no family session) never skips. */
+    private boolean setupAlreadyRun(boolean shared, String fnFqn) {
+        return shared && !familySetupsDone.add(fnFqn);
     }
 
     private List<String> replaySeeds(String fqn, List<String> crossRefs,
-            com.legend.compiler.element.ModelContext ctx, Connection conn) {
+            com.legend.compiler.element.ModelContext ctx, Connection conn,
+            boolean shared) {
+        long t0 = System.nanoTime();
+        try {
+            return replaySeeds0(fqn, crossRefs, ctx, conn, shared);
+        } finally {
+            SEED_NANOS.addAndGet(System.nanoTime() - t0);
+            SEED_CALLS.incrementAndGet();
+        }
+    }
+
+    private List<String> replaySeeds0(String fqn, List<String> crossRefs,
+            com.legend.compiler.element.ModelContext ctx, Connection conn,
+            boolean shared) {
         // MODULE-DERIVED DDL (audit 19d B6 / task #55): every table of
         // every database the test's module compiled, spelled by Ddl.java
         // from the PARSED store — the regex extraction (tableDefsAll/
         // seedColumnTypes/pickBySeed, the last surviving shadow parser)
         // is retired. Same-named tables dedup first-wins (module order),
         // the same arbitration the module's element dedup already applies.
-        List<String> allSeeds = moduleDdl(ctx);
+        List<DdlUnit> allSeeds = moduleDdl(ctx);
         List<String> failedSeeds = new ArrayList<>();
-        for (String sql : allSeeds) {
-            for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
-                // module DDL adapts to the SESSION: raw for the H2 sweep,
-                // the DuckDB-target boundary translation otherwise
-                String stmt = H2_BACKEND ? raw
-                        : com.legend.exec.RawSqlBoundary.h2ToDuckDb(raw);
-                // prepare(): DuckDB JDBC masks Statement.execute errors
-                try (var st = conn.prepareStatement(stmt)) {
-                    st.execute();
-                } catch (Exception e) {
-                    String head = stmt.strip().split("\n")[0];
-                    failedSeeds.add(head + " => "
-                            + String.valueOf(e.getMessage()).split("\n")[0]);
+        for (DdlUnit unit : allSeeds) {
+            // FAMILY session (#112): same table key + same shape = done.
+            // A conflicting shape never reaches here — the conflict check
+            // routed the test to a private session.
+            List<String> pending = new ArrayList<>();
+            if (shared) {
+                String prev = familyDdlShapes.get(unit.key());
+                if (unit.createSql().equals(prev)) {
+                    continue;
+                }
+                familyDdlShapes.put(unit.key(), unit.createSql());
+            }
+            pending.add(unit.createSql());
+            for (String sql : pending) {
+                for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
+                    // module DDL adapts to the SESSION: raw for the H2
+                    // sweep, the DuckDB-target boundary translation
+                    // otherwise (the translation ALSO records the
+                    // statement for the H2 advisory mirror)
+                    String stmt = H2_BACKEND ? raw
+                            : com.legend.exec.RawSqlBoundary.h2ToDuckDb(raw);
+                    // prepare(): DuckDB JDBC masks Statement.execute errors
+                    try (var st = conn.prepareStatement(stmt)) {
+                        st.execute();
+                    } catch (Exception e) {
+                        // ledger fidelity (#112): the translation recorded
+                        // eagerly; a failed statement must not reach the
+                        // H2 advisory replay
+                        if (!H2_BACKEND) {
+                            com.legend.exec.RawSqlBoundary.unrecordLast();
+                        }
+                        String head = stmt.strip().split("\n")[0];
+                        failedSeeds.add(head + " => "
+                                + String.valueOf(e.getMessage()).split("\n")[0]);
+                    }
                 }
             }
         }
@@ -1605,15 +1785,28 @@ public final class Runner {
                 }
             }
             if (best != null && setupFnAsts.containsKey(best[1])
-                    && isEffectfulSetup(best[1]) && crossExecuted.add(best[1])) {
+                    && isEffectfulSetup(best[1]) && crossExecuted.add(best[1])
+                    && !(shared && !familyCrossDone.add(best[1]))) {
+                int before = crossScratch.size();
                 callSetup(best[1], ctx, conn, crossScratch);
+                // a setup only COUNTS as run when it replayed clean —
+                // one that failed (its tables' DDL not in scope yet)
+                // re-runs on the next test that names it (#112)
+                if (crossScratch.size() > before) {
+                    familyCrossDone.remove(best[1]);
+                }
             }
         }
         java.util.Set<String> executed = new java.util.HashSet<>();
         for (SetupUnit unit : sharedSetupUnits) {
             if (unit.zeroArg() && isEffectfulSetup(unit.fqn())
-                    && executed.add(unit.fqn())) {
+                    && executed.add(unit.fqn())
+                    && !setupAlreadyRun(shared, unit.fqn())) {
+                int before = failedSeeds.size();
                 callSetup(unit.fqn(), ctx, conn, failedSeeds);
+                if (failedSeeds.size() > before) {
+                    familySetupsDone.remove(unit.fqn());
+                }
             }
         }
         // OUTERMOST-FIRST (the JUnit BeforePackage nesting rule): a
@@ -1645,8 +1838,12 @@ public final class Runner {
                             "meta::relational::tests::fromMapping::setUp"));
         }
         for (String[] bp : matching) {
-            if (executed.add(bp[1])) {
+            if (executed.add(bp[1]) && !setupAlreadyRun(shared, bp[1])) {
+                int before = failedSeeds.size();
                 callSetup(bp[1], ctx, conn, failedSeeds);
+                if (failedSeeds.size() > before) {
+                    familySetupsDone.remove(bp[1]);
+                }
             }
         }
         return failedSeeds;

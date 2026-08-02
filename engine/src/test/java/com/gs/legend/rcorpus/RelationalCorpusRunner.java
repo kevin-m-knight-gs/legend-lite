@@ -305,6 +305,9 @@ public class RelationalCorpusRunner {
                     "M1 h2-exec verified fell below the 296 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
         }
+        System.out.println("[rcorpus] seed replay: "
+                + Runner.SEED_CALLS.get() + " calls, "
+                + (Runner.SEED_NANOS.get() / 1_000_000) + " ms");
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {
@@ -398,19 +401,26 @@ public class RelationalCorpusRunner {
         runner.selectFamily(family);
         List<Runner.Outcome> outcomes = new ArrayList<>();
         String onlyTest = System.getProperty("rcorpus.test", "").trim();
-        for (Map.Entry<Path, String> e : testSources.entrySet()) {
-            runner.selectFile(e.getKey().toString());
-            // Phase C: discovery through the REAL parser — stereotyped
-            // functions off the parsed unit, body as AST
-            // -Drcorpus.test=<name-substring> narrows a scoped run to
-            // matching TEST functions (fast single-test iteration; the
-            // family model still assembles in full)
-            for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
-                if (!onlyTest.isEmpty() && !t.fqn().contains(onlyTest)) {
-                    continue;
+        // ONE session per family (task #112): seeds replay incrementally
+        // inside it — the engine's per-package shared-server semantics
+        runner.beginFamilySession();
+        try {
+            for (Map.Entry<Path, String> e : testSources.entrySet()) {
+                runner.selectFile(e.getKey().toString());
+                // Phase C: discovery through the REAL parser — stereotyped
+                // functions off the parsed unit, body as AST
+                // -Drcorpus.test=<name-substring> narrows a scoped run to
+                // matching TEST functions (fast single-test iteration; the
+                // family model still assembles in full)
+                for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
+                    if (!onlyTest.isEmpty() && !t.fqn().contains(onlyTest)) {
+                        continue;
+                    }
+                    outcomes.add(runner.run(t));
                 }
-                outcomes.add(runner.run(t));
             }
+        } finally {
+            runner.endFamilySession();
         }
         return outcomes;
     }

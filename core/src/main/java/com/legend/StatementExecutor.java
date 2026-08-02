@@ -2878,6 +2878,11 @@ final class StatementExecutor {
             try {
                 Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
             } catch (java.sql.SQLException e) {
+                // the recording must mirror EXECUTED reality — a failed
+                // statement leaves the H2-replay ledger (task #112)
+                if (!env.dialect().rawH2IsNative()) {
+                    com.legend.exec.RawSqlBoundary.unrecordLast();
+                }
                 if (env.rawSqlFailureSink() == null) {
                     throw e;
                 }

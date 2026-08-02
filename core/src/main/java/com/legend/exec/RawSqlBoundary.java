@@ -51,6 +51,18 @@ public final class RawSqlBoundary {
         return RECORDER.get();
     }
 
+    /** Drop the most recently recorded statement — called by executors
+     * when the statement FAILED on the session: the recording must
+     * mirror executed reality or the H2 advisory replay dies on
+     * statements the session itself rejected (family-session ledger,
+     * task #112). Translation records eagerly; failure unrecords. */
+    public static void unrecordLast() {
+        List<String> sink = RECORDER.get();
+        if (sink != null && !sink.isEmpty()) {
+            sink.remove(sink.size() - 1);
+        }
+    }
+
     /** METADATA-ONLY side channel: engine DDL semantics DuckDB
      * deliberately skips (PRIMARY KEY constraints, schema creates) that
      * ONLY the fetchDb* metadata replay consumes. Kept OUT of the main
