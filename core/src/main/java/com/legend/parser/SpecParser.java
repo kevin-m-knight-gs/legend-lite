@@ -1951,6 +1951,15 @@ public final class SpecParser implements TokenStreamCursor {
             throw error("expected type name after '@'");
         }
         String name = parseQualifiedName();
+        // @Mass~Kilogram — the UNIT type spelling; folded into one name
+        // (same convention as the type grammar and expression primary)
+        if (!atEnd() && peek() == TokenType.TILDE
+                && pos + 1 < tokens.count()
+                && isFqnSegmentToken(tokens.type(pos + 1))) {
+            pos++;
+            name = name + "~" + text();
+            pos++;
+        }
         String simple = name.contains("::")
                 ? name.substring(name.lastIndexOf("::") + 2)
                 : name;
@@ -2548,6 +2557,29 @@ public final class SpecParser implements TokenStreamCursor {
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             qualified = true;
             args = parseArgList();
+        }
+
+        // prop->subType(@Sub) { ... } — the PROPERTY-LEVEL subtype view
+        // (simpleObject corpus family): sugar for prop { ->subType(@Sub)
+        // { ... } } — desugared to the head-form child the checker
+        // already validates (children against the subtype class).
+        if (!atEnd() && peek() == TokenType.ARROW
+                && pos + 1 < tokens.count()
+                && isFqnSegmentToken(tokens.type(pos + 1))
+                && "subType".equals(tokens.text(pos + 1))) {
+            pos += 2;
+            expect(TokenType.PAREN_OPEN, "expected '(' after ->subType");
+            expect(TokenType.AT, "expected '@' in ->subType(@Type)");
+            String subFqn = parseQualifiedName();
+            expect(TokenType.PAREN_CLOSE, "expected ')' after ->subType type");
+            ColSpecArray subBody = parseGraphDefinition(depth + 1);
+            ColSpec subChild = new ColSpec("->subType", null,
+                    new LambdaFunction(List.of(), List.of(subBody)), null,
+                    List.of(new TypeAnnotation.Named(
+                            new TypeExpression.NameRef(subFqn))));
+            LambdaFunction fn2 = new LambdaFunction(List.of(),
+                    List.of(new ColSpecArray(List.of(subChild))));
+            return new ColSpec(propName, fn1, fn2, alias, args, qualified);
         }
 
         // Optional nested graph definition: { subpaths }

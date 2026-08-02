@@ -117,6 +117,19 @@ public final class Compiler {
      * total, so the fallback never widens).
      */
     public static ParsedModule parseSources(List<ModelSource> sources) {
+        return parseSources(sources, null);
+    }
+
+    /**
+     * {@link #parseSources(List)} with an optional PER-FILE parse wall
+     * sink (source name &rarr; first error line): an unparseable file is
+     * reported and EXCLUDED instead of failing the whole batch — and the
+     * parse result is REUSED for the merge, so callers never pre-parse
+     * for validation and re-parse for assembly (the corpus runner's
+     * throwaway-parse pattern). Null = strict (first parse error throws).
+     */
+    public static ParsedModule parseSources(List<ModelSource> sources,
+            java.util.function.@com.legend.Nullable BiConsumer<String, String> parseWallSink) {
         Objects.requireNonNull(sources, "sources");
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
         java.util.Map<String, Integer> offsets = new java.util.HashMap<>();
@@ -128,7 +141,17 @@ public final class Compiler {
         List<String> duplicates = new java.util.ArrayList<>();
         for (ModelSource src : sources) {
             sourceTexts.put(src.name(), src.text());
-            ParsedModel unit = ElementParser.parse(src.text());
+            ParsedModel unit;
+            try {
+                unit = ElementParser.parse(src.text());
+            } catch (com.legend.error.LegendCompileException e) {
+                if (parseWallSink == null) {
+                    throw e;
+                }
+                parseWallSink.accept(src.name(),
+                        String.valueOf(e.getMessage()).split("\n")[0]);
+                continue;
+            }
             for (com.legend.model.PackageableElement el : unit.elements()) {
                 // FUNCTIONS overload: same FQN with different signatures is
                 // NOT a duplicate — the dedup key carries the parameter

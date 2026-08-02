@@ -1321,6 +1321,16 @@ public final class MappingNormalizer {
                           + " target instance per source element); mapping="
                           + md.qualifiedName());
                 }
+                if (pb.enumMappingId() != null) {
+                    // parsed and RECORDED (the mft/testExplosion corpus
+                    // families) — dropping the transformer would read raw
+                    // source values as enum names, silently wrong
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "M2M enum transformer 'EnumerationMapping "
+                          + pb.enumMappingId() + "' on '" + pb.propertyName()
+                          + "' is a roadmap feature (source-value decode on"
+                          + " the M2M read); mapping=" + md.qualifiedName());
+                }
                 if (tgt != null && findPropertyTypeDeep(tgt, pb.propertyName(), model) == null) {
                     throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                             "M2M PropertyBinding '" + pb.propertyName()

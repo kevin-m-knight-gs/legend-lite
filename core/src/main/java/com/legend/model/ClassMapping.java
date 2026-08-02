@@ -251,21 +251,32 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         public record PropertyBinding(String propertyName,
                 ValueSpecification expression,
                 @com.legend.Nullable String sourceSetId, @com.legend.Nullable String targetSetId,
-                boolean explode, boolean local) {
+                boolean explode, boolean local,
+                @com.legend.Nullable String enumMappingId) {
             public PropertyBinding {
                 Objects.requireNonNull(propertyName, "Property name cannot be null");
                 Objects.requireNonNull(expression, "Property binding expression cannot be null");
             }
 
+            /** No enum transformer (the overwhelmingly common shape). */
+            public PropertyBinding(String propertyName,
+                    ValueSpecification expression,
+                    @com.legend.Nullable String sourceSetId,
+                    @com.legend.Nullable String targetSetId,
+                    boolean explode, boolean local) {
+                this(propertyName, expression, sourceSetId, targetSetId,
+                        explode, local, null);
+            }
+
             /** Plain binding: no set route, no explosion, not local. */
             public PropertyBinding(String propertyName, ValueSpecification expression) {
-                this(propertyName, expression, null, null, false, false);
+                this(propertyName, expression, null, null, false, false, null);
             }
 
             /** Same heads, different RHS (name-resolution rebuild). */
             public PropertyBinding withExpression(ValueSpecification e) {
                 return new PropertyBinding(propertyName, e,
-                        sourceSetId, targetSetId, explode, local);
+                        sourceSetId, targetSetId, explode, local, enumMappingId);
             }
         }
     }

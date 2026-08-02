@@ -1461,15 +1461,30 @@ final class MappingGrammarParser {
             }
             explode = p.match(TokenType.STAR) || explode;
             p.expect(TokenType.COLON);
+            // prop : EnumerationMapping <id> : expr — the M2M enum
+            // TRANSFORMER prefix (engine mappingLine transformer; the
+            // relational EnumerationMapping PM arm's Pure-side twin).
+            // Recorded on the binding; the normalizer owns semantics.
+            String enumMappingId = null;
+            if (p.isIdentifierToken(p.peek())
+                    && "EnumerationMapping".equals(p.text())) {
+                p.advance();
+                enumMappingId = p.parseIdentifier();
+                p.expect(TokenType.COLON);
+            }
             int start = p.pos;
-            scanPureExpression(/*stopOnPropertyBindingStart=*/ false);
+            // stop at the NEXT binding head too: the corpus separates
+            // bindings by newline alone (simpleObject's 'id : f(...)
+            // <newline> i : []'), and commas are optional in the engine
+            // grammar — the ~filter arm already trusts this recognizer
+            scanPureExpression(/*stopOnPropertyBindingStart=*/ true);
             if (p.pos == start) {
                 throw p.error("Pure class mapping property '" + propName
                         + "' has an empty body");
             }
             ValueSpecification expression = SpecParser.parse(p.tokens.slice(start, p.pos));
             bindings.add(new ClassMapping.Pure.PropertyBinding(propName, expression,
-                    sourceSetId, targetSetId, explode, local));
+                    sourceSetId, targetSetId, explode, local, enumMappingId));
             // Properties are comma-separated; trailing comma tolerated.
             p.match(TokenType.COMMA);
         }

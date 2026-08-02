@@ -458,6 +458,15 @@ public interface TokenStreamCursor {
             return parseRelationType();
         }
         String name = parseQualifiedName();
+        // Measure~Unit (Mass~Kilogram[1], cast(@Mass~Kilogram)): the
+        // UNIT type spelling — folded into ONE NameRef carrying the
+        // tilde; the classifier walls it as an unported platform type
+        // until the units feature lands (parse-level coverage only)
+        if (peek() == TokenType.TILDE && isFqnSegmentToken(peek(1))) {
+            advance();
+            name = name + "~" + text();
+            advance();
+        }
         if (!match(TokenType.LESS_THAN)) {
             return new TypeExpression.NameRef(name);
         }
