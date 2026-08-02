@@ -115,13 +115,24 @@ EXACT + M1 296/0, h2 corpus 2148, full DuckDB PCT):
   const-folds (VARIANT_GET/ELEMENTS over JSON literals evaluate at
   strategy time).
 
-HONEST RESIDUAL (35): JSON/struct access on REAL columns — impossible
-on stock H2 2.1.214 without the Java-UDF route this dialect bans
-(VARIANT_GET/ELEMENTS on columns 8, STRUCT_GET on columns 4, list
-ops/fold/membership over per-row JSON values ~15, the
-remove-duplicates positional idiom, 2 row-assert singletons). Engine's
-own 39 failures are the mirror image: everything variant/flatten/
-lateral — which legend-lite passes via the JSON carrier + strategies.
+HONEST RESIDUAL on 2.1.214 (35): JSON/struct access on REAL columns —
+impossible there without the Java-UDF route this dialect bans.
+Engine's own 39 failures are the mirror image: everything variant/
+flatten/lateral — which legend-lite passes via the JSON carrier +
+strategies.
+
+MODERN PROFILE (H2Modern, 2.3+ selected by CONNECTED VERSION; probed
+on 2.4.240): newer H2 grew typed-JSON navigation behind three traps —
+QUOTED field keys ((j)."a"; unquoted upcases and silently misses),
+ONE-based array indexes, and typed-JSON-only reads (H2's CAST from
+VARCHAR *quotes* where the reference parses: the parse intent spells
+JSON '...' / (x FORMAT JSON)). With navigation + the struct-as-
+JSON_OBJECT carrier + TRIM-quote scalar extraction + CARDINALITY
+lengths: **325/348 on H2 2.4.240** (2.1.214 engine-parity target
+unchanged at 313; run via -Dh2.version=2.4.240 on the pct module).
+Remaining 23 on the modern profile: per-row JSON lambda iteration
+(filter/map/sort/slice/reverse/fold/membership over column values)
+and LATERAL flatten — no correlated iteration on any H2 version.
 
 ## 0. Tenets (ordered; #1 is HARD and user-set)
 
