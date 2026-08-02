@@ -56,6 +56,25 @@ public class H2Modern extends H2 {
                 + g.field().replace("\"", "\"\"") + "\"";
     }
 
+    /** {@code CARDINALITY} counts JSON-array elements on 2.3+ (probed:
+     * 3 for '[1,2,3]') — the LIST_LENGTH spelling. HERE, not in
+     * listCall: the inherited 'len' Spellings row short-circuits ahead
+     * of the idiom dispatch. The Array-cast wrapper only re-types and
+     * unwraps. */
+    @Override
+    protected String call(SqlExpr.Call c, int parentPrec) {
+        if (c.fn() == com.legend.sql.SqlFn.LIST_LENGTH
+                && c.args().size() == 1) {
+            SqlExpr arg = c.args().get(0);
+            if (arg instanceof SqlExpr.Cast ac
+                    && ac.target() instanceof com.legend.sql.SqlType.Array) {
+                arg = ac.value();
+            }
+            return "CARDINALITY(" + expr(arg, 0) + ")";
+        }
+        return super.call(c, parentPrec);
+    }
+
     /** A cast TO JSON is the PARSE intent (DuckDB's CAST parses) — but
      * H2's CAST from VARCHAR QUOTES the text as a JSON string instead
      * (probed: CAST('[10,20]' AS JSON) -> "\"[10,20]\""). The parsing
