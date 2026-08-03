@@ -29,10 +29,21 @@ public final class Executor {
      * Raw-statement execution — the K-native {@code executeInDb} boundary:
      * one already-dialect-adapted statement, no plan, no result shaping.
      */
+    /** Raw-statement JDBC time + count — perf instrument (the corpus
+     * duck-vs-h2 seed accounting). */
+    public static final java.util.concurrent.atomic.AtomicLong RAW_NANOS =
+            new java.util.concurrent.atomic.AtomicLong();
+    public static final java.util.concurrent.atomic.AtomicLong RAW_CALLS =
+            new java.util.concurrent.atomic.AtomicLong();
+
     public static void executeRaw(Connection connection, String statement)
             throws SQLException {
+        long t0 = System.nanoTime();
         try (Statement st = connection.createStatement()) {
             st.execute(statement);
+        } finally {
+            RAW_NANOS.addAndGet(System.nanoTime() - t0);
+            RAW_CALLS.incrementAndGet();
         }
     }
 

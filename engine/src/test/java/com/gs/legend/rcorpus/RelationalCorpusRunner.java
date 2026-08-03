@@ -230,7 +230,10 @@ public class RelationalCorpusRunner {
             System.out.println("[rcorpus] failed seeds: " + seedFails.size());
             System.out.println("[rcorpus] seed replay: "
                     + Runner.SEED_CALLS.get() + " calls, "
-                    + (Runner.SEED_NANOS.get() / 1_000_000) + " ms");
+                    + (Runner.SEED_NANOS.get() / 1_000_000) + " ms; raw jdbc "
+                    + com.legend.exec.Executor.RAW_CALLS.get() + " stmts, "
+                    + (com.legend.exec.Executor.RAW_NANOS.get() / 1_000_000)
+                    + " ms");
             return;
         }
         if (onlyFilters.isEmpty()) {
@@ -312,7 +315,10 @@ public class RelationalCorpusRunner {
                 + Runner.SEED_CALLS.get() + " calls, "
                 + (Runner.SEED_NANOS.get() / 1_000_000) + " ms");
         System.out.println("[rcorpus] seed split: ddl "
-                + (Runner.DDL_NANOS.get() / 1_000_000) + " ms");
+                + (Runner.DDL_NANOS.get() / 1_000_000) + " ms; raw jdbc "
+                + com.legend.exec.Executor.RAW_CALLS.get() + " stmts, "
+                + (com.legend.exec.Executor.RAW_NANOS.get() / 1_000_000)
+                + " ms");
         System.out.println("[rcorpus] golden channel: "
                 + (com.legend.harness.H2Verify.GOLDEN_NANOS.get() / 1_000_000)
                 + " ms; xlate: "
