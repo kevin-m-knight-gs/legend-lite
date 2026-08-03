@@ -378,8 +378,8 @@ final class JoinChainEmission {
                 // full-coverage same-join routes MERGE: the plain condition
                 // over the shared key serves every member (no suffixing —
                 // engine snapshot-union propagation golden)
-                if (routes != null && UnionSynthesis.mergedTargetRoutes(routes,
-                        UnionSynthesis.unionForClass(md, model, targetClassFqn))) {
+                if (routes != null
+                        && routesMerge(routes, md, model, targetClassFqn)) {
                     routes = null;
                 }
                 if (routes != null) {
@@ -957,6 +957,19 @@ final class JoinChainEmission {
     private static @com.legend.Nullable String columnPureKind(String db, String table, String col,
             ModelBuilder model) {
         return ViewRelation.columnPureKind(db, table, col, model);
+    }
+
+    /** Routed navigation collapses to the ONE plain condition when the
+     * routes are full-coverage same-join over a union target, or the
+     * target is a SAME-TABLE inheritance hierarchy (one physical
+     * relation — member suffixes don't exist on its row). */
+    private static boolean routesMerge(List<UnionSynthesis.UnionRoute> routes,
+            LegacyMappingDefinition md, ModelBuilder model,
+            @com.legend.Nullable String targetClassFqn) {
+        return UnionSynthesis.mergedTargetRoutes(routes,
+                UnionSynthesis.unionForClass(md, model, targetClassFqn))
+                || UnionSynthesis.sameTableInheritanceMerge(md, model,
+                        targetClassFqn, routes);
     }
 
 }

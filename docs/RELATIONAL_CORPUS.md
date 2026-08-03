@@ -30,7 +30,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests | 143 | 124 | 5 | 10 | 4 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
-| lineage/scanColumns | 6 | 3 | 1 | 1 | 1 | 0 |
+| lineage/scanColumns | 6 | 4 | 1 | 0 | 1 | 0 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
 | milestoning/tests | 224 | 209 | 3 | 2 | 10 | 33 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
@@ -65,7 +65,7 @@ in-process Alloy-shaped path).
 | tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 4 |
 | tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 |
-| tests/mapping/inheritance | 47 | 38 | 0 | 9 | 0 | 0 |
+| tests/mapping/inheritance | 47 | 39 | 0 | 8 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 24 | 2 | 2 | 0 | 9 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2181** | 75 | 146 | 136 | 255 |
+| **total** | 2538 | **2183** | 75 | 144 | 136 | 255 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1099,7 +1099,6 @@ in-process Alloy-shaped path).
 - 2x resolver bug: class-source cycle meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping meta::pure::graphFetch::tests::XStore::milestoning::Trade meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping  -> meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping meta::pure::graphFetch::tests::XStore::milestoning::Trade meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping  (association targets mid-cycle must take the SHALLOW path)
 - 2x unknown function 'alloyConfig' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 2x unknown function 'parseJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- 2x extend/project columns [Person, Car Mechanic, Bicycle Mechanic] reference names unresolvable even after isolation [col='Car Mechanic' ref='vehicles_carMechanicName']
 - 2x model-to-model binding of 'meta::relational::tests::milestoning::TargetProductFlattened' uses the whole source instance '$src' — not supported yet (H5b)
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
@@ -1117,6 +1116,7 @@ in-process Alloy-shaped path).
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |                       ^
 - 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
+- 1x class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 
 ### per-test outcomes (non-passing)
 
@@ -1160,7 +1160,7 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Allocation(type=Stringname=inFilterClause_namevalue=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name,"Stream")||((collectionSize(name![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name]tempTableName=SESSION.tempTableForIn_nametempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_nameas"session.temptableforin_name_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name![]",""'""'"{"'":"''"}"null")}])))))Allocation(type=Stringname=inFilterClause_name1value=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name1,"Stream")||((collectionSize(name1![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name1]tempTableName=SESSION.tempTableForIn_name1tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name1_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_name1as"session.temptableforin_name1_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name1![]",""'""'"{"'":"''"}"null")}])))))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(${inFilterClause_name})and"root".fullnamein(${inFilterClause_name1})connection=DatabaseConnection(type="DB2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where("root".fullnamein(${renderCollection(name![]",""\'""\'"{"\'":"\'\'"}"null")})and"root".fullnamein(${renderCollection(name1![]",""\'""\'"{"\'":"\'\'"}"null")}))connection=DatabaseConnection(type="DB2"))))
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
-- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': property 'table' of 'meta::relational::mapping::TableTDS': expected meta::relational::metamodel::relation::NamedRelation, got meta::relational::metamodel::relation::View (value: Variable[name=vie
+- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'store'
 - FAIL testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: assertEquals: expected true, got false
 - FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
 - ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
@@ -1255,7 +1255,6 @@ in-process Alloy-shaped path).
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: from() argument 2 must be a mapping or runtime reference, got TypedNewInstance
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1] -> String[1]}>
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
-- ERROR testSubType [lineage/scanColumns]: extend/project columns [Person, Car Mechanic, Bicycle Mechanic] reference names unresolvable even after isolation [col='Car Mechanic' ref='vehicles_carMechanicName']
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - FAIL testView [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <RelationalOperationElementWithJoin>, personTable.ID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <TableAliasColumn>, personTable.ID <JoinTreeNode>]
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1413,7 +1412,6 @@ in-process Alloy-shaped path).
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call — wall: assert form 'assertIs/2' is not supported yet
 - ERROR testGetAll [tests/mapping/inheritance]: unknown function 'genericType' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: extend/project columns [Person, Car Mechanic, Bicycle Mechanic] reference names unresolvable even after isolation [col='Car Mechanic' ref='vehicles_carMechanicName']
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance'
