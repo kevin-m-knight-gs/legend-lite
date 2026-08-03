@@ -161,6 +161,46 @@ public final class H2Verify {
      * divergence message; throws {@link Unverifiable} when H2 cannot
      * evaluate the inputs at all.
      */
+    // =================================================================
+    // INCREMENTAL FAMILY MIRROR (task #112 follow-up): the corpus runner
+    // keeps ONE live H2 per family session and this verifier applies
+    // only the ledger statements not yet mirrored — the fresh-replay
+    // path re-ran the family's WHOLE history per verification (O(n^2)).
+    // A statement H2 rejects POISONS the mirror for the rest of the
+    // family: under fresh replay every later test re-hit the same
+    // statement in its ledger prefix, so the decline set is identical.
+    // =================================================================
+    private static final class MirrorState {
+        final Connection conn;
+        int applied;
+        @com.legend.Nullable String poison;
+        boolean suspended;
+
+        MirrorState(Connection conn) {
+            this.conn = conn;
+        }
+    }
+
+    private static @com.legend.Nullable MirrorState MIRROR;
+
+    /** Install the family session's live mirror (runner-owned). */
+    public static void mirrorBegin(Connection h2) {
+        MIRROR = new MirrorState(h2);
+    }
+
+    /** Detach the mirror (the runner closes the connection). */
+    public static void mirrorEnd() {
+        MIRROR = null;
+    }
+
+    /** A PRIVATE-session test's recording is not the family ledger —
+     * its verification must use the fresh-replay path. */
+    public static void mirrorSuspend(boolean suspended) {
+        if (MIRROR != null) {
+            MIRROR.suspended = suspended;
+        }
+    }
+
     public static @com.legend.Nullable String verify(
             java.util.@com.legend.Nullable List<String> seeds, String goldenSql,
             ExecutionResult ours,
@@ -185,6 +225,35 @@ public final class H2Verify {
                     && !enumDecode.containsKey(i)) {
                 throw new Unverifiable(
                         "enum-decoded column (post-transform rows)", null);
+            }
+        }
+        MirrorState mirror = MIRROR;
+        if (mirror != null && !mirror.suspended) {
+            // INCREMENTAL path: apply only the ledger entries not yet
+            // mirrored, then compare on the LIVE family mirror
+            if (mirror.poison != null) {
+                throw new Unverifiable(mirror.poison, null);
+            }
+            try (Statement st = mirror.conn.createStatement()) {
+                List<String> ledger = seeds == null ? List.of() : seeds;
+                while (mirror.applied < ledger.size()) {
+                    String seed = ledger.get(mirror.applied);
+                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                        if (one.isBlank()) {
+                            continue;
+                        }
+                        try {
+                            st.execute(one);
+                        } catch (SQLException e) {
+                            mirror.poison = "seed replay: " + e.getMessage();
+                            throw new Unverifiable(mirror.poison, e);
+                        }
+                    }
+                    mirror.applied++;
+                }
+                return goldenRowsCompare(st, goldenSql, tab, enumDecode);
+            } catch (SQLException e) {
+                throw new Unverifiable("h2 connection: " + e.getMessage(), e);
             }
         }
         int id = COUNTER.getAndIncrement();

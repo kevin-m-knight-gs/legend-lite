@@ -1268,6 +1268,9 @@ public final class Runner {
             boolean shared = familyConn != null
                     && !ddlConflictsWithSession(ctx);
             lastRunShared = shared;
+            // a PRIVATE test's recording is its own history, not the
+            // family ledger — its golden checks use the fresh-replay path
+            com.legend.harness.H2Verify.mirrorSuspend(!shared);
             if (shared) {
                 int cut = t.fqn().lastIndexOf("::");
                 String pkg = cut > 0 ? t.fqn().substring(0, cut) : t.fqn();
@@ -1301,6 +1304,7 @@ public final class Runner {
                 seedFailures.addAll(failedSeeds);
                 return score(t.fqn(), o);
             } finally {
+                com.legend.harness.H2Verify.mirrorSuspend(false);
                 if (!shared) {
                     conn.close();
                 }
@@ -1670,9 +1674,30 @@ public final class Runner {
             return;
         }
         familyConn = openSession();
+        // the INCREMENTAL H2 mirror rides the family session (DuckDB
+        // sweeps only — the h2 sweep verifies session-direct): one live
+        // mirror fed each ledger statement ONCE, replacing the
+        // fresh-replay-of-full-history per verification
+        if (!H2_BACKEND && com.legend.harness.H2Verify.ready()) {
+            mirrorConn = DriverManager.getConnection(
+                    "jdbc:h2:mem:famMirror" + SESSION_IDS.getAndIncrement()
+                            + com.legend.harness.H2Verify.SETTINGS, "sa", "");
+            com.legend.harness.H2Verify.mirrorBegin(mirrorConn);
+        }
     }
 
+    private @com.legend.Nullable Connection mirrorConn;
+
     public void endFamilySession() {
+        com.legend.harness.H2Verify.mirrorEnd();
+        if (mirrorConn != null) {
+            try {
+                mirrorConn.close();
+            } catch (Exception ignore) {
+                // mirror teardown must never poison the next family
+            }
+            mirrorConn = null;
+        }
         if (familyConn != null) {
             try {
                 familyConn.close();
