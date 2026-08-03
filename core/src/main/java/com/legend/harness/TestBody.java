@@ -396,7 +396,7 @@ public final class TestBody {
                     continue;
                 }
                 rhs = requireNonNull(tl.rhs(), "tdg arm not rewritten");
-                List<ValueSpecification> elq = elqSplice(name, rhs, lets);
+                List<ValueSpecification> elq = ElqSplice.splice(name, rhs, lets);
                 if (elq != null) {
                     for (int i = elq.size() - 1; i >= 0; i--) {
                         work.addFirst(elq.get(i));
@@ -740,34 +740,6 @@ public final class TestBody {
                 && af.parameters().get(1) instanceof LambdaFunction fb
                 && fb.parameters().isEmpty()) {
             return new ArrayList<>(fb.body());
-        }
-        return null;
-    }
-
-    /** meta::legend::executeLegendQuery(q, vars, ctx, ext) over a
-     * zero-arg lambda: the lambda body IS the query; the result is the
-     * engine's SERIALIZED scalar — booleans/numbers match toString;
-     * quoted-string/JSON results MIS-compare and FAIL loudly, never
-     * silently pass. Returns the spliced statements (body statements +
-     * the binding as toString(final)) in EXECUTION order, or null when
-     * the rhs is not this shape. */
-    private static @com.legend.Nullable List<ValueSpecification> elqSplice(CString name,
-            ValueSpecification rhs, Map<String, ValueSpecification> lets) {
-        if (rhs instanceof AppliedFunction elq
-                && harnessVocabName(elq.function())
-                && simpleName(elq.function()).equals("executeLegendQuery")
-                && !elq.parameters().isEmpty()
-                && substitute(elq.parameters().get(0), lets)
-                        instanceof LambdaFunction qlf
-                && qlf.parameters().isEmpty()
-                && !qlf.body().isEmpty()) {
-            List<ValueSpecification> qb = qlf.body();
-            List<ValueSpecification> out =
-                    new ArrayList<>(qb.subList(0, qb.size() - 1));
-            out.add(new AppliedFunction("letFunction",
-                    List.of(name, new AppliedFunction("toString",
-                            List.of(qb.get(qb.size() - 1))))));
-            return out;
         }
         return null;
     }
@@ -1987,7 +1959,7 @@ public final class TestBody {
     /** Harness vocabulary matches by SIMPLE name only for BARE or
      * meta::-qualified spellings — a user function my::pkg::assertFoo
      * must route to the platform, never be hijacked (audit 17). */
-    private static boolean harnessVocabName(String fn) {
+    static boolean harnessVocabName(String fn) {
         return !fn.contains("::") || fn.startsWith("meta::");
     }
 

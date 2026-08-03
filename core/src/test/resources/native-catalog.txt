@@ -173,7 +173,7 @@ meta::pure::functions::date::fromEpochValue(epoch:meta::pure::metamodel::type::I
 meta::pure::functions::date::fromEpochValue(epoch:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::Date[1]
 meta::pure::mapping::from<T>(source:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1]
 meta::pure::mapping::from<T>(source:meta::pure::metamodel::relation::Relation<T>[1], runtime:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::relation::Relation<T>[1]
-meta::pure::mapping::from<T>(source:T[*], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1]):T[*]
+meta::pure::mapping::from<T|m>(source:T[m], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1]):T[m]
 meta::pure::mapping::withChainedMappings<T>(source:T[*], mappings:meta::pure::mapping::Mapping[*]):T[*]
 meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel::type::String[1]
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*]
