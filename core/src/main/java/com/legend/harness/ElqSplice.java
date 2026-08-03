@@ -78,10 +78,38 @@ final class ElqSplice {
         }
         List<ValueSpecification> qb = qlf.body();
         out.addAll(qb.subList(0, qb.size() - 1));
-        out.add(new AppliedFunction("letFunction",
-                List.of(name, new AppliedFunction("toString",
-                        List.of(qb.get(qb.size() - 1))))));
+        ValueSpecification fin = qb.get(qb.size() - 1);
+        ValueSpecification bound = new AppliedFunction("toString",
+                List.of(fin));
+        // a GRAPH-SERIALIZE query returns the engine's json-builder
+        // envelope — executeLegendQuery's contract is the FULL result
+        // JSON, not the bare values (devUtils.pure -> meta::legend::
+        // execute; the corpus asserts pin the envelope)
+        if (headChainContains(fin, "serialize")) {
+            bound = new AppliedFunction("joinStrings", List.of(
+                    new PureCollection(List.of(
+                            new CString("{\"builder\":{\"_type\":\"json\"},"
+                                    + "\"values\":"),
+                            bound, new CString("}"))),
+                    new CString("")));
+        }
+        out.add(new AppliedFunction("letFunction", List.of(name, bound)));
         return out;
+    }
+
+    /** Whether the arrow-chain HEAD path of {@code vs} contains a call
+     * named {@code fn} ({@code x->serialize(...)->from(...)} does). */
+    private static boolean headChainContains(ValueSpecification vs,
+            String fn) {
+        ValueSpecification cur = vs;
+        while (cur instanceof AppliedFunction af
+                && !af.parameters().isEmpty()) {
+            if (TestBody.simpleName(af.function()).equals(fn)) {
+                return true;
+            }
+            cur = af.parameters().get(0);
+        }
+        return false;
     }
 
     /** {@code [pair('n', v), ...]} (or a single bare pair, or {@code []})

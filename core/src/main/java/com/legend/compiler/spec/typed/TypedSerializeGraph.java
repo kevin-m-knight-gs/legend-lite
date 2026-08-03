@@ -54,6 +54,16 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   @com.legend.Nullable List<CheckedConstraint> checkedConstraints)
         implements TypedSpec {
 
+    /** This envelope with the array aggregate FORCED — the scalar
+     * (snapshot) position needs the whole result as one value; all
+     * other components carry over verbatim. */
+    public TypedSerializeGraph asArrayWrapped() {
+        return arrayWrap ? this : new TypedSerializeGraph(source, rowVar,
+                leaves, nested, true, bareValue, classFqn, info,
+                inlineChild, subTypePatches, orderKeys, typeKeyName,
+                fqTypePath, checkedConstraints);
+    }
+
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
      * lowering) — everything unprefixed in {@code orderKeys} is a union
      * WITNESS key (DESC, load-bearing). The prefix keeps the distinction in

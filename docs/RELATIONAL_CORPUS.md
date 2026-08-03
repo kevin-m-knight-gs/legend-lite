@@ -25,9 +25,9 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 59 | 15 | 11 | 25 | 0 |
 | functions/tests | 258 | 227 | 8 | 18 | 5 | 79 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 132 | 6 | 14 | 3 | 1 |
+| functions/tests/projection | 155 | 132 | 7 | 13 | 3 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
-| graphFetch/tests | 143 | 124 | 3 | 12 | 4 | 0 |
+| graphFetch/tests | 143 | 124 | 5 | 10 | 4 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 3 | 1 | 1 | 1 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2180** | 73 | 153 | 132 | 255 |
+| **total** | 2538 | **2180** | 76 | 150 | 132 | 255 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1099,7 +1099,6 @@ in-process Alloy-shaped path).
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
 - 4x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 4x ArrayIndexOutOfBoundsException
-- 4x scalar lowering not yet implemented for TypedSerializeGraph
 - 3x model-to-model binding node TypedMilestonedAccess is not substitutable yet (H5 vocabulary)
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -1125,6 +1124,7 @@ in-process Alloy-shaped path).
 - 1x Index 0 out of bounds for length 0
 - 1x no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
+- 1x Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |                       ^
 
 ### per-test outcomes (non-passing)
 
@@ -1168,7 +1168,7 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Allocation(type=Stringname=inFilterClause_namevalue=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name,"Stream")||((collectionSize(name![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name]tempTableName=SESSION.tempTableForIn_nametempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_nameas"session.temptableforin_name_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name![]",""'""'"{"'":"''"}"null")}])))))Allocation(type=Stringname=inFilterClause_name1value=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name1,"Stream")||((collectionSize(name1![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name1]tempTableName=SESSION.tempTableForIn_name1tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name1_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_name1as"session.temptableforin_name1_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name1![]",""'""'"{"'":"''"}"null")}])))))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(${inFilterClause_name})and"root".fullnamein(${inFilterClause_name1})connection=DatabaseConnection(type="DB2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where("root".fullnamein(${renderCollection(name![]",""\'""\'"{"\'":"\'\'"}"null")})and"root".fullnamein(${renderCollection(name1![]",""\'""\'"{"\'":"\'\'"}"null")}))connection=DatabaseConnection(type="DB2"))))
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
-- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'columns'
+- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': property 'table' of 'meta::relational::mapping::TableTDS': expected meta::relational::metamodel::relation::NamedRelation, got meta::relational::metamodel::relation::View (value: Variable[name=vie
 - FAIL testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: assertEquals: expected true, got false
 - FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
 - ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
@@ -1185,7 +1185,7 @@ in-process Alloy-shaped path).
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
 - SHAPE executeProjectWithNestedDerivedProperty [executionPlan/tests]: no execute(|...) call — wall: no overload of 'meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan' matches 4 argument(s) of these shapes — candidates: [meta::pure::executionPlan::m2m2r::tests::generateAndExecutePlan/4]
 - SHAPE planGraphFetchWithNestedDerivedProperty [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class query under TypedGraphFetch is not resolvable yet (H2 vocabulary)
-- ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
+- ERROR testAll [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |        
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -1225,7 +1225,7 @@ in-process Alloy-shaped path).
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- ERROR testParametrizedEnumFilter [functions/tests/projection]: scalar lowering not yet implemented for TypedSerializeGraph
+- FAIL testParametrizedEnumFilter [functions/tests/projection]: assertJsonStringsEqual: FIRST DIFF at $.values expected {name=Address_1}, got [{name=Hoboken}, {name=New York}, {name=New York}, {name=New York}, {name=San Fransisco}, {name=Hong Kong}, {name=New York}, {name=New York}, {name=Cupertino... | expected {builder={_type=json}, values={name=Address_1}}, got {builder={_type=json}, values=[{name=Hoboken}, {name=New York}, {name=New York}, {name=New York}, {name=San Fransisco}, {name=Hong Kong}, {name=New York}, {n...
 - SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
@@ -1246,8 +1246,8 @@ in-process Alloy-shaped path).
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: from() argument 2 must be a mapping or runtime reference, got TypedCopyInstance
 - ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: unknown mapping 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping'
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDown [graphFetch/tests]: unknown mapping 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping'
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: scalar lowering not yet implemented for TypedSerializeGraph
+- FAIL CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $.values expected {customerAllVersions=[{id=12}], tradeID=ABC}, got [] | expected {builder={_type=json}, values={customerAllVersions=[{id=12}], tradeID=ABC}}, got {builder={_type=json}, values=[]}
+- FAIL CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $.values expected {customer($processingDate, $businessDate)={id=12, address($businessDate)={country=US}}}, got [] | expected {builder={_type=json}, values={customer($processingDate, $businessDate)={id=12, address($businessDate)={country=US}}}}, got {builder={_type=json}, values=[]}
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
 - ERROR testRelationalChainExecutionNested [graphFetch/tests]: serialize leaf 'managers' references column 'manager', unresolvable in the envelope source
 - SHAPE testMilestonedRootAndMilestonedProperty [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -1361,7 +1361,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
 - SHAPE testConnectionEqualityAllSameStatic [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityAllButOnePropertySame [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityTypeDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)

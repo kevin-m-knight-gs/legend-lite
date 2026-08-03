@@ -638,7 +638,7 @@ public final class Lowerer {
         if (g.typeKeyName() != null && g.classFqn() != null && !g.bareValue()) {
             baseKv = new ArrayList<>();
             baseKv.add(new SqlExpr.StringLit(g.typeKeyName()));
-            baseKv.add(new SqlExpr.StringLit(typeName(g.classFqn(), g.fqTypePath())));
+            baseKv.add(new SqlExpr.StringLit(SnapshotEnvelope.typeName(g.classFqn(), g.fqTypePath())));
             baseKv.addAll(kv);
         }
         // bareValue: a to-many PRIMITIVE leaf aggregates raw values
@@ -653,7 +653,7 @@ public final class Lowerer {
                 if (g.typeKeyName() != null) {
                     pkv.add(new SqlExpr.StringLit(g.typeKeyName()));
                     pkv.add(new SqlExpr.StringLit(
-                            typeName(p.subTypeFqn(), g.fqTypePath())));
+                            SnapshotEnvelope.typeName(p.subTypeFqn(), g.fqTypePath())));
                 }
                 pkv.addAll(kv);
                 for (TypedFuncCol leaf : p.leaves()) {
@@ -745,12 +745,6 @@ public final class Lowerer {
         return envelope.withProjections(
                 List.of(new SqlSelect.Projection(result, "result")),
                 List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
-    }
-
-    /** Simple type name; the FQN when fullyQualifiedTypePath is set. */
-    private static String typeName(String classFqn, boolean fq) {
-        int cut = classFqn.lastIndexOf("::");
-        return fq || cut < 0 ? classFqn : classFqn.substring(cut + 2);
     }
 
     /** An INLINE (embedded) child's json object over the parent select:
@@ -2798,6 +2792,9 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
+            // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
+            case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
+                    SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped())));
             // SANCTIONED frontier default — see relation() above.
             default -> throw new NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
