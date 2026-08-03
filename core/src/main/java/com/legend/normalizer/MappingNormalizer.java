@@ -803,7 +803,15 @@ public final class MappingNormalizer {
                   + " -> " + pcm.className());
         }
         ClassMapping.Pure next = pureByTarget.get(pcm.sourceClass());
-        if (next != null) walkM2MChain(next, pureByTarget, visiting, md);
+        // SELF-SOURCED Pure mapping (~src X on X): the engine's identity/
+        // pass-through idiom (XStore linkage, objectReference shared
+        // mappings) — the source is the RAW upstream instance, never a
+        // recursive route through the same set; a self-edge is a LEAF,
+        // not a cycle (the corpus compiles these; only multi-set loops
+        // are genuine ~src cycles)
+        if (next != null && next != pcm) {
+            walkM2MChain(next, pureByTarget, visiting, md);
+        }
         visiting.remove(pcm.className());
     }
 
