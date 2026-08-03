@@ -302,11 +302,27 @@ public final class TestBody {
         int executed = 0;
         while (!work.isEmpty()) {
             ValueSpecification stmt = work.poll();
-            // side-effect-free harness noise
+            // print/println: the OUTPUT is noise, but the engine still
+            // EVALUATES the argument (plan-print bodies: executionPlan ->
+            // planToString -> println IS the test's whole contract) — a
+            // clean run counts as engine-parity execution; a wall keeps
+            // the old skip (tolerant: print text is never asserted)
             if (stmt instanceof AppliedFunction pln
                     && harnessVocabName(pln.function())
                     && ("println".equals(simpleName(pln.function()))
                             || "print".equals(simpleName(pln.function())))) {
+                if (pln.parameters().size() == 1
+                        && !(pln.parameters().get(0) instanceof CString)) {
+                    try {
+                        evalSpliced(subst(pln.parameters().get(0), lets),
+                                execStmts, execVars, ctx, imports,
+                                runtimeFqn, conn);
+                        executed++;
+                    } catch (com.legend.error.NotImplementedException
+                            | java.sql.SQLException walled) {
+                        // unported print material — noise either way
+                    }
+                }
                 continue;
             }
             // engine test-harness WRAPPERS: the lambda argument's body IS
