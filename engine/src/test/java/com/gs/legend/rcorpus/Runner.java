@@ -1622,6 +1622,8 @@ public final class Runner {
             new java.util.concurrent.atomic.AtomicLong();
     public static final java.util.concurrent.atomic.AtomicLong SEED_CALLS =
             new java.util.concurrent.atomic.AtomicLong();
+    public static final java.util.concurrent.atomic.AtomicLong DDL_NANOS =
+            new java.util.concurrent.atomic.AtomicLong();
 
     /** PER-FAMILY SESSION (task #112, engine beforePackage semantics):
      * one connection per family, seeds replayed INCREMENTALLY — the
@@ -1741,6 +1743,7 @@ public final class Runner {
         // seedColumnTypes/pickBySeed, the last surviving shadow parser)
         // is retired. Same-named tables dedup first-wins (module order),
         // the same arbitration the module's element dedup already applies.
+        long ddlT0 = System.nanoTime();
         List<DdlUnit> allSeeds = moduleDdl(ctx);
         List<String> failedSeeds = new ArrayList<>();
         for (DdlUnit unit : allSeeds) {
@@ -1781,6 +1784,7 @@ public final class Runner {
                 }
             }
         }
+        DDL_NANOS.addAndGet(System.nanoTime() - ddlT0);
         // shared-file zero-arg units first (the legacy dataSeeds position),
         // then this test's BeforePackage fns — each a real call through the
         // platform; parameterized shared fns run when a body CALLS them
