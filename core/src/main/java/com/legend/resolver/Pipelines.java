@@ -1277,6 +1277,18 @@ final class Pipelines {
                     (TypedLambda) rewriteRowReads(tf.predicate(), rowVar,
                             prefixes, stripped, varRewrite),
                     tf.info());
+            // EMBEDDED ctor (same-row instance): every property value is
+            // an ordinary row read — rewrite each (#71 ctor transplants)
+            case com.legend.compiler.spec.typed.TypedNewInstance ni -> {
+                java.util.LinkedHashMap<String, TypedSpec> props =
+                        new java.util.LinkedHashMap<>();
+                for (var pe : ni.properties().entrySet()) {
+                    props.put(pe.getKey(), rewriteRowReads(pe.getValue(),
+                            rowVar, prefixes, stripped, varRewrite));
+                }
+                yield new com.legend.compiler.spec.typed.TypedNewInstance(
+                        ni.classFqn(), props, ni.info());
+            }
             default -> throw new IllegalStateException(
                     "resolver bug: row-read rewrite hit "
                             + n.getClass().getSimpleName()

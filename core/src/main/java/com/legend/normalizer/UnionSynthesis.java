@@ -437,7 +437,60 @@ final class UnionSynthesis {
         if (members.size() == 1) {
             return MappingNormalizer.synthRelational(md, members.get(0), model);
         }
+        ValueSpecification sameTable =
+                synthSameTableInheritance(md, ih, members, model);
+        if (sameTable != null) {
+            return sameTable;
+        }
         return synthMemberUnion(md, ih.className(), members, model);
+    }
+
+    /** SINGLE-TABLE hierarchy (engine cast semantics): members that ALL
+     * share one root table, carry no ~filter, and map NO base-class
+     * property read their casts SAME-ROW off the shared table — the
+     * extent is the TABLE, one source, no member union (a union would
+     * thread every physical row once per member; the corpus
+     * inheritanceWithEmbedded goldens pin per-row cast reads). Subtype
+     * props reach readers via the same-source stc transplants. Anything
+     * outside this shape keeps the member union. */
+    private static @com.legend.Nullable ValueSpecification synthSameTableInheritance(
+            LegacyMappingDefinition md, ClassMapping.Inheritance ih,
+            List<ClassMapping.Relational> members, ModelBuilder model) {
+        ClassDefinition base = model.findClass(ih.className()).orElse(null);
+        if (base == null) {
+            return null;
+        }
+        LegacyMappingDefinition.TableReference shared = null;
+        for (ClassMapping.Relational mr : members) {
+            LegacyMappingDefinition.TableReference t = mr.mainTable() != null
+                    ? mr.mainTable()
+                    : MappingNormalizer.inferMainTableQuiet(mr);
+            if (t == null || mr.filter() != null || mr.distinct()
+                    || !mr.groupBy().isEmpty() || mr.sourceUrl() != null) {
+                return null;
+            }
+            if (shared == null) {
+                shared = t;
+            } else if (!t.database().equals(shared.database())
+                    || !t.table().equals(shared.table())) {
+                return null;
+            }
+            for (PropertyMapping pm : mr.propertyMappings()) {
+                if (MappingNormalizer.findPropertyTypeDeep(base,
+                        pm.propertyName(), model) != null) {
+                    return null;   // base prop per member: thread dispatch
+                }
+            }
+        }
+        if (shared == null) {
+            return null;
+        }
+        return MappingNormalizer.synthRelational(md,
+                new ClassMapping.Relational(ih.className(), ih.setId(),
+                        null, ih.root(), shared, null, false,
+                        List.of(), List.of(), List.of(), null,
+                        java.util.Map.of()),
+                model);
     }
 
     /**

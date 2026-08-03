@@ -735,11 +735,15 @@ public final class ClassSources {
             ExprType rowInfo = ExprType.one(rowType);
             var subNavSteps = Pipelines.navSteps(sub.pipeline());
             for (Map.Entry<String, TypedSpec> be : sub.bindings().entrySet()) {
-                if (com.legend.model.ClassMapping.isSubTypeColumn(be.getKey())
-                        || Pipelines.unwrapToOne(be.getValue())
-                                instanceof TypedNewInstance) {
+                if (com.legend.model.ClassMapping.isSubTypeColumn(be.getKey())) {
                     continue;
                 }
+                // ctor-valued (EMBEDDED) sub bindings transplant like any
+                // other same-row read when they touch no slot alias — the
+                // generic rename below re-roots the ctor's column reads
+                // and Substitution's ctor drill serves the cast leaves
+                // (#71 single-table hierarchies); slot-reading ctors stay
+                // un-synthesized (loud downstream)
                 // a CLASS-typed slot read (rating:@Product_Rating on the
                 // subclass): the cast hop navigates the SUB's slot — the
                 // step TRANSPLANTS into this pipeline under the stc alias
