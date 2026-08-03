@@ -1266,7 +1266,11 @@ public final class Runner {
             // conflicting test gets a PRIVATE session (old per-test
             // semantics) — a clobber would orphan the shared state
             boolean shared = familyConn != null
-                    && !ddlConflictsWithSession(ctx);
+                    && !ddlConflictsWithSession(ctx)
+                    // inline testDataSetupCsv = the test's OWN data over
+                    // the shared tables (DELETE+INSERT) — engine runs it
+                    // on a FRESH test database; a private session is that
+                    && !carriesInlineCsv(body);
             lastRunShared = shared;
             // a PRIVATE test's recording is its own history, not the
             // family ledger — its golden checks use the fresh-replay path
@@ -1653,6 +1657,21 @@ public final class Runner {
      * table shapes runs on a private per-test session instead (its
      * state and recording never join the family ledger). */
     private boolean lastRunShared;
+
+    private static boolean carriesInlineCsv(
+            List<com.legend.model.spec.ValueSpecification> body) {
+        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> q =
+                new java.util.ArrayDeque<>(body);
+        while (!q.isEmpty()) {
+            com.legend.model.spec.ValueSpecification v = q.poll();
+            if (v instanceof com.legend.model.spec.NewInstance ni
+                    && ni.properties().containsKey("testDataSetupCsv")) {
+                return true;
+            }
+            q.addAll(v.children());
+        }
+        return false;
+    }
 
     /** True when any table this test's scope declares already exists in
      * the family session under a DIFFERENT shape. */

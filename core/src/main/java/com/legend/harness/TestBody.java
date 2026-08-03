@@ -422,6 +422,16 @@ public final class TestBody {
                 if (sw != null) {
                     return sw;
                 }
+                // a PLAIN let carrying an inline testDataSetupCsv runtime
+                // copy seeds NOW (engine: the test connection's own data;
+                // the query that names this runtime sees it) — the
+                // execute-binding path collects via evalStatements, this
+                // arm covers the executeLegendQuery/from() shapes
+                List<ValueSpecification> csvs = new ArrayList<>();
+                collectInlineCsv(rhs, csvs);
+                for (ValueSpecification csvExpr : csvs) {
+                    seedInlineCsv(csvExpr, ctx, conn);
+                }
                 lets.put(name.value(), purifiedSetup(rhs, ctx));
                 continue;
             }
