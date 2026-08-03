@@ -964,6 +964,18 @@ public final class ClassSources {
                             substituteSourceReads(pa.source(), srcVar, inner,
                                     classFqn, mappingFqn, false),
                             pa.property(), pa.info());
+            // a MILESTONED property access ($src.product(%d)) is a
+            // property step with temporal arguments — source and dates
+            // substitute independently, the step survives verbatim
+            case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
+                    new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                            substituteSourceReads(ma.source(), srcVar, inner,
+                                    classFqn, mappingFqn, false),
+                            ma.property(),
+                            ma.dates().stream().map(d -> substituteSourceReads(
+                                    d, srcVar, inner, classFqn, mappingFqn,
+                                    false)).toList(),
+                            ma.sweep(), ma.info());
             case TypedNativeCall c ->
                     new TypedNativeCall(c.callee(),
                             c.args().stream().map(a -> substituteSourceReads(a,
