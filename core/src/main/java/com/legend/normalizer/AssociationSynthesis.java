@@ -134,9 +134,18 @@ final class AssociationSynthesis {
                 // the predicate path cannot anchor it (no ~mainTable);
                 // pair groups into it ALWAYS take the routed-PM injection
                 // (FIX-A computes inheritance member ordinals)
+                // The predicate path is IMPOSSIBLE when either end class
+                // has no Relational set of its own class (union over
+                // SUBCLASS sets: VehicleOwner union(airline,per1)) —
+                // those groups force the routed-PM injection too.
+                String owner0 = associationOwnerClass(ad, apm.propertyName());
+                boolean bindingPossible = owner0 != null
+                        && MappingNormalizer.hasMainTable(md, owner0, model)
+                        && MappingNormalizer.hasMainTable(md, target, model);
                 routedUnionGroups.merge(apm.sourceSetId() + "\u0000"
                         + apm.propertyName(),
-                        inheritanceTgt || join.joins().size() > 1,
+                        inheritanceTgt || join.joins().size() > 1
+                                || !bindingPossible,
                         Boolean::logicalOr);
             }
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
@@ -150,10 +159,18 @@ final class AssociationSynthesis {
                 String owner = associationOwnerClass(ad, apm.propertyName());
                 if (owner == null) continue;
                 if (apm.sourceSetId() != null
-                        && UnionSynthesis.unionForClass(md, model, owner) != null) {
+                        && UnionSynthesis.unionForClass(md, model, owner) != null
+                        && MappingNormalizer.findSetById(md, model,
+                                apm.sourceSetId()) instanceof ClassMapping src0
+                        && src0.className().equals(owner)) {
                     // per-pair entries on a UNION-mapped owner land on their
                     // member set at union synthesis instead
-                    // (collectPairAssociationEntries, include-closure aware)
+                    // (collectPairAssociationEntries, include-closure aware).
+                    // A SUBCLASS member set (VehicleOwner union(airline,
+                    // per1) where per1 maps Person) injects HERE too — it
+                    // is independently queryable and the union-body copy
+                    // never reaches its own ClassSource; the union arm's
+                    // pmIdentity dedup absorbs the duplicate.
                     continue;
                 }
                 String tgtSet = join.targetSetId() != null
@@ -211,8 +228,11 @@ final class AssociationSynthesis {
         List<PropertyMapping> add = new ArrayList<>();
         List<PropertyMapping> forClass = byClass.get(rcm.className());
         if (forClass != null) add.addAll(forClass);
-        Map<String, List<PropertyMapping>> sets = bySet.get(rcm.className());
-        if (sets != null) {
+        // per-SET injections match by SET ID under any owner key: the
+        // association end's owner may be a SUPERCLASS of the set's class
+        // (ownedVehicles on VehicleOwner, set per1 maps Person — the
+        // sourceSetId pins the exact set; set ids are unique in scope)
+        for (Map<String, List<PropertyMapping>> sets : bySet.values()) {
             List<PropertyMapping> forSet = sets.get(MappingNormalizer.setIdOf(rcm));
             if (forSet != null) add.addAll(forSet);
         }
