@@ -815,11 +815,6 @@ final class UnionSynthesis {
                 }
             }
         }
-        if (common.isEmpty()) {
-            throw new NotImplementedException(
-                    "Operation union members of '" + className
-                  + "' map no scalar properties; mapping=" + md.qualifiedName());
-        }
         // EMBEDDED PMs distribute per SUB-FIELD (engine union model): each
         // member thread projects its own embedded sub-columns under the
         // synthetic emb__<prop>__<sub> names (typed NULL in members that
@@ -831,6 +826,14 @@ final class UnionSynthesis {
         // never a silently-wrong projection).
         EmbDist emb = collectEmbeddedDistribution(parts, owner, model);
         Map<String, LinkedHashSet<String>> embSubs = emb.subs();
+        // embedded-only member sets carry the union through their
+        // sub-fields (inheritanceWithEmbedded Car/Bicycle map only
+        // mechanic(...)); only NEITHER is unbuildable
+        if (common.isEmpty() && embSubs.isEmpty()) {
+            throw new NotImplementedException(
+                    "Operation union members of '" + className
+                  + "' map no scalar properties; mapping=" + md.qualifiedName());
+        }
         Map<String, String> embInner = emb.inner();
         LinkedHashSet<String> embTops = emb.tops();
         // ==== NAV LIFT (engine union model): the members' class-typed

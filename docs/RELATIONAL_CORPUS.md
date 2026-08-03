@@ -30,7 +30,7 @@ in-process Alloy-shaped path).
 | graphFetch/tests | 143 | 124 | 5 | 10 | 4 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
-| lineage/scanColumns | 6 | 3 | 1 | 1 | 1 | 0 |
+| lineage/scanColumns | 6 | 3 | 1 | 0 | 2 | 0 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
 | milestoning/tests | 224 | 209 | 3 | 2 | 10 | 33 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2181** | 75 | 146 | 136 | 255 |
+| **total** | 2538 | **2181** | 75 | 145 | 137 | 255 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1099,7 +1099,6 @@ in-process Alloy-shaped path).
 - 2x resolver bug: class-source cycle meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping meta::pure::graphFetch::tests::XStore::milestoning::Trade meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping  -> meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping meta::pure::graphFetch::tests::XStore::milestoning::Trade meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping  (association targets mid-cycle must take the SHALLOW path)
 - 2x unknown function 'alloyConfig' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 2x unknown function 'parseJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- 2x class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded)
 - 2x model-to-model binding of 'meta::relational::tests::milestoning::TargetProductFlattened' uses the whole source instance '$src' — not supported yet (H5b)
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcatenate > TypedSelect > TypedExtend > TypedFilter > TypedSelect > TypedJoin > TypedRename > TypedRename > TypedSort > TypedExtend > TypedGroupBy]
@@ -1117,6 +1116,7 @@ in-process Alloy-shaped path).
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |                       ^
 - 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
+- 1x class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 
 ### per-test outcomes (non-passing)
 
@@ -1255,7 +1255,7 @@ in-process Alloy-shaped path).
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: from() argument 2 must be a mapping or runtime reference, got TypedNewInstance
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1] -> String[1]}>
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
-- ERROR testSubType [lineage/scanColumns]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:
+- SHAPE testSubType [lineage/scanColumns]: scanColumns query: multi-hop navigation vehicles.stc_meta__relational__tests__model__inheritance__Car___mechanic.name through an embedded/slot head is not supported yet [assocs=[vehicles]; head subNavs=[]; head binding=TypedPropertyAccess]
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - FAIL testView [lineage/scanColumns]: scanColumns: expected [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <RelationalOperationElementWithJoin>, personTable.ID <JoinTreeNode>], got [firmTable.ID <JoinTreeNode>, personTable.AGE <JoinTreeNode>, personTable.FIRMID <JoinTreeNode>, personTable.FIRSTNAME <TableAliasColumn>, personTable.ID <JoinTreeNode>]
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1413,7 +1413,7 @@ in-process Alloy-shaped path).
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call — wall: assert form 'assertIs/2' is not supported yet
 - ERROR testGetAll [tests/mapping/inheritance]: unknown function 'genericType' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:
+- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: multi-hop navigation vehicles.stc_meta__relational__tests__model__inheritance__Car___mechanic.name through an embedded/slot head is not supported yet [assocs=[vehicles]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::milestoned::Vehicle_VehicleOwner' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance'
