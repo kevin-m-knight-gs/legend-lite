@@ -442,7 +442,58 @@ final class UnionSynthesis {
         if (sameTable != null) {
             return sameTable;
         }
+        // per-pair AssociationMapping entries land on their owning member
+        // exactly like the Union-op arm (person[map1,per1]: @PersonCar on
+        // the Car member — engine dispatches inheritance navigation per
+        // member pair; testGetAllFilterWithAssociation)
+        members = withPairEntries(md, ih.className(), members, model);
         return synthMemberUnion(md, ih.className(), members, model);
+    }
+
+    /** Inheritance members enriched with their per-pair AssociationMapping
+     * entries (own set id + extends lineage), deduped by pmIdentity —
+     * the same distribution the Union-op arm performs inline. */
+    private static List<ClassMapping.Relational> withPairEntries(
+            LegacyMappingDefinition md, String className,
+            List<ClassMapping.Relational> members, ModelBuilder model) {
+        Map<String, List<PropertyMapping.Join>> pairEntries =
+                new LinkedHashMap<>();
+        AssociationSynthesis.collectPairAssociationEntries(md, model,
+                className, pairEntries, new HashSet<>());
+        if (pairEntries.isEmpty()) {
+            return members;
+        }
+        List<ClassMapping.Relational> out = new ArrayList<>(members.size());
+        for (ClassMapping.Relational mr : members) {
+            List<PropertyMapping.Join> add = new ArrayList<>();
+            String cur = MappingNormalizer.setIdOf(mr);
+            Set<String> seenSets = new HashSet<>();
+            while (cur != null && seenSets.add(cur)) {
+                List<PropertyMapping.Join> lvl = pairEntries.get(cur);
+                if (lvl != null) {
+                    add.addAll(lvl);
+                }
+                ClassMapping up = MappingNormalizer.findSetById(md, model, cur);
+                cur = up instanceof ClassMapping.Relational ur
+                        ? ur.extendsSetId() : null;
+            }
+            if (add.isEmpty()) {
+                out.add(mr);
+                continue;
+            }
+            List<PropertyMapping> pms = new ArrayList<>(mr.propertyMappings());
+            for (PropertyMapping.Join j : add) {
+                if (pms.stream().noneMatch(p ->
+                        pmIdentity(p).equals(pmIdentity(j)))) {
+                    pms.add(j);
+                }
+            }
+            out.add(new ClassMapping.Relational(mr.className(), mr.setId(),
+                    mr.extendsSetId(), mr.root(), mr.mainTable(), mr.filter(),
+                    mr.distinct(), mr.groupBy(), mr.primaryKey(), pms,
+                    mr.sourceUrl(), mr.propertyTargetSets()));
+        }
+        return out;
     }
 
     /** SINGLE-TABLE hierarchy (engine cast semantics): members that ALL
