@@ -251,22 +251,36 @@ public final class PlanText {
         }
         StringBuilder sb = new StringBuilder();
         var cols = rt.columns();
+        // STAR pass-through top select: no positional projection list —
+        // every column resolves BY NAME through the from tree (the
+        // tdsJoin plans' top query is SELECT * over the join)
+        boolean starTop = s.projections().isEmpty()
+                || s.projections().stream()
+                        .anyMatch(x -> x.expr() instanceof SqlExpr.Star);
         for (int i = 0; i < cols.size(); i++) {
             if (sb.length() > 0) {
                 sb.append(", ");
             }
             String name = strip(cols.get(i).name());
             String doc = docs.getOrDefault(name, "");
-            SqlSelect.Projection p = s.projections().get(i);
+            SqlSelect.Projection p = starTop ? null : s.projections().get(i);
             String db;
             String[] phys = null;
-            if (m2m) {
+            if (p == null && !m2m) {
+                String[] pc = resolveStarColumn(ctx, dbFqn, s.from(), name);
+                phys = pc;
+                var td = ctx.findTableDefinition(dbFqn, pc[0]).orElseThrow();
+                db = spell(td.columns().stream()
+                        .filter(x -> x.name().equalsIgnoreCase(pc[1]))
+                        .findFirst().orElseThrow().dataType());
+            } else if (m2m) {
                 db = pureDbSpelling(cols.get(i).type());
                 if (db == null) {
                     throw new NotImplementedException("plan: M2M TDS"
                             + " column '" + name + "' type spelling pending");
                 }
-            } else if (p.expr() instanceof SqlExpr.Column c) {
+            } else if (java.util.Objects.requireNonNull(p).expr()
+                    instanceof SqlExpr.Column c) {
                 String[] pc = resolvePhysical(s.from(), c.table(),
                         strip(c.name()));
                 phys = pc;
@@ -564,6 +578,35 @@ public final class PlanText {
      * looks THROUGH subselects (a VIEW's pnl resolves to the underlying
      * table's column; the engine types resultColumns by the physical
      * store column). {@code col} null = table identity only. */
+    /** Star-top column resolution BY NAME: the first FROM-tree table
+     * whose store definition carries {@code col} wins (from-tree order —
+     * the join emission projects left-to-right). Loud when no table
+     * claims it. */
+    private static String[] resolveStarColumn(ModelContext ctx, String dbFqn,
+            SqlSource src, String col) {
+        switch (src) {
+            case SqlSource.Table t -> {
+                var td = ctx.findTableDefinition(dbFqn, t.name());
+                if (td.isPresent() && td.get().columns().stream()
+                        .anyMatch(c -> c.name().equalsIgnoreCase(col))) {
+                    return new String[]{t.name(), col};
+                }
+            }
+            case SqlSource.Join j -> {
+                try {
+                    return resolveStarColumn(ctx, dbFqn, j.left(), col);
+                } catch (NotImplementedException e) {
+                    return resolveStarColumn(ctx, dbFqn, j.right(), col);
+                }
+            }
+            default -> {
+                // subselect/values under a star top: fall through loud
+            }
+        }
+        throw new NotImplementedException("plan: star-top TDS column '"
+                + col + "' resolves through no FROM-tree table");
+    }
+
     private static String[] resolvePhysical(SqlSource src, @com.legend.Nullable String alias,
             @com.legend.Nullable String col) {
         switch (src) {
