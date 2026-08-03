@@ -1660,9 +1660,14 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         .equals("meta::pure::functions::lang::subType")
                 || sc.args().isEmpty()
                 || !(sc.info().type() instanceof Type.ClassType sct)
-                || !sc.info().multiplicity().isMany()
                 || !(sc.args().get(0).info().type()
                         instanceof Type.ClassType navCt)) {
+            // NOTE multiplicity is NOT gated: a TO-ONE cast over a
+            // partial-membership target needs the same per-cast routed
+            // join (MilestonedInheritanceMapping golden: vehicle[1] casts
+            // to Car and Bicycle read SEPARATE per-pair joins, one output
+            // row per owner); total-membership targets have no witness
+            // binding and fall through below regardless.
             return n;
         }
         String wKey = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),

@@ -100,6 +100,68 @@ final class ImplicitInheritance {
         return any ? md.withClassMappings(rewritten) : md;
     }
 
+    /** IMPLICIT inheritance OP for UNMAPPED association-end parents
+     * (engine parity, MilestonedInheritanceMapping golden): a per-pair
+     * AssociationMapping entry names member sets ({@code vehicle[o,c]:
+     * @Owner_Car}) whose classes are strict subclasses of an end class
+     * that itself has NO set anywhere in scope — the engine resolves the
+     * end's extent through its mapped subclasses. Appending an explicit
+     * {@code Inheritance} op makes every downstream mechanism (routed
+     * pair injection, union synthesis, witness casts, milestoned heads)
+     * engage unchanged. Conservative: only association-END classes with
+     * at least one pair-routed subclass set qualify. */
+    static LegacyMappingDefinition implicitOpsForAssociationEnds(
+            LegacyMappingDefinition md, ModelBuilder model) {
+        Map<String, ClassMapping> bySetId = new HashMap<>();
+        MappingNormalizer.collectIncludedSetIds(md, model, bySetId, new HashSet<>());
+        for (ClassMapping cm : md.classMappings()) {
+            bySetId.put(MappingNormalizer.setIdOf(cm), cm);
+        }
+        Set<String> mappedClasses = new HashSet<>();
+        for (ClassMapping cm : bySetId.values()) {
+            mappedClasses.add(cm.className());
+        }
+        Set<String> implied = new java.util.LinkedHashSet<>();
+        for (com.legend.model.AssociationMapping am : md.associationMappings()) {
+            if (!(am instanceof com.legend.model.AssociationMapping.Relational rel)) {
+                continue;
+            }
+            var ad = AssociationSynthesis.resolveAssociation(model, md, am)
+                    .orElse(null);
+            if (ad == null) {
+                continue;
+            }
+            for (com.legend.model.AssociationPropertyMapping apm
+                    : rel.propertyMappings()) {
+                String tgtSet = apm.body() instanceof PropertyMapping.Join j
+                        && j.targetSetId() != null
+                        ? j.targetSetId() : apm.targetSetId();
+                if (tgtSet == null) {
+                    continue;
+                }
+                String end = AssociationSynthesis.associationTargetClass(
+                        ad, apm.propertyName());
+                ClassMapping tgt = bySetId.get(tgtSet);
+                if (end == null || mappedClasses.contains(end)
+                        || tgt == null || tgt.className().equals(end)
+                        || !UnionSynthesis.isSubclassOf(
+                                tgt.className(), end, model)) {
+                    continue;
+                }
+                implied.add(end);
+            }
+        }
+        if (implied.isEmpty()) {
+            return md;
+        }
+        List<ClassMapping> rewritten = new ArrayList<>(md.classMappings());
+        for (String cls : implied) {
+            rewritten.add(new ClassMapping.Inheritance(cls, null, null, false));
+            model.registerMappedClass(cls);
+        }
+        return md.withClassMappings(rewritten);
+    }
+
     /** The NEAREST class-hierarchy ancestor with exactly ONE Relational
      * mapping in scope over the child's main table; null otherwise. */
     private static ClassMapping.@com.legend.Nullable Relational nearestMappedAncestor(

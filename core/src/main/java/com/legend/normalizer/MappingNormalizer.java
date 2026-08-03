@@ -251,6 +251,9 @@ public final class MappingNormalizer {
         // StoreSubstitutionRewrite.qualifyStoreRefs).
         md = StoreSubstitutionRewrite.qualifyStoreRefs(md, model);
 
+        // Pre-pass: implicit inheritance OPS for unmapped association-end
+        // parents — must precede the injection below (op visibility).
+        md = ImplicitInheritance.implicitOpsForAssociationEnds(md, model);
         // Pre-pass: inject MULTI-HOP association ends as class-typed Join
         // PMs (Option A, docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b).
         md = AssociationSynthesis.injectMultiHopAssociationPMs(md, model);

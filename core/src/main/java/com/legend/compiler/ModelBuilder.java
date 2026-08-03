@@ -960,6 +960,13 @@ public final class ModelBuilder {
         return id != SymbolTable.UNRESOLVED && mappedClassIds.contains(id);
     }
 
+    /** Register a class as mapped AFTER ingestion — the normalizer's
+     * implicit-op pre-pass appends synthesized Operation sets (unmapped
+     * association-end parents) that ingestion never saw. */
+    public void registerMappedClass(String classFqn) {
+        mappedClassIds.add(intern(classFqn));
+    }
+
     // ====================================================================
     // Iteration accessors
     // ====================================================================
