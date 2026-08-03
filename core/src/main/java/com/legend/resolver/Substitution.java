@@ -1229,6 +1229,19 @@ final class Substitution {
                     return assocBindingRead(ha, path.get(path.size() - 1), curT);
                 }
             }
+            // SUBTYPE-EMBEDDED tail through an assoc head: the union
+            // distributes stc_<Sub>___<prop>__<leaf> as a FLAT column —
+            // read it like any other assoc leaf binding
+            if (path.size() >= 3
+                    && com.legend.model.ClassMapping.isSubTypeColumn(path.get(1))
+                    && target.assocs().containsKey(path.get(0))) {
+                AssocSub hf = target.assocs().get(path.get(0));
+                String flat = String.join("__", path.subList(1, path.size()));
+                TypedSpec fb = hf.targetBindings().get(flat);
+                if (fb != null) {
+                    return assocBindingRead(hf, flat, fb);
+                }
+            }
             AssocSub diag = target.assocs().get(path.get(0));
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
                 System.err.println("[multi-hop wall] path=" + path

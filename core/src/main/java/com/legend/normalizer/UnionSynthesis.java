@@ -639,6 +639,26 @@ final class UnionSynthesis {
                     if (scalar && visibleOnTarget) {
                         subTypeProps.computeIfAbsent(target,
                                 k -> new LinkedHashSet<>()).add(prop);
+                    } else if (visibleOnTarget) {
+                        // EMBEDDED subtype prop (Car maps mechanic(...)):
+                        // distribute each thread-projectable ctor leaf as
+                        // a FLAT stc column <prop>__<leaf> — the cast
+                        // navigation reads it as an ordinary union column
+                        KeyExpression fv = parts.get(j).fields().get(prop);
+                        NewInstance ector = fv == null ? null
+                                : ctorOf(fv.value());
+                        if (ector != null) {
+                            for (var pe : ector.properties().entrySet()) {
+                                if (ctorOf(pe.getValue().value()) == null
+                                        && isThreadProjectable(
+                                                pe.getValue().value(),
+                                                parts.get(j).rowBind().name())) {
+                                    subTypeProps.computeIfAbsent(target,
+                                            k -> new LinkedHashSet<>())
+                                            .add(prop + "__" + pe.getKey());
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -711,6 +731,15 @@ final class UnionSynthesis {
                                     List.of(w)), null));
                     continue;
                 }
+                int embCut = prop.indexOf("__");
+                if (embCut > 0 && subDef != null
+                        && MappingNormalizer.findPropertyTypeDeep(subDef,
+                                prop, model) == null) {
+                    addStcEmbeddedLeaf(stEn.getKey(), prop, embCut,
+                            java.util.Objects.requireNonNull(subDef),
+                            own, pp, model, cols);
+                    continue;
+                }
                 KeyExpression mapped = own ? pp.fields().get(prop) : null;
                 ValueSpecification value = mapped == null
                         ? MappingNormalizer.nullOfDeclaredType(subDef, prop, model)
@@ -730,6 +759,41 @@ final class UnionSynthesis {
                                 List.of(value)), null));
             }
         }
+    }
+
+    /** One EMBEDDED subtype leaf as a flat stc thread column
+     * ({@code stc_<Sub>___<prop>__<leaf>}): the owning member reads its
+     * ctor leaf, other threads project the leaf's typed NULL. */
+    private static void addStcEmbeddedLeaf(String target, String flatProp,
+            int cut, ClassDefinition subDef, boolean own,
+            MappingNormalizer.RelationalParts pp, ModelBuilder model,
+            List<ColSpec> cols) {
+        String top = flatProp.substring(0, cut);
+        String sub = flatProp.substring(cut + 2);
+        TypeExpression it = MappingNormalizer.findPropertyTypeDeep(
+                subDef, top, model);
+        ClassDefinition inner = it instanceof TypeExpression.NameRef inr
+                ? model.findClass(inr.name()).orElse(null) : null;
+        KeyExpression fv = own ? pp.fields().get(top) : null;
+        NewInstance ector = fv == null ? null : ctorOf(fv.value());
+        ValueSpecification value = ector != null
+                && ector.properties().containsKey(sub)
+                ? ector.properties().get(sub).value()
+                : MappingNormalizer.nullOfDeclaredType(inner, sub, model);
+        value = MappingNormalizer.coerceToDeclaredNumeric(value, sub,
+                inner == null ? target : inner.qualifiedName(), model);
+        TypeExpression sdt = inner == null ? null
+                : MappingNormalizer.findPropertyTypeDeep(inner, sub, model);
+        if (sdt instanceof TypeExpression.NameRef sdn
+                && "String".equals(MappingNormalizer.simpleTypeName(sdn.name()))) {
+            value = new AppliedFunction("cast", List.of(value,
+                    new TypeAnnotation.Named(
+                            new TypeExpression.NameRef("String"))));
+        }
+        value = new AppliedFunction("toOne", List.of(value));
+        cols.add(new ColSpec(ClassMapping.subTypeColumn(target, flatProp),
+                new LambdaFunction(List.of(pp.rowBind()),
+                        List.of(value)), null));
     }
 
     /** The shared-property UNION ALL over resolved member sets. */
