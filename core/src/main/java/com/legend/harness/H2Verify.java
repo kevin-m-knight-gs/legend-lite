@@ -316,6 +316,12 @@ public final class H2Verify {
      * into the fresh oracle. */
     /** Wall-clock spent in mirror verification (the DuckDB sweep's
      * advisory second target) — perf instrument, printed by the runner. */
+    /** Wall-clock of the WHOLE golden-SQL channel on the DuckDB sweep
+     * (sql-text compare incl. the H2 re-render + M1 h2-exec + advisory)
+     * — perf instrument. */
+    public static final java.util.concurrent.atomic.AtomicLong GOLDEN_NANOS =
+            new java.util.concurrent.atomic.AtomicLong();
+
     public static final java.util.concurrent.atomic.AtomicLong MIRROR_NANOS =
             new java.util.concurrent.atomic.AtomicLong();
 

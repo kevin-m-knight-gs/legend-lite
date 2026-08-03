@@ -942,6 +942,7 @@ public final class TestBody {
         AppliedFunction exec = golden == null ? null
                 : ExecCallFinder.find(actual, lets, execStmts);
         if (exec != null && exec.parameters().size() >= 2) {
+            long gt0 = System.nanoTime();
             try {
                 List<ValueSpecification> ps = new ArrayList<>();
                 ps.add(substitute(exec.parameters().get(0), lets));
@@ -987,6 +988,8 @@ public final class TestBody {
                     System.err.println("[sql-text] unverifiable: " + e);
                 }
                 // fall through — the row-replay may still verify
+            } finally {
+                com.legend.harness.H2Verify.GOLDEN_NANOS.addAndGet(System.nanoTime() - gt0);
             }
         }
         return h2Upgrade(args, lets, execStmts, execVars, execChains, ctx,
