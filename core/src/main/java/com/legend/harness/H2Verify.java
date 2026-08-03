@@ -245,14 +245,24 @@ public final class H2Verify {
      * model-driven DDL included, which the seed-replay oracle can miss
      * as "Table not found"); anything else replays the recorded seeds
      * into the fresh oracle. */
+    /** Wall-clock spent in mirror verification (the DuckDB sweep's
+     * advisory second target) — perf instrument, printed by the runner. */
+    public static final java.util.concurrent.atomic.AtomicLong MIRROR_NANOS =
+            new java.util.concurrent.atomic.AtomicLong();
+
     public static @com.legend.Nullable String verifyAuto(Connection session,
             java.util.@com.legend.Nullable List<String> seeds,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode)
             throws SQLException {
-        return "H2".equals(session.getMetaData().getDatabaseProductName())
-                ? verifyOnSession(session, goldenSql, ours, enumDecode)
-                : verify(seeds, goldenSql, ours, enumDecode);
+        long t0 = System.nanoTime();
+        try {
+            return "H2".equals(session.getMetaData().getDatabaseProductName())
+                    ? verifyOnSession(session, goldenSql, ours, enumDecode)
+                    : verify(seeds, goldenSql, ours, enumDecode);
+        } finally {
+            MIRROR_NANOS.addAndGet(System.nanoTime() - t0);
+        }
     }
 
     /**

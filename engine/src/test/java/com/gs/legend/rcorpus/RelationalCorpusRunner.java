@@ -308,6 +308,9 @@ public class RelationalCorpusRunner {
         System.out.println("[rcorpus] seed replay: "
                 + Runner.SEED_CALLS.get() + " calls, "
                 + (Runner.SEED_NANOS.get() / 1_000_000) + " ms");
+        System.out.println("[rcorpus] h2-mirror verify: "
+                + (com.legend.harness.H2Verify.MIRROR_NANOS.get() / 1_000_000)
+                + " ms");
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {

@@ -20,18 +20,19 @@ A/Bs old code).
 | 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | green (1 ledgered Relation expected-failure) (~30-80s) |
 | 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | 325/348 (~25s) |
 
-Budget: the WHOLE chain is ~5-6 minutes (core 8s + engine 21s +
-DuckDB corpus 115s + h2 corpus 45s + PCT full 30-80s + PCT h2modern
-25s, sequential; measured 2026-08-02). Two failure modes to know:
-(1) PCT gates run OFFLINE (`mvn -o`) — the pct module carries 9
-legend-engine dependencies and an online run re-checks remote
-metadata for them: measured 26s offline vs 10-16 MINUTES online,
-identical results. (2) INTERMITTENT stall: after many back-to-back
-JVM-heavy runs this machine can block a single PCT test (observed:
-timeBucket, 854s wall / ~0 cpu — memory pressure, same constraint
-as the no-parallel-gates rule); the identical suite re-runs in
-seconds — re-run before diagnosing. Gates 6-7 are required whenever
-core is touched; 6–7 whenever a
+Budget: the WHOLE chain measured END-TO-END at 284s (2026-08-03,
+machine held awake): build+install 4s, core 8s, engine 22s, DuckDB
+corpus 110s (seed 47s + h2-mirror 21s), h2 corpus 43s, PCT full 73s,
+PCT h2modern 25s. THE one failure mode that matters: any gate
+showing ~900s wall with near-zero CPU means THE MACHINE SLEPT
+mid-run (pmset log: 900-946s Maintenance Sleep cycles with 45s
+DarkWakes; this box sleeps after 1 idle minute). Run long chains
+under `caffeinate` (plain `-i` is NOT enough if the machine is
+already in its sleep cycle) or `sudo pmset -a sleep 0` for the
+session — and re-run before diagnosing any ~900s outlier. `mvn -o`
+on pct stays as hygiene (skips remote metadata checks) but was NOT
+the cause of the historic 10-16 min runs; those were sleep. Gates
+6-7 are required whenever core is touched; 6–7 whenever a
 dialect (H2/H2Modern/shared renderer) or the lowering changes.
 
 Scoped corpus runs (`-Drcorpus.only=…`) never write the scoreboard
