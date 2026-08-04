@@ -379,6 +379,17 @@ final class GraphEmission {
                 leaves.add(aggLeaf(keyOf(node), navCorr, rowVar, rowType));
                 continue;
             }
+            // NAV CHAINS inside a scalar leaf (the M2M chain composition
+            // inlines source nav markers verbatim: managers = joinStrings(
+            // $row.manager.firstName->concatenate(...))): each chain
+            // through an UNMATERIALIZED alias rewrites to the correlated
+            // scalar subquery the derived-leaf route emits (depth-N).
+            boolean[] navHit = {false};
+            TypedSpec navRew = rewriteNavChains(binding, cs, context,
+                    rowVar, rowType, slotPrefixes, navHit);
+            if (navHit[0]) {
+                binding = navRew;
+            }
             // A leaf mapped through STRIPPED join slots (a nested child's
             // own joins materialize with empty demand) is a feature gap,
             // not a resolver bug (audit F5).
@@ -2174,6 +2185,62 @@ final class GraphEmission {
         return new TypedNativeCall(agg.callee(), List.of(proj), agg.info());
     }
 
+    /** Each maximal row-var-rooted navigation CHAIN sub-expression
+     * ({@code $row.manager.firstName} — head alias unmaterialized)
+     * replaced by {@link #navLeafSubquery}'s correlated scalar subquery;
+     * materialized slots keep the prefixed-column path. */
+    private TypedSpec rewriteNavChains(TypedSpec n, ClassSource cs,
+            StoreResolver.Context context, String rowVar,
+            Type.RelationType rowType, Map<String, String> slotPrefixes,
+            boolean[] hit) {
+        String head = chainHeadAlias(n, cs.rowVar());
+        if (head != null && !slotPrefixes.containsKey(head)) {
+            TypedSpec r = navLeafSubquery(cs, n, cs.rowVar(), context,
+                    rowVar, rowType);
+            if (r != null) {
+                hit[0] = true;
+                return r;
+            }
+        }
+        return n.mapChildren(c -> rewriteNavChains(c, cs, context, rowVar,
+                rowType, slotPrefixes, hit));
+    }
+
+    /** The FIRST property read off the row var when {@code n} is a
+     * SCALAR-resulting access chain crossing at least one CLASS-typed
+     * hop; null otherwise. */
+    private @com.legend.Nullable String chainHeadAlias(TypedSpec n,
+            String rowVar) {
+        TypedSpec b = unwrapToOneFirst(n);
+        if (!(b instanceof TypedPropertyAccess leaf)
+                || leaf.info().type() instanceof Type.ClassType) {
+            return null;
+        }
+        TypedSpec cur = unwrapToOneFirst(leaf.source());
+        boolean classHop = false;
+        String head = null;
+        while (true) {
+            switch (cur) {
+                case TypedPropertyAccess pa -> {
+                    classHop |= pa.info().type() instanceof Type.ClassType;
+                    head = pa.property();
+                    cur = unwrapToOneFirst(pa.source());
+                }
+                case com.legend.compiler.spec.typed.TypedMilestonedAccess ma -> {
+                    classHop |= ma.info().type() instanceof Type.ClassType;
+                    head = ma.property();
+                    cur = unwrapToOneFirst(ma.source());
+                }
+                case TypedVariable v -> {
+                    return classHop && v.name().equals(rowVar) ? head : null;
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
+    }
+
     private TypedSpec rewriteNavAggs(TypedSpec n, ClassSource cs,
             String thisVar, StoreResolver.Context context, String rowVar,
             Type.RelationType rowType, boolean[] hit) {
@@ -2411,39 +2478,56 @@ final class GraphEmission {
                 parentRowVar, parentRowType);
         HeadRel hr = navHeadRelation(env, hop, thisVar);
         if (hr == null) {
-            // DEPTH-2+ chain ($this.classification(bd).exchange(d).name):
-            // resolve the INNER chain to its frame, then the remaining
-            // hop+leaf recurse AS a nested correlated subquery projected
-            // over the inner frame's row (the engine chains the joins;
-            // nesting keeps each hop's window on its own alias)
-            TypedSpec innerSrc = switch (hop) {
-                case TypedPropertyAccess hp -> hp.source();
-                case com.legend.compiler.spec.typed.TypedMilestonedAccess hm ->
-                        hm.source();
-                default -> null;
-            };
-            HeadRel ih = innerSrc == null ? null
-                    : navHeadRelation(env, innerSrc, thisVar);
+            // DEPTH-2+ chain ($this.classification(bd).exchange(d).name,
+            // $row.manager.manager.manager.firstName): peel the FIRST hop
+            // off the var to its frame, rebuild the REMAINING chain over
+            // the frame's row and recurse — each hop nests one correlated
+            // subquery (the engine chains the joins; nesting keeps each
+            // hop's window on its own alias)
+            java.util.List<TypedSpec> steps = new ArrayList<>();
+            TypedSpec walk = hop;
+            while (true) {
+                TypedSpec w = unwrapToOneFirst(walk);
+                if (w instanceof TypedPropertyAccess wp) {
+                    steps.add(w);
+                    walk = wp.source();
+                } else if (w instanceof com.legend.compiler.spec.typed
+                        .TypedMilestonedAccess wm) {
+                    steps.add(w);
+                    walk = wm.source();
+                } else {
+                    break;
+                }
+            }
+            if (steps.size() < 2 || !(unwrapToOneFirst(walk)
+                    instanceof TypedVariable wv
+                    && wv.name().equals(thisVar))) {
+                return null;
+            }
+            HeadRel ih = navHeadRelation(env,
+                    steps.get(steps.size() - 1), thisVar);
             if (ih == null) {
                 return null;
             }
             String iVar = ih.target().rowVar();
-            TypedVariable iRow = new TypedVariable(iVar,
+            TypedSpec rebuilt = new TypedVariable(iVar,
                     new ExprType(ih.targetRow(),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ONE));
-            TypedSpec rebuiltHop = switch (hop) {
-                case TypedPropertyAccess hp -> new TypedPropertyAccess(
-                        iRow, hp.property(), hp.info());
-                case com.legend.compiler.spec.typed.TypedMilestonedAccess hm ->
-                        new com.legend.compiler.spec.typed.TypedMilestonedAccess(
-                                iRow, hm.property(), hm.dates(), hm.sweep(),
-                                hm.info());
-                default -> null;
-            };
+            for (int si = steps.size() - 2; si >= 0; si--) {
+                rebuilt = switch (steps.get(si)) {
+                    case TypedPropertyAccess hp -> new TypedPropertyAccess(
+                            rebuilt, hp.property(), hp.info());
+                    case com.legend.compiler.spec.typed.TypedMilestonedAccess hm ->
+                            new com.legend.compiler.spec.typed.TypedMilestonedAccess(
+                                    rebuilt, hm.property(), hm.dates(),
+                                    hm.sweep(), hm.info());
+                    default -> throw new IllegalStateException(
+                            "resolver bug: non-access chain step");
+                };
+            }
             TypedSpec nested = navLeafSubquery(ih.target(),
-                    new TypedPropertyAccess(
-                            java.util.Objects.requireNonNull(rebuiltHop, "rebuiltHop"),
+                    new TypedPropertyAccess(rebuilt,
                             leaf.property(), leaf.info()),
                     iVar, context, iVar, ih.targetRow());
             if (nested == null) {
