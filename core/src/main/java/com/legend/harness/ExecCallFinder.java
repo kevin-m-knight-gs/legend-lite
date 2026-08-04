@@ -23,6 +23,36 @@ final class ExecCallFinder {
             @com.legend.Nullable ValueSpecification v,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts) {
+        AppliedFunction t = findTerminal(v, lets, execStmts,
+                java.util.Set.of("execute"));
+        return t != null && TestBody.simpleName(t.function())
+                .equals("execute") ? t : null;
+    }
+
+    /** The terminal call (its simple name &isin; {@code stops}) behind a
+     * read chain — the {@link #find} walk generalized so a DIRECT
+     * {@code toSQLString(|q|, mapping, type, ext)} test (no execute()
+     * anywhere) still surfaces its generator call. */
+    static @com.legend.Nullable AppliedFunction findTerminal(
+            @com.legend.Nullable ValueSpecification v,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> stops) {
+        return findTerminal(v, lets, execStmts, stops, null);
+    }
+
+    /** As {@link #findTerminal(ValueSpecification, Map, List,
+     * java.util.Set)}, but a non-null {@code through} restricts which
+     * intermediate calls the walk may descend past: a chain carrying a
+     * TRANSFORM (e.g. {@code ->replace(...)}) must NOT resolve to its
+     * generator as if the transform weren't there — the caller would
+     * compare untransformed text against a transformed contract. */
+    static @com.legend.Nullable AppliedFunction findTerminal(
+            @com.legend.Nullable ValueSpecification v,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> stops,
+            @com.legend.Nullable java.util.Set<String> through) {
         if (v == null) {
             return null;
         }
@@ -46,8 +76,12 @@ final class ExecCallFinder {
                 continue;
             }
             if (cur instanceof AppliedFunction af
-                    && !TestBody.simpleName(af.function()).equals("execute")
+                    && !stops.contains(TestBody.simpleName(af.function()))
                     && !af.parameters().isEmpty()) {
+                if (through != null && !through.contains(
+                        TestBody.simpleName(af.function()))) {
+                    return null;
+                }
                 cur = TestBody.substitute(af.parameters().get(0), lets);
                 continue;
             }
@@ -58,8 +92,58 @@ final class ExecCallFinder {
             break;
         }
         return cur instanceof AppliedFunction ex
-                && TestBody.simpleName(ex.function()).equals("execute")
+                && stops.contains(TestBody.simpleName(ex.function()))
                 ? ex : null;
+    }
+
+    /** OUR engine-text rendering of one assert side, or null when the
+     * side has no reachable generator or the generation throws (the
+     * caller falls back to the row-replay/advisory channel). An
+     * execute(...) terminal rebuilds the engine's own derivation
+     * {@code toSQLString(query, mapping, H2, extensions)}; a direct
+     * toSQLString terminal evaluates as written. */
+    static @com.legend.Nullable String sideSqlText(
+            @com.legend.Nullable ValueSpecification side,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.model.ImportScope imports, String runtimeFqn,
+            java.sql.Connection conn) {
+        AppliedFunction term = findTerminal(side, lets, execStmts,
+                java.util.Set.of("execute", "toSQLString"),
+                java.util.Set.of("sqlRemoveFormatting", "sql", "toOne",
+                        "at"));
+        if (term == null) {
+            return null;
+        }
+        try {
+            ValueSpecification call = term;
+            if (TestBody.simpleName(term.function()).equals("execute")) {
+                if (term.parameters().size() < 2) {
+                    return null;
+                }
+                List<ValueSpecification> ps = new java.util.ArrayList<>();
+                ps.add(TestBody.substitute(term.parameters().get(0), lets));
+                ps.add(term.parameters().get(1));
+                ps.add(new com.legend.model.spec.EnumValue(
+                        "meta::relational::runtime::DatabaseType", "H2"));
+                for (int i = 3; i < term.parameters().size(); i++) {
+                    ps.add(term.parameters().get(i));
+                }
+                call = new AppliedFunction("meta::relational::functions"
+                        + "::sqlstring::toSQLString", ps);
+            }
+            return TestBody.evalScalar(call, lets, execStmts, execVars,
+                    execChains, ctx, imports, runtimeFqn, conn)
+                    instanceof String s ? s : null;
+        } catch (RuntimeException | java.sql.SQLException e) {
+            if (System.getenv("LL_SQLTEXT_DEBUG") != null) {
+                System.err.println("[sql-text] side unverifiable: " + e);
+            }
+            return null;
+        }
     }
 
     /** The LAST exec-frame {@code let <name> = <expr>} binding (statement

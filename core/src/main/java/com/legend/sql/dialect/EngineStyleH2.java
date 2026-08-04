@@ -1194,19 +1194,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     // == engine-H2 spellings (each MATCHED against a corpus golden) =====
 
-    /** DurationUnit interval-fn -> H2 dateadd unit keyword
-     * (extensionDefaults.pure mapToDBUnitType). */
+    /** DurationUnit interval-fn -> H2 dateadd unit keyword. LOWERCASE:
+     * the H2Compatible NEW goldens ride the sql-dialect-translation
+     * mapToDBUnitType (sqlDialectExtensionDefaults.pure:362 'second'),
+     * not the legacy extension's uppercase table — the uppercase
+     * dateadd(DAY,...) corpus spellings are firstDayOf* FORMAT literals,
+     * never adjust units. */
     private static String dbUnitOf(String unitFn) {
         return switch (unitFn) {
-            case "to_years" -> "YEAR";
-            case "to_months" -> "MONTH";
-            case "to_weeks" -> "WEEK";
-            case "to_days" -> "DAY";
-            case "to_hours" -> "HOUR";
-            case "to_minutes" -> "MINUTE";
-            case "to_seconds" -> "SECOND";
-            case "to_milliseconds" -> "MILLISECOND";
-            case "to_microseconds" -> "MICROSECOND";
+            case "to_years" -> "year";
+            case "to_months" -> "month";
+            case "to_weeks" -> "week";
+            case "to_days" -> "day";
+            case "to_hours" -> "hour";
+            case "to_minutes" -> "minute";
+            case "to_seconds" -> "second";
+            case "to_milliseconds" -> "millisecond";
+            case "to_microseconds" -> "microsecond";
             default -> throw new IllegalStateException(
                     "no H2 dateadd unit for interval fn '" + unitFn + "'");
         };

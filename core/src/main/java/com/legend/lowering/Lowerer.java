@@ -425,11 +425,11 @@ public final class Lowerer {
                 yield (Fold.offsetFolds(src) ? src : isolate(src)).withOffset(ConstBounds.intOf(d.count()));
             }
 
-            case TypedSlice s -> {
+            case TypedSlice s -> { // literal slice(0,n) IS take(n) — engine processSlice drops a zero fromRow; paginated's COMPUTED (page-1)*size keeps offset 0 (processPaginated pin)
                 SqlSelect src = relation(s.source());
                 long start = ConstBounds.intOf(s.start());
                 SqlSelect base = Fold.offsetFolds(src) ? src : isolate(src);
-                yield base.withOffset(start).withLimit(ConstBounds.intOf(s.stop()) - start);
+                yield (start == 0 && s.start() instanceof com.legend.compiler.spec.typed.TypedCInteger ? base : base.withOffset(start)).withLimit(ConstBounds.intOf(s.stop()) - start);
             }
 
             case TypedGroupBy g -> groupBy(g);

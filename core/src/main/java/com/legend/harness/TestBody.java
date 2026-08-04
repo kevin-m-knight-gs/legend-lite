@@ -953,56 +953,50 @@ public final class TestBody {
                 actual = a;
             }
         }
-        AppliedFunction exec = golden == null ? null
-                : ExecCallFinder.find(actual, lets, execStmts);
-        if (exec != null && exec.parameters().size() >= 2) {
-            long gt0 = System.nanoTime();   // GOLDEN_NANOS perf instrument
-            try {
-                List<ValueSpecification> ps = new ArrayList<>();
-                ps.add(substitute(exec.parameters().get(0), lets));
-                ps.add(exec.parameters().get(1));
-                ps.add(new com.legend.model.spec.EnumValue(
-                        "meta::relational::runtime::DatabaseType", "H2"));
-                for (int i = 3; i < exec.parameters().size(); i++) {
-                    ps.add(exec.parameters().get(i));
+        long gt0 = System.nanoTime();   // GOLDEN_NANOS perf instrument
+        String sql = ExecCallFinder.sideSqlText(actual, lets, execStmts,
+                execVars, execChains, ctx, imports, runtimeFqn, conn);
+        H2Verify.GOLDEN_NANOS.addAndGet(System.nanoTime() - gt0);
+        if (golden == null && args.size() == 2 && sql != null) {
+            // NO golden literal: the contract is the two sides' SQL being
+            // IDENTICAL (slice-0-is-take shape) — both texts are OURS, so
+            // the compare verifies without any engine-text parity
+            String other = ExecCallFinder.sideSqlText(args.get(0), lets,
+                    execStmts, execVars, execChains, ctx, imports,
+                    runtimeFqn, conn);
+            if (other != null) {
+                return other.equals(sql) ? null
+                        : "sql sides differ: " + other + " vs " + sql;
+            }
+        }
+        if (golden != null && sql != null) {
+            if (golden.equals(sql)) {
+                // MILESTONE 1 (H2_BACKEND.md §12.5): the matched text
+                // IS our rendering — execute it on H2, hold its rows
+                // to our DuckDB rows; a divergence is a REAL renderer
+                // bug (H5.1 class), never advisory.
+                String h2rows = h2Upgrade(args, lets, execStmts,
+                        execVars, execChains, ctx, imports,
+                        runtimeFqn, conn);
+                if (h2rows == null) {
+                    H2Verify.M1_VERIFIED.increment();
+                    return null;
                 }
-                Object sql = evalScalar(new AppliedFunction(
-                        "meta::relational::functions::sqlstring::toSQLString",
-                        ps), lets, execStmts, execVars, execChains, ctx,
-                        imports, runtimeFqn, conn);
-                if (java.util.Objects.equals(golden, sql)) {
-                    // MILESTONE 1 (H2_BACKEND.md §12.5): the matched text
-                    // IS our rendering — execute it on H2, hold its rows
-                    // to our DuckDB rows; a divergence is a REAL renderer
-                    // bug (H5.1 class), never advisory.
-                    String h2rows = h2Upgrade(args, lets, execStmts,
-                            execVars, execChains, ctx, imports,
-                            runtimeFqn, conn);
-                    if (h2rows == null) {
-                        H2Verify.M1_VERIFIED.increment();
-                        return null;
-                    }
-                    if (java.util.Objects.equals(h2rows, ADVISORY_MARKER)) {
-                        H2Verify.M1_UNVERIFIABLE.increment();
-                        return null;
-                    }
-                    H2Verify.M1_DIVERGED.increment();
-                    return "h2-exec: OUR byte-matched SQL on H2 diverged"
-                            + " from our DuckDB rows — " + h2rows;
+                if (java.util.Objects.equals(h2rows, ADVISORY_MARKER)) {
+                    H2Verify.M1_UNVERIFIABLE.increment();
+                    return null;
                 }
-                // divergent text: execution-equivalence may still verify
-                String rows = h2Upgrade(args, lets, execStmts, execVars,
-                        execChains, ctx, imports, runtimeFqn, conn);
-                if (rows != ADVISORY_MARKER) {
-                    return rows;
-                }
-                return "sql-text: expected " + golden + ", got " + sql;
-            } catch (RuntimeException | java.sql.SQLException e) {
-                if (System.getenv("LL_SQLTEXT_DEBUG") != null) {
-                    System.err.println("[sql-text] unverifiable: " + e);
-                }
-                // fall through — the row-replay may still verify
-            } finally { H2Verify.GOLDEN_NANOS.addAndGet(System.nanoTime() - gt0); }
+                H2Verify.M1_DIVERGED.increment();
+                return "h2-exec: OUR byte-matched SQL on H2 diverged"
+                        + " from our DuckDB rows — " + h2rows;
+            }
+            // divergent text: execution-equivalence may still verify
+            String rows = h2Upgrade(args, lets, execStmts, execVars,
+                    execChains, ctx, imports, runtimeFqn, conn);
+            if (rows != ADVISORY_MARKER) {
+                return rows;
+            }
+            return "sql-text: expected " + golden + ", got " + sql;
         }
         return h2Upgrade(args, lets, execStmts, execVars, execChains, ctx,
                 imports, runtimeFqn, conn);

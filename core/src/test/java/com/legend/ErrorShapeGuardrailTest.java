@@ -42,6 +42,12 @@ class ErrorShapeGuardrailTest {
     private static final Map<String, Integer> BROAD_CATCH_COUNTS = Map.ofEntries(
             Map.entry("ClassSources.java", 1),
             Map.entry("Compiler.java", 2),
+            // sideSqlText's generation probe (reviewed): rebuilding a
+            // side's engine text may throw anywhere in compile/lowering;
+            // null return falls back to the row-replay/advisory channel —
+            // the same boundary TestBody's sqlTextVerify catch owned
+            // before the extraction (LL_SQLTEXT_DEBUG surfaces the cause)
+            Map.entry("ExecCallFinder.java", 1),
             Map.entry("FunctionCompiler.java", 1),
             // 4 = the derived/implicit-child PROBE-AND-FALLBACK set
             // (reviewed): navHeadRelation's assoc probe, hopJoin's
