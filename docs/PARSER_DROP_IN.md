@@ -12,7 +12,8 @@
 
 ## 1. Verdict
 
-**Three answers, because the question contains three different projects.**
+**The goal is whole-parser replacement. That is reachable — but it is two independent axes, and
+conflating them is what makes it look impossible.**
 
 **First, a disambiguation that changes the question.** There are **four** things called "a parser"
 in these repos, not one: **(A)** the Legend DSL grammar parser (text → `PureModelContextData`),
@@ -21,28 +22,41 @@ foreign-format parsers (GraphQL, Protobuf, Haskell, MongoDB). **(A) is the produ
 the engine server** — and (A) and (B) never touch each other at runtime; the core grammar module
 has *zero* legend-pure dependencies. Everything below is about (A).
 
-**(a) "Replace *the* legend-engine parser" — no, and nobody should try.** "The parser" is not a
-component; it is an ecosystem: **41 `*-grammar` Maven modules, 156 `.g4` files, 14,568 lines of
-ANTLR, 165 Java files / 28,157 LOC of tree-walkers**, a 25-extension `ServiceLoader` SPI, and a
-**444-class** protocol target. Plus, by upstream's own convention (*"Grammar changes: update both
-parser and composer, and add a round-trip test"*), the **87-file composer** must move in lockstep.
-That is a multi-year rewrite of somebody else's product.
+**(a) "Replace the WHOLE parser" — reachable, and *not* all-or-nothing.** This is the framing that
+matters, and an earlier draft of this document got it wrong by scoping to `###Pure`.
 
-**(b) "Replace the `###Pure` section parser behind the same interface" — plausible, and this is
-where all the value is.** `###Pure` is 859 of the section markers in legend-engine's own corpus,
-it is the hot path, and legend-lite already parses it at near element-level parity (§4). The
-concrete target is `DomainParser` + `DomainParseTreeWalker.java` (**2,003 lines**) and
-`M3ParserGrammar.g4` (280 lines) — not 156 grammars.
+The surface looks forbidding — **41 `*-grammar` modules, 156 `.g4` files, 14,568 lines of ANTLR,
+165 Java files / 28,157 LOC of tree-walkers**, a 25-extension SPI, a **444-class** protocol target,
+and an **87-file composer** upstream requires to move in lockstep. But **the dispatch is
+per-section, and anything you do not claim falls through to upstream's own parser** (§6.1). So a
+replacement is **100% complete on day one** and gets faster one section at a time. There is no
+big-bang, and every intermediate state ships.
 
-**And the drop-in seam exists and is clean** (§6.1). This is the single most encouraging finding
-in the study: a third-party jar can take over `###Pure` **without forking the engine**.
+The corpus is also a steep power law, not 156 equal grammars. Section occurrences across all of
+legend-engine (2,002 total):
 
-**(c) "Byte-identical" — well-defined, and the answer hinges on one flag.** With
-`returnSourceInformation=true` (the API default) it requires reproducing every ANTLR token's exact
-line and column, including the offset introduced by the parser prepending a synthetic section
-header. With `returnSourceInformation=false`, `NON_NULL` erases the field entirely and the problem
-collapses to structural fidelity — which is exactly the mode upstream's own 359-test round-trip
-suite runs in.
+| | | | | | |
+|---|---:|---|---:|---|---:|
+| `###Pure` | 904 | `###Connection` | 49 | `###Persistence` | 9 |
+| `###Mapping` | 533 | `###Service` | 43 | `###DataQualityValidation` | 3 |
+| `###Relational` | 245 | `###ExternalFormat` | 26 | Snowflake / GenerationSpec / FileGeneration | 2 each |
+| `###Runtime` | 78 | `###DataSpace` | 18 | MemSql / Elasticsearch | 1 each |
+| `###Diagram` | 60 | `###Data` | 16 | `###ServiceStore` | 10 |
+
+**The five legend-lite already lexes — Pure, Mapping, Relational, Connection, Runtime — are 1,809
+of 2,002 = 90.4%.** Reaching 100% means 13 more section kinds, seven of which occur ≥9 times and
+six of which occur ≤3 times.
+
+**(b) Byte-identity is a separate axis from coverage, and it is the harder one.** Coverage is
+solved by claiming sections; byte-identity is solved by reproducing 444 protocol classes' exact
+JSON *and* ANTLR's exact token coordinates (§3). You can have 100% coverage with zero byte-identity
+(delegate everything) or byte-identity on one section. They do not trade off against each other.
+
+Byte-identity itself hinges on one flag. With `returnSourceInformation=true` (the API default) it
+requires reproducing every ANTLR token's exact line and column, including the offset introduced by
+the parser prepending a synthetic section header. With `returnSourceInformation=false`, `NON_NULL`
+erases the field entirely and the problem collapses to structural fidelity — which is exactly the
+mode upstream's own 359-test round-trip suite runs in.
 
 **The speed claim is real and larger than expected: 54.5× on the cleanest comparison available**
 (§2). It survives every methodological attack I could mount at it. But — §6 — **I have not
@@ -382,7 +396,74 @@ release gate against every upstream version, and expect to have to move the comp
 
 ---
 
-## 8. Two upstream bugs found in passing
+## 8. The path to 100% — measured section by section
+
+Full corpus, `PureGrammarParser` with 5 grammar extensions loaded (core, relational, diagram,
+data-space, text), restricted to files whose section set is exactly one kind. "elem match" is
+element-count equality after removing the `SectionIndex` legend-engine synthesises and legend-lite
+has no concept of.
+
+| section | files | engine parses | lite parses | both | elem match | speedup |
+|---|---:|---:|---:|---:|---:|---:|
+| Pure | 447 | 298 | 440 | 294 | **294/294** | 35× |
+| Mapping | 80 | 73 | 73 | 68 | **68/68** | 33× |
+| Relational | 22 | 22 | 19 | 19 | **19/19** | 13× |
+| Runtime | 4 | 4 | 3 | 3 | **3/3** | 10× |
+| Data | 4 | 4 | 4 | 4 | **0/4** | 61× |
+| Connection | 3 | 3 | **0** | 0 | — | — |
+| Diagram | 49 | **0** | 48 | 0 | — | — |
+| Service | 26 | *n/a* | 26 | 0 | — | — |
+| Persistence | 9 | *n/a* | 9 | 0 | — | — |
+| ExternalFormat | 1 | *n/a* | 1 | 0 | — | — |
+
+**On the four sections where both parsers work — Pure, Mapping, Relational, Runtime — element
+parity is 384/384 = 100%**, at 10–35×. That is the strongest single piece of evidence that a
+whole-parser replacement is realistic rather than aspirational.
+
+### 8.1 Read the failures carefully — three different things are happening
+
+- **`###Data` — parses, wrong output.** 4/4 both parse, **0/4 element match.** legend-lite has no
+  `DataElement` variant. An honest gap, cheaply closed.
+- **`###Connection` — legend-lite fails outright**, 0/3, despite `Connection` being in its
+  `LEXABLE_SECTIONS`. A bug, not a design gap.
+- **`###Diagram`, `###Service`, `###Persistence`, `###ExternalFormat` — legend-lite "succeeds" by
+  deleting the section.** `Lexer.java:287-293` raw-skips any section outside
+  `LEXABLE_SECTIONS = {Pure, Mapping, Relational, Connection, Runtime}`. **That is worse than
+  failing**, and it inflates the "lite parses" column above by 84 files. A replacement must fail
+  loudly on a section it does not own so the SPI can hand it back to upstream.
+
+**A concrete bug this exposed:** `ElementParser.java:333` has `case SERVICE -> parseServiceDefinition()`,
+so legend-lite *can* parse a `Service` element — but the lexer discards `###Service` bodies, which
+is how all 43 real ones are spelled. The parser supports a construct the lexer never delivers.
+
+### 8.2 Harness caveats — do not over-read the zeros
+
+`Service`, `Persistence` and `ExternalFormat` extensions were **not on my classpath**, so
+"engine parses 0" for those is my harness, not a capability statement. Only five extensions
+registered: `CorePureGrammarParser` (Data), `RelationalGrammarParserExtension`
+(Relational, QueryPostProcessor), `DiagramParserExtension` (Diagram), `DataSpaceParserExtension`
+(DataSpace), `TextParserExtension` (Text).
+
+**`###Diagram` is genuinely unexplained**: `DiagramParserExtension` *was* loaded and claims the
+section, yet the engine failed all 49 files. Cause not established — investigate before relying on
+any Diagram number here.
+
+### 8.3 What "100%" actually costs, in order
+
+1. **Fix the silent-drop lexer** (§8.1) — turn unknown sections into a loud, delegable miss. This
+   is the prerequisite for everything else, because it is what lets upstream fill the gap.
+2. **Fix `###Connection`** (0/3) and **add `DataElement`** (0/4 match). Both small.
+3. **Deliver `###Service`** — the parser already exists; it is the lexer whitelist that blocks it.
+   43 occurrences, likely the cheapest real win.
+4. **Diagram (60), ExternalFormat (26), DataSpace (18), ServiceStore (10), Persistence (9)** — new
+   element kinds, roughly in that order.
+5. **The tail (≤3 each)** — Snowflake, GenerationSpecification, FileGeneration,
+   DataQualityValidation, MemSql, Elasticsearch. **Consider never claiming these.** Delegation is
+   free and permanent; the marginal parse time is nil.
+
+---
+
+## 9. Two upstream bugs found in passing
 
 Worth reporting regardless of whether this project proceeds, and worth *not* reproducing:
 
@@ -402,10 +483,12 @@ Also: upstream's own `CLAUDE.md` documents `EngineErrorType` as
 
 ---
 
-## 9. What NOT to do
+## 10. What NOT to do
 
-- **Don't aim at "the legend-engine parser."** 41 modules, 156 grammars, 669 protocol classes. Aim
-  at `###Pure`, which is where the corpus and the time both are.
+- **Don't treat whole-parser replacement as all-or-nothing.** Per-section dispatch means anything
+  you don't claim falls through to upstream, so you are complete at every step (§8).
+- **Don't let a section you don't own parse "successfully" by dropping it** (§8.1). Silent deletion
+  is the one failure mode that makes delegation impossible.
 - **Don't start with byte-identity.** Start with `returnSourceInfo=false` semantic equality; it is
   upstream's own round-trip contract and it collapses the hardest blocker (§3.1).
 - **Don't trust the element-count parity as evidence of fidelity** (§4.1). It compares *how many*,
