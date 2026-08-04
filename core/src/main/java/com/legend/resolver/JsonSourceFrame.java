@@ -111,7 +111,9 @@ final class JsonSourceFrame {
             List<String> row = new ArrayList<>(cols.size());
             for (Type.Column c : cols) {
                 Object v = o.get(c.name());
-                row.add(v == null ? null : String.valueOf(v));
+                row.add(v == null
+                        ? com.legend.compiler.element.type.PlatformTypes.TDS_NULL_CELL
+                        : String.valueOf(v));
             }
             rows.add(row);
         }

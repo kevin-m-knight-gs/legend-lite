@@ -24,20 +24,21 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                         Optional<TypedPackageableRef> runtime,
                         List<String> chainMappings,
                         java.util.Map<String, String> jsonSources,
+                        List<String> sqlSetups,
                         @com.legend.Nullable String connectionName,
                         ExprType info) implements TypedSpec {
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime, ExprType info) {
-        this(source, mapping, runtime, List.of(), java.util.Map.of(), null,
-                info);
+        this(source, mapping, runtime, List.of(), java.util.Map.of(),
+                List.of(), null, info);
     }
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime,
                      List<String> chainMappings, ExprType info) {
         this(source, mapping, runtime, chainMappings, java.util.Map.of(),
-                null, info);
+                List.of(), null, info);
     }
 
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
@@ -45,8 +46,18 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      List<String> chainMappings,
                      java.util.Map<String, String> jsonSources,
                      ExprType info) {
-        this(source, mapping, runtime, chainMappings, jsonSources, null,
-                info);
+        this(source, mapping, runtime, chainMappings, jsonSources, List.of(),
+                null, info);
+    }
+
+    public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
+                     Optional<TypedPackageableRef> runtime,
+                     List<String> chainMappings,
+                     java.util.Map<String, String> jsonSources,
+                     List<String> sqlSetups,
+                     ExprType info) {
+        this(source, mapping, runtime, chainMappings, jsonSources, sqlSetups,
+                null, info);
     }
 
     /** The plan-text CONNECTION SPELLING of the first connection instance
@@ -299,6 +310,132 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         }
     }
 
+    /** Every literal {@code testDataSetupSqls} blob under a runtime-valued
+     * expression ({@code ^LocalH2DatasourceSpecification(testDataSetupSqls
+     * =[...])}) — the engine executes these when it ESTABLISHES the LocalH2
+     * connection; the executor runs them at query execution on the ambient
+     * session (same semantics). Helper-built runtimes walk the callee's
+     * unchecked body with let-binding resolution ({@code let csvData =
+     * '...' + ...; ... testDataSetupSqls=[$csvData]}). */
+    public static List<String> sqlSetupsIn(TypedSpec n) {
+        List<String> out = new java.util.ArrayList<>();
+        collectSqlSetups(n, out);
+        return List.copyOf(out);
+    }
+
+    private static void collectSqlSetups(TypedSpec n, List<String> out) {
+        if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
+            java.util.Map<String, com.legend.model.spec.ValueSpecification>
+                    lets = new java.util.HashMap<>();
+            for (com.legend.model.spec.ValueSpecification b
+                    : uc.callee().body().get()) {
+                collectSqlSetupsRaw(b, lets, out);
+            }
+            return;
+        }
+        if (n instanceof TypedNewInstance ni
+                && ("meta::pure::alloy::connections::alloy::specification"
+                        + "::LocalH2DatasourceSpecification")
+                        .equals(ni.classFqn())) {
+            String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
+            if (s != null) {
+                out.add(s);
+            }
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectSqlSetups(c, out);
+        }
+    }
+
+    /** The unchecked-source mirror of {@link #collectSqlSetups}: helper
+     * bodies carry the blobs behind lets (bare + FQN class spellings, the
+     * collectJsonRaw convention). */
+    private static void collectSqlSetupsRaw(
+            com.legend.model.spec.ValueSpecification v,
+            java.util.Map<String, com.legend.model.spec.ValueSpecification> lets,
+            List<String> out) {
+        switch (v) {
+            case com.legend.model.spec.AppliedFunction af -> {
+                if ("letFunction".equals(af.function())
+                        && af.parameters().size() == 2
+                        && af.parameters().get(0)
+                                instanceof com.legend.model.spec.CString nm) {
+                    lets.put(nm.value(), af.parameters().get(1));
+                }
+                for (var p : af.parameters()) {
+                    collectSqlSetupsRaw(p, lets, out);
+                }
+            }
+            case com.legend.model.spec.NewInstance ni -> {
+                if (ni.className().endsWith("LocalH2DatasourceSpecification")) {
+                    var ke = ni.properties().get("testDataSetupSqls");
+                    String s = ke == null ? null
+                            : foldRawLiteral(ke.value(), lets);
+                    if (s != null) {
+                        out.add(s);
+                    }
+                    return;
+                }
+                for (var ke : ni.properties().values()) {
+                    collectSqlSetupsRaw(ke.value(), lets, out);
+                }
+            }
+            case com.legend.model.spec.LambdaFunction lf -> {
+                for (var b : lf.body()) {
+                    collectSqlSetupsRaw(b, lets, out);
+                }
+            }
+            case com.legend.model.spec.PureCollection pc -> {
+                for (var e : pc.values()) {
+                    collectSqlSetupsRaw(e, lets, out);
+                }
+            }
+            default -> { }
+        }
+    }
+
+    /** A raw-spec string literal folded through '+' chains, collections,
+     * and let-bound variables; null when any part is non-literal. */
+    private static @com.legend.Nullable String foldRawLiteral(
+            com.legend.model.spec.ValueSpecification v,
+            java.util.Map<String, com.legend.model.spec.ValueSpecification> lets) {
+        return switch (v) {
+            case com.legend.model.spec.CString cs -> cs.value();
+            case com.legend.model.spec.Variable vr -> {
+                var bound = lets.get(vr.name());
+                yield bound == null ? null : foldRawLiteral(bound, lets);
+            }
+            case com.legend.model.spec.AppliedFunction af
+                    when "plus".equals(af.function()) -> {
+                StringBuilder sb = new StringBuilder();
+                for (var p : af.parameters()) {
+                    String part = foldRawLiteral(p, lets);
+                    if (part == null) {
+                        yield null;
+                    }
+                    sb.append(part);
+                }
+                yield sb.toString();
+            }
+            case com.legend.model.spec.PureCollection pc -> {
+                StringBuilder sb = new StringBuilder();
+                for (var e : pc.values()) {
+                    String part = foldRawLiteral(e, lets);
+                    if (part == null) {
+                        yield null;
+                    }
+                    if (sb.length() > 0) {
+                        sb.append('\n');
+                    }
+                    sb.append(part);
+                }
+                yield sb.isEmpty() ? null : sb.toString();
+            }
+            default -> null;
+        };
+    }
+
     @Override
     public List<TypedSpec> children() {
         List<TypedSpec> out = new java.util.ArrayList<>();
@@ -320,6 +457,6 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                 ? java.util.Optional.of((TypedPackageableRef) kids.get(i))
                 : java.util.Optional.empty();
         return new TypedFrom(kids.get(0), m, r, chainMappings, jsonSources,
-                connectionName, info);
+                sqlSetups, connectionName, info);
     }
 }

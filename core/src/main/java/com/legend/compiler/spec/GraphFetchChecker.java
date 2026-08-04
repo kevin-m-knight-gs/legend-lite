@@ -188,7 +188,16 @@ final class GraphFetchChecker {
                 // flows through the temporal frame, not these args
                 List<TypedSpec> ta = new ArrayList<>(cs.args().size());
                 for (var a : cs.args()) {
-                    ta.add(t.synth(a, env));
+                    TypedSpec syn = t.synth(a, env);
+                    // a VARIABLE arg keeps its SOURCE spelling even when
+                    // let-inlining resolved its value — the engine key is
+                    // "customer($processingDate, $businessDate)" verbatim
+                    ta.add(a instanceof com.legend.model.spec.Variable v
+                            && !(syn instanceof com.legend.compiler.spec
+                                    .typed.TypedVariable)
+                            ? new com.legend.compiler.spec.typed
+                                    .TypedVariable(v.name(), syn.info())
+                            : syn);
                 }
                 targs = ta;
             }

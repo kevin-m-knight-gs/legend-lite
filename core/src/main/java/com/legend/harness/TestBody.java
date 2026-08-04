@@ -3443,7 +3443,7 @@ public final class TestBody {
                                                     cs2.function1(), lets),
                                             (LambdaFunction) substitute(
                                                     cs2.function2(), lets),
-                                            cs2.alias(),
+                                            ElqSplice.keyAlias(cs2, lets),
                                             substituteAll(cs2.args(), lets),
                                             cs2.qualified()))
                                     .toList());

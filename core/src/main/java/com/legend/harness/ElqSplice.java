@@ -97,6 +97,42 @@ final class ElqSplice {
         return out;
     }
 
+    /** Synthetic serialize-key alias for a qualifier tree node: an arg
+     * spelled as a let-bound VARIABLE keeps its source form in the engine
+     * key ({@code customer($processingDate, $businessDate)}) even though
+     * the value inlines for execution — precomputed HERE, the last point
+     * that still sees the variable spelling (TestBody.substitute's
+     * ColSpecArray arm). Null-alias pass-through otherwise. */
+    static @com.legend.Nullable String keyAlias(
+            com.legend.model.spec.ColSpec cs,
+            Map<String, ValueSpecification> lets) {
+        if (cs.alias() != null || cs.args().isEmpty()
+                || cs.args().stream().noneMatch(a -> a instanceof Variable v
+                        && lets.containsKey(v.name()))) {
+            return cs.alias();
+        }
+        StringBuilder k = new StringBuilder(cs.name()).append('(');
+        for (int i = 0; i < cs.args().size(); i++) {
+            if (i > 0) {
+                k.append(", ");
+            }
+            switch (cs.args().get(i)) {
+                case Variable v -> k.append('$').append(v.name());
+                case CString s -> k.append('\'').append(s.value()).append('\'');
+                case com.legend.model.spec.CInteger ci -> k.append(ci.value());
+                case com.legend.model.spec.CBoolean cb -> k.append(cb.value());
+                case CDate cd -> {
+                    String d = cd.value().toEngineString();
+                    k.append(d).append(d.indexOf('T') >= 0 ? "+0000" : "");
+                }
+                default -> {
+                    return cs.alias();
+                }
+            }
+        }
+        return k.append(')').toString();
+    }
+
     /** Whether the arrow-chain HEAD path of {@code vs} contains a call
      * named {@code fn} ({@code x->serialize(...)->from(...)} does). */
     private static boolean headChainContains(ValueSpecification vs,

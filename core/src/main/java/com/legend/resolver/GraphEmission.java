@@ -935,7 +935,9 @@ final class GraphEmission {
         var assoc = ctx.findAssociationOf(cs.classFqn(), node.property()).orElseThrow();
         var end = assoc.property1().propertyName().equals(node.property())
                 ? assoc.property1() : assoc.property2();
-        boolean toMany = !end.isToOne();
+        // a version SWEEP (<base>AllVersions) is MANY regardless of the
+        // base end's cardinality — every version row serializes
+        boolean toMany = !end.isToOne() || node.sweep();
         return correlatedGraphChild(aj.target(), aj.targetPipeline(), aj.targetRow(),
                 java.util.Objects.requireNonNull(aj.condition()), toMany, node, parentRowVar, parentRowType,
                 context, aj.targetSlotPrefixes());
@@ -977,7 +979,7 @@ final class GraphEmission {
             throw new IllegalStateException("resolver bug: navigate-slot graph child '"
                     + node.property() + "' is not class-typed");
         }
-        boolean toMany = !(prop.multiplicity()
+        boolean toMany = node.sweep() || !(prop.multiplicity()
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
         String setHint = ctx.routedTargetSetOf(cs.mappingFqn(),
@@ -1078,7 +1080,7 @@ final class GraphEmission {
         // Cardinality from the DECLARED property — the spec the consumer
         // typed against — not the source association's end (consistent with
         // navSlotChild; audit).
-        boolean toMany = !(prop.multiplicity()
+        boolean toMany = node.sweep() || !(prop.multiplicity()
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
         if (!(prop.type() instanceof Type.ClassType childCls)) {

@@ -46,7 +46,9 @@ public final class DriverPkAppend {
         if (n instanceof com.legend.compiler.spec.typed.TypedFrom f) {
             TypedSpec src = appendTo(f.source(), ctx);
             return new com.legend.compiler.spec.typed.TypedFrom(src,
-                    f.mapping(), f.runtime(), src.info());
+                    f.mapping(), f.runtime(), f.chainMappings(),
+                    f.jsonSources(), f.sqlSetups(), f.connectionName(),
+                    src.info());
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedLet l) {
             TypedSpec v = appendTo(l.value(), ctx);

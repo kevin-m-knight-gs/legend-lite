@@ -30,6 +30,7 @@ final class FromChecker {
         String connectionName = null;
         java.util.Map<String, String> jsonSources =
                 new java.util.LinkedHashMap<>();
+        List<String> sqlSetups = new java.util.ArrayList<>();
         for (int i = 1; i < a.args().size(); i++) {
             if (a.args().get(i) instanceof TypedPackageableRef ref) {
                 refs.add(ref);
@@ -57,6 +58,7 @@ final class FromChecker {
                         a.args().get(i)));
                 jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i),
                         t::classFqnOf));
+                sqlSetups.addAll(TypedFrom.sqlSetupsIn(a.args().get(i)));
                 if (connectionName == null) {
                     connectionName = TypedFrom.connectionNameIn(
                             a.args().get(i));
@@ -95,7 +97,8 @@ final class FromChecker {
         }
         return new TypedFrom(src, mapping, runtime,
                 List.copyOf(chainMappings),
-                java.util.Map.copyOf(jsonSources), connectionName, a.out());
+                java.util.Map.copyOf(jsonSources), List.copyOf(sqlSetups),
+                connectionName, a.out());
     }
 
     private static void collectMappingRefs(TypedSpec n,

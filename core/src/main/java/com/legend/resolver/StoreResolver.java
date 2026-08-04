@@ -305,7 +305,8 @@ public final class StoreResolver {
                     inner, ctx, specs, letBindings);
             return new TypedFrom(resolveNode(liftedSrc, inner),
                     from.mapping(), from.runtime(),
-                    from.chainMappings(), from.jsonSources(), from.info());
+                    from.chainMappings(), from.jsonSources(),
+                    from.sqlSetups(), from.connectionName(), from.info());
         }
         // zip over two projections of ONE source -> two-column project
         if (n instanceof TypedMap zm

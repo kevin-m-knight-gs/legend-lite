@@ -2637,6 +2637,43 @@ final class StatementExecutor {
      * The I&rarr;J&rarr;K tail over a resolved TYPED body — shared by
      * {@link #executeResolved} and the K-native argument evaluation below.
      */
+    /** The runtime's LocalH2 {@code testDataSetupSqls}: the engine
+     * executes them when it ESTABLISHES the connection — here, on the
+     * ambient session before the query (per-statement tolerance, engine
+     * harness semantics). {@code fromChain} carries the unwrapped
+     * top-level from() setups; nested from() (a graph query whose
+     * serialize wraps the from) contribute via the walk. */
+    private static void runRuntimeSetups(java.util.List<String> fromChain,
+            TypedSpec root, ExecEnv env) throws java.sql.SQLException {
+        java.util.List<String> setups = new java.util.ArrayList<>(fromChain);
+        java.util.ArrayDeque<TypedSpec> walk = new java.util.ArrayDeque<>();
+        walk.add(root);
+        while (!walk.isEmpty()) {
+            TypedSpec t = walk.poll();
+            if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+                setups.addAll(fr.sqlSetups());
+            }
+            walk.addAll(t.children());
+        }
+        for (String blob : setups) {
+            for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
+                try {
+                    Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                } catch (java.sql.SQLException e) {
+                    if (!env.dialect().rawH2IsNative()) {
+                        com.legend.exec.RawSqlBoundary.unrecordLast();
+                    }
+                    if (env.rawSqlFailureSink() == null) {
+                        throw e;
+                    }
+                    env.rawSqlFailureSink().accept(
+                            stmt.strip().split("\\n")[0] + " => "
+                            + String.valueOf(e.getMessage()).split("\\n")[0]);
+                }
+            }
+        }
+    }
+
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env)
             throws java.sql.SQLException {
@@ -2651,12 +2688,15 @@ final class StatementExecutor {
         // the Executor's null-drop applies (pure collections hold no
         // empties — the no-match parent contributes nothing, task #78).
         com.legend.compiler.element.type.ExprType declaredInfo = null;
+        java.util.List<String> runtimeSetups = new java.util.ArrayList<>();
         while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
             if (declaredInfo == null) {
                 declaredInfo = fr.info();
             }
+            runtimeSetups.addAll(fr.sqlSetups());
             root = fr.source();
         }
+        runRuntimeSetups(runtimeSetups, root, env);
         // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
         // boundary (raw SQL over the ambient JDBC connection).
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
