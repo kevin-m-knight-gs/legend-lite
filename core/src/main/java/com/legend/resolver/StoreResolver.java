@@ -1323,7 +1323,15 @@ public final class StoreResolver {
         Map<String, List<List<String>>> extraNavTails =
                 new LinkedHashMap<>();
         Map<String, String> corrNavHeads = new LinkedHashMap<>();
-        for (List<String> path : paths) {
+        // slot claims resolve PLAIN-first (stable): the un-fingerprinted
+        // identity keeps the physical slot (its copy columns spell
+        // alias_leaf); fingerprinted identities take the extra prefixed
+        // route — a renamed head claiming the slot would force the plain
+        // identity into a prefix colliding with the slot's own columns
+        List<List<String>> orderedPaths = new ArrayList<>(paths);
+        orderedPaths.sort(java.util.Comparator.comparingInt(
+                pp -> pp.get(0).contains("#d") ? 1 : 0));
+        for (List<String> path : orderedPaths) {
             if (path.size() < 2) {
                 continue;
             }
@@ -2388,7 +2396,14 @@ public final class StoreResolver {
             tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
                     CorrelatedSubselects.predFilteredPipe(p, target, mat.slotPrefixes(),
                             mat.subNavs(), pred, cs.mappingFqn()));
-            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(AssociationJoins.prefixFor(headKey, cs), target, tPipe,
+            // a FINGERPRINTED identity prefixes alias_dN_ (NavMaterializer
+            // xPrefix rule at root depth) — prefixFor's collision set sees
+            // only the base row, never the slot's alias_-prefixed columns
+            String exFp = headKey.lastIndexOf('#') >= 0
+                    ? headKey.substring(headKey.lastIndexOf('#') + 1) : null;
+            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(exFp != null
+                    ? alias + "_" + exFp + "_"
+                    : AssociationJoins.prefixFor(headKey, cs), target, tPipe,
                     (Type.RelationType)
                             tPipe.info().type(),
                     AssociationJoins.withOuterDatedWindow(temporal, cs, target,
@@ -2635,67 +2650,6 @@ public final class StoreResolver {
                 flattenAssocs);
     }
 
-    /** PHASE 1b — TWO-DATES-PER-HEAD (engine keys separate joins by
-     * date): when ONE chain is navigated with DIFFERENT temporal
-     * arguments, each distinct date-set beyond the first renames to a
-     * date-fingerprinted synthetic head ('product#d1') — a separate join
-     * identity carrying its own spec; SyntheticHeads.realHead() keeps every model lookup
-     * transparent. Same-date accesses keep sharing one join
-     * (merge-by-identity). Runs BEFORE spec collection so the conflict
-     * throw never fires for split chains. Mutates {@code ops} in place;
-     * returns the (possibly rewritten) terminal. */
-    private TypedSpec splitDatedHeads(List<TypedSpec> ops, TypedSpec top) {
-        Map<String, List<com.legend.compiler.spec.typed
-                .TypedMilestonedAccess>> datedByChain =
-                new LinkedHashMap<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                for (TypedSpec b : f.predicate().body()) {
-                    collectDatedNodes(b, f.predicate().parameters().get(0),
-                            datedByChain);
-                }
-            }
-            if (op instanceof TypedSortBy sb) {
-                for (TypedSpec b : sb.key().body()) {
-                    collectDatedNodes(b, sb.key().parameters().get(0),
-                            datedByChain);
-                }
-            }
-        }
-        if (top instanceof TypedProject || top instanceof TypedGroupBy) {
-            for (TypedLambda fn : terminalLambdas(top)) {
-                for (TypedSpec b : fn.body()) {
-                    collectDatedNodes(b, fn.parameters().get(0), datedByChain);
-                }
-            }
-        }
-        IdentityHashMap<TypedSpec, String> dateRenames =
-                new IdentityHashMap<>();
-        for (var chainDates : datedByChain.entrySet()) {
-            Map<TemporalFrame.TemporalSpec, String> byArgs =
-                    new LinkedHashMap<>();
-            for (var ma : chainDates.getValue()) {
-                TemporalFrame.TemporalSpec spec = new TemporalFrame.TemporalSpec(
-                        temporal.normalizeContextDates(ma.dates()), ma.sweep());
-                String name = byArgs.get(spec);
-                if (name == null) {
-                    name = byArgs.isEmpty() ? ma.property()
-                            : synthetics.mintDateName(ma.property());
-                    byArgs.put(spec, name);
-                }
-                if (!name.equals(ma.property())) {
-                    dateRenames.put(ma, name);
-                }
-            }
-        }
-        if (!dateRenames.isEmpty()) {
-            for (int i = 0; i < ops.size(); i++) {
-                ops.set(i, synthetics.replaceDatedNodes(ops.get(i), dateRenames));
-            }
-            top = synthetics.replaceDatedNodes(top, dateRenames);
-        }
-        return top;
-    }
 
     /** Milestoned property functions: each head's temporal arguments,
      * chain-keyed (conflicting dates for one chain are loud — the date
@@ -2726,7 +2680,7 @@ public final class StoreResolver {
     private TypedSpec resolveObject(TypedSpec top, Context context) {
         OpChain phase1 = collectOpChain(top, context);
         List<TypedSpec> ops = phase1.ops();
-        top = splitDatedHeads(ops, phase1.top());
+        top = DateSplit.splitDatedHeads(ops, phase1.top(), temporal, synthetics);
         List<TypedGraphTree> tree = phase1.tree();
         boolean implicitSerialize = phase1.implicitSerialize();
         TypedGetAll g = phase1.getAll();
@@ -2975,7 +2929,7 @@ public final class StoreResolver {
     }
 
     /** The object-space lambdas a relation-shaping terminal carries. */
-    private static List<TypedLambda> terminalLambdas(TypedSpec top) {
+    static List<TypedLambda> terminalLambdas(TypedSpec top) {
         List<TypedLambda> out = new ArrayList<>();
         switch (top) {
             case TypedProject p -> p.columns().forEach(c -> out.add(c.fn()));
@@ -3006,26 +2960,6 @@ public final class StoreResolver {
     }
 
     /** The navigate-slot alias a class-typed head binding reads, or null. */
-    /** Milestoned accesses grouped by their dotted chain (mirrors
-     * {@link #collectTemporalNodes}'s walk — anything the conflict
-     * detector would see, the date splitter sees first). */
-    private static void collectDatedNodes(TypedSpec n, String userVar,
-            Map<String, List<com.legend.compiler.spec.typed
-                    .TypedMilestonedAccess>> out) {
-        if (n instanceof TypedMilestonedAccess ma) {
-            List<String> p = Substitution.pathOf(ma, userVar);
-            if (p != null) {
-                out.computeIfAbsent(String.join(".", p),
-                        k -> new ArrayList<>()).add(ma);
-            }
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
-            return;
-        }
-        for (TypedSpec c : n.children()) {
-            collectDatedNodes(c, userVar, out);
-        }
-    }
 
     /**
      * A lifted head's user predicate, substituted over the TARGET's

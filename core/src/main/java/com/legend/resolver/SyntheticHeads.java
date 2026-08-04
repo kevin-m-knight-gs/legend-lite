@@ -936,18 +936,31 @@ final class SyntheticHeads {
         return JoinIdentity.of(head).prop();
     }
 
-    /** Apply {@code renames} (identity-keyed milestoned-access nodes →
-     * date-fingerprinted synthetic names) throughout the tree. */
+    /** Apply the date splitter's verdicts in ONE identity-keyed pass
+     * (rebuildChildren makes fresh nodes, so two sequential walks would
+     * orphan the second map's identities): {@code strips} = CONTEXT-equal
+     * dated accesses replaced by their PLAIN property equivalent (an
+     * explicit date equal to the propagated context IS the propagation —
+     * engine merge-by-identity — and must ride the ordinary propagation
+     * channel, not the dated-fetch one); {@code renames} = foreign-dated
+     * accesses renamed to date-fingerprinted synthetic heads. */
     TypedSpec replaceDatedNodes(TypedSpec n,
-            IdentityHashMap<TypedSpec, String> renames) {
+            IdentityHashMap<TypedSpec, String> renames,
+            IdentityHashMap<TypedSpec, Boolean> strips) {
+        if (strips.containsKey(n)) {
+            var ma = (TypedMilestonedAccess) n;
+            return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    replaceDatedNodes(ma.source(), renames, strips),
+                    ma.property(), ma.info());
+        }
         String newName = renames.get(n);
         if (newName != null) {
             var ma = (TypedMilestonedAccess) n;
             return new TypedMilestonedAccess(
-                    replaceDatedNodes(ma.source(), renames), newName,
+                    replaceDatedNodes(ma.source(), renames, strips), newName,
                     ma.dates(), ma.sweep(), ma.info());
         }
-        return rebuildChildren(n, c -> replaceDatedNodes(c, renames));
+        return rebuildChildren(n, c -> replaceDatedNodes(c, renames, strips));
     }
 
     /**

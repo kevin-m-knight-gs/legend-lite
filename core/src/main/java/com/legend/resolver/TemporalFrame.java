@@ -72,6 +72,26 @@ final class TemporalFrame {
             boolean business) {
         return business ? root.business() : root.processing();
     }
+
+    /** The spec a PLAIN (context-propagated) access to a milestoned
+     * target would carry — the date splitter reserves the BASE join
+     * identity for it, so an EXPLICIT date equal to the context shares
+     * the propagated join and every other date mints its own head
+     * (engine merge-by-identity;
+     * testMilestoneDatePropogationThru*IsIndenpendent...). Null for
+     * bitemporal targets (the pair's ordering rides other machinery)
+     * and when the root context lacks the strategy's date. */
+    @com.legend.Nullable TemporalSpec contextSpec(
+            @com.legend.Nullable String targetClassFqn) {
+        MilestoningStrategy strat = targetClassFqn == null ? null
+                : temporalStrategy(targetClassFqn);
+        if (strat != MilestoningStrategy.BUSINESS
+                && strat != MilestoningStrategy.PROCESSING) {
+            return null;
+        }
+        com.legend.compiler.spec.typed.TypedSpec d = root.dateFor(strat);
+        return d == null ? null : new TemporalSpec(List.of(d), false);
+    }
     private final Map<String, TemporalSpec> specs;
     /** Query-body {@code let} bindings (name &rarr; bound value), shared
      * BY REFERENCE with the resolver — a variable-spelled milestoning date
