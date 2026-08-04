@@ -644,9 +644,20 @@ public final class ElementParser implements TokenStreamCursor {
             expect(TokenType.TILDE);
             String kw = parseIdentifier();
             // real clause order: ~owner? ~externalId? ~function
-            // ~enforcementLevel? ~message? — leading clauses skip to the next ~
+            // ~enforcementLevel? ~message? — externalId is RECORDED (the wire carries it;
+            // dropping it was DIFF #1 the harness ever caught on constraints); owner is
+            // recorded as present-only until its wire spelling is probed.
+            String externalId = null;
+            boolean hasOwner = false;
             while (kw.equals("owner") || kw.equals("externalId")) {
                 expect(TokenType.COLON);
+                if (kw.equals("externalId") && peek() == TokenType.STRING) {
+                    String raw = text();
+                    externalId = raw.length() >= 2 && raw.startsWith("'") && raw.endsWith("'")
+                            ? raw.substring(1, raw.length() - 1) : raw;
+                } else if (kw.equals("owner")) {
+                    hasOwner = true;
+                }
                 while (!atEnd() && peek() != TokenType.TILDE) {
                     advance();
                 }
@@ -717,7 +728,7 @@ public final class ElementParser implements TokenStreamCursor {
             expect(TokenType.PAREN_CLOSE);
             // Engine convention: the span covers the whole `name ( ... )` block.
             return new ConstraintDefinition(name, realizationOf(List.of(fn)),
-                    message, level, span(constraintStart, pos - 1));
+                    message, level, externalId, hasOwner, span(constraintStart, pos - 1));
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
@@ -748,7 +759,7 @@ public final class ElementParser implements TokenStreamCursor {
         // function; any other expression is the sugar (inline) predicate.
         // Engine convention: the span covers `name: expr`, name inclusive.
         return new ConstraintDefinition(name, realizationOf(List.of(expression)),
-                null, null, span(constraintStart, pos - 1));
+                null, null, null, false, span(constraintStart, pos - 1));
     }
 
     /** The bare level name of a parsed ~enforcementLevel value —

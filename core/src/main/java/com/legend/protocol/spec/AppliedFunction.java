@@ -66,7 +66,8 @@ public record AppliedFunction(
         String function,
         List<ValueSpecification> parameters,
         List<String> candidateFqns,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+        boolean propertyCall) implements ValueSpecification {
 
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
@@ -83,10 +84,20 @@ public record AppliedFunction(
      *  {@code not}-from-{@code !} spans {@code !}..operand-end. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
             List<String> candidateFqns) {
-        this(function, parameters, candidateFqns, null);
+        this(function, parameters, candidateFqns, null, false);
     }
 
-    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    /** Span-carrying form for ordinary (non-dot) applications. */
+    public AppliedFunction(String function, List<ValueSpecification> parameters,
+            List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+        this(function, parameters, candidateFqns, pos, false);
+    }
+
+    /** Position and the dot-call spelling marker are excluded from equality — see
+     *  {@code ValueSpecEqualityTest}. {@code propertyCall} records that the source spelled
+     *  this application as {@code receiver.name(args)}: the WIRE emits that form as a
+     *  property node, not a func (harness DIFF on AccountWithConstraints), while the
+     *  compiler treats both spellings identically. */
     @Override
     public boolean equals(Object o) {
         return o instanceof AppliedFunction other

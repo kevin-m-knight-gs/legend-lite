@@ -490,12 +490,18 @@ public final class SpecParser implements TokenStreamCursor {
                         spanOf(notTok, pos - 1));
             }
             if (t == TokenType.MINUS) {
+                int opTok = pos;
                 pos++;
-                return new AppliedFunction("minus", List.of(parseExpression()));
+                // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
+                // func (no collection) spanning just the operator token.
+                return new AppliedFunction("minus", List.of(parseExpression()),
+                        List.of(), spanOf(opTok, opTok));
             }
             if (t == TokenType.PLUS) {
+                int opTok = pos;
                 pos++;
-                return new AppliedFunction("plus", List.of(parseExpression()));
+                return new AppliedFunction("plus", List.of(parseExpression()),
+                        List.of(), spanOf(opTok, opTok));
             }
         }
         return parsePrimary();
@@ -732,6 +738,7 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseFloat() {
         String text = text();
+        int litTok = pos;
         pos++;
         // Strip optional 'f'/'F' suffix; Pure permits it on float literals
         // but Java's Double.parseDouble does not.
@@ -744,7 +751,7 @@ public final class SpecParser implements TokenStreamCursor {
         if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
             return new CDecimal(exact);
         }
-        return new CFloat(d);
+        return new CFloat(d, spanOf(litTok, litTok));
     }
 
     /**
@@ -1018,6 +1025,7 @@ public final class SpecParser implements TokenStreamCursor {
      * </ul>
      */
     private ValueSpecification parseQualifiedNameStart() {
+        int fqnStart = pos;
         String fqn = parseQualifiedName();
 
         // Unit name: 'Mass~kilogram'. The TILDE here cannot be a
@@ -1034,6 +1042,7 @@ public final class SpecParser implements TokenStreamCursor {
             fqn = fqn + "~" + unitPart;
         }
 
+        int fqnEnd = pos - 1;
         // Class.all()/.allVersions()/.allVersionsInRange(...) path.
         // Engine-lite emits 'getAll' / 'getAllVersions' /
         // 'getAllVersionsInRange' (note the 'get' prefix), matching
@@ -1047,15 +1056,15 @@ public final class SpecParser implements TokenStreamCursor {
                 TokenType t = peek();
                 if (t == TokenType.ALL) {
                     pos++;
-                    return parseAllCall(fqn);
+                    return parseAllCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
                 }
                 if (t == TokenType.ALL_VERSIONS) {
                     pos++;
-                    return parseAllVersionsCall(fqn);
+                    return parseAllVersionsCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
                 }
                 if (t == TokenType.ALL_VERSIONS_IN_RANGE) {
                     pos++;
-                    return parseAllVersionsInRangeCall(fqn);
+                    return parseAllVersionsInRangeCall(fqn, savedPos, spanOf(fqnStart, fqnEnd));
                 }
             }
             // Not an all-like method -- backtrack; the outer postfix
@@ -1067,9 +1076,11 @@ public final class SpecParser implements TokenStreamCursor {
 
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
-            return new AppliedFunction(fqn, args);
+            // Top-level call: span = the function-name tokens (engine call convention).
+            return new AppliedFunction(fqn, args, java.util.List.of(), spanOf(fqnStart, fqnEnd));
         }
-        return new PackageableElementPtr(fqn);
+        // Engine convention: a packageableElementPtr spans its FQN tokens.
+        return new PackageableElementPtr(fqn, spanOf(fqnStart, fqnEnd));
     }
 
     /**
@@ -1080,10 +1091,11 @@ public final class SpecParser implements TokenStreamCursor {
      * early via {@link #parseMilestoningExpression}. Up to two milestoning
      * args are legal (business-from, business-thru).
      */
-    private AppliedFunction parseAllCall(String fqn) {
+    private AppliedFunction parseAllCall(String fqn, int dotTok,
+            com.legend.protocol.SourceInfo fqnSpan) {
         expect(TokenType.PAREN_OPEN, "expected '(' after '.all'");
         List<ValueSpecification> args = new ArrayList<>();
-        args.add(new PackageableElementPtr(fqn));
+        args.add(new PackageableElementPtr(fqn, fqnSpan));
         if (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             args.add(parseMilestoningExpression());
             if (!atEnd() && peek() == TokenType.COMMA) {
@@ -1092,24 +1104,30 @@ public final class SpecParser implements TokenStreamCursor {
             }
         }
         expect(TokenType.PAREN_CLOSE, "expected ')' to close '.all(...)'");
-        return new AppliedFunction("getAll", args);
+        // Engine convention (ProbeWireShapes cPtr): getAll spans `.all()` — DOT to close-paren.
+        return new AppliedFunction("getAll", args, java.util.List.of(),
+                spanOf(dotTok, pos - 1));
     }
 
-    private AppliedFunction parseAllVersionsCall(String fqn) {
+    private AppliedFunction parseAllVersionsCall(String fqn, int dotTok,
+            com.legend.protocol.SourceInfo fqnSpan) {
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersions'");
         expect(TokenType.PAREN_CLOSE, "'.allVersions()' takes no arguments");
         return new AppliedFunction("getAllVersions",
-                List.of(new PackageableElementPtr(fqn)));
+                List.of(new PackageableElementPtr(fqn, fqnSpan)),
+                java.util.List.of(), spanOf(dotTok, pos - 1));
     }
 
-    private AppliedFunction parseAllVersionsInRangeCall(String fqn) {
+    private AppliedFunction parseAllVersionsInRangeCall(String fqn, int dotTok,
+            com.legend.protocol.SourceInfo fqnSpan) {
         expect(TokenType.PAREN_OPEN, "expected '(' after '.allVersionsInRange'");
         ValueSpecification start = parseMilestoningExpression();
         expect(TokenType.COMMA, "expected ',' between range endpoints in '.allVersionsInRange'");
         ValueSpecification end = parseMilestoningExpression();
         expect(TokenType.PAREN_CLOSE, "expected ')' to close '.allVersionsInRange(...)'");
         return new AppliedFunction("getAllVersionsInRange",
-                List.of(new PackageableElementPtr(fqn), start, end));
+                List.of(new PackageableElementPtr(fqn, fqnSpan), start, end),
+                java.util.List.of(), spanOf(dotTok, pos - 1));
     }
 
     /**
@@ -1157,6 +1175,7 @@ public final class SpecParser implements TokenStreamCursor {
      * {@link #unescapeString(String) string-unescape} helper.
      */
     private ValueSpecification parseDotPostfix(ValueSpecification receiver) {
+        int dotTok = pos;
         pos++; // consume '.'
         if (atEnd()) {
             throw error("expected property name after '.'");
@@ -1169,7 +1188,11 @@ public final class SpecParser implements TokenStreamCursor {
             List<ValueSpecification> params = new ArrayList<>(1 + args.size());
             params.add(receiver);
             params.addAll(args);
-            return new AppliedFunction(name, params, List.of(), spanOf(nameStart, nameEnd));
+            // Engine convention: a DOT-call spans dot..close-paren — unlike an arrow
+            // call, which spans only the name token (ProbeWireShapes cPtr getAll).
+            // The propertyCall marker records the dot spelling: the WIRE emits it as a
+            // property node, not a func (harness DIFF on AccountWithConstraints).
+            return new AppliedFunction(name, params, List.of(), spanOf(dotTok, pos - 1), true);
         }
         // Enum-value form: 'MyEnum.VALUE' on a PackageableElementPtr
         // receiver. Engine-lite emits EnumValue rather than
@@ -1179,7 +1202,8 @@ public final class SpecParser implements TokenStreamCursor {
         // time avoids a downstream re-walk to re-classify every
         // property access against the model.
         if (receiver instanceof PackageableElementPtr ptr) {
-            return new EnumValue(ptr.fullPath(), name);
+            // On the wire this is a property access on the ptr: keep both spans.
+            return new EnumValue(ptr.fullPath(), name, ptr.pos(), spanOf(nameStart, nameEnd));
         }
         // Engine convention: a property access's span covers the property-NAME token only,
         // not the receiver or the dot (verified via ProbeWireShapes).
@@ -1578,13 +1602,16 @@ public final class SpecParser implements TokenStreamCursor {
         if (!isFqnSegmentToken(peek())) {
             throw error("expected lambda parameter name");
         }
+        int nameTok = pos;
         String name = text();
         pos++;
         if (peek() != TokenType.COLON) return new Variable(name);
         advance();
         TypeExpression type = parseType();
         Multiplicity multiplicity = parseMultiplicity();
-        return new Variable(name, type, multiplicity);
+        // Engine convention (ProbeWireShapes cLambda2): a TYPED lambda parameter spans the
+        // whole `name: Type[mult]` declaration; an untyped one carries no span at all.
+        return new Variable(name, type, multiplicity, spanOf(nameTok, pos - 1));
     }
 
     /**
@@ -1606,6 +1633,7 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private LambdaFunction parseSingleParamLambda() {
         Variable param = parseLambdaParam();
+        int pipeTok = pos;
         expect(TokenType.PIPE, "expected '|' after shorthand lambda parameter");
         // The body is a CODE BLOCK per real Pure (lambdaPipe: PIPE
         // codeBlock), parsed as a DETERMINISTIC subset of ANTLR's
@@ -1644,7 +1672,9 @@ public final class SpecParser implements TokenStreamCursor {
                 pos++; // the codeBlock's own trailing END_LINE
             }
         }
-        return new LambdaFunction(List.of(param), body);
+        // Engine convention (ProbeWireShapes cLambda/cLambda2, verified against token
+        // columns): an inline lambda spans from the PIPE to the body's end.
+        return new LambdaFunction(List.of(param), body, spanOf(pipeTok, pos - 1));
     }
 
     // -------------------------------------------------------------------

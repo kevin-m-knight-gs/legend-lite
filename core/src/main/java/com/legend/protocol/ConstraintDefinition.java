@@ -19,6 +19,8 @@ import java.util.Objects;
 public record ConstraintDefinition(String name, Realization realization,
         @com.legend.Nullable ValueSpecification message,
         @com.legend.Nullable String enforcementLevel,
+        @com.legend.Nullable String externalId,
+        boolean hasOwner,
         @com.legend.Nullable SourceInfo pos) {
     public ConstraintDefinition {
         Objects.requireNonNull(name, "Constraint name cannot be null");
@@ -31,12 +33,12 @@ public record ConstraintDefinition(String name, Realization realization,
     public ConstraintDefinition(String name, Realization realization,
             @com.legend.Nullable ValueSpecification message,
             @com.legend.Nullable String enforcementLevel) {
-        this(name, realization, message, enforcementLevel, null);
+        this(name, realization, message, enforcementLevel, null, false, null);
     }
 
     /** The common form: no ~message / ~enforcementLevel clauses. */
     public ConstraintDefinition(String name, Realization realization) {
-        this(name, realization, null, null, null);
+        this(name, realization, null, null, null, false, null);
     }
 
     /** Position is excluded from equality — same contract as the value-spec records. */
@@ -46,12 +48,14 @@ public record ConstraintDefinition(String name, Realization realization,
                 && name.equals(other.name())
                 && realization.equals(other.realization())
                 && Objects.equals(message, other.message())
-                && Objects.equals(enforcementLevel, other.enforcementLevel());
+                && Objects.equals(enforcementLevel, other.enforcementLevel())
+                && Objects.equals(externalId, other.externalId())
+                && hasOwner == other.hasOwner();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, realization, message, enforcementLevel);
+        return Objects.hash(name, realization, message, enforcementLevel, externalId, hasOwner);
     }
 
     /** Convenience: the sugar (inline-predicate) form. */

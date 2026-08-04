@@ -26,8 +26,25 @@ import java.util.Objects;
  *
  * @param fullPath  source-level name (simple or {@code ::}-qualified)
  */
-public record PackageableElementPtr(String fullPath) implements ValueSpecification {
+public record PackageableElementPtr(String fullPath,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
     public PackageableElementPtr {
         Objects.requireNonNull(fullPath, "fullPath");
+    }
+
+    /** Position-free form for synthesis and tests. The parser sets the FQN token span. */
+    public PackageableElementPtr(String fullPath) {
+        this(fullPath, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof PackageableElementPtr other && fullPath.equals(other.fullPath());
+    }
+
+    @Override
+    public int hashCode() {
+        return fullPath.hashCode();
     }
 }

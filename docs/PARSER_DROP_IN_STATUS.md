@@ -121,24 +121,37 @@ where `values`/`error` are themselves JDK-only leaves (6g).
 ### 3.1 Current numbers
 
 ```
-core suite            : 1631 tests, 0 failures
+core suite            : 1632 tests, 0 failures
 
 parser-equivalence:
   corpus sources      : 2289 files
   verdicts            : 6053
-    MATCH (byte-equal): 5864
+    MATCH (byte-equal): 5948
     DIFF  (BUG)       :    0
-    WALL  (no rule)   :  134
+    WALL  (no rule)   :   50
     PARSE_FAIL        :   55
-  coverage            : 5864 of 5864 comparable (100.0%)
+  coverage            : 5948 of 5948 comparable (100.0%)
 ```
 
 Progression: 1,750 → (superTypes) → 5,152 → (annotations) → 5,638 → (generics) → 5,725 →
-(defaults) → 5,733 → (constraints) → **5,864**, DIFF 0 throughout. Remaining walls:
-PackageableElementPtr 66, qualifiedProperties 40, EnumValue 17, LambdaFunction 4,
-constraint enforcementLevel 3, generic multiplicity args 2, CFloat 1, unary-minus span 1.
-(Walls report the FIRST failure per element — clearing one wall grows the next's count as
-elements progress deeper.)
+(defaults) → 5,733 → (constraints) → 5,864 → (ptr/enum/lambda/float/unary/level/externalId)
+→ **5,948**, DIFF 0 throughout. Remaining walls: qualifiedProperties 40, constraint ~owner 3,
+braced-lambda span 3, generic multiplicity args 2, dot-spelled property call 1,
+ptr span (one synthesis path) 1, CDate 1.
+
+**The harness caught its first real fidelity bugs and they are FIXED**: `~externalId` was
+parsed-and-dropped (audit-21a's exact failure mode) — 2 DIFFs, now emitted; a third DIFF
+exposed that the wire emits a DOT-spelled call (`$t.getInteger('count')`) as a PROPERTY
+node, not a func — recorded via `AppliedFunction.propertyCall` (equality-excluded spelling
+marker) and walled until the property-node shape is probed.
+
+**More wire facts pinned** (ConstraintEmissionTest, all engine-verified): `.all()` →
+`getAll` spanning DOT..close-paren (dot-calls and arrow-calls span differently); an enum
+value is a property on a `packageableElementPtr` (no enumValue node); an INLINE lambda
+spans pipe..body-end and its untyped params are bare `{"_type":"var","name":…}` while typed
+ones carry genericType+multiplicity+declaration span; unary minus is a one-parameter func
+(no collection) spanning the operator token; `~enforcementLevel` sorts first,
+`~externalId` second, among constraint fields.
 
 **The value-spec emitter now covers the constraint surface**: literals (boolean/integer/
 string — a string's span INCLUDES its quotes), `var`, property access, calls, collections,

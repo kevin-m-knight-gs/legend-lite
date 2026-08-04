@@ -108,6 +108,32 @@ class ProbeWireShapes {
                   s: String[1];
                 }
                 """);
+        dump("ptr enum lambda float minus level", """
+                Class j::C
+                [
+                  cPtr: j::C.all()->size() > 0,
+                  cEnum: $this.st == j::St.UP,
+                  cLambda: $this.xs->exists(x|$x > 1),
+                  cLambda2: $this.xs->forAll(x: Integer[1]|$x > 1),
+                  cFloat: $this.f > 1.5,
+                  cNeg: $this.n > -2,
+                  cLevel
+                  (
+                    ~function: $this.n > 3
+                    ~enforcementLevel: Warn
+                  )
+                ]
+                {
+                  n: Integer[1];
+                  f: Float[1];
+                  st: j::St[1];
+                  xs: Integer[*];
+                }
+                Enum j::St
+                {
+                  UP, DOWN
+                }
+                """);
         dump("constraint", """
                 Class f::C
                 [

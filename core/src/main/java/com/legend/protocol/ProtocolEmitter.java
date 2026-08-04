@@ -274,13 +274,25 @@ public final class ProtocolEmitter {
                     "ProtocolEmitter has no rule for a function-ref constraint (at " + c.name()
                             + ") — add the emit rule, do not drop it.");
         }
-        require(c.enforcementLevel() == null, "constraint enforcementLevel", c.name());
         if (c.pos() == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter needs a source position for constraint " + c.name()
                             + " and the parser did not thread one — fix the parse site.");
         }
-        b.append("{\"functionDefinition\":");
+        require(!c.hasOwner(), "constraint ~owner (wire spelling unprobed)", c.name());
+        b.append('{');
+        if (c.enforcementLevel() != null) {
+            // Alphabetically FIRST among the constraint's fields (ProbeWireShapes cLevel).
+            b.append("\"enforcementLevel\":");
+            str(b, c.enforcementLevel());
+            b.append(',');
+        }
+        if (c.externalId() != null) {
+            b.append("\"externalId\":");
+            str(b, c.externalId());
+            b.append(',');
+        }
+        b.append("\"functionDefinition\":");
         thisLambda(b, inl.body());
         if (c.message() != null) {
             b.append(",\"messageFunction\":");
@@ -351,10 +363,78 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.PureCollection c -> collection(b, c.values(),
                     requirePos(c.pos(), "collection literal"));
             case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f);
+            case com.legend.protocol.spec.CFloat c ->
+                    literal(b, "float", String.valueOf(c.value()), c.pos());
+            case com.legend.protocol.spec.PackageableElementPtr ptr -> {
+                b.append("{\"_type\":\"packageableElementPtr\",\"fullPath\":");
+                str(b, ptr.fullPath());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(ptr.pos(), "packageableElementPtr " + ptr.fullPath()));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.EnumValue e -> {
+                // On the wire an enum-value access is a plain PROPERTY on a
+                // packageableElementPtr — there is no enumValue node (ProbeWireShapes cEnum).
+                b.append("{\"_type\":\"property\",\"parameters\":["
+                        + "{\"_type\":\"packageableElementPtr\",\"fullPath\":");
+                str(b, e.fullPath());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(e.enumerationPos(), "enum ptr " + e.fullPath()));
+                b.append("}],\"property\":");
+                str(b, e.value());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(e.pos(), "enum value " + e.value()));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for value specification "
                             + v.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
         }
+    }
+
+    /**
+     * An inline lambda literal. The lambda node itself carries no span. Parameters
+     * (ProbeWireShapes cLambda/cLambda2): an UNTYPED parameter is the bare
+     * {@code {"_type":"var","name":…}} — no span, no multiplicity; a TYPED one carries
+     * {@code genericType} + {@code multiplicity} + the span of its whole declaration.
+     */
+    private static void lambda(StringBuilder b, com.legend.protocol.spec.LambdaFunction lam) {
+        b.append("{\"_type\":\"lambda\",\"body\":[");
+        for (int i = 0; i < lam.body().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, lam.body().get(i));
+        }
+        b.append("],\"parameters\":[");
+        for (int i = 0; i < lam.parameters().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.spec.Variable p = lam.parameters().get(i);
+            if (p.type() == null) {
+                require(p.multiplicity() == null, "untyped lambda parameter with multiplicity",
+                        p.name());
+                b.append("{\"_type\":\"var\",\"name\":");
+                str(b, p.name());
+                b.append('}');
+            } else {
+                b.append("{\"_type\":\"var\",\"genericType\":");
+                genericType(b, p.type());
+                b.append(",\"multiplicity\":");
+                multiplicity(b, java.util.Objects.requireNonNull(p.multiplicity(),
+                        "typed lambda parameter without multiplicity: " + p.name()));
+                b.append(",\"name\":");
+                str(b, p.name());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(p.pos(), "typed lambda parameter " + p.name()));
+                b.append('}');
+            }
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, requirePos(lam.pos(), "inline lambda"));
+        b.append('}');
     }
 
     /** Arithmetic natives the engine spells N-ARY: one collection parameter holding the
@@ -371,6 +451,15 @@ public final class ProtocolEmitter {
 
     private static void appliedFunction(StringBuilder b,
                                         com.legend.protocol.spec.AppliedFunction f) {
+        if (f.propertyCall()) {
+            // The wire emits `receiver.name(args)` as a PROPERTY node with the arguments
+            // appended after the receiver (harness DIFF on AccountWithConstraints) — its
+            // span convention is not yet probed, so it walls rather than guessing.
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for a dot-spelled property call ."
+                            + f.function() + "(...) — probe the property-node shape, do not"
+                            + " emit it as a func.");
+        }
         if (NARY_ARITHMETIC.contains(f.function())) {
             naryArithmetic(b, f);
             return;
@@ -412,6 +501,18 @@ public final class ProtocolEmitter {
      */
     private static void naryArithmetic(StringBuilder b,
                                        com.legend.protocol.spec.AppliedFunction f) {
+        if (f.parameters().size() == 1) {
+            // UNARY form (ProbeWireShapes cNeg): one direct parameter, NO collection,
+            // span = the operator token only.
+            b.append("{\"_type\":\"func\",\"function\":");
+            str(b, f.function());
+            b.append(",\"parameters\":[");
+            valueSpec(b, f.parameters().get(0));
+            b.append("],\"sourceInformation\":");
+            srcInfo(b, requirePos(f.pos(), "unary " + f.function()));
+            b.append('}');
+            return;
+        }
         java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> operands =
                 new java.util.ArrayDeque<>();
         com.legend.protocol.spec.AppliedFunction node = f;

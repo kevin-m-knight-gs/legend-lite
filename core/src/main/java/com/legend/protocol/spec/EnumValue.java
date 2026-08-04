@@ -36,10 +36,31 @@ import java.util.Objects;
  *                 happens in {@code NameResolver})
  * @param value    the enum value name as written
  */
-public record EnumValue(String fullPath, String value)
+public record EnumValue(String fullPath, String value,
+        @com.legend.Nullable com.legend.protocol.SourceInfo enumerationPos,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
     public EnumValue {
         Objects.requireNonNull(fullPath, "fullPath");
         Objects.requireNonNull(value, "value");
+    }
+
+    /** Position-free form for synthesis and tests. On the wire this node is a plain
+     *  {@code property} access on a {@code packageableElementPtr}: {@code enumerationPos}
+     *  is the enumeration-FQN span, {@code pos} the value-name token span. */
+    public EnumValue(String fullPath, String value) {
+        this(fullPath, value, null, null);
+    }
+
+    /** Positions are excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof EnumValue other
+                && fullPath.equals(other.fullPath()) && value.equals(other.value());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fullPath, value);
     }
 }

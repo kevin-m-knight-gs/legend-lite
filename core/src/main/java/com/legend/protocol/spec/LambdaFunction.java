@@ -35,12 +35,34 @@ import java.util.Objects;
  */
 public record LambdaFunction(
         List<Variable> parameters,
-        List<ValueSpecification> body) implements ValueSpecification {
+        List<ValueSpecification> body,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public LambdaFunction {
         Objects.requireNonNull(parameters, "parameters");
         Objects.requireNonNull(body, "body");
         parameters = List.copyOf(parameters);
         body = List.copyOf(body);
+    }
+
+    /** Position-free form for synthesis and tests. An INLINE lambda carries a span on the
+     *  wire (verified via ProbeWireShapes): from the parameter token (single untyped param)
+     *  or the pipe (typed param) to the body's end. The constraint wrapper lambda the
+     *  emitter synthesises carries none. */
+    public LambdaFunction(List<Variable> parameters, List<ValueSpecification> body) {
+        this(parameters, body, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof LambdaFunction other
+                && parameters.equals(other.parameters())
+                && body.equals(other.body());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(parameters, body);
     }
 }
