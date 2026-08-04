@@ -35,7 +35,7 @@ in-process Alloy-shaped path).
 | milestoning/tests | 224 | 210 | 3 | 1 | 10 | 33 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
-| modelToModelToRelational/milestoned | 7 | 3 | 0 | 2 | 2 | 0 |
+| modelToModelToRelational/milestoned | 7 | 4 | 1 | 0 | 2 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 | 1 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2239** | 72 | 100 | 127 | 240 |
+| **total** | 2538 | **2240** | 73 | 98 | 127 | 240 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1254,10 +1254,9 @@ in-process Alloy-shaped path).
 - SHAPE testPersonToFirmUsingProject [modelJoins]: no verifying assertions
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::relational::modelJoins::test::getNoStoreRuntime': class 'meta::core::runtime::EngineRuntime' has no property 'preprocessFunction'
 - SHAPE testPersonToFirmUsingFromProject [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: plan walk: executionPlan argument shapes pending
-- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty] — wall: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: no execute(|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty] — wall: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
+- FAIL testWithHardcodedDate [modelToModelToRelational/milestoned]: assertJsonStringsEqual: FIRST DIFF at $.values[0].synonymsMilestoned(2020-10-15T00:00:00+0000) expected 0 element(s), got 2 | expected {builder={_type=json}, values=[{id=2, name=ProductName2, synonymsMilestoned(2020-10-15T00:00:00+0000)=[]}, {id=3, name=ProductName3, synonymsMilestoned(2020-..., got {builder={_type=json}, values=[{id=2, name=ProductName2, synonymsMilestoned(2020-10-15T00:00:00+0000)=[{synonym=GS-Mod-S1}, {synonym=GS-Mod-S3}]}, {id=3, nam...
 - FAIL testReplaceTablesPostProcessor [postprocessor/tests]: h2-advisory divergence: golden SQL on H2 gave 0 row(s) [], our pipeline gave 7 row(s) [Firm A|Fabrice, Firm B|Oliver, Firm C|David, Firm X|Anthony, Firm X|John]
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testReplaceTablePostProcessorWithExists [postprocessor/tests]: sql-text: expected select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select distinct "persontable_1".FIRMID from differentPersonTable as "persontable_1" where "persontable_1".FIRSTNAME = 'John') as "persontable_0" on ("root".ID = "persontable_0".FIRMID) where "persontable_0".FIRMID is not null, got select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select distinct "differentpersontable_1".FIRMID from differentPersonTable as "differentpersontable_1" where "differentpersontable_1".FIRSTNAME = 'John') as "differentpersontable_0" on ("root".ID = "differentpersontable_0".FIRMID) where "differentpersontable_0".FIRMID is not null

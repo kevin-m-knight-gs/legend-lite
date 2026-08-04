@@ -1342,14 +1342,10 @@ public final class MappingNormalizer {
                           + "' is a roadmap feature (source-value decode on"
                           + " the M2M read); mapping=" + md.qualifiedName());
                 }
-                if (tgt != null && findPropertyTypeDeep(tgt, pb.propertyName(), model) == null) {
-                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                            "M2M PropertyBinding '" + pb.propertyName()
-                          + "' is not declared on class '" + tgt.qualifiedName()
-                          + "'; mapping=" + md.qualifiedName());
-                }
+                String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
+                        b -> findPropertyTypeDeep(tgt, b, model) != null);
                 M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
-                fields.put(pb.propertyName(),
+                fields.put(keyName,
                         new KeyExpression(m2mPropertyValue(pb, tgt, md, model, cycleStack), false, false));
             }
             return new AppliedFunction("map", List.of(source,
@@ -1365,6 +1361,10 @@ public final class MappingNormalizer {
             LegacyMappingDefinition md, ModelBuilder model, Set<String> cycleStack) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = findPropertyTypeDeep(tgt, pb.propertyName(), model);
+        if (propType == null && pb.propertyName().endsWith("AllVersions")) {
+            propType = findPropertyTypeDeep(tgt, pb.propertyName().substring(0,
+                    pb.propertyName().length() - "AllVersions".length()), model);
+        }
         if (!(propType instanceof TypeExpression.NameRef nr)) return pb.expression();
         String innerFqn = nr.name();
         if (model.findClass(innerFqn).isEmpty()) return pb.expression();

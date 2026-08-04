@@ -76,7 +76,17 @@ final class NewChecker {
                 properties.put(name, t.synth(key.value(), env));
                 return;
             }
-            Property prop = t.model().findProperty(ni.className(), name).orElseThrow(() ->
+            Property prop = t.model().findProperty(ni.className(), name)
+                    // the SYNTHETIC milestoned sweep KEY (<base>AllVersions
+                    // on a temporal-class end — real pure GENERATES it;
+                    // same base-name rule as GraphFetchChecker): the ctor
+                    // key validates against the BASE property
+                    .or(() -> name.endsWith("AllVersions")
+                            ? t.model().findProperty(ni.className(),
+                                    name.substring(0, name.length()
+                                            - "AllVersions".length()))
+                            : java.util.Optional.empty())
+                    .orElseThrow(() ->
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);
             try {

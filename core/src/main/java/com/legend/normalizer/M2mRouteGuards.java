@@ -20,6 +20,32 @@ import java.util.List;
  */
 final class M2mRouteGuards {
 
+    /** The M2M binding's STORAGE key: the declared property name, or —
+     * for the SYNTHETIC milestoned sweep spelling ({@code
+     * <base>AllVersions} on a temporal-class end, which real pure
+     * GENERATES) — the BASE property (queries and fetch trees address
+     * the declared name; the VALUE keeps its all-versions read). An
+     * undeclared key throws (normalize-phase contract).  */
+    static String m2mBindingKey(ClassMapping.Pure.PropertyBinding pb,
+            @com.legend.Nullable ClassDefinition tgt,
+            LegacyMappingDefinition md,
+            java.util.function.Predicate<String> declared) {
+        if (tgt == null || declared.test(pb.propertyName())) {
+            return pb.propertyName();
+        }
+        if (pb.propertyName().endsWith("AllVersions")) {
+            String base = pb.propertyName().substring(0,
+                    pb.propertyName().length() - "AllVersions".length());
+            if (declared.test(base)) {
+                return base;
+            }
+        }
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                "M2M PropertyBinding '" + pb.propertyName()
+              + "' is not declared on class '" + tgt.qualifiedName()
+              + "'; mapping=" + md.qualifiedName());
+    }
+
     private M2mRouteGuards() {
     }
 

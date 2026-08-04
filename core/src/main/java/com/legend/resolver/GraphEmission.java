@@ -907,13 +907,24 @@ final class GraphEmission {
                     && ma0.source() instanceof TypedVariable mv0
                     && mv0.name().equals(cs.rowVar())
                     && mv0.info().type() instanceof Type.ClassType mSrc) {
+                // the TREE NODE's own temporal spec (synonymsMilestoned(
+                // %date){…}) WINDOWS the child and beats the binding's
+                // sweep — the mapping populates all versions, the fetch
+                // date narrows (engine serialize-tree date semantics)
+                boolean nodeTemporal = !node.args().isEmpty()
+                        || node.sweep();
                 GraphEmission em0 = new GraphEmission(ctx, sources,
                         assocMaterial,
                         temporal.withSpecs(java.util.Map.of(ma0.property(),
-                                new TemporalFrame.TemporalSpec(
-                                        temporal.normalizeContextDates(
-                                                ma0.dates()),
-                                        ma0.sweep()))),
+                                nodeTemporal
+                                        ? new TemporalFrame.TemporalSpec(
+                                                temporal.normalizeContextDates(
+                                                        node.args()),
+                                                node.sweep())
+                                        : new TemporalFrame.TemporalSpec(
+                                                temporal.normalizeContextDates(
+                                                        ma0.dates()),
+                                                ma0.sweep()))),
                         dispatch, freshVar);
                 if (ctx.findAssociationOf(mSrc.fqn(), ma0.property())
                         .isPresent()) {
