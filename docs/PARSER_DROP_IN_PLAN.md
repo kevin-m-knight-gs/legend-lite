@@ -111,19 +111,83 @@ missed corpus shows up as a number rather than as silence.
 - legend-pure error *message strings* — ANTLR-shaped and built on `m4.SourceInformation`, a
   different type. Use those cases for *which input fails and where*, never for message text.
 
-### 2.3 EMIT — the corpus upstream just built for us
+### 2.3 EMIT — the realism tier, and the one hole nothing else fills
 
-`docs/emit/emit.md`, landed 2026-07-23→31 and entirely inside the 38 commits we were behind. EMIT
-takes `.pure` files **in Legend grammar** (Studio's, i.e. exactly parser (A)'s input) and runs
-parse → compile → generate → test → plan, with per-model `*.emit.yaml` metadata and an explicit goal
-of becoming a *"living repository of examples"* with a tagging taxonomy.
+**Correction:** EMIT did not land in the 38 commits we were behind. The *framework* landed
+**2026-05-07** (`aa0046a15aa`). What landed in that window is a **corpus explosion — 60 → 103 models
+and 132 → 244 `.pure` files in eight days**, 42% of the whole corpus.
 
-For us this is the most *realistic* corpus available — whole user-shaped models rather than
-snippets — and it is **growing**, which makes it worth wiring in permanently rather than
-snapshotting. `GrammarEMITTests` is directly on point.
+EMIT takes `.pure` files in **Legend grammar** and runs parse → compile → generate → test → plan.
+Verified call shape, which our harness must replicate exactly:
 
-> **Detailed EMIT assessment — model count, layout, yaml schema, discovery reusability, and whether
-> its inputs beat C1/C2 — is being researched and will be filled in here before Phase 1 starts.**
+```java
+PureGrammarParser.newInstance().parseModel(readFile(file), file.getVirtualPath(), 0, 0, true);
+builder.addPureModelContextData(fileData);
+... return builder.withSectionIndexesMerged().build();
+```
+
+**Catalog: 82 models / 214 `.pure` / 11,379 lines** (excluding 21 framework self-test fixtures which
+upstream explicitly says are not catalog examples). Section kinds — 11 of them: `###Pure` 89,
+`###Mapping` 65, `###Data` 45, `###Relational` 37, `###Persistence` 9, `###Service` 8, `###Runtime` 7,
+`###Connection` 7, `###GenerationSpecification` 2, `###FileGeneration` 2, `###ExternalFormat` 1.
+
+**What EMIT uniquely gives us: multi-file, cross-referencing, user-shaped models.** 82 coherent
+models where a `Mapping` in one file references a `Class` in another and a `Database` in a third.
+That is precisely the shape that breaks `SectionIndex` merging, cross-file source-information
+offsets, and qualified-name resolution — failure modes a snippet corpus can never reach. Nothing
+else in either repository has this.
+
+**Its decisive weakness: EMIT ships no expected-output artifact.** No golden JSON, no golden
+composed grammar, nothing. `GrammarEMITTests` is seven lines and asserts *nothing* itself — the
+whole pipeline's parse "assertion" is *did not throw*, and there is no composer step anywhere in
+EMIT. So **we generate the oracle ourselves**: run the engine parser over the 214 files, serialise,
+commit as our golden set, regenerate on every legend-engine bump. Cheap, but it is *our* artifact,
+and each EMIT growth spurt is a regeneration event rather than free coverage.
+
+**Reusability: good.** `EMITModelDiscovery.findEmitYamls(Path)` is plain `Files.walk`;
+`EMITModelLoader.load(...)` returns an ordered, scope-tagged `EMITSourceSet` with no parser,
+compiler or JUnit involvement. We can point it at any directory. Two sharp edges: classpath
+discovery **only supports `file:` URLs** (models inside a jar are invisible — unpack, or use the
+`Path` API), and `EMITTestSuiteBuilder` is hardwired to `PureGrammarParser.newInstance()` with **no
+parser-injection seam**, so we drive the loader ourselves rather than reusing their runner.
+
+**Composition — EMIT displaces nothing:**
+
+| tier | corpus | why it is irreplaceable |
+|---|---|---|
+| realism / cross-file | **EMIT, 214 files** | only source of multi-file models; fastest-growing; lowest maintenance |
+| breadth | ~3,176 inline `###` snippets | only source of the 7 exotic section kinds EMIT lacks (`###Diagram`, `###DataSpace`, `###ServiceStore`, activators…) |
+| diagnostic parity | **410 `PARSER error at` pins** | the only expected-error oracle; EMIT has *no* negative tests by design |
+| byte-identity | 26 regenerated golden pairs | the only upstream protocol-shape fixture |
+
+### 2.3.1 Live grammar changes found in the window — and one that redesigns our comparator
+
+**`4feb08b838d` — multi-line `'''…'''` string literals (#4998).** Two lines of `.g4`, very large
+blast radius: it changes `CoreLexerGrammar`, so **every island DSL that inherits the core `STRING`
+token now accepts text blocks**. Post-lex processing is **dedent → strip trailing whitespace per
+line → unescape, in that order**, deliberately identical to legend-pure's `processMultilineString`.
+
+> **This forces a harness design decision.** `CString` gained a `multiLine` boolean that is
+> **excluded from `equals()`** but `@JsonInclude(NON_DEFAULT)` — so it is invisible to object
+> equality and visible in serialised JSON. **A comparator built on `.equals()` would silently miss
+> it.** Our comparator must diff **serialised JSON**, not object graphs. §2.1's S1/S2/S3 already do;
+> this is the proof that it was the right call.
+
+Do *not* "fix" the known gap: a text block inside a **tagged value** parses but composes back
+single-line, because `TaggedValue` carries a bare `String`. That is deliberate.
+
+**`b8219ce9996` — Service test grammar gains a second surface syntax (#4990).** `serviceTestSuite`
+now has two mutually exclusive forms — legacy brace-and-colon, and a new paren-and-arrow form
+mirroring Function tests. +160 lines of walker, +134 of composer. None of the 4 service EMIT models
+use the new form yet.
+
+**Just outside the window, check the baseline:** `1d4be2501f0` *"Colspec — handle clash with
+constraint grammar"* is a genuine ambiguity fix in `DomainLexerGrammar`/`DomainParserGrammar`, and
+`4ae65fe9bc5` added stereotypes/tagged values to ColSpecs in `M3ParserGrammar.g4`.
+
+**These three changes in ~3 weeks are the standing-invariant argument made concrete** (§5): the
+grammar is under active development and a replacement decays silently without a release-gated
+differential.
 
 ### 2.4 Modes
 
