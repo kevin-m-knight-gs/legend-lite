@@ -326,6 +326,42 @@ The nine structural ones: `association/{all,profile,properties/profile}`,
 `valueSpecification/functionApplication/{arrow,precedence}`. In `class/inheritance` the element
 *order* has changed (`SuperClass` and `Light` swapped) on top of a two-line offset shift.
 
+### 5.2 Regenerated and adjudicated — the corpus is recoverable, and the parser is not wrong
+
+I regenerated all 26 from today's parser (into a scratch dir; upstream's fixtures untouched) and
+adjudicated every difference against `grammar.pure` itself. PMCD element order **is** source order,
+so each side's element list must be sorted by its own `startLine`, and each `startLine` must land on
+a line that actually declares that element. That is a heuristic-free test.
+
+| verdict | count |
+|---|---:|
+| identical | **7** |
+| **golden stale** — parser's lines land on real declarations, golden's do not | **8** |
+| `sourceInformation` offsets only — golden stale, positional | **10** |
+| **genuine parser behaviour change** | **1** |
+| **parser wrong** | **0** |
+
+The evidence on the eight is not marginal. `class/all`: the parser's line numbers land on a real
+declaration **5/5**, the golden **1/5**. `association/all`: parser **4/4**, golden **0/4**. Both
+sides are internally sorted by line, so this is not an ordering bug in either — the golden was
+generated against a `grammar.pure` that has since been edited.
+
+**The one real change is `class/constraints`**, and it is upstream's parser that moved. Constraint
+lambdas now carry their implicit `$this` parameter explicitly:
+
+```
+$.elements[0].constraints[0].functionDefinition.parameters[0]
+    golden = (absent)
+    parser = {_type: "var", name: "this", multiplicity: {lowerBound: 1, upperBound: 1}}
+```
+
+20 differing leaves, all of that one shape, across three constraints and a `messageFunction`. A
+semantic addition, not drift.
+
+**The regenerated corpus is a valid oracle.** Two independent regenerations are byte-identical
+(deterministic), and re-verifying all 26 against it passes **26/26**. So the fixture set is fully
+recoverable — the cost is running the generator, not re-authoring anything.
+
 **This is what an unasserted fixture set does over 16 months** — `validate()` is commented out in
 `TemporaryGrammarTest_WIP`, so nothing caught it. The corpus is *recoverable* (the generator still
 exists) but **must not be used as-is**: 19 of 26 would report a false failure against a correct
