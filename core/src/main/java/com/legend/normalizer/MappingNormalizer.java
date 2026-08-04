@@ -2681,7 +2681,7 @@ public final class MappingNormalizer {
             case PropertyMapping.Embedded emb -> new CtorField(emb.propertyName(),
                     materializeEmbedded(emb.propertyName(), emb.propertyMappings(),
                             rowBind, tableScope, defaultTable, pipeline,
-                            ownerClassFqn, md, model, new HashSet<>()),
+                            ownerClassFqn, md, model, new HashSet<>(), null),
                     false);
             case PropertyMapping.InlineEmbedded ie -> new CtorField(ie.propertyName(),
                     materializeInlineEmbedded(ie, rowBind, tableScope, defaultTable,
@@ -2698,24 +2698,29 @@ public final class MappingNormalizer {
     // Embedded materialization  —  doc §5.4.7
     // ====================================================================
 
+    /** {@code innerOverride} non-null pins the inner class — an Inline
+     * splice materializes the REFERENCED set's class (a subclass of the
+     * declared prop type; its own props aren't on the declared class). */
     private static ValueSpecification materializeEmbedded(
             String propName, List<PropertyMapping> subPms, Variable rowBind,
             Map<String, ValueSpecification> tableScope, String defaultTable,
             Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
-            ModelBuilder model, Set<String> cycleStack) {
+            ModelBuilder model, Set<String> cycleStack,
+            @com.legend.Nullable String innerOverride) {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);
         if (owner == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' but owner class unknown; mapping=" + md.qualifiedName());
         }
-        TypeExpression propType = findPropertyTypeDeep(owner, propName, model);
-        if (!(propType instanceof TypeExpression.NameRef nr)) {
+        String innerFqn = innerOverride != null ? innerOverride
+                : findPropertyTypeDeep(owner, propName, model)
+                        instanceof TypeExpression.NameRef nr ? nr.name() : null;
+        if (innerFqn == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
-        String innerFqn = nr.name();
         if (!cycleStack.add(innerFqn)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Cycle materializing Embedded; class " + innerFqn
@@ -2762,18 +2767,12 @@ public final class MappingNormalizer {
             ModelBuilder model) {
         ValueSpecification partial = materializeEmbedded(oe.propertyName(),
                 oe.embedded(), rowBind, tableScope, defaultTable, pipeline,
-                ownerClassFqn, md, model, new HashSet<>());
+                ownerClassFqn, md, model, new HashSet<>(), null);
         ValueSpecification fallback = new AppliedProperty(rowBind, oe.propertyName());
         return new AppliedFunction("otherwise", List.of(partial, fallback));
     }
 
-    // ====================================================================
-    // InlineEmbedded materialization  —  doc §5.4.8
-    //
-    // Splice the referenced class mapping's PMs as embedded sub-mappings
-    // of the current class. The referenced ClassMapping.Relational is
-    // located by setId within the enclosing LegacyMappingDefinition.
-    // ====================================================================
+    // InlineEmbedded (§5.4.8): splice the referenced set's PMs inline.
 
     private static ValueSpecification materializeInlineEmbedded(
             PropertyMapping.InlineEmbedded ie, Variable rowBind,
@@ -2796,7 +2795,8 @@ public final class MappingNormalizer {
         }
         return materializeEmbedded(ie.propertyName(),
                 referenced.propertyMappings(), rowBind, tableScope, defaultTable,
-                pipeline, ownerClassFqn, md, model, new HashSet<>());
+                pipeline, ownerClassFqn, md, model, new HashSet<>(),
+                referenced.className());
     }
 
     // ====================================================================

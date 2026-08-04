@@ -1670,6 +1670,25 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // binding and fall through below regardless.
             return n;
         }
+        // an EMBEDDED (ctor-valued, same-row) head has no join to route —
+        // the cast reads through the ctor drill / SUBTYPE_KEY machinery
+        // (inline-embedded golden: $x.vehicleOwner->subType(@Person).name)
+        if (sc.args().get(0) instanceof TypedPropertyAccess ha
+                && ha.source().info().type() instanceof Type.ClassType ownCt) {
+            String om;
+            try {
+                om = mappingOf.apply(ownCt.fqn());
+            } catch (MappingResolutionException e) {
+                om = null;
+            }
+            if (om != null && sources.binds(om, ownCt.fqn())
+                    && Pipelines.unwrapToOne(sources.get(om, ownCt.fqn())
+                            .bindings().getOrDefault(ha.property(), ha))
+                            instanceof com.legend.compiler.spec.typed
+                                    .TypedNewInstance) {
+                return n;
+            }
+        }
         String wKey = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
                 com.legend.model.ClassMapping.memberWitness());
         // audit 23 A5: only an UNDECIDABLE dispatch context (no runtime,

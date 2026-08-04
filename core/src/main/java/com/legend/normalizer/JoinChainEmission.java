@@ -161,11 +161,15 @@ final class JoinChainEmission {
                         : MappingNormalizer.findPropertyTypeDeep(owner,
                                 ie.propertyName(), model);
                 if (referenced != null
-                        && propType instanceof TypeExpression.NameRef nr) {
+                        && propType instanceof TypeExpression.NameRef) {
+                    // the spliced PMs belong to the REFERENCED set's class
+                    // (a subclass of the declared prop type — Inline[airline]
+                    // splices Airline's own props like planes)
+                    String inlCls = referenced.className();
                     for (PropertyMapping sub : referenced.propertyMappings()) {
                         if (sub instanceof PropertyMapping.Join j
                                 && p.aliasToTargetTable.containsKey(j.propertyName())
-                                && classTypedTargetIfMapped(nr.name(),
+                                && classTypedTargetIfMapped(inlCls,
                                         j.propertyName(), model) != null) {
                             throw new NotImplementedException(
                                     "Inline-embedded sub-PM '" + j.propertyName()
@@ -173,7 +177,7 @@ final class JoinChainEmission {
                                   + " of the same name. Mapping="
                                   + md.qualifiedName());
                         }
-                        emitHopsForStructuralPm(p, sub, nr.name(), mainDb,
+                        emitHopsForStructuralPm(p, sub, inlCls, mainDb,
                                 mainTable, rowBind, model, md);
                     }
                 }

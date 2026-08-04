@@ -1314,6 +1314,7 @@ final class UnionSynthesis {
             @com.legend.Nullable ClassDefinition unionClass, ModelBuilder model) {
         Map<String, LinkedHashSet<String>> embSubs = new LinkedHashMap<>();
         Map<String, String> embInner = new LinkedHashMap<>();
+        Map<String, LinkedHashSet<String>> pathClasses = new LinkedHashMap<>();
         Set<String> poisoned = new LinkedHashSet<>();
         for (MappingNormalizer.RelationalParts pp : parts) {
             for (var fe : pp.fields().entrySet()) {
@@ -1329,9 +1330,54 @@ final class UnionSynthesis {
                 NewInstance ni = ctorOf(fe.getValue().value());
                 if (ni != null) {
                     collectEmbLeaves(fe.getKey(), fe.getKey(), ni,
-                            pp.rowBind().name(), embSubs, embInner, poisoned);
+                            pp.rowBind().name(), embSubs, embInner, poisoned,
+                            pathClasses);
                 }
             }
+        }
+        // MEMBERS DISAGREE on a path's ctor class (Inline[person] ^Person
+        // vs Inline[airline] ^Airline under vehicleOwner): recompose as
+        // the DECLARED property class and keep only ITS declared leaves —
+        // subclass-only leaves stay off the base recompose (cast reads of
+        // COMMON props survive; the merged-ctor form typed ^Person(planes)
+        // loudly). Unresolvable declared chains poison the top (loud).
+        for (var pce : pathClasses.entrySet()) {
+            if (pce.getValue().size() < 2 || unionClass == null) {
+                continue;
+            }
+            String path = pce.getKey();
+            ClassDefinition decl = unionClass;
+            for (String seg : path.split("\\.")) {
+                TypeExpression t = decl == null ? null : MappingNormalizer
+                        .findPropertyTypeDeep(decl, seg, model);
+                decl = t instanceof TypeExpression.NameRef nr
+                        ? model.findClass(nr.name()).orElse(null) : null;
+            }
+            if (decl == null) {
+                poisoned.add(path.contains(".")
+                        ? path.substring(0, path.indexOf('.')) : path);
+                continue;
+            }
+            embInner.put(path, decl.qualifiedName());
+            ClassDefinition decl0 = decl;
+            LinkedHashSet<String> lv = embSubs.get(path);
+            if (lv != null) {
+                lv.removeIf(leaf -> MappingNormalizer
+                        .findPropertyTypeDeep(decl0, leaf, model) == null);
+                if (lv.isEmpty()) {
+                    embSubs.remove(path);
+                }
+            }
+            // NESTED ctor subtrees under a prop the declared class does
+            // not carry (Airline's planes under VehicleOwner) prune too —
+            // the recompose loop would re-enter them as ctor fields
+            java.util.function.Predicate<String> off = k ->
+                    k.startsWith(path + ".")
+                    && MappingNormalizer.findPropertyTypeDeep(decl0,
+                            k.substring(path.length() + 1).split("\\.")[0],
+                            model) == null;
+            embInner.keySet().removeIf(off);
+            embSubs.keySet().removeIf(off);
         }
         for (String bad : poisoned) {
             embSubs.keySet().removeIf(k -> k.equals(bad)
@@ -1390,13 +1436,16 @@ final class UnionSynthesis {
     private static void collectEmbLeaves(String top, String pathKey,
             NewInstance ni, String rowVar,
             Map<String, LinkedHashSet<String>> embSubs,
-            Map<String, String> embInner, Set<String> poisoned) {
+            Map<String, String> embInner, Set<String> poisoned,
+            Map<String, LinkedHashSet<String>> pathClasses) {
         embInner.putIfAbsent(pathKey, ni.className());
+        pathClasses.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
+                .add(ni.className());
         for (var pe : ni.properties().entrySet()) {
             NewInstance sub = ctorOf(pe.getValue().value());
             if (sub != null) {
                 collectEmbLeaves(top, pathKey + "." + pe.getKey(), sub,
-                        rowVar, embSubs, embInner, poisoned);
+                        rowVar, embSubs, embInner, poisoned, pathClasses);
             } else if (isThreadProjectable(pe.getValue().value(), rowVar)) {
                 embSubs.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
                         .add(pe.getKey());

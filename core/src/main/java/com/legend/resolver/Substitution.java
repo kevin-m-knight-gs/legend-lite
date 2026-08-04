@@ -1623,6 +1623,17 @@ final class Substitution {
                 // EMBEDDED: the inner binding reads the PARENT row — a
                 // parent-alias column, never a join (V1 §D.4 semantics).
                 TypedSpec leafExpr = ctor.properties().get(leaf);
+                if (leafExpr == null
+                        && com.legend.model.ClassMapping.isSubTypeColumn(leaf)) {
+                    // subtype-cast leaf over an embedded ctor whose class
+                    // carries the property PLAIN (the reconciled base
+                    // recompose): the cast is row-neutral — only the
+                    // member thread that maps the field projects non-NULL
+                    // (inline-embedded golden vehicleOwner->subType(@Person))
+                    int cut = leaf.lastIndexOf("___");
+                    leafExpr = cut < 0 ? null
+                            : ctor.properties().get(leaf.substring(cut + 3));
+                }
                 if (leafExpr == null) {
                     // C0.5b: name the REAL property, never our synthetic
                     // #fN / dated identifiers (blaming users for internal
