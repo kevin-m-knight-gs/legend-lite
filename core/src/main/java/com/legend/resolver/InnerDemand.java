@@ -305,10 +305,19 @@ final class InnerDemand {
             if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
                     || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
                     || com.legend.builtin.Pure.nativeNamed("exists", key)) {
-            List<String> p =
-                    Substitution.pathOf(c.args().get(0), userVar);
-                if (p != null && p.size() >= 2) {
-                    out.add(p);
+                // an INLINED derived CONCATENATION under the emptiness
+                // call contributes each member's chain (the concat-split
+                // emission consumes the dotted materials per branch)
+                List<TypedSpec> heads =
+                        c.args().get(0) instanceof TypedNativeCall cc
+                        && "meta::pure::functions::collection::concatenate"
+                                .equals(cc.callee().qualifiedName())
+                        ? cc.args() : List.of(c.args().get(0));
+                for (TypedSpec h : heads) {
+                    List<String> p = Substitution.pathOf(h, userVar);
+                    if (p != null && p.size() >= 2) {
+                        out.add(p);
+                    }
                 }
             }
         }

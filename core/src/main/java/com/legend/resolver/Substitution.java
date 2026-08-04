@@ -816,6 +816,48 @@ final class Substitution {
                 return rewriteExists(call, target.existsSubs().get(headPath.get(0)),
                         List.of());
             }
+            // emptiness over an INLINED derived CONCATENATION of navs
+            // (Person.addresses = $this.address->concatenate(
+            // $this.firm.address); the Typer inlines parameterless
+            // deriveds in query position): the engine emits ONE exists
+            // over the UNION of member relations whose correlation keys
+            // MERGE BY COLUMN NAME — an address row may satisfy the FIRM
+            // key (golden testSimpleExists: 'Anthony Allen true').
+            // Row-equal split: boolean fold of per-branch calls, each
+            // correlated by the OR of ALL branches' key conditions that
+            // bind on its row (isEmpty = AND of negated members).
+            if (isEmptinessFamily(call)
+                    && Pipelines.unwrapToOne(call.args().get(0))
+                            instanceof TypedNativeCall cnc
+                    && "meta::pure::functions::collection::concatenate"
+                            .equals(cnc.callee().qualifiedName())
+                    && cnc.args().size() == 2
+                    && cnc.info().type() instanceof Type.ClassType
+                    && target.regs().orCallee() != null
+                    && target.regs().andCallee() != null) {
+                List<ExistsSub> subs = new ArrayList<>();
+                List<TypedLambda> rootConds = new ArrayList<>();
+                for (TypedSpec arm : cnc.args()) {
+                    List<String> ap = pathOf(Pipelines.unwrapToOne(arm),
+                            target.userVar());
+                    ExistsSub ax = ap == null ? null
+                            : target.existsSubs().get(String.join(".", ap));
+                    // the branch's MERGE KEY against the parent is its
+                    // ROOT hop's condition (engine: the union member's ID
+                    // column is the first hop's target key)
+                    ExistsSub rx = ap == null ? null
+                            : target.existsSubs().get(ap.get(0));
+                    if (ax == null || rx == null) {
+                        subs = null;
+                        break;
+                    }
+                    subs.add(ax);
+                    rootConds.add(rx.orientedCond());
+                }
+                if (subs != null) {
+                    return mergedConcatExists(call, subs, rootConds);
+                }
+            }
             // CLASS-TYPED LEAF: isNotEmpty($p.a.b) where b is a navigation
             // step on the chain target — the DOTTED-path material fires a
             // correlated EXISTS on the exploded chain row (engine: semi-join
@@ -2647,7 +2689,67 @@ final class Substitution {
      * OUTER row var (the lowerer's enclosing-scope channel). */
     private record CorrTarget(TypedSpec rel, String binder) {}
 
+    /** The concat-split emission: per-branch emptiness calls with
+     * MERGED correlation keys (each branch ORs in every sibling's key
+     * condition that binds on its row — the engine's union-with-merged-
+     * columns semantics), folded with OR (exists/isNotEmpty) or AND
+     * (isEmpty). */
+    private TypedSpec mergedConcatExists(TypedNativeCall call,
+            List<ExistsSub> subs, List<TypedLambda> rootConds) {
+        List<TypedSpec> branches = new ArrayList<>(subs.size());
+        for (int i = 0; i < subs.size(); i++) {
+            List<TypedLambda> sibs = new ArrayList<>();
+            for (int j = 0; j < subs.size(); j++) {
+                if (j != i) {
+                    sibs.add(rootConds.get(j));
+                }
+            }
+            branches.add(rewriteExists(call, subs.get(i), List.of(), sibs));
+        }
+        TypedFunction fold = Pure.nativeNamed("isEmpty",
+                call.callee().signatureKey())
+                ? target.regs().andCallee() : target.regs().orCallee();
+        TypedSpec out = branches.get(0);
+        for (int i = 1; i < branches.size(); i++) {
+            out = new TypedNativeCall(
+                    java.util.Objects.requireNonNull(fold, "fold callee"),
+                    List.of(out, branches.get(i)), call.info());
+        }
+        return out;
+    }
+
+    /** Whether every target-side read of {@code cond} (params
+     * (parent, target)) names a column of {@code row} — the merge-by-
+     * column-name admission test. */
+    private static boolean condBindsOnRow(TypedLambda cond,
+            Type.RelationType row) {
+        Set<String> reads = new LinkedHashSet<>();
+        for (TypedSpec b : cond.body()) {
+            Pipelines.collectVarReads(b, cond.parameters().get(1), reads);
+        }
+        Set<String> cols = new LinkedHashSet<>();
+        for (Type.Column c : row.columns()) {
+            cols.add(c.name());
+        }
+        return !reads.isEmpty() && cols.containsAll(reads);
+    }
+
+    private TypedSpec boolFold(List<TypedSpec> conj, TypedFunction callee) {
+        TypedSpec out = conj.get(0);
+        for (int i = 1; i < conj.size(); i++) {
+            out = new TypedNativeCall(callee, List.of(out, conj.get(i)),
+                    new ExprType(Type.Primitive.BOOLEAN,
+                            Multiplicity.Bounded.ONE));
+        }
+        return out;
+    }
+
     private CorrTarget correlateTarget(ExistsSub ex) {
+        return correlateTarget(ex, List.of());
+    }
+
+    private CorrTarget correlateTarget(ExistsSub ex,
+            List<TypedLambda> siblingConds) {
         TypedLambda cond = ex.orientedCond();   // params (parentRow, targetRow)
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
@@ -2671,6 +2773,35 @@ final class Substitution {
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
+        // MERGED-KEY siblings (concat-split): each sibling condition that
+        // binds on THIS branch's row ORs in, rebound by column name —
+        // conjunct lists AND-fold first (multi-statement lambda lesson)
+        if (!siblingConds.isEmpty() && target.regs().orCallee() != null
+                && target.regs().andCallee() != null) {
+            List<TypedSpec> alts = new ArrayList<>();
+            alts.add(boolFold(corrBody, target.regs().andCallee()));
+            for (TypedLambda sc : siblingConds) {
+                if (!condBindsOnRow(sc, ex.targetRow())) {
+                    continue;
+                }
+                List<TypedSpec> sb = sc.body().stream()
+                        .map(b -> Pipelines.rewriteRowReads(b,
+                                sc.parameters().get(1), Map.of(), Set.of(),
+                                v -> new TypedVariable(tRenamed,
+                                        new ExprType(ex.targetRow(),
+                                                Multiplicity.Bounded.ONE))))
+                        .map(b -> Pipelines.rewriteRowReads(b,
+                                sc.parameters().get(0), Map.of(), Set.of(),
+                                v -> new TypedVariable(target.freshRowVar(),
+                                        new ExprType(target.rowType(),
+                                                Multiplicity.Bounded.ONE))))
+                        .toList();
+                alts.add(boolFold(sb, target.regs().andCallee()));
+            }
+            if (alts.size() > 1) {
+                corrBody = List.of(boolFold(alts, target.regs().orCallee()));
+            }
+        }
         TypedLambda corr = new TypedLambda(List.of(tRenamed), corrBody,
                 new ExprType(new Type.FunctionType(
                         List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
@@ -2684,7 +2815,12 @@ final class Substitution {
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,
             List<TypedLambda> chainPreds) {
-        CorrTarget ct = correlateTarget(ex);
+        return rewriteExists(call, ex, chainPreds, List.of());
+    }
+
+    private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,
+            List<TypedLambda> chainPreds, List<TypedLambda> siblingConds) {
+        CorrTarget ct = correlateTarget(ex, siblingConds);
         final String tRenamed = ct.binder();
         TypedSpec rel = ct.rel();
         // chain filters ($p.head->filter(f)->...) merge into the correlated
