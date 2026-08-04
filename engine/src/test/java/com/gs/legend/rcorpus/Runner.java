@@ -1196,11 +1196,19 @@ public final class Runner {
             }
         }
         try {
-            com.legend.compiler.element.ModelContext ctx =
-                    moduleContextFor(moduleRefs, fileOnlyRefs);
-            try (Connection conn = openSession()) {
-                List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
-                        ctx, conn);
+            com.legend.compiler.element.ModelContext ctx;
+            try (var __t = Timings.phase("module")) {
+                ctx = moduleContextFor(moduleRefs, fileOnlyRefs);
+            }
+            Connection __c;
+            try (var __t = Timings.phase("session")) {
+                __c = openSession();
+            }
+            try (Connection conn = __c) {
+                List<String> failedSeeds;
+                try (var __t = Timings.phase("seed")) {
+                    failedSeeds = replaySeeds(t.fqn(), moduleRefs, ctx, conn);
+                }
                 seedFailures.addAll(failedSeeds);
                 if (System.getenv("LL_TMP_DEBUG") != null
                         || System.getenv("LL_ORD_COUNT") != null) {
@@ -1208,9 +1216,12 @@ public final class Runner {
                     // prints that follow belong to THIS test
                     System.err.println("[run] " + t.fqn());
                 }
-                com.legend.harness.TestBody.Outcome o = com.legend.harness.TestBody.run(
-                        ctx, body, importScopeOf(t), "rcorpus::Rt",
-                        conn, !failedSeeds.isEmpty(), failedSeeds);
+                com.legend.harness.TestBody.Outcome o;
+                try (var __t = Timings.phase("body")) {
+                    o = com.legend.harness.TestBody.run(
+                            ctx, body, importScopeOf(t), "rcorpus::Rt",
+                            conn, !failedSeeds.isEmpty(), failedSeeds);
+                }
                 // body-time setup failures (added via the sink DURING the
                 // run) join the run-wide report too (audit 17)
                 seedFailures.addAll(failedSeeds);
@@ -1694,8 +1705,12 @@ public final class Runner {
         // seedColumnTypes/pickBySeed, the last surviving shadow parser)
         // is retired. Same-named tables dedup first-wins (module order),
         // the same arbitration the module's element dedup already applies.
-        List<String> allSeeds = moduleDdl(ctx);
+        List<String> allSeeds;
+        try (var __t = Timings.phase("ddlGen")) {
+            allSeeds = moduleDdl(ctx);
+        }
         List<String> failedSeeds = new ArrayList<>();
+        try (var __t = Timings.phase("ddlExec")) {
         for (String sql : allSeeds) {
             for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
                 // module DDL adapts to the SESSION: raw for the H2 sweep,
@@ -1711,6 +1726,7 @@ public final class Runner {
                             + String.valueOf(e.getMessage()).split("\n")[0]);
                 }
             }
+        }
         }
         // shared-file zero-arg units first (the legacy dataSeeds position),
         // then this test's BeforePackage fns — each a real call through the
@@ -1970,6 +1986,14 @@ public final class Runner {
     /** One zero-arg setup call through the full pipeline; failures feed the
      * failed-seed ledger (and the emptiness guard). */
     private void callSetup(String setupFqn,
+            com.legend.compiler.element.ModelContext ctx, Connection conn,
+            List<String> failedSeeds) {
+        try (var t = Timings.phase("setupFns")) {
+            callSetup0(setupFqn, ctx, conn, failedSeeds);
+        }
+    }
+
+    private void callSetup0(String setupFqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn,
             List<String> failedSeeds) {
         com.legend.model.spec.ValueSpecification call =

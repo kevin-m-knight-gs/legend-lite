@@ -53,6 +53,8 @@ public class RelationalCorpusRunner {
     @Test
     void scoreboard() throws Exception {
         Assumptions.assumeTrue(Corpus.available(), "legend-engine checkout not present");
+        long __wall0 = System.nanoTime();
+        try {
 
         List<String> shared = List.of(
                 Corpus.read("tests/testModel/simpleTestModel.pure"),
@@ -321,6 +323,10 @@ public class RelationalCorpusRunner {
                     "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
                     + regressions
                     + " — fix or revert; do not commit the rewritten scoreboard");
+        }
+        } finally {
+            // wall-clock phase tree; no-op unless -Dlegend.timings
+            Timings.dump(System.nanoTime() - __wall0);
         }
     }
 
