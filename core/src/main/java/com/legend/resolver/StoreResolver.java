@@ -3246,28 +3246,17 @@ public final class StoreResolver {
     }
 
     /**
-     * Build the association join for {@code $parent.head}: the mapping's
-     * AssociationBinding predicate function carries the condition
-     * (legacyAssocPredicate(a, b, srcRows, tgtRows, {srcRow,tgtRow|cond}) —
-     * H1's emission); the target is the class's own pipeline (its ~filter
-     * rides along; its slots strip under empty demand — leaf bindings that
-     * read them are loud). Orientation: the predicate's cond params are
-     * (classA-row, classB-row) with classA = property1's target; navigating
-     * property1 means the PARENT is classB, so the params REVERSE (the
-     * TypedJoin condition binds (leftRow=parent, rightRow=target)).
-     */
-    /**
-     * Leaf properties read INSIDE exists/isEmpty predicates over {@code
-     * head} anywhere in the chain's filters — the inner-lambda demand that
-     * materializes the exists target's own slot joins (N1).
-     */
-    /**
-     * R1 — RECURSIVE SCOPE DEMAND: the exists/filter predicates nested
-     * under {@code head} get their own registered materials against the
-     * TARGET class, so navigation INSIDE a nested predicate resolves
-     * instead of staying loud (Registries.NONE was a blanket stop).
-     * Terminates on expression depth; assoc/agg materials stay top-level
-     * for now (R1a: exists materials only).
+     * Association-join materials for {@code $parent.head}: the mapping's
+     * AssociationBinding predicate fn carries the condition (H1's
+     * legacyAssocPredicate emission); the target = the class's own
+     * pipeline (~filter rides; slots strip under empty demand — leaf
+     * reads of them are loud). Orientation: cond params are (classA-row,
+     * classB-row), classA = property1's target — navigating property1
+     * REVERSES params (TypedJoin binds (parent, target)). R1 RECURSIVE
+     * SCOPE DEMAND: exists/filter predicates nested under head get their
+     * own materials against the TARGET class (Registries.NONE was a
+     * blanket stop); terminates on expression depth (R1a: exists
+     * materials only).
      */
     /** The nested scope's registries PLUS the target pipeline widened with
      * the nested association joins (their prefixed columns must ride the
@@ -3446,10 +3435,21 @@ public final class StoreResolver {
                         temporal.milestoneColumnsOf(cs.pipeline(),
                                 cs.classFqn())),
                 new Substitution.Registries(assocs, assocEnds, existsSubs,
-                        aggReads, inQueryReads, isNotEmptyCallee(), equalCallee()),
+                        aggReads, inQueryReads, isNotEmptyCallee(), equalCallee(),
+                        RelationalRootForm.primaryKeyColumns(cs.classFqn(),
+                                m.pipeline(), cs.mappingFqn(), ctx),
+                        inCallee()),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
                         temporal.headTemporalDates(), temporal.root()),
                 filterPosition, false));
+    }
+
+    /** The 2-arg in overload — the objectReferenceIn pk membership. */
+    private com.legend.compiler.element.TypedFunction inCallee() {
+        var fns = ctx.findFunction("meta::pure::functions::collection::in");
+        return fns.stream().filter(f -> f.parameters().size() == 2)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no in registration"));
     }
 
     /** Any registered equal overload — membership-crossing emission. */

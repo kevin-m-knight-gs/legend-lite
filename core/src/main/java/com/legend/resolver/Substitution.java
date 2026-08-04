@@ -81,7 +81,19 @@ final class Substitution {
                       Map<TypedSpec, AggRead> aggReads,
                       Map<TypedSpec, InQueryRead> inQueryReads,
                       @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                      @com.legend.Nullable TypedFunction equalCallee) {
+                      @com.legend.Nullable TypedFunction equalCallee,
+                      List<String> pkColumns,
+                      @com.legend.Nullable TypedFunction inCallee) {
+
+        Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
+                   Map<String, ExistsSub> existsSubs,
+                   Map<TypedSpec, AggRead> aggReads,
+                   Map<TypedSpec, InQueryRead> inQueryReads,
+                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.Nullable TypedFunction equalCallee) {
+            this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
+                    isNotEmptyCallee, equalCallee, List.of(), null);
+        }
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
@@ -1348,6 +1360,75 @@ final class Substitution {
                 "registries built without an isNotEmpty callee");
     }
 
+    /** See the objectReferenceIn arm. Single-pk sets only (the corpus
+     * shape); refs fold through take(coll, n) over the literal list. */
+    private TypedSpec objectReferenceInRewrite(TypedNativeCall oc) {
+        TypedSpec refsArg = oc.args().get(1);
+        if (refsArg instanceof com.legend.compiler.spec.typed.TypedLimit tk
+                && tk.source() instanceof
+                        com.legend.compiler.spec.typed.TypedCollection tc0
+                && tk.count() instanceof
+                        com.legend.compiler.spec.typed.TypedCInteger tn) {
+            refsArg = new com.legend.compiler.spec.typed.TypedCollection(
+                    tc0.elements().subList(0, Math.min(
+                            tn.value().intValue(), tc0.elements().size())),
+                    tc0.info());
+        }
+        if (!(refsArg instanceof
+                com.legend.compiler.spec.typed.TypedCollection refs)
+                || target.regs().pkColumns().size() != 1
+                || target.regs().inCallee() == null) {
+            throw new NotImplementedException("objectReferenceIn needs"
+                    + " literal references and a single-pk set — "
+                    + (target.regs().pkColumns().size() != 1
+                            ? "pk columns: " + target.regs().pkColumns()
+                            : "non-literal reference collection"));
+        }
+        List<TypedSpec> pkVals = new java.util.ArrayList<>();
+        for (TypedSpec r : refs.elements()) {
+            if (!(r instanceof com.legend.compiler.spec.typed
+                    .TypedCString rs)) {
+                throw new NotImplementedException(
+                        "objectReferenceIn reference is not a literal");
+            }
+            String b64 = rs.value().startsWith("ASOR:")
+                    ? rs.value().substring(5) : rs.value();
+            String dec = new String(java.util.Base64.getDecoder().decode(
+                    b64 + "=".repeat((4 - b64.length() % 4) % 4)),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            Object pkObj = com.legend.sql.Json.parseOne(
+                    dec.substring(dec.lastIndexOf(":{") + 1));
+            if (!(pkObj instanceof Map<?, ?> pkMap)
+                    || !(pkMap.get("pk$_0") instanceof Long pkv)) {
+                throw new NotImplementedException(
+                        "objectReferenceIn reference pk segment did not"
+                                + " decode: " + dec);
+            }
+            pkVals.add(new com.legend.compiler.spec.typed.TypedCInteger(
+                    pkv, new ExprType(Type.Primitive.INTEGER,
+                            Multiplicity.Bounded.ONE)));
+        }
+        String pkCol = target.regs().pkColumns().get(0);
+        Type.RelationType row = target.rowType();
+        Type.Column col = row.columns().stream()
+                .filter(c -> c.name().equals(pkCol)
+                        || RelationalRootForm.stripQ(c.name()).equals(pkCol))
+                .findFirst().orElseThrow(() -> new NotImplementedException(
+                        "objectReferenceIn pk column '" + pkCol
+                                + "' is not on the row"));
+        TypedSpec pkRead = new TypedPropertyAccess(
+                new TypedVariable(target.freshRowVar(),
+                        new ExprType(row, Multiplicity.Bounded.ONE)),
+                col.name(), new ExprType(col.type(), col.multiplicity()));
+        return new TypedNativeCall(
+                java.util.Objects.requireNonNull(target.regs().inCallee()),
+                List.of(pkRead, new com.legend.compiler.spec.typed
+                        .TypedCollection(pkVals,
+                                new ExprType(Type.Primitive.INTEGER,
+                                        Multiplicity.Bounded.ZERO_MANY))),
+                oc.info());
+    }
+
     private com.legend.compiler.element.TypedFunction eqCallee() {
         return java.util.Objects.requireNonNull(target.equalCallee(),
                 "registries built without an equal callee");
@@ -1428,6 +1509,17 @@ final class Substitution {
             if (localArm != null) {
                 return localArm;
             }
+        }
+        // objectReferenceIn($p, refs): ASOR references DECODE at
+        // resolution (they are literals after harness extraction) into
+        // a primary-key membership predicate — the engine's store-
+        // object-reference round trip.
+        if (n instanceof TypedNativeCall oc && oc.args().size() == 2
+                && "meta::pure::functions::collection::objectReferenceIn"
+                        .equals(oc.callee().qualifiedName())
+                && oc.args().get(0) instanceof TypedVariable orv
+                && orv.name().equals(target.userVar())) {
+            return objectReferenceInRewrite(oc);
         }
         return switch (n) {
             // $p->filter(pred).leaf — the if-as-filter idiom over the
