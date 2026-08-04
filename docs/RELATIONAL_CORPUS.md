@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 133 | 6 | 13 | 3 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
-| graphFetch/tests | 143 | 131 | 4 | 6 | 2 | 0 |
+| graphFetch/tests | 143 | 132 | 3 | 6 | 2 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2206** | 74 | 123 | 135 | 255 |
+| **total** | 2538 | **2207** | 73 | 123 | 135 | 255 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1240,7 +1240,6 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4 | expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm A, employees=[{firstName=Fabrice...
 - ERROR testQualifierInsideQualifier [graphFetch/tests]: property 'initiator' of class 'meta::relational::tests::model::simple::Trade' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - FAIL testCheckedWithCircularConstraints [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0 | expected [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[{path=[{propertyNam..., got [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[], value={firstName...
-- FAIL testSubTypeAtRootLevelWithInheritanceMapping [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $ expected 3 element(s), got 6 | expected [{coordinate={latitude=38.8951, longitude= -77.0364}, street=str1, Id=1, landmark={lmName=lm1}}, {coordinate={latitude=32.8951, longitude= -75.0364}, street=..., got [{Id=1, landmark={lmName=lm1}, street=str1, coordinate={latitude=38.8951, longitude= -77.0364}}, {Id=2, landmark={lmName=lm2}, street=str2, coordinate={latit...
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}...
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: from() argument 2 must be a mapping or runtime reference, got TypedNewInstance
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1] -> String[1]}>

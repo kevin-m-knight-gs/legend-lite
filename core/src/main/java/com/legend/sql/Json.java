@@ -15,9 +15,19 @@ import java.util.Map;
 public final class Json {
     private final String s;
     private int i;
+    /** Assert-channel leniency (parseOne only): engine goldens carry
+     * typo classes real JSON rejects — a missing comma between array
+     * OBJECT elements reads as an implicit comma. Never set for wire
+     * parsing (variant/row streams stay strict). */
+    private final boolean lenient;
 
     private Json(String s) {
+        this(s, false);
+    }
+
+    private Json(String s, boolean lenient) {
         this.s = s;
+        this.lenient = lenient;
     }
 
     public static @com.legend.Nullable Object parse(String json) {
@@ -36,7 +46,7 @@ public final class Json {
      * graphFetch goldens carry a stray quote after the array; the engine's
      * own parse reads the value and ignores the tail). */
     public static @com.legend.Nullable Object parseOne(String json) {
-        Json p = new Json(json);
+        Json p = new Json(json, true);
         p.ws();
         return p.value();
     }
@@ -108,6 +118,9 @@ public final class Json {
             if (s.charAt(i) == ',') {
                 i++;
                 continue;
+            }
+            if (lenient && s.charAt(i) == '{') {
+                continue;   // implicit comma (golden typo class)
             }
             i++;    // ']'
             return out;
