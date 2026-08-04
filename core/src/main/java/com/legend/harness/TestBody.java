@@ -258,6 +258,7 @@ public final class TestBody {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.List<String> seedFailures)
             throws java.sql.SQLException {
+        ElqSplice.ELQ_PARAMS.get().clear();   // per-test param-let names
         Preamble pre = preamble(ctx, statements, imports, runtimeFqn);
         if (pre.lineage() != null) {
             return pre.lineage();

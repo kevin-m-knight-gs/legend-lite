@@ -243,7 +243,8 @@ final class GraphEmission {
                     || (!cs.bindings().containsKey(node.property())
                             && ctx.findAssociationOf(cs.classFqn(), node.property())
                                     .isPresent())
-                    || isDerivedClassProp(cs, node)) {
+                    || isDerivedClassProp(cs, node)
+                    || isPlainClassProp(cs, node)) {
                 children.add(graphChild(cs, node, context, rowVar, rowType, pipeline));
                 continue;
             }
@@ -803,6 +804,19 @@ final class GraphEmission {
             if (dch0 != null) {
                 return dch0;
             }
+            // IMPLICIT CHILD EXPANSION: a childless CLASS-typed leaf
+            // serializes the FULL nested object (engine) — synthesize the
+            // child tree from the child class's scalar/enum model
+            // properties and re-enter (routes handle demand; unmapped
+            // optional scalars ride the [0..1]-gen arm)
+            java.util.List<TypedGraphTree> implicit = implicitLeaves(cs,
+                    node, context);
+            if (implicit != null) {
+                return graphChild(cs, new TypedGraphTree(node.property(),
+                        implicit, node.alias(), node.args(), node.sweep(),
+                        node.subTypeFqn(), node.qualified()),
+                        context, parentRowVar, parentRowType, parentPipeline);
+            }
             throw new NotImplementedException("graph child '" + node.property()
                     + "' of class '" + cs.classFqn() + "' has no sub-tree — a"
                     + " class-typed leaf serializes nothing; list its properties");
@@ -1212,6 +1226,56 @@ final class GraphEmission {
      * association walls stay downstream. */
     /** A DERIVED class-typed tree node with matching call arity — routes
      * through {@link #graphChild} even childless. */
+    /** A childless CLASS-typed PLAIN property (slot/assoc-backed, not
+     * derived) — routes to graphChild for implicit expansion. */
+    private boolean isPlainClassProp(ClassSource cs, TypedGraphTree node) {
+        return node.children().isEmpty()
+                && ctx.findProperty(cs.classFqn(), node.property())
+                        .map(p -> !(p instanceof com.legend.compiler
+                                .element.Property.Derived)
+                                && p.type() instanceof Type.ClassType)
+                        .orElse(false);
+    }
+
+    /** The implicit full tree of a childless class-typed leaf: the child
+     * class's primitive/enum-typed properties as leaves; null when the
+     * child class is unresolvable. */
+    private java.util.@com.legend.Nullable List<TypedGraphTree>
+            implicitLeaves(ClassSource cs, TypedGraphTree node,
+                    StoreResolver.Context context) {
+        var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
+        if (p == null || !(p.type() instanceof Type.ClassType ct)) {
+            return null;
+        }
+        var cls = ctx.findClass(ct.fqn()).orElse(null);
+        if (cls == null) {
+            return null;
+        }
+        // MAPPED properties only (the engine's implicit tree): filter
+        // through the child source's bindings
+        java.util.Set<String> mapped;
+        try {
+            String key = (context.explicitMapping() == null ? ""
+                    : context.explicitMapping()) + '\u0000'
+                    + (context.runtimeFqn() == null ? ""
+                            : context.runtimeFqn());
+            mapped = sources.get(dispatch.apply(context, ct.fqn()),
+                    ct.fqn(), (t, ex) -> dispatch.apply(context, t), key)
+                    .bindings().keySet();
+        } catch (RuntimeException unresolvable) {
+            return null;
+        }
+        java.util.List<TypedGraphTree> out = new ArrayList<>();
+        for (var cp : cls.properties()) {
+            if ((cp.type() instanceof Type.Primitive
+                    || cp.type() instanceof Type.EnumType)
+                    && mapped.contains(cp.name())) {
+                out.add(new TypedGraphTree(cp.name(), List.of()));
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
     private boolean isDerivedClassProp(ClassSource cs, TypedGraphTree node) {
         return ctx.findProperty(cs.classFqn(), node.property()).orElse(null)
                 instanceof com.legend.compiler.element.Property.Derived d

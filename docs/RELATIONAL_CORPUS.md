@@ -23,7 +23,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 110 | 59 | 15 | 6 | 30 | 0 |
-| functions/tests | 258 | 232 | 8 | 13 | 5 | 67 |
+| functions/tests | 258 | 233 | 8 | 12 | 5 | 67 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 133 | 6 | 13 | 3 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2216** | 72 | 115 | 135 | 240 |
+| **total** | 2538 | **2217** | 72 | 114 | 135 | 240 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1110,10 +1110,10 @@ in-process Alloy-shaped path).
 - 1x runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 2 candidates); class-query dispatch needs exactly one
 - 1x emptiness check over a toOne()-pierced navigation through the ~filter-mapped set of 'firm' needs the strict-read filter hoist — not supported yet
 - 1x unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- 1x graph leaf 'biTemporalClassification' of class 'meta::relational::tests::milestoning::BiTemporalProduct' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - 1x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT regexp_full_match(struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                                  ^
 - 1x zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
+- 1x no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 
 ### per-test outcomes (non-passing)
 
@@ -1194,7 +1194,6 @@ in-process Alloy-shaped path).
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME, "persontable_0".FIRSTNAME
 - ERROR testObjectReferneceInWithMilestonedRootClass [functions/tests]: unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- ERROR testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: graph leaf 'biTemporalClassification' of class 'meta::relational::tests::milestoning::BiTemporalProduct' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - ERROR testSQLComments [functions/tests]: Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT regexp_full_matc
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)

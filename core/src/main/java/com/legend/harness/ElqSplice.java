@@ -39,6 +39,13 @@ final class ElqSplice {
     private ElqSplice() {
     }
 
+    /** QUERY-PARAMETER let names of the current test (populated at
+     * splice, cleared per test): the engine keeps \$name spellings in
+     * serialize keys for RUNTIME-bound parameters; ordinary test-body
+     * lets are compile-time values and spell their VALUE. */
+    static final ThreadLocal<java.util.Set<String>> ELQ_PARAMS =
+            ThreadLocal.withInitial(java.util.HashSet::new);
+
     static java.util.@com.legend.Nullable List<ValueSpecification> splice(
             CString name, ValueSpecification rhs,
             Map<String, ValueSpecification> lets) {
@@ -72,6 +79,7 @@ final class ElqSplice {
                     // ordinary typing path reports it loudly
                     return null;
                 }
+                ELQ_PARAMS.get().add(v.name());
                 out.add(new AppliedFunction("letFunction", List.of(
                         new CString(v.name()), coerce(v, val))));
             }
@@ -108,7 +116,8 @@ final class ElqSplice {
             Map<String, ValueSpecification> lets) {
         if (cs.alias() != null || cs.args().isEmpty()
                 || cs.args().stream().noneMatch(a -> a instanceof Variable v
-                        && lets.containsKey(v.name()))) {
+                        && lets.containsKey(v.name())
+                        && ELQ_PARAMS.get().contains(v.name()))) {
             return cs.alias();
         }
         StringBuilder k = new StringBuilder(cs.name()).append('(');
