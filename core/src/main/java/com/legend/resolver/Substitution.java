@@ -1376,6 +1376,23 @@ final class Substitution {
                 "registries built without an isNotEmpty callee");
     }
 
+    private boolean rootsAtUserVar(TypedSpec inst) {
+        while (true) {
+            if (inst instanceof TypedNativeCall w && w.args().size() == 1
+                    && ("meta::pure::functions::multiplicity::toOne".equals(
+                            w.callee().qualifiedName())
+                            || "meta::pure::functions::collection::first"
+                                    .equals(w.callee().qualifiedName()))) {
+                inst = w.args().get(0);
+            } else if (inst instanceof TypedPropertyAccess pa) {
+                inst = pa.source();
+            } else {
+                return inst instanceof TypedVariable v
+                        && v.name().equals(target.userVar());
+            }
+        }
+    }
+
     /** See the objectReferenceIn arm. Single-pk sets only (the corpus
      * shape); refs fold through take(coll, n) over the literal list. */
     private TypedSpec objectReferenceInRewrite(TypedNativeCall oc) {
@@ -1653,8 +1670,11 @@ final class Substitution {
         if (n instanceof TypedNativeCall oc && oc.args().size() == 2
                 && "meta::pure::functions::collection::objectReferenceIn"
                         .equals(oc.callee().qualifiedName())
-                && oc.args().get(0) instanceof TypedVariable orv
-                && orv.name().equals(target.userVar())) {
+                && rootsAtUserVar(oc.args().get(0))) {
+            // the instance may be an EMBEDDED nav (\$p.firm->toOne()) —
+            // its pk columns live on the SAME row, and the keyed decode
+            // matches row columns; a joined nav's missing columns stay
+            // loud at pkColRead
             return objectReferenceInRewrite(oc);
         }
         return switch (n) {
