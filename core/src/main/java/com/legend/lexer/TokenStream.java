@@ -85,6 +85,89 @@ public final class TokenStream {
         return source.substring(starts[i], ends[i]);
     }
 
+    // ---- source positions -------------------------------------------------
+    //
+    // Built once, lazily, and shared by every slice of the same source. Before this,
+    // line/column existed ONLY on the error path and was recomputed by an O(offset) linear
+    // rescan per throw (TokenStreamCursor.throwAt). That is fine for errors and useless for
+    // emitting protocol source information, which needs a position at every construction site.
+    //
+    // Engine convention, reproduced exactly: lines and columns are 1-BASED, and an element's
+    // END column is INCLUSIVE (endToken.charPositionInLine + endToken.text.length(), with
+    // deliberately no +1).
+
+    /**
+     * Offsets at which each line starts; {@code lineStarts[0] == 0}. Lazily built, never mutated
+     * after. {@code null} until first use — benign racy initialization: two threads may both build
+     * it, and both results are identical and immutable.
+     */
+    private volatile int @com.legend.Nullable [] lineStarts;
+
+    private int[] lineStarts() {
+        int[] ls = lineStarts;
+        if (ls == null) {
+            int lines = 1;
+            for (int i = 0, n = source.length(); i < n; i++) {
+                if (source.charAt(i) == '\n') {
+                    lines++;
+                }
+            }
+            ls = new int[lines];
+            int k = 1;
+            for (int i = 0, n = source.length(); i < n; i++) {
+                if (source.charAt(i) == '\n') {
+                    ls[k++] = i + 1;
+                }
+            }
+            lineStarts = ls;
+        }
+        return ls;
+    }
+
+    /** 1-based line for a source character offset. Binary search over the line index. */
+    public int lineOf(int offset) {
+        int[] ls = lineStarts();
+        int lo = 0;
+        int hi = ls.length - 1;
+        while (lo < hi) {
+            int mid = (lo + hi + 1) >>> 1;
+            if (ls[mid] <= offset) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return lo + 1;
+    }
+
+    /** 1-based column for a source character offset. */
+    public int columnOf(int offset) {
+        return offset - lineStarts()[lineOf(offset) - 1] + 1;
+    }
+
+    /** 1-based line of the first character of token {@code i}. */
+    public int startLine(int i) {
+        return lineOf(starts[i]);
+    }
+
+    /** 1-based column of the first character of token {@code i}. */
+    public int startColumn(int i) {
+        return columnOf(starts[i]);
+    }
+
+    /** 1-based line of the LAST character of token {@code i} (ends are exclusive, so step back one). */
+    public int endLine(int i) {
+        return lineOf(Math.max(starts[i], ends[i] - 1));
+    }
+
+    /**
+     * 1-based, <strong>inclusive</strong> column of the last character of token {@code i} —
+     * the engine's convention, not a half-open bound.
+     */
+    public int endColumn(int i) {
+        return columnOf(Math.max(starts[i], ends[i] - 1));
+    }
+
     /** Materialize the token at index {@code i} as a {@link Token} record. */
     public Token at(int i) {
         return new Token(type(i), text(i), starts[i], ends[i]);
