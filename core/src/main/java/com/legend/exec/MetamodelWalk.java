@@ -810,6 +810,38 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
                 : r.className().replace("::", "_");
     }
 
+    /** {@code _classMappingByClass} (functions_Mapping.pure:28) — the
+     * class's sets across the INCLUDE closure, includes first (the pure
+     * body's order); the aggregation-aware / association enrichments are
+     * not modeled (their consumers wall on their own reads). */
+    public static java.util.List<Object> classMappingsByClass(Object recv,
+            String classFqn) {
+        java.util.List<Object> out = new java.util.ArrayList<>();
+        if (recv instanceof Mm m) {
+            collectClassMappings(m.ctx(), m.mapping(), classFqn, out,
+                    new java.util.HashSet<>());
+        }
+        return out;
+    }
+
+    private static void collectClassMappings(ModelContext ctx,
+            com.legend.model.LegacyMappingDefinition md, String classFqn,
+            java.util.List<Object> out, java.util.Set<String> seen) {
+        if (!seen.add(md.qualifiedName())) {
+            return;
+        }
+        for (var inc : md.includes()) {
+            ctx.findLegacyMapping(inc.mappingPath()).ifPresent(im ->
+                    collectClassMappings(ctx, im, classFqn, out, seen));
+        }
+        for (var cm : md.classMappings()) {
+            if (cm instanceof com.legend.model.ClassMapping.Relational r
+                    && r.className().equals(classFqn)) {
+                out.add(new Cm(ctx, md, r));
+            }
+        }
+    }
+
     /** {@code classMappingById} (real functions_Mapping.pure:74) —
      * includes walk first, then own class mappings, matched by set id. */
     public static @com.legend.Nullable Object classMappingById(Object recv, String id) {
@@ -1042,6 +1074,17 @@ return ctx.findLegacyMapping(fqn).map(m -> new Mm(ctx, m))
     public static @com.legend.Nullable Object prop(Object recv, String prop) {
         if (recv instanceof Cm cmh && prop.equals("id")) {
             return setIdOf(cmh.cm());
+        }
+        if (recv instanceof Cm cmr && prop.equals("root")) {
+            if (cmr.cm().root()) {
+                return true;
+            }
+            // ENGINE: a class's SOLE set is implicitly root — the '*'
+            // marker only disambiguates multiple sets (compiler default)
+            java.util.List<Object> all = new java.util.ArrayList<>();
+            collectClassMappings(cmr.ctx(), cmr.owner(),
+                    cmr.cm().className(), all, new java.util.HashSet<>());
+            return all.size() == 1;
         }
         if (recv instanceof TacH tac && prop.equals("column")) {
             return tac.column();

@@ -1321,6 +1321,10 @@ public final class Pure {
     public static final NativeFunctionDefinition NEW_STATE = signature("native function meta::relational::functions::toPostgresModel::newState():meta::relational::functions::toPostgresModel::ModelConversionState[1];");
     public static final NativeFunctionDefinition CONVERT_SELECT_SQL_QUERY = signature("native function meta::relational::functions::toPostgresModel::convertSelectSqlQuery(select:meta::relational::metamodel::relation::SelectSQLQuery[1], state:meta::relational::functions::toPostgresModel::ModelConversionState[1]):meta::external::query::sql::metamodel::Query[1];");
     public static final NativeFunctionDefinition ROOT_CLASS_MAPPING_BY_CLASS = signature("native function meta::pure::mapping::rootClassMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[0..1];");
+    // real functions_Mapping.pure:28 — platform-owned (the pure body's
+    // groupBy/AggregationAware machinery is out of scope; the walk serves
+    // the include-closure set collection the corpus asserts on)
+    public static final NativeFunctionDefinition CLASS_MAPPING_BY_CLASS = signature("native function meta::pure::mapping::_classMappingByClass(_this:meta::pure::mapping::Mapping[1], class:meta::pure::metamodel::type::Class<meta::pure::metamodel::type::Any>[1]):meta::pure::mapping::SetImplementation[*];");
     public static final NativeFunctionDefinition PROPERTY_MAPPINGS_BY_NAME = signature("native function meta::pure::mapping::propertyMappingsByPropertyName(i:meta::pure::mapping::InstanceSetImplementation[1], propertyName:meta::pure::metamodel::type::String[1]):meta::pure::mapping::PropertyMapping[*];");
     // Extends-chain navigation over the mapping metamodel (real
     // functions_Mapping.pure:74, functions_PropertyMappingsImplementation

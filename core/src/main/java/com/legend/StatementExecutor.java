@@ -1226,6 +1226,14 @@ final class StatementExecutor {
                         return out;
                     }
                 }
+                case "_classMappingByClass" -> {
+                    if (c.args().size() == 2 && c.args().get(1) instanceof
+                            com.legend.compiler.spec.typed
+                                    .TypedPackageableRef cref2) {
+                        return com.legend.exec.MetamodelWalk
+                                .classMappingsByClass(recv, cref2.fullPath());
+                    }
+                }
                 case "rootClassMappingByClass" -> {
                     if (c.args().size() == 2 && c.args().get(1) instanceof
                             com.legend.compiler.spec.typed
@@ -1720,12 +1728,19 @@ final class StatementExecutor {
                 && eq.args().size() == 2
                 && eq.args().get(0)
                         instanceof com.legend.compiler.spec.typed
-                                .TypedPropertyAccess pa2
-                && eq.args().get(1)
-                        instanceof com.legend.compiler.spec.typed
-                                .TypedCString lit) {
+                                .TypedPropertyAccess pa2) {
             // GENERIC property==literal predicate: plan Params (name)
-            // and metamodel handles (columnName) share the arm
+            // and metamodel handles (columnName, root) share the arm
+            Object litVal = switch (eq.args().get(1)) {
+                case com.legend.compiler.spec.typed.TypedCString cs2 ->
+                        cs2.value();
+                case com.legend.compiler.spec.typed.TypedCBoolean cb2 ->
+                        cb2.value();
+                default -> null;
+            };
+            if (litVal == null) {
+                return null;
+            }
             java.util.List<Object> out = new java.util.ArrayList<>();
             for (Object e : l) {
                 Object v = e instanceof com.legend.plan.PlanNode.Param pp
@@ -1733,7 +1748,7 @@ final class StatementExecutor {
                         ? pp.name()
                         : com.legend.exec.MetamodelWalk.prop(e,
                                 pa2.property());
-                if (lit.value().equals(v)) {
+                if (litVal.equals(v)) {
                     out.add(e);
                 }
             }
