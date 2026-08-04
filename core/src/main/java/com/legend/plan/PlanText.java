@@ -463,6 +463,40 @@ public final class PlanText {
         throw new NotImplementedException("plan: pure type name for " + t);
     }
 
+    /** {@code plan}'s top select with its from-tree's LEFTMOST subselect
+     * replaced by a {@code (${var})} placeholder, re-rendered with
+     * {@code renderer} — null when the top shape is not
+     * join-of-subselects (the cross-store split's SQL-text channel). */
+    public static @com.legend.Nullable String spliceLeftVar(
+            com.legend.sql.SqlQuery plan, String var,
+            com.legend.sql.dialect.AnsiSqlRenderer renderer) {
+        if (!(plan instanceof SqlSelect top)
+                || !(top.from() instanceof SqlSource.Join jn)) {
+            return null;
+        }
+        SqlSource left = jn.left();
+        while (left instanceof SqlSource.Join lj) {
+            left = lj.left();
+        }
+        if (!(left instanceof SqlSource.Subselect ls)) {
+            return null;
+        }
+        SqlSource swapped = swapLeftmost(jn,
+                new SqlSource.VarSetPlaceholder(var, ls.alias(),
+                        ls.outputs()));
+        return renderer.render(new SqlSelect(top.projections(),
+                top.distinct(), swapped, top.where(), top.groupBy(),
+                top.having(), top.qualify(), top.orderBy(), top.limit(),
+                top.offset(), top.outputs()));
+    }
+
+    private static SqlSource swapLeftmost(SqlSource src, SqlSource repl) {
+        return src instanceof SqlSource.Join j
+                ? new SqlSource.Join(swapLeftmost(j.left(), repl),
+                        j.right(), j.kind(), j.on())
+                : repl;
+    }
+
     private static String strip(String name) {
         return name.length() > 1 && name.startsWith("\"")
                 && name.endsWith("\"")
