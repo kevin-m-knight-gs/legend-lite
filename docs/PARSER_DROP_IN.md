@@ -10,6 +10,68 @@
 
 ---
 
+## 0. Why replace ANTLR — five reasons, and speed is the weakest one
+
+An earlier draft of this document treated the 54× speedup as *the* justification, and proposed
+killing the project if parsing turned out to be a small share of request latency. **That gate was
+wrong.** Speed is one of five reasons and not the strongest. Measured on the branch, 2026-08-04:
+
+### 0.1 Memory — the strongest argument, and it is not close
+
+| parsing 298 `###Pure` files, 2,834,368 chars | allocated | per source char |
+|---|---:|---:|
+| legend-engine (ANTLR) | **3,647,679,648 bytes** | **1,287 B/char** |
+| legend-lite | 70,049,608 bytes | 25 B/char |
+| | | **52× less garbage** |
+
+**3.6 GB of allocation to parse 2.8 MB of source — roughly 1,287× the input size.** Plus **+31.5 MB
+retained heap** simply from warming the parser (serialized ATN tables and DFA caches). On a
+multi-tenant engine server this is GC pressure, not microseconds, and it is the reason to care even
+if parse time is invisible in a request trace.
+
+### 0.2 Generated code — 46% of the jar's bytes
+
+| grammar jar `legend-engine-language-pure-grammar:4.133.0` | |
+|---|---:|
+| total classes | 1,508 |
+| ANTLR-generated (`*ParserGrammar` / `*LexerGrammar`) | **132** (9%) |
+| bytes of generated classes | **4.8 MB** |
+| bytes of all classes | 10.4 MB |
+| **generated share of jar bytes** | **46%** |
+
+132 classes carrying 46% of the bytes — serialized ATN tables. Repo-wide the source side is
+**156 `.g4` files / 14,568 lines** across 41 modules, all of which the replacement deletes rather
+than maintains.
+
+### 0.3 Build and toolchain simplification
+
+`antlr4-maven-plugin` runs at `generate-sources` in every grammar module, with
+`treatWarningsAsErrors` and a hand-managed `libDirectory` for imported grammars. Upstream's own
+`CLAUDE.md` documents the failure mode it creates: *"If you see `cannot find symbol: class
+CoreInstance...`, you ran `mvn test` without prior code generation."* Removing ANTLR removes a build
+stage, a class of build failure, and a plugin from 41 poms. *(Build-time delta not yet measured —
+would require a full legend-engine build.)*
+
+### 0.4 Dependency currency
+
+ANTLR is pinned at **4.8-1** (2020). Jackson at **2.10.5**. The toolchain is JDK 11. A hand-written
+parser has no ANTLR dependency at all, which removes one pin from an upgrade path that currently has
+to move ANTLR, the generated code, and every grammar together.
+
+### 0.5 Debuggability
+
+Stepping a hand-written recursive-descent parser versus a generated ATN simulator. Qualitative, not
+measured, but it is why `ParserATNSimulator.closure_` being the hottest frame in §2.3 is hard for
+anyone to act on.
+
+### 0.6 Speed — real, but demoted
+
+54.5× (§2). Genuine and robust, but it is now one line item among five, and **the project is worth
+doing at 0% speedup.** §7's "is parse a bottleneck" question is therefore a *sizing* input, not a
+kill gate.
+
+---
+
 ## 1. Verdict
 
 **The goal is whole-parser replacement. That is reachable — but it is two independent axes, and
@@ -58,10 +120,10 @@ the parser prepending a synthetic section header. With `returnSourceInformation=
 erases the field entirely and the problem collapses to structural fidelity — which is exactly the
 mode upstream's own 359-test round-trip suite runs in.
 
-**The speed claim is real and larger than expected: 54.5× on the cleanest comparison available**
-(§2). It survives every methodological attack I could mount at it. But — §6 — **I have not
-established that parsing is a bottleneck in legend-engine's request path**, and that is the single
-question that decides whether any of this is worth doing.
+**The case rests on §0, not on speed.** 52× less allocation, 46% of the grammar jar deleted, a
+build stage removed, and an ANTLR 4.8-1 pin dropped. The 54.5× speedup (§2) is real and survives
+every methodological attack I could mount at it, but it is the *weakest* of the five reasons.
+Parsing's share of request latency (§7) is a sizing input, **not** a kill gate.
 
 ---
 
@@ -522,9 +584,10 @@ typical Legend request the parser hands a `PureModelContextData` to the *compile
 request latency, a 54× parser buys 2.9%, and no amount of correctness engineering makes that worth
 replacing a production component.
 
-**This must be measured before anything else is built.** It is a day of work: instrument
-`grammarToJson` and a representative compile+execute path, and report parse as a share of wall
-clock. Every other item in §7 is contingent on that number.
+**Measure it — but as sizing, not as a gate.** A day's work: instrument `grammarToJson` and a
+representative compile+execute path, and report parse as a share of wall clock. If it is small, the
+§0.1 allocation argument still stands on its own, and so do §0.2–§0.4. This number changes *how
+loudly you sell the project*, not whether it is worth doing.
 
 ### 7.1 The seam — resolved, and it is a jar, not a fork
 
@@ -699,5 +762,5 @@ Also: upstream's own `CLAUDE.md` documents `EngineErrorType` as
   every comparison meaningless.
 - **Don't assume the 26 checked-in golden pairs are current.** Nothing asserts them and they are
   ~16 months stale.
-- **Don't skip Stage 0.** A 54× parser that is 3% of request time is a 2.9% win on a component
-  somebody else maintains, and that is not a good trade at any level of engineering quality.
+- **Don't justify this on speed alone** (§0). The allocation and deleted-code arguments are
+  stronger and independent of any latency measurement.
