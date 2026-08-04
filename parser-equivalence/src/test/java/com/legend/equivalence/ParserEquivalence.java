@@ -11,8 +11,6 @@ import org.finos.legend.engine.protocol.pure.m3.PackageableElement;
 import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,23 +60,6 @@ public final class ParserEquivalence {
     private final ObjectMapper mapper =
             ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
     private final PureGrammarParser reference = PureGrammarParser.newInstance();
-    private final Constructor<ElementParser> parserCtor;
-    private final Method parseClass;
-    private final java.lang.reflect.Field posField;
-
-    public ParserEquivalence() {
-        try {
-            parserCtor = ElementParser.class.getDeclaredConstructor(com.legend.lexer.TokenStream.class);
-            parserCtor.setAccessible(true);
-            parseClass = ElementParser.class.getDeclaredMethod("parseClassDefinition", boolean.class);
-            parseClass.setAccessible(true);
-            posField = ElementParser.class.getDeclaredField("pos");
-            posField.setAccessible(true);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(
-                    "legend-lite's parser entry points moved; the harness must be updated, not skipped", e);
-        }
-    }
 
     /**
      * Compare one source. Today this covers {@code Class} declarations in Pure-only sources; the
@@ -107,12 +88,10 @@ public final class ParserEquivalence {
         // at each top-level `Class` token. Parsing isolated chunks restarts line numbers at 1 —
         // a harness artefact that presents as a parser bug.
         com.legend.lexer.TokenStream ts = Lexer.tokenize(src.text());
-        for (int i : topLevelClassTokens(ts)) {
+        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.CLASS)) {
             Protocol.PClass cls;
             try {
-                ElementParser p = parserCtor.newInstance(ts);
-                posField.setInt(p, i);
-                cls = (Protocol.PClass) parseClass.invoke(p, false);
+                cls = ElementParser.at(ts, i).parseClassDefinition(false);
             } catch (Throwable t) {
                 out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 continue;
@@ -133,27 +112,6 @@ public final class ParserEquivalence {
             out.add(expected.equals(actual)
                     ? new Verdict(Kind.MATCH, src.id(), fqn, "")
                     : new Verdict(Kind.DIFF, src.id(), fqn, firstDivergence(expected, actual)));
-        }
-        return out;
-    }
-
-    /** Indices of {@code Class} tokens at brace depth 0 — i.e. real top-level declarations. */
-    private static List<Integer> topLevelClassTokens(com.legend.lexer.TokenStream ts) {
-        List<Integer> out = new ArrayList<>();
-        int depth = 0;
-        for (int i = 0; i < ts.count(); i++) {
-            com.legend.lexer.TokenType t = ts.type(i);
-            if (t == com.legend.lexer.TokenType.BRACE_OPEN
-                    || t == com.legend.lexer.TokenType.BRACKET_OPEN
-                    || t == com.legend.lexer.TokenType.PAREN_OPEN) {
-                depth++;
-            } else if (t == com.legend.lexer.TokenType.BRACE_CLOSE
-                    || t == com.legend.lexer.TokenType.BRACKET_CLOSE
-                    || t == com.legend.lexer.TokenType.PAREN_CLOSE) {
-                depth--;
-            } else if (depth == 0 && t == com.legend.lexer.TokenType.CLASS) {
-                out.add(i);
-            }
         }
         return out;
     }

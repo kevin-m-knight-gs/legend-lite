@@ -95,7 +95,9 @@ public final class Protocol {
 
     /**
      * A simple (non-derived) property, carrying the <b>parse product</b> — the type expression and
-     * multiplicity exactly as parsed — plus the two spans the wire needs.
+     * multiplicity exactly as parsed — plus the property's own span. The type's span lives on the
+     * type node itself ({@code TypeExpression.NameRef#pos()} / {@code Generic#pos()}), threaded by
+     * {@code parseType}, so nested type arguments carry their own spans uniformly.
      *
      * <p>It deliberately does <em>not</em> pre-flatten the type into the wire's
      * {@code genericType}/{@code rawType} shape. Doing that at parse time forced the parser to
@@ -109,7 +111,6 @@ public final class Protocol {
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation,
-                            com.legend.protocol.SourceInfo typeSourceInformation,
                             boolean hasDefaultValue) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);

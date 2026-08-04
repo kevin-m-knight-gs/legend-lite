@@ -121,19 +121,22 @@ where `values`/`error` are themselves JDK-only leaves (6g).
 ### 3.1 Current numbers
 
 ```
-core suite            : 1608 tests, 0 failures
+core suite            : 1625 tests, 0 failures
 
 parser-equivalence:
   corpus sources      : 2289 files
   verdicts            : 6053
-    MATCH (byte-equal): 5638
+    MATCH (byte-equal): 5725
     DIFF  (BUG)       :    0
-    WALL  (no rule)   :  359
-    PARSE_FAIL        :   56
-  coverage            : 5638 of 5638 comparable (100.0%)
+    WALL  (no rule)   :  273
+    PARSE_FAIL        :   55
+  coverage            : 5725 of 5725 comparable (100.0%)
 ```
 
-Progression: 1,750 → (superTypes) → 5,152 → (annotations) → **5,638**, DIFF 0 throughout.
+Progression: 1,750 → (superTypes) → 5,152 → (annotations) → 5,638 → (generics) → **5,725**,
+DIFF 0 throughout. Remaining walls: constraints 222, qualifiedProperties 40, defaultValue 9,
+generic multiplicity args 2. (Walls report the FIRST failure per element — clearing one wall
+grows the next's count as elements progress deeper.)
 
 ### 3.2 How to run it
 
@@ -181,9 +184,14 @@ Compares **emitted bytes**, per element, against the live upstream parser.
    - `var` `{"_type":"var","name":…,"sourceInformation":…}` — but in lambda `parameters`,
      `{"_type":"var","multiplicity":{…},"name":…}` with **no** sourceInformation
    - `integer` `{"_type":"integer","sourceInformation":…,"value":1}`
-3. **Remaining `Class` walls**: constraints 222, `Generic` type expression 89, qualifiedProperties
-   40, defaultValue 8. `Generic` needs per-argument spans inside `parseType` — rawType's span covers
-   the whole `a::C<String>` (cols 7-18) while the argument gets its own (12-17).
+3. ~~`Generic` type expressions~~ **DONE 2026-08-04** — `TypeExpression.NameRef`/`Generic` carry
+   `@Nullable pos` (excluded from equality, guarded by `TypeExpressionEqualityTest`); `parseType`
+   threads spans; the emitter recurses (`GenericTypeEmissionTest` pins engine bytes end-to-end;
+   generic SUPERTYPES emit base path only — engine drops the args from the wire, verified).
+   The harness reflection is gone too: `ElementParser.at(ts, i)` + `topLevelIndexes` +
+   public `parseClassDefinition` are the per-element protocol entry points.
+   **Remaining `Class` walls**: constraints 222, qualifiedProperties 40, defaultValue 9,
+   generic multiplicity arguments 2 (`<T|m>` — wall until the wire shape is probed).
 
 ### 4.2 Then, in order
 

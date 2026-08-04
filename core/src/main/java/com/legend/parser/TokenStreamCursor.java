@@ -457,6 +457,7 @@ public interface TokenStreamCursor {
         if (peek() == TokenType.PAREN_OPEN) {
             return parseRelationType();
         }
+        int startTok = pos();
         String name = parseQualifiedName();
         // Measure~Unit (Mass~Kilogram[1], cast(@Mass~Kilogram)): the
         // UNIT type spelling — folded into ONE NameRef carrying the
@@ -468,7 +469,7 @@ public interface TokenStreamCursor {
             advance();
         }
         if (!match(TokenType.LESS_THAN)) {
-            return new TypeExpression.NameRef(name);
+            return new TypeExpression.NameRef(name, typeSpan(startTok, pos() - 1));
         }
         List<TypeExpression> args = new ArrayList<>();
         args.add(parseTypeArgument());
@@ -486,7 +487,19 @@ public interface TokenStreamCursor {
             }
         }
         expect(TokenType.GREATER_THAN);
-        return new TypeExpression.Generic(name, args, multArgs);
+        // Engine convention (verified via ProbeWireShapes): a generic's rawType span
+        // covers the WHOLE application incl. the closing '>'; each argument carries
+        // its own span on its own node.
+        return new TypeExpression.Generic(name, args, multArgs, typeSpan(startTok, pos() - 1));
+    }
+
+    /** A {@link com.legend.protocol.SourceInfo} covering an inclusive token range,
+     *  in the engine's 1-based / inclusive-end convention. */
+    default com.legend.protocol.SourceInfo typeSpan(int fromTok, int toTok) {
+        TokenStream ts = tokens();
+        return new com.legend.protocol.SourceInfo("",
+                ts.startLine(fromTok), ts.startColumn(fromTok),
+                ts.endLine(toTok), ts.endColumn(toTok));
     }
 
     /**

@@ -175,6 +175,40 @@ public final class ElementParser implements TokenStreamCursor {
     // ============================================================
 
     /**
+     * A parser positioned at an arbitrary token — the protocol-output entry point used by the
+     * equivalence harness (formerly via reflection) and by per-element callers. The token stream
+     * must be the WHOLE file's, so source positions stay file-absolute; parsing isolated chunks
+     * restarts line numbers at 1, which presents as a parser bug in any positional comparison.
+     */
+    public static ElementParser at(TokenStream tokens, int tokenIndex) {
+        ElementParser p = new ElementParser(tokens);
+        p.pos = tokenIndex;
+        return p;
+    }
+
+    /**
+     * Indexes of {@code marker} tokens at bracket/brace/paren depth 0 — i.e. real top-level
+     * declarations, not occurrences inside bodies. Companion to {@link #at}.
+     */
+    public static java.util.List<Integer> topLevelIndexes(TokenStream ts, TokenType marker) {
+        java.util.List<Integer> out = new ArrayList<>();
+        int depth = 0;
+        for (int i = 0; i < ts.count(); i++) {
+            TokenType t = ts.type(i);
+            switch (t) {
+                case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                default -> {
+                    if (depth == 0 && t == marker) {
+                        out.add(i);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * Tokenize and parse a Pure source string into a {@link ParsedModel}.
      *
      * <p>Linear eager parse: every declared element is parsed in source
@@ -374,7 +408,10 @@ public final class ElementParser implements TokenStreamCursor {
     // Class declaration
     // ============================================================
 
-    private com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative) {
+    /** Parses one {@code Class} declaration at the cursor into its protocol record. Public as
+     *  the per-element protocol entry point (see {@link #at}); most callers want
+     *  {@link #parse(String)} instead. */
+    public com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative) {
         int classStartTok = pos;
         expect(TokenType.CLASS);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
@@ -1518,9 +1555,7 @@ public final class ElementParser implements TokenStreamCursor {
         List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String name = parseIdentifier();
         expect(TokenType.COLON);
-        int typeStartTok = pos;
-        TypeExpression type = parseType();
-        int typeEndTok = pos - 1;
+        TypeExpression type = parseType();   // parseType threads the type's own span onto the node
         Multiplicity mult = parseMultiplicity();
         // property DEFAULT VALUE (real pure: prop: Boolean[1] = false;) —
         // parsed and DROPPED for now: defaults apply at ^construction,
@@ -1551,7 +1586,7 @@ public final class ElementParser implements TokenStreamCursor {
         // token span of this property is in hand. No side table, no second pass.
         return new com.legend.protocol.Protocol.PProperty(
                 name, type, mult, stereotypes, taggedValues,
-                span(startTok, pos - 1), span(typeStartTok, typeEndTok), hasDefaultValue);
+                span(startTok, pos - 1), hasDefaultValue);
     }
 
     /** A {@link com.legend.protocol.SourceInfo} for an inclusive token range. */

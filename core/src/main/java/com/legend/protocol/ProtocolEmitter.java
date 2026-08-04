@@ -106,15 +106,24 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    /** {@code {"path":…,"sourceInformation":…,"type":"CLASS"}} — fields alphabetical, no {@code _type}. */
+    /**
+     * {@code {"path":…,"sourceInformation":…,"type":"CLASS"}} — fields alphabetical, no {@code _type}.
+     *
+     * <p>Verified via {@code ProbeWireShapes}: for a GENERIC supertype
+     * ({@code extends c::D<String>}) the engine emits only the base path — the type
+     * arguments are dropped from the wire — while the span still covers the whole
+     * expression. Deliberate parity, not a shortcut.
+     */
     private static void superType(StringBuilder b, Protocol.PSuperType st) {
-        if (!(st.type() instanceof com.legend.protocol.TypeExpression.NameRef n)) {
-            throw new UnsupportedOperationException(
+        String path = switch (st.type()) {
+            case com.legend.protocol.TypeExpression.NameRef n -> n.name();
+            case com.legend.protocol.TypeExpression.Generic g -> g.name();
+            default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for a supertype of shape "
                             + st.type().getClass().getSimpleName() + " — add the emit rule.");
-        }
+        };
         b.append("{\"path\":");
-        str(b, n.name());
+        str(b, path);
         b.append(",\"sourceInformation\":");
         srcInfo(b, st.sourceInformation());
         b.append(",\"type\":\"CLASS\"}");
@@ -126,7 +135,7 @@ public final class ProtocolEmitter {
         // diff looked like a mystery. Silent omission is the one thing the emitter must never do.
         require(!p.hasDefaultValue(), "property defaultValue", p.name());
         b.append("{\"genericType\":");
-        genericType(b, p.type(), p.typeSourceInformation());
+        genericType(b, p.type());
         b.append(",\"multiplicity\":");
         multiplicity(b, p.multiplicity());
         b.append(",\"name\":");
@@ -186,19 +195,49 @@ public final class ProtocolEmitter {
         b.append(']');
     }
 
-    /** The wire's {@code genericType}. Only a plain named type is expressible so far. */
-    private static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t,
-                                    com.legend.protocol.SourceInfo pos) {
-        if (!(t instanceof com.legend.protocol.TypeExpression.NameRef n)) {
-            throw new UnsupportedOperationException(
+    /**
+     * The wire's {@code genericType}. Named types and generic applications are expressible;
+     * spans come from the type NODE itself ({@code parseType} threads them), so nesting is
+     * uniform — an argument is just another {@code genericType}, recursively.
+     *
+     * <p>Verified via {@code ProbeWireShapes}: the {@code rawType} span of a generic covers
+     * the WHOLE application including the closing {@code >}; each argument carries its own.
+     */
+    private static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t) {
+        switch (t) {
+            case com.legend.protocol.TypeExpression.NameRef n ->
+                    genericTypeOf(b, n.name(), java.util.List.of(), n.pos());
+            case com.legend.protocol.TypeExpression.Generic g -> {
+                require(g.multiplicityArguments().isEmpty(),
+                        "generic multiplicity arguments", g.name());
+                genericTypeOf(b, g.name(), g.arguments(), g.pos());
+            }
+            default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for type expression "
                             + t.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
         }
+    }
+
+    private static void genericTypeOf(StringBuilder b, String path,
+                                      List<com.legend.protocol.TypeExpression> args,
+                                      com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+        if (pos == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter needs a source position for type " + path
+                            + " and the parser did not thread one — fix the parse site, do not default it.");
+        }
         b.append("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
-        str(b, n.name());
+        str(b, path);
         b.append(",\"sourceInformation\":");
         srcInfo(b, pos);
-        b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}");
+        b.append("},\"typeArguments\":[");
+        for (int i = 0; i < args.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            genericType(b, args.get(i));
+        }
+        b.append("],\"typeVariableValues\":[]}");
     }
 
     private static void multiplicity(StringBuilder b, com.legend.protocol.Multiplicity m) {

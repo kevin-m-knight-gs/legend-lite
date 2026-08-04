@@ -63,10 +63,31 @@ public sealed interface TypeExpression {
     /** Bare name reference. Pre-NameResolver may be simple ({@code "Integer"}),
      *  qualified ({@code "model::Person"}), a primitive, or a type-parameter
      *  binder ({@code "T"}). Post-NameResolver every non-binder is FQN.
-     *  Name and shape match engine's {@code Type.NameRef}. */
-    record NameRef(String name) implements TypeExpression {
+     *  Name and shape match engine's {@code Type.NameRef}.
+     *
+     *  <p><b>Position is excluded from equality on purpose</b> — same contract
+     *  as the value-spec records ({@code CInteger} et al.), guarded by
+     *  {@code TypeExpressionEqualityTest}. The parser sets it; synthesized
+     *  references (normalizer, fixtures) leave it null and never reach the
+     *  emitter. */
+    record NameRef(String name, @com.legend.Nullable SourceInfo pos) implements TypeExpression {
         public NameRef {
             Objects.requireNonNull(name, "name");
+        }
+
+        /** Position-free convenience constructor for synthesis and tests. */
+        public NameRef(String name) {
+            this(name, null);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof NameRef other && name.equals(other.name());
+        }
+
+        @Override
+        public int hashCode() {
+            return name.hashCode();
         }
     }
 
@@ -76,7 +97,7 @@ public sealed interface TypeExpression {
      *  that resolving the head and resolving the arguments are obvious
      *  separate steps in any walk. */
     record Generic(String name, List<TypeExpression> arguments,
-            List<String> multiplicityArguments)
+            List<String> multiplicityArguments, @com.legend.Nullable SourceInfo pos)
             implements TypeExpression {
         public Generic {
             Objects.requireNonNull(name, "name");
@@ -86,9 +107,31 @@ public sealed interface TypeExpression {
             multiplicityArguments = List.copyOf(multiplicityArguments);
         }
 
+        /** Position-free form for synthesis and tests. */
+        public Generic(String name, List<TypeExpression> arguments,
+                List<String> multiplicityArguments) {
+            this(name, arguments, multiplicityArguments, null);
+        }
+
         /** The common no-multiplicity-parameters form. */
         public Generic(String name, List<TypeExpression> arguments) {
-            this(name, arguments, List.of());
+            this(name, arguments, List.of(), null);
+        }
+
+        /** Position excluded — see {@link NameRef}; argument equality is
+         *  recursively position-blind because each argument's own
+         *  {@code equals} excludes its position too. */
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Generic other
+                    && name.equals(other.name())
+                    && arguments.equals(other.arguments())
+                    && multiplicityArguments.equals(other.multiplicityArguments());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, arguments, multiplicityArguments);
         }
     }
 
