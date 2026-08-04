@@ -66,8 +66,21 @@ public final class ScanColumns {
                 Map<String, Resolver> env = new LinkedHashMap<>(outer);
                 env.putAll(envOf(s.from(), outer, out));
                 if (root) {
+                    // a ROOT projection resolving through a JOINED VIEW
+                    // frame (subselect) is the engine's
+                    // RelationalOperationElementWithJoin context — the PM
+                    // rode a @join|View.col emission (testView FIRSTNAME);
+                    // joined plain TABLES keep TableAliasColumn (the PM is
+                    // a plain column, the join is the navigation's).
+                    Set<String> spine = new LinkedHashSet<>();
+                    rootSpine(s.from(), spine);
+                    Set<String> joinedViews = new LinkedHashSet<>();
+                    joinedSubselects(s.from(), spine, joinedViews);
                     for (SqlSelect.Projection p : s.projections()) {
-                        use(p.expr(), env, VALUE, out);
+                        String ctx = p.expr() instanceof SqlExpr.Column pc
+                                && joinedViews.contains(pc.table())
+                                ? "RelationalOperationElementWithJoin" : VALUE;
+                        use(p.expr(), env, ctx, out);
                     }
                 }
                 if (s.where() != null) {
@@ -104,6 +117,42 @@ public final class ScanColumns {
                     scanQuery(b, outer, out, root);
                 }
             }
+        }
+    }
+
+    /** The ROOT SPINE of a FROM tree: the aliases reachable through LEFT
+     * sides only — the extent's own row, before any navigation join. */
+    private static void rootSpine(SqlSource src, Set<String> out) {
+        switch (src) {
+            case SqlSource.Join j -> rootSpine(j.left(), out);
+            case SqlSource.Table t -> out.add(t.alias());
+            case SqlSource.Subselect s -> out.add(s.alias());
+            case SqlSource.Pivot p -> rootSpine(p.source(), out);
+            case SqlSource.Values v -> out.add(v.alias());
+            case SqlSource.SourceUrl u -> out.add(u.alias());
+            case SqlSource.Dual d -> { }
+        }
+    }
+
+    /** JOINED (non-root-spine) SUBSELECT aliases of a FROM tree — view
+     * frames a navigation joined in. */
+    private static void joinedSubselects(SqlSource src, Set<String> spine,
+            Set<String> out) {
+        switch (src) {
+            case SqlSource.Join j -> {
+                joinedSubselects(j.left(), spine, out);
+                joinedSubselects(j.right(), spine, out);
+            }
+            case SqlSource.Subselect s -> {
+                // only IDENTITY-CARRYING frames (views) qualify — an
+                // isolation/exists subselect is plumbing, not a PM join
+                if (!spine.contains(s.alias()) && s.frameName() != null
+                        && !SqlSource.Subselect.EXISTS_KEYS_FRAME
+                                .equals(s.frameName())) {
+                    out.add(s.alias());
+                }
+            }
+            default -> { }
         }
     }
 
