@@ -146,61 +146,71 @@ Non-negotiable, each earned the hard way this session:
 
 ## 3. Deliverable 3 — upgrading legend-lite's parser
 
-### 3.1 Does this require changing legend-lite's metamodel? **Yes. Here is the exact cost.**
+### 3.1 Which metamodel must match? **Theirs — and that changes the answer**
 
-Today legend-lite emits **no protocol at all**: `PureModelContextData` 0 files, Jackson 0,
-`SourceInformation` 0, `ObjectMapper` 0. Byte-identity is not "close" — there is no output to
-compare.
+An earlier draft of this section asked the wrong question. It asked *"how do we carry source
+positions in legend-lite's records?"* and concluded the metamodel had to change. **That was wrong,
+and it was wrong because it assumed the drop-in path would emit legend-lite's AST and then convert.**
 
-Measured shape of the change:
+The consumer does not know legend-lite exists. Studio, the engine compiler and
+`/pure/v1/grammar/grammarToJson` all take **`PureModelContextData`** and its 444 protocol classes.
+`com.legend.model.ClassDefinition` is not a metamodel that needs upgrading to match theirs — it is a
+*different* metamodel, private to legend-lite's own compiler, and irrelevant to the drop-in.
+
+**So the requirement is: the parser must be able to CONSTRUCT legend-engine's protocol objects.**
+Not adopt them, not convert into them — build them directly, with `SourceInformation` inline at
+construction, because that is the only point where token positions are in hand.
+
+### 3.2 The design: one parse core, two sinks
+
+Measured distribution of AST construction, which is what makes this tractable:
 
 | | count |
 |---|---:|
-| record types in `com.legend.model` + `.model.spec` | **47** |
-| construction sites (`new <ASTType>(`) in main | **748** |
-| **test assertions comparing AST by record equality** | **111** |
-| AST nodes used as `Map`/`Set` keys | **0** |
-| existing position concept in the AST | **none** |
+| construction sites **inside `parser/`** | **88** (SpecParser 75, ElementParser 11, the two grammar parsers 1 each) |
+| construction sites elsewhere in `core/src/main` | 660 |
+| `core`'s dependencies on `org.finos.legend.engine` | **0** (pom and source) |
 
-The 111 look like:
+The 660 are downstream code — desugaring, synthesis, lowering — building AST nodes for its own
+purposes. **They have nothing to do with parsing and need no positions.** Only the **88** parsing
+sites need a seam.
 
-```java
-assertEquals(new CInteger(42L), spec);
-assertEquals(new CFloat(1.5e-3), SpecParser.parse("1.5e-3"));
-```
+**Introduce an AST-factory interface in `core`, implemented twice:**
 
-**Naively adding a `SourceInformation` component to these records breaks all 111**, because record
-equality includes every component and a hand-built expected node has no position.
+| implementation | lives in | builds | positions |
+|---|---|---|---|
+| `LegendLiteAst` (default) | `core` | today's `com.legend.model.*` records | discarded — zero cost |
+| `EngineProtocolAst` | the drop-in module | `org.finos.legend.engine.protocol.pure.v1.model.*` | inline, per §3.2 of the feasibility doc |
 
-**And a side-table is unsound.** The obvious "keep records lean, hold positions in a `Map<Node,
-Pos>`" does not work: records have *value* equality, so two structurally identical sub-trees at
-different positions collide. legend-lite already hit the weak form of this — `ParsedModel.elementOffsets`
-is keyed by **FQN**, which only works at element granularity and is discarded downstream anyway
-(`PureModelContext.java:85-86`).
+`core` declares the interface and stays free of any engine dependency — the direction that matters,
+and currently zero. The protocol implementation lives in the drop-in module, which is allowed to
+depend on both.
 
-### 3.2 The design that resolves it
+**What this buys, versus the design I first proposed:**
 
-**Add the position component, and override `equals`/`hashCode` to exclude it.** Records permit this.
+- **legend-lite's metamodel does not change at all.** No position component, no `equals`/`hashCode`
+  override, no convenience constructors.
+- **The 111 `assertEquals(new CInteger(42L), spec)` assertions are untouched.** They were only ever
+  at risk because of the wrong architecture.
+- **Zero memory cost on legend-lite's own path** — the default factory drops positions, so the
+  25 B/char figure in §0.1 stands.
+- **No drift between two AST shapes**, because there is one parse core and the sinks are exhaustive
+  over the same call sites.
 
-```java
-public record CInteger(Object value, @Nullable SourceInfo pos) implements ValueSpecification {
-    public CInteger(Object value) { this(value, null); }          // keeps 748 sites + 111 tests compiling
-    @Override public boolean equals(Object o) { /* compares value only */ }
-    @Override public int hashCode()          { /* value only */ }
-}
-```
+**The real new work this exposes**, which the earlier framing hid:
 
-Consequences, stated honestly:
+1. **A line index in the lexer.** Positions must be cheap at all 88 sites. Today line/column is
+   computed *only when throwing*, by an O(offset) linear rescan (`TokenStreamCursor.java:285-301`).
+   Build an `int[]` of line-start offsets once per source and binary-search it. Small, self-contained,
+   and it does **not** touch the AST.
+2. **Threading the factory through the parser** — 88 call sites plus the cursor plumbing.
+3. **Fixing the column-base disagreement** — `TokenStreamCursor.java:295` starts at 0,
+   `LegendCompileException.java:66` at 1; engine is 1-based with an inclusive end column.
 
-- **All 111 assertions keep passing unmodified**, and all 748 construction sites keep compiling via
-  the convenience constructor. The migration becomes additive.
-- **Position-insensitive equality must itself be guarded** by a test, or someone will "fix" the
-  override later and silently break the 111.
-- **Memory cost is real and must be measured, not assumed.** One reference per node against a
-  current 25 B/char. If it materially erodes §0.1's advantage, the fallback is a parser mode that
-  emits positions only when the protocol is being produced.
-- This is a **legend-lite metamodel change**, so it needs its own review against `AGENTS.md`
-  invariant 5 (lazy loading) and the `NoEagerTypeReferences` guard.
+**Fallback if the factory seam proves invasive:** positions on the records with an `equals` override
+excluding them, plus a transformer. It works, and the cost is measured — 47 record types, 111
+assertions to protect via the override, and a per-node memory hit to weigh against §0.1. Prefer the
+factory; keep this in reserve.
 
 ### 3.3 The other parser work, in dependency order
 
