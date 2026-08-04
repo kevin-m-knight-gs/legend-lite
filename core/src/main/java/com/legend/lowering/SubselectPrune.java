@@ -105,6 +105,7 @@ final class SubselectPrune {
             case SqlSource.Dual d -> {
             }
             case SqlSource.Table t -> r.starred().add(t.alias());
+            case SqlSource.VarSetPlaceholder vp -> r.starred().add(vp.alias());
             case SqlSource.SourceUrl u -> r.starred().add(u.alias());
             case SqlSource.Subselect sub -> r.starred().add(sub.alias());
             case SqlSource.Values v -> r.starred().add(v.alias());
@@ -123,6 +124,8 @@ final class SubselectPrune {
             case SqlSource.Table t -> {
             }
             case SqlSource.SourceUrl u -> {
+            }
+            case SqlSource.VarSetPlaceholder vp -> {
             }
             case SqlSource.Subselect sub -> collectQuery(sub.inner(), r);
             case SqlSource.Join j -> {
@@ -270,6 +273,7 @@ final class SubselectPrune {
             case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
             case SqlSource.SourceUrl u -> u;
+            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.Subselect sub -> {
                 SqlQuery inner = rewriteQuery(sub.inner(), r);
                 if (inner instanceof SqlSelect sel) {

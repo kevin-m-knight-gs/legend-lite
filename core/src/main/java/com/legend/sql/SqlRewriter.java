@@ -75,6 +75,7 @@ public abstract class SqlRewriter {
             case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
             case SqlSource.SourceUrl u -> u;
+            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.Subselect sub -> {
                 SqlQuery i = rewrite(sub.inner());
                 yield i == sub.inner() ? sub

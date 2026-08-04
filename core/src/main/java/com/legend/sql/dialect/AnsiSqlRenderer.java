@@ -219,6 +219,12 @@ public class AnsiSqlRenderer implements SqlDialect {
                 }
             }
             case SqlSource.Subselect sub -> subselectSource(sb, sub, depth);
+            // cross-store plan variable: freemarker splice at execution
+            // (engine VarSetPlaceHolder — plan text only; a DuckDB
+            // execution reaching this dies loudly at SQL parse)
+            case SqlSource.VarSetPlaceholder vp -> sb.append("(${")
+                    .append(vp.varName()).append("}) as ")
+                    .append(ident(vp.alias()));
             case SqlSource.Values v -> valuesSource(sb, v);
             case SqlSource.SourceUrl u -> {
                 sb.append("(");

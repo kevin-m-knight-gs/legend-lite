@@ -222,6 +222,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         renames.clear();
         subselects.clear();
         rootConsumed.clear();
+        placeholders.clear();
         planQuery(query, new LinkedHashMap<>());
         StringBuilder sb = new StringBuilder();
         query(sb, query, 0);
@@ -245,10 +246,28 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && s.orderBy().isEmpty() && s.limit() == null
                 && s.offset() == null && !s.outputs().isEmpty()) {
             String wrap = "tdswrap__";
+            // placeholder-owned columns spell UNQUOTED (they were never
+            // defined with a quoted alias in any in-SQL projection —
+            // tdsvar_0.firstName vs "tdsvar_0"."fID" in the goldens)
+            java.util.Set<String> phCols = new java.util.HashSet<>();
+            java.util.ArrayDeque<SqlSource> srcs = new java.util.ArrayDeque<>();
+            srcs.add(s.from());
+            while (!srcs.isEmpty()) {
+                SqlSource x = srcs.poll();
+                if (x instanceof SqlSource.VarSetPlaceholder vp) {
+                    vp.outputs().forEach(o -> phCols.add(o.name()));
+                }
+                if (x instanceof SqlSource.Join jj) {
+                    srcs.add(jj.left());
+                    srcs.add(jj.right());
+                }
+            }
             java.util.List<SqlSelect.Projection> cols =
                     s.outputs().stream().map(o ->
                             new SqlSelect.Projection(new SqlExpr.Column(
-                                    wrap, "\"" + o.name() + "\""),
+                                    wrap, phCols.contains(o.name())
+                                            ? o.name()
+                                            : "\"" + o.name() + "\""),
                                     o.name()))
                             .toList();
             return new SqlSelect(cols, false,
@@ -360,6 +379,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 planSource(j.left(), leftmost, groups);
                 planSource(j.right(), false, groups);
             }
+            // cross-store plan variable: groups by its VAR NAME (engine
+            // reAliasQuery VarSetPlaceHolder arm — tdsvar_0/tdsvar_1)
+            case SqlSource.VarSetPlaceholder vp -> {
+                renames.put(vp.alias(),
+                        nextInGroup(vp.varName().toLowerCase(Locale.ROOT),
+                                groups));
+                placeholders.add(vp.alias());
+            }
             default -> { }
         }
     }
@@ -372,6 +399,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** One index per group for ALL its root-named members (reAliasQuery
      * dedupes ('group','root') pairs before numbering). */
     private final Set<String> rootConsumed = new HashSet<>();
+
+    /** VarSetPlaceholder aliases — their column reads spell UNQUOTED
+     * (the placeholder's columns were never defined with quoted aliases
+     * in any in-SQL projection; engine tdsvar goldens). */
+    private final Set<String> placeholders = new HashSet<>();
 
     private void consumeRootSlot(String group, Map<String, Integer> groups) {
         if (rootConsumed.add(group)) {
@@ -395,6 +427,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     .substring(t.name().lastIndexOf('.') + 1)
                     .toLowerCase(Locale.ROOT);
             case SqlSource.Subselect sub -> firstInnerTable(sub.inner());
+            case SqlSource.VarSetPlaceholder vp ->
+                    vp.varName().toLowerCase(Locale.ROOT);
             case null, default -> "subselect";
         };
     }
@@ -475,6 +509,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     private String rename(String alias) {
         return renames.getOrDefault(alias, alias);
+    }
+
+    private static String stripQuotes(String n) {
+        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
     }
 
     /** Whether the column reads an ALIASED projection of a plain frame —
@@ -723,6 +762,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 }
                 sb.append(") as \"").append(rename(sub.alias())).append('"');
             }
+            case SqlSource.VarSetPlaceholder vp -> sb.append("(${")
+                    .append(vp.varName()).append("}) as \"")
+                    .append(rename(vp.alias())).append('"');
             case SqlSource.Join j -> {
                 source(sb, j.left(), depth);
                 sb.append(' ')
@@ -826,8 +868,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.FloatLit f) {
             return String.valueOf(f.value());
         }
-        // engine H2 DECIMAL-literal spelling (testDecimal golden)
-        if (e instanceof SqlExpr.DecimalLit d) {
+        if (e instanceof SqlExpr.DecimalLit d) { // engine H2 decimal spelling (testDecimal)
             return "cast(" + d.value().toPlainString() + " as Decimal(32,16))";
         }
         if (e instanceof SqlExpr.Exists xx
@@ -945,6 +986,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // ("persontable_0"."firstName" — rename/union frame goldens)
         if (e instanceof SqlExpr.Column c) {
             if (c.table() != null && quotedFrameRead(c)) {
+                if (placeholders.contains(c.table())) { // placeholder reads: unquoted col
+                    return '"' + rename(c.table()) + "\"." + stripQuotes(c.name());
+                }
                 return '"' + rename(c.table()) + "\".\"" + c.name() + '"';
             }
             return c.table() == null ? phys(c.name())

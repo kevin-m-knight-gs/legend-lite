@@ -618,6 +618,11 @@ final class StatementExecutor {
                         : java.util.List.of());
         queryChain.stream().filter(m2 -> !chainMaps.contains(m2))
                 .forEach(chainMaps::add);
+        ExecutionResult crossDb = crossDbTdsPlan(lam, mappingFqn, specs,
+                env, quote, tz, connName, dbType, rootClass, chainMaps);
+        if (crossDb != null) {
+            return crossDb;
+        }
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
                 planDialect(dbType, quote, tz), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
@@ -628,6 +633,93 @@ final class StatementExecutor {
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
                         lam.body(), connName, chainMaps),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The engine's CROSS-STORE plan split (executionPlan tdsJoinTwoDB*
+     * goldens): a TDS join whose sides live in DIFFERENT databases
+     * becomes Sequence(Allocation(name=tdsVar, value=(Relational(left))),
+     * Relational(join sql with the left side spliced as
+     * {@code (${tdsVar})} — the engine VarSetPlaceHolder)). Null when the
+     * terminal has no cross-store TDS join (the single-node path
+     * continues). Type and resultColumns for the terminal resolve over
+     * the ORIGINAL (pre-splice) plan — physical typing needs the real
+     * from tree; only the SQL TEXT renders the placeholder form. */
+    private static @com.legend.Nullable ExecutionResult crossDbTdsPlan(
+            com.legend.compiler.spec.typed.TypedLambda lam,
+            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            ExecEnv env, boolean quote, @com.legend.Nullable String tz,
+            @com.legend.Nullable String connName,
+            @com.legend.Nullable String dbType, String rootClass,
+            java.util.List<String> chainMaps) {
+        TypedSpec term = lam.body().get(lam.body().size() - 1);
+        com.legend.compiler.spec.typed.TypedJoin xj = null;
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(term);
+        while (!work.isEmpty()) {
+            TypedSpec t = work.poll();
+            if (t instanceof com.legend.compiler.spec.typed.TypedJoin j
+                    && j.prefix().isEmpty()) {
+                String a = streamStoreOf(j.left(), env.ctx(), mappingFqn);
+                String b = streamStoreOf(j.right(), env.ctx(), mappingFqn);
+                if (!a.isEmpty() && !b.isEmpty() && !a.equals(b)) {
+                    xj = j;
+                    break;
+                }
+            }
+            work.addAll(t.children());
+        }
+        if (xj == null || !(xj.left().info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType)) {
+            return null;
+        }
+        TypedSpec leftTerm = xj.left();
+        String leftRoot = rootGetAllClass(java.util.List.of(leftTerm));
+        if (leftRoot == null) {
+            return null;
+        }
+        EngineSql leftEs = engineSql(java.util.List.of(leftTerm), mappingFqn,
+                specs, env, planDialect(dbType, quote, tz),
+                java.util.Map.of(),
+                java.util.function.UnaryOperator.identity(), chainMaps);
+        String[] leftImpl = com.legend.lineage.ScanRelations.rootImpl(
+                env.ctx(), mappingFqn, leftRoot, chainMaps);
+        String alloc = com.legend.plan.PlanText.allocation("tdsVar",
+                com.legend.plan.PlanText.typeBlock(env.ctx(), leftRoot,
+                        leftImpl, leftEs.plan(),
+                        java.util.List.of(leftTerm), mappingFqn),
+                com.legend.plan.PlanText.single(env.ctx(), leftRoot,
+                        mappingFqn, leftEs.plan(), leftEs.sql(),
+                        java.util.List.of(leftTerm), connName, chainMaps));
+        EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
+                planDialect(dbType, quote, tz), java.util.Map.of(),
+                java.util.function.UnaryOperator.identity(), chainMaps);
+        if (!(fullEs.plan() instanceof com.legend.sql.SqlSelect top)
+                || !(top.from() instanceof com.legend.sql.SqlSource.Join jn)
+                || !(jn.left() instanceof
+                        com.legend.sql.SqlSource.Subselect ls)) {
+            return null;
+        }
+        com.legend.sql.SqlSelect spliced = new com.legend.sql.SqlSelect(
+                top.projections(), top.distinct(),
+                new com.legend.sql.SqlSource.Join(
+                        new com.legend.sql.SqlSource.VarSetPlaceholder(
+                                "tdsVar", ls.alias(), ls.outputs()),
+                        jn.right(), jn.kind(), jn.on()),
+                top.where(), top.groupBy(), top.having(), top.qualify(),
+                top.orderBy(), top.limit(), top.offset(), top.outputs());
+        String splicedSql = planDialect(dbType, quote, tz).render(spliced);
+        String terminal = com.legend.plan.PlanText.single(env.ctx(),
+                rootClass, mappingFqn, fullEs.plan(), splicedSql,
+                lam.body(), connName, chainMaps);
+        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+                env.ctx(), mappingFqn, rootClass, chainMaps);
+        return new ExecutionResult.Scalar(
+                com.legend.plan.PlanText.sequence(
+                        com.legend.plan.PlanText.typeBlock(env.ctx(),
+                                rootClass, impl, fullEs.plan(),
+                                lam.body(), mappingFqn),
+                        java.util.List.of(alloc, terminal)),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 

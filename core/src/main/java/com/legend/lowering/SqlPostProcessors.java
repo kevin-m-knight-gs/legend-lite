@@ -196,6 +196,7 @@ public final class SqlPostProcessors {
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(),
                     j.on() == null ? null : expr(j.on(), m));
+            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.Subselect sub -> new SqlSource.Subselect(
                     apply(sub.inner(), m), sub.alias(), sub.frameName());
             // TOTAL by construction — a Pivot's INNER source and a Values

@@ -126,6 +126,7 @@ public final class ScanColumns {
         switch (src) {
             case SqlSource.Join j -> rootSpine(j.left(), out);
             case SqlSource.Table t -> out.add(t.alias());
+            case SqlSource.VarSetPlaceholder vp -> out.add(vp.alias());
             case SqlSource.Subselect s -> out.add(s.alias());
             case SqlSource.Pivot p -> rootSpine(p.source(), out);
             case SqlSource.Values v -> out.add(v.alias());
@@ -195,6 +196,8 @@ public final class ScanColumns {
                 scanQuery(s.inner(), outer, out, false);
             }
             case SqlSource.Values v -> env.put(v.alias(),
+                    (col, ctx, o) -> { });
+            case SqlSource.VarSetPlaceholder vp -> env.put(vp.alias(),
                     (col, ctx, o) -> { });
             case SqlSource.Pivot p ->
                     collectEnv(p.source(), outer, env, out);
