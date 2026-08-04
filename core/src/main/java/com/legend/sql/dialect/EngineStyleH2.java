@@ -68,6 +68,105 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return super.listCall(fn, args);
     }
 
+    /** joinStrings over a LITERAL element list: the engine's H2 emission
+     * is one flat {@code concat(el1, el2, ..., <separator args as
+     * written>)} — separators appended at the END, never between (the
+     * 1-arg form desugars to three {@code ''}). Recognizes the lowered
+     * COALESCE(STRING_AGG)+CONCAT wrappers; non-literal collections fall
+     * through to the honest wall. */
+    private @com.legend.Nullable String joinStringsFlat(SqlExpr.Call c) {
+        // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
+        // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]
+        if (c.fn() == com.legend.sql.SqlFn.CONCAT && c.args().size() == 2) {
+            if (c.args().get(0) instanceof SqlExpr.Call c0
+                    && c0.fn() == com.legend.sql.SqlFn.CONCAT
+                    && c0.args().size() == 2
+                    && joinedReduction(c0.args().get(1)) instanceof
+                            SqlExpr.ReduceCollection rc) {
+                return flatConcat(rc, java.util.List.of(c0.args().get(0),
+                        rc.extras().get(0), c.args().get(1)));
+            }
+            if (c.args().get(1) instanceof SqlExpr.Call c1
+                    && c1.fn() == com.legend.sql.SqlFn.CONCAT
+                    && c1.args().size() == 2
+                    && joinedReduction(c1.args().get(0)) instanceof
+                            SqlExpr.ReduceCollection rc2) {
+                return flatConcat(rc2, java.util.List.of(c.args().get(0),
+                        rc2.extras().get(0), c1.args().get(1)));
+            }
+        }
+        // 1/2-arg forms: bare COALESCE(RC, '') — an EMPTY separator is
+        // the 1-arg desugar joinStrings(s, '', '', '')
+        if (joinedReduction(c) instanceof SqlExpr.ReduceCollection rc) {
+            SqlExpr sep = rc.extras().get(0);
+            java.util.List<SqlExpr> seps = sep instanceof SqlExpr.StringLit s
+                    && s.value().isEmpty()
+                    ? java.util.List.of(sep, sep, sep)
+                    : java.util.List.of(sep);
+            return flatConcat(rc, seps);
+        }
+        return null;
+    }
+
+    /** The COALESCE(ReduceCollection(STRING_AGG, <literal list>, [sep]),
+     * '') shape, or null. */
+    private static SqlExpr.@com.legend.Nullable ReduceCollection
+            joinedReduction(SqlExpr e) {
+        if (e instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.COALESCE
+                && c.args().size() == 2
+                && c.args().get(0) instanceof SqlExpr.ReduceCollection rc
+                && rc.reducer() == com.legend.sql.SqlAgg.Fn.STRING_AGG
+                && rc.extras().size() == 1
+                && literalElements(rc.collection()) != null) {
+            return rc;
+        }
+        return null;
+    }
+
+    /** The underlying literal element list (unwraps the element-text
+     * LIST_TRANSFORM), or null for runtime collections. */
+    private static java.util.@com.legend.Nullable List<SqlExpr>
+            literalElements(SqlExpr coll) {
+        if (coll instanceof SqlExpr.ArrayLit al) {
+            return al.elements();
+        }
+        if (coll instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.LIST_TRANSFORM
+                && c.args().get(0) instanceof SqlExpr.ArrayLit al2) {
+            return al2.elements();
+        }
+        return null;
+    }
+
+    private String flatConcat(SqlExpr.ReduceCollection rc,
+            java.util.List<SqlExpr> seps) {
+        java.util.List<SqlExpr> parts = new java.util.ArrayList<>();
+        for (SqlExpr e : java.util.Objects.requireNonNull(
+                literalElements(rc.collection()))) {
+            parts.add(unwrapElementText(e));
+        }
+        parts.addAll(seps);
+        return "concat(" + parts.stream().map(e -> expr(e, 0))
+                .collect(java.util.stream.Collectors.joining(", ")) + ")";
+    }
+
+    /** Per-element null-text coercion (coalesce(cast(x as varchar),
+     * 'TDSNull')) is noise in the engine's flat concat — it spells the
+     * raw element. */
+    private static SqlExpr unwrapElementText(SqlExpr e) {
+        SqlExpr inner = e;
+        if (inner instanceof SqlExpr.Call c
+                && c.fn() == com.legend.sql.SqlFn.COALESCE
+                && c.args().size() == 2
+                && c.args().get(1) instanceof SqlExpr.StringLit s
+                && com.legend.compiler.element.type.PlatformTypes
+                        .TDS_NULL_CELL.equals(s.value())) {
+            inner = c.args().get(0);
+        }
+        return inner instanceof SqlExpr.Cast cast ? cast.value() : inner;
+    }
+
     private String variadicExtreme(boolean max,
             java.util.List<SqlExpr> elems) {
         String name = max ? "greatest" : "least";
@@ -1108,6 +1207,21 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
+        String flat = joinStringsFlat(c);
+        if (flat != null) {
+            return flat;
+        }
+        // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
+        // relational H2 codegen for every HashType
+        if (c.fn() == com.legend.sql.SqlFn.MD5
+                || c.fn() == com.legend.sql.SqlFn.SHA1
+                || c.fn() == com.legend.sql.SqlFn.SHA256) {
+            String digest = c.fn() == com.legend.sql.SqlFn.MD5 ? "MD5"
+                    : c.fn() == com.legend.sql.SqlFn.SHA1 ? "SHA-1"
+                    : "SHA-256";
+            return "rawtohex(hash('" + digest + "', "
+                    + expr(c.args().get(0), 0) + "))";
+        }
         return switch (c.fn()) {
             // n-ary concat: nested CONCAT calls SPLICE (the engine emits
             // one flat concat(a, '_', b), never concat(concat(a,'_'),b))

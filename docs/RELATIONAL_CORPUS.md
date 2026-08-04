@@ -80,11 +80,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 117 | 0 | 6 | 1 | 6 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 83 | 73 | 1 | 8 | 1 | 37 |
-| transform/fromPure/tests | 50 | 35 | 2 | 3 | 10 | 0 |
+| tests/query | 83 | 73 | 2 | 7 | 1 | 37 |
+| transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2201** | 72 | 128 | 137 | 255 |
+| **total** | 2538 | **2203** | 73 | 125 | 137 | 255 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1086,7 +1086,6 @@ in-process Alloy-shaped path).
 
 - 7x unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
-- 4x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -1104,6 +1103,7 @@ in-process Alloy-shaped path).
 - 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
+- 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 1x no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |                       ^
@@ -1157,7 +1157,7 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Allocation(type=Stringname=inFilterClause_namevalue=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name,"Stream")||((collectionSize(name![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name]tempTableName=SESSION.tempTableForIn_nametempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_nameas"session.temptableforin_name_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name![]",""'""'"{"'":"''"}"null")}])))))Allocation(type=Stringname=inFilterClause_name1value=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name1,"Stream")||((collectionSize(name1![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name1]tempTableName=SESSION.tempTableForIn_name1tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name1_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_name1as"session.temptableforin_name1_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name1![]",""'""'"{"'":"''"}"null")}])))))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(${inFilterClause_name})and"root".fullnamein(${inFilterClause_name1})connection=DatabaseConnection(type="DB2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where("root".fullnamein(${renderCollection(name![]",""\'""\'"{"\'":"\'\'"}"null")})and"root".fullnamein(${renderCollection(name1![]",""\'""\'"{"\'":"\'\'"}"null")}))connection=DatabaseConnection(type="DB2"))))
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
-- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'store'
+- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'columns'
 - FAIL testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: assertEquals: expected true, got false
 - FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
 - ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
@@ -1342,7 +1342,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
 - SHAPE testConnectionEqualityAllSameStatic [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityAllButOnePropertySame [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testConnectionEqualityTypeDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -1433,7 +1433,7 @@ in-process Alloy-shaped path).
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - FAIL testFilterTimesWithManyOperands [tests/query]: h2-advisory divergence: golden SQL on H2 gave 12 row(s) [Allen|6556, Firm B|4690, Harris|4900, Hill|3576, Hill|4288], our pipeline gave 46 row(s) [Allen|1012, Allen|1540, Allen|1540, Allen|528, Allen|968]
 - ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
-- ERROR testJoinStringFunction [tests/query]: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+- FAIL testJoinStringFunction [tests/query]: assertEquals: expected select (("root".FIRSTNAME concat '#' concat "root".LASTNAME) concat ' ' concat ("root".FIRSTNAME concat "root".LASTNAME)) from personTable as "root" where "root".FIRSTNAME = 'John', got select (concat("root".FIRSTNAME, "root".LASTNAME, '#') concat ' ' concat concat("root".FIRSTNAME, "root".LASTNAME, '', '', '')) as "value" from personTable as "root" where "root".FIRSTNAME = 'John'
 - ERROR testDayOfWeekNumberFunction [tests/query]: no overload of 'meta::pure::functions::date::dayOfWeekNumber' accepts 2 argument(s)
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::tests::functions::sqlstring] — wall: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
@@ -1448,8 +1448,6 @@ in-process Alloy-shaped path).
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInFiltersForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsDistinctSQLGeneration [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
-- ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: collection reduction 'STRING_AGG' reached a dialect without a list encoding
-- ERROR testHashFunctions [transform/fromPure/tests]: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro
