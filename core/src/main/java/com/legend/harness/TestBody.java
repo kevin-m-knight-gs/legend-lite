@@ -59,17 +59,12 @@ public final class TestBody {
     /** The result of driving one test body. */
     public sealed interface Outcome {
 
-        /**
-         * The body ran to completion or first assert failure.
-         *
-         * @param verified  row/value-comparing asserts that ran
-         * @param advisory  golden-SQL asserts recognized but not compared
-         *                  (legend-lite's SQL is its dialect's, by design)
-         * @param executed  statements that ran THROUGH the platform —
-         *                  an assert-free body that executed is an
-         *                  engine-parity pass, not a hollow one
-         * @param failures  first assert failure (empty = all held)
-         */
+        /** The body ran to completion or first assert failure.
+         * verified = row/value asserts run; advisory = golden-SQL
+         * recognized not compared (our SQL is our dialect's, by design);
+         * executed = statements run THROUGH the platform (an assert-free
+         * executed body is an engine-parity pass, not hollow);
+         * failures = first assert failure (empty = all held). */
         record Ran(int verified, int advisory, int executed,
                 List<String> failures, List<String> sqlDiffs) implements Outcome {
             public Ran(int verified, int advisory, int executed,
@@ -422,8 +417,8 @@ public final class TestBody {
                     lets.put(name.value(), gor);
                     continue;
                 }
-                ValueSpecification exd = JsonAssertCanon.extractStrings(rhs,
-                        e2 -> {
+                java.util.function.Function<ValueSpecification, Object>
+                        parsedEval = e2 -> {
                             try {
                                 Object r = jsonValueOf(eval(e2, lets,
                                         execStmts, execVars, execChains, ctx,
@@ -432,7 +427,12 @@ public final class TestBody {
                             } catch (java.sql.SQLException se) {
                                 throw new IllegalStateException(se);
                             }
-                        });
+                        };
+                ValueSpecification exd = JsonAssertCanon.extractStrings(rhs,
+                        parsedEval);
+                if (exd == null) {
+                    exd = ObjectRefs.decodePkMaps(rhs, ctx, parsedEval);
+                }
                 if (exd != null) {
                     lets.put(name.value(), exd);
                     continue;

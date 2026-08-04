@@ -39,7 +39,10 @@ class ObservabilityGuardrailTest {
             "LL_TMP_DEBUG", "LL_TMP_SQL", "LL_TOL_COUNT");
 
     private static final int STDERR_PRINTS = 40;
-    private static final int STRING_DISPATCH_SITES = 110;
+    // 111: ObjectRefs' extraction-plumbing recognizers (raw-AST harness
+    // vocabulary — generateObjectReferences/decodePkMaps idioms match
+    // engine test spellings structurally; reviewed)
+    private static final int STRING_DISPATCH_SITES = 111;
 
     @Test
     void noNewDebugEnvFlags() throws IOException {

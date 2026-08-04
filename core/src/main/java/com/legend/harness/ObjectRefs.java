@@ -77,6 +77,198 @@ final class ObjectRefs {
         return new CString(arr.append("]").toString());
     }
 
+    /** The {@code decodeObjectReferencesAndGetPkMap} extraction idiom
+     * (objectReference.pure): {@code parsed.values->map(je|
+     * decode...(v, getValue('objectReference')...value->toOne(), ext))
+     * ->joinStrings('[',',',']')} over the envelope — each reference
+     * decodes to {@code {"pathToMapping":..,"pkMap":{col:v},"setId":..}}
+     * with positional {@code pk\$_i} keys resolved to the set's TABLE pk
+     * column names (the realizing fn's tableReference ->
+     * findTableDefinition). Null = not this shape. */
+    static @com.legend.Nullable ValueSpecification decodePkMaps(
+            ValueSpecification rhs, ModelContext ctx,
+            java.util.function.Function<ValueSpecification, Object> parsedEval) {
+        if (!(rhs instanceof AppliedFunction js)
+                || !TestBody.simpleName(js.function()).equals("joinStrings")
+                || js.parameters().size() != 4
+                || !(js.parameters().get(0) instanceof AppliedFunction mapAf)
+                || !TestBody.simpleName(mapAf.function()).equals("map")
+                || mapAf.parameters().size() != 2
+                || !(mapAf.parameters().get(1) instanceof
+                        com.legend.model.spec.LambdaFunction lf)
+                || lf.body().size() != 1
+                || !(lf.body().get(0) instanceof AppliedFunction dec)
+                || !TestBody.simpleName(dec.function())
+                        .equals("decodeObjectReferencesAndGetPkMap")) {
+            return null;
+        }
+        ValueSpecification src = stripJson(mapAf.parameters().get(0));
+        if (src instanceof com.legend.model.spec.AppliedProperty ap
+                && ap.property().equals("values")) {
+            src = stripJson(ap.receiver());
+        }
+        Object parsed = parsedEval.apply(src);
+        if (!(parsed instanceof List<?> l)) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder("[");
+        boolean first = true;
+        for (Object o : l) {
+            if (!(o instanceof Map<?, ?> mm)
+                    || !(mm.get("objectReference") instanceof String ref)) {
+                return null;
+            }
+            String dec2 = decodeRef(ref, ctx);
+            if (dec2 == null) {
+                return null;
+            }
+            if (!first) {
+                out.append(",");
+            }
+            first = false;
+            out.append(dec2);
+        }
+        return new CString(out.append("]").toString());
+    }
+
+    /** parseJSON/cast/toOne wrappers strip (the extraction-plumbing
+     * convention — the INNER exec read evaluates, wrappers are ours). */
+    private static ValueSpecification stripJson(ValueSpecification v) {
+        while (v instanceof AppliedFunction af) {
+            String f = TestBody.simpleName(af.function());
+            if (af.parameters().size() == 1
+                    && (f.equals("parseJSON") || f.equals("toOne")
+                            || f.equals("toPrettyJSONString"))) {
+                v = af.parameters().get(0);
+            } else if (f.equals("cast") && af.parameters().size() == 2) {
+                v = af.parameters().get(0);
+            } else {
+                return v;
+            }
+        }
+        return v;
+    }
+
+    private static @com.legend.Nullable String decodeRef(String ref,
+            ModelContext ctx) {
+        String b64 = ref.startsWith("ASOR:") ? ref.substring(5) : ref;
+        String d = new String(java.util.Base64.getDecoder().decode(
+                b64 + "=".repeat((4 - b64.length() % 4) % 4)),
+                java.nio.charset.StandardCharsets.UTF_8);
+        // segments after '001:010:' — len10:value:...
+        List<String> segs = new ArrayList<>();
+        int i = "001:010:".length();
+        while (i < d.length() && segs.size() < 6) {
+            int len = Integer.parseInt(d.substring(i, i + 10));
+            segs.add(d.substring(i + 11, i + 11 + len));
+            i += 11 + len + 1;
+        }
+        if (segs.size() < 6) {
+            return null;
+        }
+        String mapping = segs.get(1);
+        String setId = segs.get(3);
+        Object pkObj = com.legend.sql.Json.parseOne(segs.get(5));
+        if (!(pkObj instanceof Map<?, ?> pkMap)) {
+            return null;
+        }
+        List<String> pkCols = tablePkColumns(ctx, mapping, setId);
+        StringBuilder pk = new StringBuilder("{");
+        boolean first = true;
+        for (var e : pkMap.entrySet()) {
+            String k = String.valueOf(e.getKey());
+            if (k.startsWith("pk$_")) {
+                int idx = Integer.parseInt(k.substring(4));
+                if (pkCols == null || idx >= pkCols.size()) {
+                    return null;
+                }
+                k = pkCols.get(idx);
+            }
+            if (!first) {
+                pk.append(",");
+            }
+            first = false;
+            pk.append("\"").append(k).append("\":");
+            pk.append(e.getValue() instanceof String sv
+                    ? "\"" + sv.replace("\"", "\\\"") + "\""
+                    : e.getValue());
+        }
+        return "{\"pathToMapping\":\"" + mapping + "\",\"pkMap\":"
+                + pk.append("}") + ",\"setId\":\"" + setId + "\"}";
+    }
+
+    /** The set's table pk columns: binding -> realizing body ->
+     * tableReference(db, table) -> table definition. */
+    private static @com.legend.Nullable List<String> tablePkColumns(
+            ModelContext ctx, String mappingFqn, String setId) {
+        var m = ctx.findMapping(mappingFqn).orElse(null);
+        if (m == null) {
+            return null;
+        }
+        for (var cb : m.classBindings()) {
+            if (!setId.equals(cb.setId())
+                    && !setId.equals(cb.classFqn().replace("::", "_"))) {
+                continue;
+            }
+            List<ValueSpecification> body = null;
+            if (cb.realization() instanceof com.legend.model
+                    .Realization.Inline in) {
+                body = in.body();
+            } else if (cb.realization() instanceof com.legend.model
+                    .Realization.Ref rf) {
+                var fns = ctx.findFunction(rf.functionFqn());
+                if (!fns.isEmpty() && fns.get(0).body().isPresent()) {
+                    body = fns.get(0).body().get();
+                }
+            }
+            if (body == null) {
+                return null;
+            }
+            String[] dbTable = findTableRef(body);
+            if (dbTable == null) {
+                return null;
+            }
+            var td = ctx.findTableDefinition(dbTable[0], dbTable[1])
+                    .orElse(null);
+            if (td == null) {
+                return null;
+            }
+            List<String> out = new ArrayList<>();
+            for (var cd : td.columns()) {
+                if (cd.primaryKey()) {
+                    out.add(cd.name());
+                }
+            }
+            return out.isEmpty() ? null : out;
+        }
+        for (var inc : m.includes()) {
+            var r = tablePkColumns(ctx, inc.mappingPath(), setId);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    private static String @com.legend.Nullable [] findTableRef(
+            List<ValueSpecification> body) {
+        java.util.ArrayDeque<ValueSpecification> work =
+                new java.util.ArrayDeque<>(body);
+        while (!work.isEmpty()) {
+            ValueSpecification v = work.poll();
+            if (v instanceof AppliedFunction tr
+                    && tr.function().equals("tableReference")
+                    && tr.parameters().size() >= 2
+                    && tr.parameters().get(0) instanceof
+                            com.legend.model.spec.PackageableElementPtr db
+                    && tr.parameters().get(1) instanceof CString tb) {
+                return new String[] {db.fullPath(), tb.value()};
+            }
+            work.addAll(v.children());
+        }
+        return null;
+    }
+
     /** The user's map as JSON, entry order preserved. */
     private static String pkJson(Map<String, Object> pkMap) {
         StringBuilder sb = new StringBuilder("{");
