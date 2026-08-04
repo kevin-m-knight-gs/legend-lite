@@ -1566,18 +1566,20 @@ public final class StoreResolver {
         // (regressed testBiTemporalToBiTemporalDatePropagation).
         Set<List<String>> emptinessChainPaths =
                 new LinkedHashSet<>();
+        Set<List<String>> nestedEmptinessPaths =
+                new LinkedHashSet<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
                     InnerDemand.collectEmptinessChainPaths(b,
                             f.predicate().parameters().get(0),
-                            emptinessChainPaths);
+                            emptinessChainPaths, nestedEmptinessPaths);
                 }
             }
             if (op instanceof TypedSortBy sb) {
                 for (TypedSpec b : sb.key().body()) {
                     InnerDemand.collectEmptinessChainPaths(b, sb.key().parameters().get(0),
-                            emptinessChainPaths);
+                            emptinessChainPaths, nestedEmptinessPaths);
                 }
             }
         }
@@ -1585,18 +1587,54 @@ public final class StoreResolver {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {
                     InnerDemand.collectEmptinessChainPaths(b, fn.parameters().get(0),
-                            emptinessChainPaths);
+                            emptinessChainPaths, nestedEmptinessPaths);
                 }
             }
         }
-        for (List<String> path : emptinessChainPaths) {
+        Set<List<String>> allEmptinessPaths =
+                new LinkedHashSet<>(emptinessChainPaths);
+        allEmptinessPaths.addAll(nestedEmptinessPaths);
+        for (List<String> path : allEmptinessPaths) {
             if (path.size() < 2) {
                 continue;
             }
             String dotted = String.join(".", path);
             Substitution.AssocSub chain = assocs.get(
                     String.join(".", path.subList(0, path.size() - 1)));
-            if (chain == null || existsSubs.containsKey(dotted)) {
+            if (existsSubs.containsKey(dotted)) {
+                continue;
+            }
+            // NESTED-EXISTS rung: an emptiness consumed INSIDE another
+            // exists' predicate lives in the enclosing SUBSELECT's scope —
+            // a to-many mid hop there must NOT correlate through the flat
+            // outer join (that form is per-FANNED-row, the engine's truth
+            // for DIRECT filter-position emptiness — testIsEmptyNested's
+            // golden — but wrong inside a subselect where the fanned row
+            // is not the evaluation row); the EXISTS material carries the
+            // whole exploded chain itself (ChainedExists; engine: every
+            // hop's join-tree node lives inside the exists subselect).
+            boolean midToMany = path.size() == 2
+                    && !(ctx.findProperty(cs.classFqn(),
+                            SyntheticHeads.realHead(path.get(0)))
+                            .map(pr -> pr.multiplicity())
+                            .filter(mm -> mm instanceof com.legend.compiler
+                                    .element.type.Multiplicity.Bounded bb
+                                    && Integer.valueOf(1).equals(bb.upper()))
+                            .isPresent());
+            if (midToMany && nestedEmptinessPaths.contains(path)
+                    && !emptinessChainPaths.contains(path)
+                    && !synthetics.hasPred(path.get(0))
+                    && !synthetics.hasPred(dotted)) {
+                Substitution.ExistsSub two = ChainedExists.explodedTwoHop(
+                        sources, temporal, cs, path, ops,
+                        (t2, pipe2) -> nestedScope(t2, ops, path,
+                                context, pipe2));
+                if (two != null) {
+                    existsSubs.put(dotted, two);
+                    continue;
+                }
+            }
+            if (chain == null) {
                 continue;
             }
             String leafName = path.get(path.size() - 1);

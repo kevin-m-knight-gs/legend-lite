@@ -92,16 +92,24 @@ public final class DriverPkAppend {
             if (!cd.primaryKey()) {
                 continue;
             }
-            // engine getRootPrimaryKeyCols: a PK whose PHYSICAL column is
-            // already read by an existing projection is NOT re-appended
-            // (additional-projection showcase: 'Trade ID' = root.id)
+            // engine getRootPrimaryKeyCols: a PK whose PHYSICAL column
+            // NAME is already read by an existing projection is NOT
+            // re-appended — the engine compares TableAliasColumn.column
+            // .name regardless of which TABLE the read comes from
+            // (validateComplexValidation3: 'addressId' reads addressTable
+            // .ID, blocking the firmTable.ID append). At the typed level
+            // a joined read carries the join's column prefix — strip the
+            // source's join prefixes to recover the physical name.
+            java.util.List<String> joinPrefixes = new ArrayList<>();
+            collectJoinPrefixes(p.source(), joinPrefixes);
             if (p.columns().stream().anyMatch(fc -> {
                 List<TypedSpec> b = fc.fn().body();
                 return !b.isEmpty()
                         && unwrapErasure(b.get(b.size() - 1))
                                 instanceof TypedPropertyAccess pa
                         && pa.source() instanceof TypedVariable
-                        && pa.property().equalsIgnoreCase(cd.name());
+                        && physicalName(pa.property(), joinPrefixes)
+                                .equalsIgnoreCase(cd.name());
             })) {
                 continue;
             }
@@ -126,17 +134,49 @@ public final class DriverPkAppend {
                         p.info().multiplicity()));
     }
 
-    /** Multiplicity-erasure wrappers (toOne) vanish at lowering — the
-     * engine's dedup matches the underlying TableAliasColumn, so a
-     * toOne'd column read is still a plain column read. */
+    /** Multiplicity-erasure wrappers (toOne) and conformance CASTS
+     * vanish at lowering — the engine's dedup matches the underlying
+     * TableAliasColumn, so a wrapped column read is still a plain
+     * column read. */
     private static TypedSpec unwrapErasure(TypedSpec n) {
-        while (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && nc.args().size() == 1
-                && nc.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
-            n = nc.args().get(0);
+        while (true) {
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                    && nc.args().size() == 1
+                    && nc.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")) {
+                n = nc.args().get(0);
+            } else if (n instanceof com.legend.compiler.spec.typed
+                    .TypedCast c) {
+                n = c.source();
+            } else {
+                return n;
+            }
         }
-        return n;
+    }
+
+    /** Every join prefix in the resolved source (each prefixed join
+     * renames its right side's physical columns {@code prefix + name}). */
+    private static void collectJoinPrefixes(TypedSpec n, List<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedJoin j) {
+            j.prefix().ifPresent(out::add);
+        }
+        for (TypedSpec c : n.children()) {
+            collectJoinPrefixes(c, out);
+        }
+    }
+
+    /** The physical column behind a resolved row-column name: the
+     * longest matching join prefix stripped (unprefixed reads are the
+     * physical name already). */
+    private static String physicalName(String col, List<String> prefixes) {
+        String best = "";
+        for (String p : prefixes) {
+            if (col.startsWith(p) && p.length() > best.length()
+                    && col.length() > p.length()) {
+                best = p;
+            }
+        }
+        return col.substring(best.length());
     }
 
     private static @com.legend.Nullable TypedTableReference deepestLeftScan(TypedSpec n) {

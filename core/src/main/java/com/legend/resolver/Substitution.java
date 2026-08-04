@@ -1716,19 +1716,9 @@ final class Substitution {
                 return localArm;
             }
         }
-        // objectReferenceIn($p, refs): ASOR references DECODE at
-        // resolution (they are literals after harness extraction) into
-        // a primary-key membership predicate — the engine's store-
-        // object-reference round trip.
-        if (n instanceof TypedNativeCall oc && oc.args().size() == 2
-                && "meta::pure::functions::collection::objectReferenceIn"
-                        .equals(oc.callee().qualifiedName())
-                && rootsAtUserVar(oc.args().get(0))) {
-            // the instance may be an EMBEDDED nav (\$p.firm->toOne()) —
-            // its pk columns live on the SAME row, and the keyed decode
-            // matches row columns; a joined nav's missing columns stay
-            // loud at pkColRead
-            return objectReferenceInRewrite(oc);
+        TypedSpec hoisted = hoistedRewriteArms(n);
+        if (hoisted != null) {
+            return hoisted;
         }
         return switch (n) {
             // $p->filter(pred).leaf — the if-as-filter idiom over the
@@ -2474,6 +2464,78 @@ final class Substitution {
      * NULL: the read is {@code [0..1]}). Returns null when the shape does
      * not match (the caller falls through to the ordinary walk).
      */
+    /** The nested-scope relation arms (hoisted out of the rewrite
+     * switch): null when neither applies, and the switch proceeds.
+     * <ul>
+     *   <li>FOREIGN-ROOTED object-space filter inside a NESTED pred
+     *   scope (the nested-exists rung: {@code isNotEmpty(filter(
+     *   $this.employees.addresses, b|..))} inside an outer exists
+     *   predicate — {@code $this} belongs to the ENCLOSING scope): the
+     *   source chain passes through verbatim for the outer correlation
+     *   re-pass, which owns the root var and consumes the dotted EXISTS
+     *   material; the predicate's OWN reads of THIS scope's var still
+     *   rewrite (body-only — the lambda's binder survives for the outer
+     *   pass's target rewrite).</li>
+     *   <li>TDS pipeline OVER AN INSTANCE PROJECT (constraint 3 family:
+     *   {@code $this.employees->project(..)->groupBy(..)->filter(..)
+     *   ->tdsRows()->isEmpty()}): the groupBy is a structural relation
+     *   op once its source takes the rewriteInstanceProject arm —
+     *   children rewrite (agg/key lambdas bind THEIR OWN relation rows
+     *   and pass the shadow rule). Any other object-space groupBy stays
+     *   loud.</li>
+     *   <li>{@code objectReferenceIn($p, refs)}: ASOR references DECODE
+     *   at resolution (they are literals after harness extraction) into
+     *   a primary-key membership predicate — the engine's store-object-
+     *   reference round trip. The instance may be an EMBEDDED nav
+     *   ({@code $p.firm->toOne()}) — its pk columns live on the SAME
+     *   row, and the keyed decode matches row columns; a joined nav's
+     *   missing columns stay loud at pkColRead.</li>
+     * </ul> */
+    private @com.legend.Nullable TypedSpec hoistedRewriteArms(TypedSpec n) {
+        if (n instanceof TypedNativeCall oc && oc.args().size() == 2
+                && "meta::pure::functions::collection::objectReferenceIn"
+                        .equals(oc.callee().qualifiedName())
+                && rootsAtUserVar(oc.args().get(0))) {
+            return objectReferenceInRewrite(oc);
+        }
+        if (n instanceof TypedFilter f
+                && !(f.source().info().type() instanceof Type.RelationType)
+                && target.nested() && foreignRootedNav(f.source())) {
+            return new TypedFilter(f.source(),
+                    rewriteLambdaBodyOnly(f.predicate()), f.info());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedGroupBy g
+                && g.source() instanceof TypedProject gp
+                && instanceProjectPath(gp) != null) {
+            return g.mapChildren(this::rewrite);
+        }
+        return null;
+    }
+
+    /** The registered EXISTS head a project-over-instance source reads
+     * ({@code $this.<head>->project(..)}), null when unregistered — ONE
+     * recognizer for the direct arm and the groupBy-source gate. */
+    private @com.legend.Nullable String instanceProjectPath(TypedProject tp) {
+        List<String> pp = pathOf(InnerDemand.instanceProjectSource(tp),
+                target.userVar());
+        return pp != null && pp.size() == 1
+                && target.existsSubs().containsKey(pp.get(0))
+                ? pp.get(0) : null;
+    }
+
+    /** True when the expression is a property-path chain rooted at a
+     * variable this scope does NOT own — the ENCLOSING scope's instance
+     * var (the nested-exists rung's pass-through gate). */
+    private boolean foreignRootedNav(TypedSpec n) {
+        TypedSpec src = n;
+        while (src instanceof TypedPropertyAccess pa) {
+            src = pa.source();
+        }
+        return src instanceof TypedVariable v
+                && !v.name().equals(target.userVar())
+                && !v.name().equals(target.freshRowVar());
+    }
+
     private @com.legend.Nullable TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
         boolean dbg = System.getenv("LL_FNLR_DEBUG") != null;
         TypedSpec src = pa.source();
@@ -2647,11 +2709,20 @@ final class Substitution {
                             new ExprType(ex.targetRow(),
                                     Multiplicity.Bounded.ONE)));
         } else if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
-                ex.targetSlotAliases())) {
+                unconvertedT)) {
             throw new NotImplementedException("filtered-navigation leaf '"
                     + pa.property() + "' reads a join slot of '"
                     + ex.targetClassFqn() + "' — slot-demanding leaves under"
                     + " value-position filters are not supported yet");
+        } else if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
+                ex.targetSlotPrefixes().keySet())) {
+            // CONVERTED join-slot leaf (locationStreet via @Address_Location
+            // | locationTable.STREET): the demand scan materialized the slot
+            // into the target pipeline — dispatch the read through the
+            // recorded prefix, same discipline as the predicate path.
+            leafBinding = Pipelines.rewriteRowReads(leafBinding,
+                    ex.targetRowVar(), ex.targetSlotPrefixes(), Set.of(),
+                    v -> v);
         }
         Type leafType = pa.info().type();
         TypedLambda leafFn = new TypedLambda(List.of(ex.targetRowVar()),

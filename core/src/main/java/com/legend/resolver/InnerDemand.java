@@ -296,10 +296,24 @@ final class InnerDemand {
         }
     }
 
-    /** Multi-hop paths consumed DIRECTLY under an emptiness-family
-     * call — the class-typed-leaf EXISTS registration keys off these. */
+    /** Multi-hop paths consumed under an emptiness-family call — the
+     * class-typed-leaf EXISTS registration keys off these. A path found
+     * INSIDE another emptiness call's PREDICATE lands in {@code nested}
+     * (the engine processes it in the enclosing subselect's OWN scope —
+     * the exploded-chain rung), a top-scope path in {@code direct} (the
+     * per-fanned-row flat form: testIsEmptyNested's golden LEFT-JOIN +
+     * semi-join key null check rides the fanned employee row). */
     static void collectEmptinessChainPaths(TypedSpec n, String userVar,
-            Set<List<String>> out) {
+            Set<List<String>> direct, Set<List<String>> nested) {
+        collectEmptinessChainPaths(n, userVar, false, direct, nested);
+    }
+
+    private static void collectEmptinessChainPaths(TypedSpec n,
+            String userVar, boolean inPred, Set<List<String>> direct,
+            Set<List<String>> nested) {
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;   // shadowing: the substitution stops here too
+        }
         if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
             String key = c.callee().signatureKey();
             if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
@@ -314,6 +328,9 @@ final class InnerDemand {
                 // wrapped emptiness arm merges the predicates)
                 TypedSpec a0 = c.args().get(0);
                 while (a0 instanceof TypedFilter tf0) {
+                    // the peeled predicates are SUBSELECT scope
+                    collectEmptinessChainPaths(tf0.predicate(), userVar,
+                            true, direct, nested);
                     a0 = tf0.source();
                 }
                 List<TypedSpec> heads =
@@ -324,16 +341,20 @@ final class InnerDemand {
                 for (TypedSpec h : heads) {
                     List<String> p = Substitution.pathOf(h, userVar);
                     if (p != null && p.size() >= 2) {
-                        out.add(p);
+                        (inPred ? nested : direct).add(p);
                     }
                 }
+                collectEmptinessChainPaths(a0, userVar, inPred, direct,
+                        nested);
+                for (int i = 1; i < c.args().size(); i++) {
+                    collectEmptinessChainPaths(c.args().get(i), userVar,
+                            true, direct, nested);
+                }
+                return;
             }
         }
-        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
-            return;   // shadowing: the substitution stops here too
-        }
         for (TypedSpec c : n.children()) {
-            collectEmptinessChainPaths(c, userVar, out);
+            collectEmptinessChainPaths(c, userVar, inPred, direct, nested);
         }
     }
 
