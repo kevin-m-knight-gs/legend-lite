@@ -97,10 +97,21 @@ final class SnapshotEnvelope {
                     .TypedSerializeGraph.PK_ORDER_PREFIX)) {
                 continue;
             }
+            // STRING pks json-quote; numerics stay bare ({"pk$_0":"A"})
+            boolean strPk = k.fn() instanceof
+                    com.legend.compiler.spec.typed.TypedLambda kl
+                    && !kl.body().isEmpty()
+                    && kl.body().get(kl.body().size() - 1).info().type()
+                            == com.legend.compiler.element.type
+                                    .Type.Primitive.STRING;
             parts.add(new SqlExpr.StringLit(
-                    (i > 0 ? "," : "") + "\"pk$_" + i + "\":"));
+                    (i > 0 ? "," : "") + "\"pk$_" + i + "\":"
+                            + (strPk ? "\"" : "")));
             parts.add(new SqlExpr.Cast(scalar.apply(k),
                     com.legend.sql.SqlType.Scalar.VARCHAR));
+            if (strPk) {
+                parts.add(new SqlExpr.StringLit("\""));
+            }
             i++;
         }
         if (i == 0) {
