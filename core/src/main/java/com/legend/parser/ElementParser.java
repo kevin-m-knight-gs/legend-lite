@@ -400,11 +400,15 @@ public final class ElementParser implements TokenStreamCursor {
                     span(classStartTok, pos - 1));
         }
 
-        List<TypeExpression> superClasses = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PSuperType> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
-            superClasses.add(parseType());
+            int stTok = pos;
+            superClasses.add(new com.legend.protocol.Protocol.PSuperType(
+                    parseType(), span(stTok, pos - 1)));
             while (match(TokenType.COMMA)) {
-                superClasses.add(parseType());
+                int nTok = pos;
+                superClasses.add(new com.legend.protocol.Protocol.PSuperType(
+                        parseType(), span(nTok, pos - 1)));
             }
         }
 

@@ -75,7 +75,6 @@ public final class ProtocolEmitter {
     private static void pclass(StringBuilder b, PClass c) {
         // Not yet emitted. Loud rather than silently dropped — AGENTS.md invariant 4.
         require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
-        require(c.superClasses().isEmpty(), "superTypes", c.qualifiedName());
         require(c.derivedProperties().isEmpty(), "qualifiedProperties", c.qualifiedName());
         require(c.constraints().isEmpty(), "constraints", c.qualifiedName());
         require(c.stereotypes().isEmpty(), "stereotypes", c.qualifiedName());
@@ -94,7 +93,29 @@ public final class ProtocolEmitter {
         }
         b.append("],\"qualifiedProperties\":[],\"sourceInformation\":");
         srcInfo(b, c.sourceInformation());
-        b.append(",\"stereotypes\":[],\"superTypes\":[],\"taggedValues\":[]}");
+        b.append(",\"stereotypes\":[],\"superTypes\":[");
+        List<Protocol.PSuperType> sts = c.superTypes();
+        for (int i = 0; i < sts.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            superType(b, sts.get(i));
+        }
+        b.append("],\"taggedValues\":[]}");
+    }
+
+    /** {@code {"path":…,"sourceInformation":…,"type":"CLASS"}} — fields alphabetical, no {@code _type}. */
+    private static void superType(StringBuilder b, Protocol.PSuperType st) {
+        if (!(st.type() instanceof com.legend.model.TypeExpression.NameRef n)) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for a supertype of shape "
+                            + st.type().getClass().getSimpleName() + " — add the emit rule.");
+        }
+        b.append("{\"path\":");
+        str(b, n.name());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, st.sourceInformation());
+        b.append(",\"type\":\"CLASS\"}");
     }
 
     private static void property(StringBuilder b, PProperty p) {

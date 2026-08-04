@@ -57,7 +57,7 @@ public final class Protocol {
      */
     public record PClass(String pkg, String name,
                          List<String> typeParams,
-                         List<com.legend.model.TypeExpression> superClasses,
+                         List<PSuperType> superTypes,
                          List<PProperty> properties,
                          List<com.legend.model.ClassDefinition.DerivedPropertyDefinition> derivedProperties,
                          List<com.legend.model.ClassDefinition.ConstraintDefinition> constraints,
@@ -67,7 +67,7 @@ public final class Protocol {
                          SourceInfo sourceInformation) implements Element {
         public PClass {
             typeParams = List.copyOf(typeParams);
-            superClasses = List.copyOf(superClasses);
+            superTypes = List.copyOf(superTypes);
             properties = List.copyOf(properties);
             derivedProperties = List.copyOf(derivedProperties);
             constraints = List.copyOf(constraints);
@@ -123,6 +123,16 @@ public final class Protocol {
 
     /** Note: carries no {@code _type} on the wire. */
     public record PGenericType(PPackageableType rawType) {
+    }
+
+    /**
+     * One entry of the wire's {@code superTypes}: {@code {"path":…,"sourceInformation":…,"type":"CLASS"}}.
+     *
+     * <p>Carries the parsed {@code TypeExpression} rather than a pre-flattened path, for the same
+     * reason {@link PProperty} does — the parser stays total and the emitter owns what the wire can
+     * express.
+     */
+    public record PSuperType(com.legend.model.TypeExpression type, SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"packageableType"}. */

@@ -68,6 +68,25 @@ class ProtocolEmitterTest {
                 ProtocolEmitter.emit(new PureModelContextData(List.of(person, sections))));
     }
 
+    /**
+     * {@code superTypes} on the wire — captured from legend-engine for
+     * {@code Class a::B extends a::C\n{\n}\n}. Note the entry has no {@code _type}, its fields are
+     * alphabetical, and {@code a::C} spans columns 20-23 inclusive.
+     */
+    @Test
+    void superTypesMatchTheWire() {
+        PClass c = new PClass("a", "B", List.of(),
+                List.of(new Protocol.PSuperType(
+                        new com.legend.model.TypeExpression.NameRef("a::C"),
+                        new SourceInfo("", 1, 20, 1, 23))),
+                List.of(), List.of(), List.of(), List.of(), List.of(), false,
+                new SourceInfo("", 1, 1, 3, 1));
+        String json = ProtocolEmitter.emitElement(c);
+        assertEquals("[{\"path\":\"a::C\",\"sourceInformation\":{\"endColumn\":23,\"endLine\":1,"
+                        + "\"sourceId\":\"\",\"startColumn\":20,\"startLine\":1},\"type\":\"CLASS\"}]",
+                json.replaceAll(".*\"superTypes\":(\\[.*?\\]),\"taggedValues.*", "$1"));
+    }
+
     /** {@code NON_NULL}: a {@code [1..*]} upper bound is null upstream and vanishes from the wire. */
     @Test
     void nullUpperBoundIsOmittedNotEmittedAsNull() {

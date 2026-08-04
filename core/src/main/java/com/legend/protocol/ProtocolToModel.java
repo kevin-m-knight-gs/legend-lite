@@ -1,6 +1,7 @@
 package com.legend.protocol;
 
 import com.legend.model.ClassDefinition;
+import com.legend.protocol.Protocol;
 import com.legend.protocol.Protocol.PClass;
 import com.legend.protocol.Protocol.PProperty;
 
@@ -36,7 +37,11 @@ public final class ProtocolToModel {
             props.add(new ClassDefinition.PropertyDefinition(
                     p.name(), p.type(), p.multiplicity(), p.stereotypes(), p.taggedValues()));
         }
-        return new ClassDefinition(c.qualifiedName(), c.typeParams(), c.superClasses(), props,
+        List<com.legend.model.TypeExpression> supers = new ArrayList<>(c.superTypes().size());
+        for (Protocol.PSuperType st : c.superTypes()) {
+            supers.add(st.type());
+        }
+        return new ClassDefinition(c.qualifiedName(), c.typeParams(), supers, props,
                 c.derivedProperties(), c.constraints(), c.stereotypes(), c.taggedValues(),
                 c.isNative());
     }
