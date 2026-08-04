@@ -1237,7 +1237,32 @@ final class GraphEmission {
             argBinds.put(cf.signature().parameters().get(i + 1).name(),
                     node.args().get(i));
         }
-        TypedSpec hop = unwrapToOneFirst(substVars(cf.body().get(0), argBinds));
+        TypedSpec hop = unwrapToOneFirst(inlineDerivedCalls(
+                substVars(cf.body().get(0), argBinds), 0));
+        // CHAINED two-hop body ($this.h1[->filter(p)].h2->toOne() — the
+        // qualifier-inside-qualifier shape after nested-call inlining)
+        if (hop instanceof TypedPropertyAccess hp2
+                && hp2.info().type() instanceof Type.ClassType) {
+            TypedSpec chSrc = unwrapToOneFirst(hp2.source());
+            TypedLambda midPred = null;
+            if (chSrc instanceof TypedFilter chF
+                    && chF.predicate().parameters().size() == 1
+                    && chF.predicate().body().size() == 1) {
+                midPred = chF.predicate();
+                chSrc = unwrapToOneFirst(chF.source());
+            }
+            if (chSrc instanceof TypedPropertyAccess hp1
+                    && hp1.source() instanceof TypedVariable chV
+                    && chV.name().equals(thisVar)
+                    && hp1.info().type() instanceof Type.ClassType) {
+                var chained = chainedDerivedChild(cs, node, context,
+                        parentRowVar, parentRowType, hp1.property(),
+                        midPred, hp2.property(), d, thisVar);
+                if (chained != null) {
+                    return chained;
+                }
+            }
+        }
         TypedLambda extraPred = null;
         if (hop instanceof TypedFilter hf
                 && hf.predicate().parameters().size() == 1
@@ -1280,6 +1305,235 @@ final class GraphEmission {
                 && Integer.valueOf(1).equals(bm.upper()));
         return childFromRel(target, childRel, extraParams, toMany, node,
                 context, Map.of());
+    }
+
+    /** β-inline NESTED derived-property calls inside a derived body
+     * (qualifier-inside-qualifier): a user call with a single-statement
+     * compilable body substitutes params for args, recursively
+     * (depth-capped; a non-compilable callee keeps the call). */
+    private TypedSpec inlineDerivedCalls(TypedSpec n, int depth) {
+        if (depth > 8) {
+            return n;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && uc.callee().body().isPresent()) {
+            try {
+                var cf2 = sources.compileSynthFn(uc.callee().qualifiedName());
+                if (cf2.body().size() == 1 && cf2.signature().parameters()
+                        .size() == uc.args().size()) {
+                    Map<String, TypedSpec> binds =
+                            new java.util.LinkedHashMap<>();
+                    for (int i = 0; i < uc.args().size(); i++) {
+                        binds.put(cf2.signature().parameters().get(i).name(),
+                                inlineDerivedCalls(uc.args().get(i),
+                                        depth + 1));
+                    }
+                    return inlineDerivedCalls(
+                            substVars(cf2.body().get(0), binds), depth + 1);
+                }
+            } catch (RuntimeException notCompilable) {
+                return n;
+            }
+            return n;
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = inlineDerivedCalls(k, depth);
+            changed |= r != k;
+            out.add(r);
+        }
+        return changed ? n.withChildren(out) : n;
+    }
+
+    /** The chained-hop derived child: h2's target correlated to the
+     * parent through an EXISTS over h1's relation — parent↔h1 via the
+     * first association join, h1↔child via the second, the mid filter
+     * substituted through h1's bindings (engine: nested per-hop join
+     * chain; the EXISTS form is the [0..1]-safe emission). */
+    private TypedSerializeGraph.@com.legend.Nullable Child chainedDerivedChild(
+            ClassSource cs, TypedGraphTree node, StoreResolver.Context context,
+            String parentRowVar, Type.RelationType parentRowType,
+            String h1, @com.legend.Nullable TypedLambda midPred, String h2,
+            com.legend.compiler.element.Property.Derived d, String thisVar) {
+        HopJoin j1 = hopJoin(cs, h1, context);
+        HopJoin j2 = j1 == null ? null : hopJoin(j1.target(), h2, context);
+        if (j1 == null || j2 == null) {
+            return null;
+        }
+        ClassSource mid = j1.target();
+        ClassSource target = j2.target();
+        Type.RelationType midRow = j1.targetRow();
+        Type.RelationType targetRow = j2.targetRow();
+        TypedLambda c1 = j1.cond();
+        TypedLambda c2 = j2.cond();
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        // FRESH row vars — source row-var names collide across hops
+        // (both 'row'); every substitution below is single-key sequential
+        String midName = "_r" + freshVar.getAsInt();
+        String tName = "_r" + freshVar.getAsInt();
+        TypedSpec midRead = new TypedVariable(midName,
+                new ExprType(midRow, one));
+        TypedSpec parentRead = new TypedVariable(parentRowVar,
+                new ExprType(parentRowType, one));
+        // MID-relation conjuncts (parent correlation + the body's own
+        // filter) ride the mid relation's OWN filter — the exists
+        // lambda keeps ONLY the mid<->child link, so the exists
+        // emission chooser sees exactly one cross-row predicate
+        List<TypedSpec> midConj = new ArrayList<>();
+        for (TypedSpec cb : c1.body()) {
+            TypedSpec b = Pipelines.rewriteRowReads(cb,
+                    c1.parameters().get(0), Map.of(), Set.of(),
+                    v -> parentRead);
+            b = substVars(b, Map.of(c1.parameters().get(1), midRead));
+            midConj.add(toOneJoinEquals(b));
+        }
+        if (midPred != null) {
+            // the predicate reads BOTH rows: the mid instance through
+            // mid's bindings, then $this through the PARENT's bindings
+            TypedSpec mb = inlineThis(midPred.body().get(0),
+                    midPred.parameters().get(0), Map.of(), mid.bindings(),
+                    mid.classFqn(), node.property());
+            mb = substVars(mb, Map.of(mid.rowVar(), midRead));
+            mb = inlineThis(mb, thisVar, Map.of(), cs.bindings(),
+                    cs.classFqn(), node.property());
+            mb = substVars(mb, Map.of(cs.rowVar(), parentRead));
+            midConj.add(mb);
+        }
+        var midFn = new Type.FunctionType(
+                List.of(new Type.Param(midRow, one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedSpec midRel = new TypedFilter(j1.targetPipeline(),
+                new TypedLambda(List.of(midName), List.of(andFold(midConj)),
+                        new ExprType(midFn, one)),
+                j1.targetPipeline().info());
+        List<TypedSpec> conj = new ArrayList<>();
+        for (TypedSpec cb : c2.body()) {
+            TypedSpec b = substVars(cb,
+                    Map.of(c2.parameters().get(0), midRead));
+            b = substVars(b, Map.of(c2.parameters().get(1),
+                    new TypedVariable(tName, new ExprType(targetRow, one))));
+            conj.add(toOneJoinEquals(b));
+        }
+        var existsFn = new Type.FunctionType(
+                List.of(new Type.Param(midRow, one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedSpec existsCall = new TypedNativeCall(existsCallee(),
+                List.of(midRel,
+                        new TypedLambda(List.of(midName),
+                                List.of(andFold(conj)),
+                                new ExprType(existsFn, one))),
+                new ExprType(Type.Primitive.BOOLEAN, one));
+        var childFn = new Type.FunctionType(
+                List.of(new Type.Param(targetRow, one)),
+                new Type.Param(Type.Primitive.BOOLEAN, one));
+        TypedSpec childRel = new TypedFilter(j2.targetPipeline(),
+                new TypedLambda(List.of(tName), List.of(existsCall),
+                        new ExprType(childFn, one)),
+                j2.targetPipeline().info());
+        Set<String> extraParams = new LinkedHashSet<>();
+        extraParams.add(tName);
+        extraParams.add(midName);
+        boolean toMany = !(d.multiplicity()
+                instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded bm
+                && Integer.valueOf(1).equals(bm.upper()));
+        return childFromRel(target, childRel, extraParams, toMany, node,
+                context, Map.of());
+    }
+
+    private record HopJoin(ClassSource target, TypedSpec targetPipeline,
+            Type.RelationType targetRow, TypedLambda cond) {
+    }
+
+    /** ONE navigation hop resolved to (target, pipeline, row, condition)
+     * — association ends AND join-slot-backed class properties (the two
+     * navHeadRelation arms, hop-composable). Null when neither resolves. */
+    private @com.legend.Nullable HopJoin hopJoin(ClassSource src, String prop,
+            StoreResolver.Context context) {
+        try {
+            var aj = assocMaterial.associationJoin(temporal, src, prop,
+                    context, /*forExists*/ true);
+            if (aj != null && aj.condition() != null) {
+                return new HopJoin(aj.target(), aj.targetPipeline(),
+                        aj.targetRow(), aj.condition());
+            }
+        } catch (RuntimeException notAnAssoc) {
+            // fall through to the slot route
+        }
+        TypedSpec bindingRead = src.bindings().get(prop);
+        String alias = prop;
+        var ow = bindingRead == null ? null
+                : com.legend.resolver.Substitution.otherwiseOf(bindingRead);
+        if (ow != null) {
+            bindingRead = ow.args().get(1);
+        }
+        bindingRead = bindingRead == null ? null
+                : unwrapToOneFirst(bindingRead);
+        if (bindingRead instanceof TypedPropertyAccess bpa
+                && bpa.source() instanceof TypedVariable bv
+                && bv.name().equals(src.rowVar())) {
+            alias = bpa.property();
+        }
+        TypedNavigate nav = Pipelines.outerNavSteps(src.pipeline())
+                .get(alias);
+        if (nav == null
+                || !(nav.target() instanceof TypedGetAll navGa)) {
+            return null;
+        }
+        String key = (context.explicitMapping() == null ? ""
+                : context.explicitMapping()) + '\u0000'
+                + (context.runtimeFqn() == null ? ""
+                        : context.runtimeFqn());
+        String rawTarget = navGa.classFqn();
+        ClassSource target = sources.get(
+                dispatch.apply(context, rawTarget), rawTarget,
+                (t, excl) -> dispatch.apply(context, t), key);
+        Pipelines.Materialized cMat = Pipelines.materialize(
+                target.pipeline(), Set.of(), rawTarget);
+        TypedSpec targetPipeline = temporal.temporalTargetPipe(src, target,
+                prop, cMat.pipeline());
+        return new HopJoin(target, targetPipeline,
+                (Type.RelationType) targetPipeline.info().type(),
+                nav.pairedPredicate().orElse(nav.predicate()));
+    }
+
+    /** Conjunction of predicate expressions — a multi-statement lambda
+     * body keeps only its LAST statement (pure statement semantics), so
+     * conjunct lists must AND-fold into one expression. */
+    private TypedSpec andFold(List<TypedSpec> conj) {
+        TypedSpec out = conj.get(0);
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        for (int i = 1; i < conj.size(); i++) {
+            out = new TypedNativeCall(andCallee(),
+                    List.of(out, conj.get(i)),
+                    new ExprType(Type.Primitive.BOOLEAN, one));
+        }
+        return out;
+    }
+
+    private com.legend.compiler.element.TypedFunction andCallee() {
+        var fns = ctx.findFunction("meta::pure::functions::boolean::and");
+        if (fns.isEmpty()) {
+            throw new IllegalStateException(
+                    "resolver bug: no and registration");
+        }
+        return fns.get(0);
+    }
+
+    /** The registered exists overload — the chained-hop EXISTS emission. */
+    private com.legend.compiler.element.TypedFunction existsCallee() {
+        var fns = ctx.findFunction(
+                "meta::pure::functions::collection::exists");
+        if (fns.isEmpty()) {
+            throw new IllegalStateException(
+                    "resolver bug: no exists registration");
+        }
+        return fns.get(0);
     }
 
     /** The serialized key for a CLASS child: a QUALIFIED spelling with

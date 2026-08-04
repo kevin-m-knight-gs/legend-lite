@@ -43,7 +43,12 @@ class ErrorShapeGuardrailTest {
             Map.entry("ClassSources.java", 1),
             Map.entry("Compiler.java", 2),
             Map.entry("FunctionCompiler.java", 1),
-            Map.entry("GraphEmission.java", 1),
+            // 3 = the derived-child PROBE-AND-FALLBACK trio (reviewed):
+            // navHeadRelation's assoc probe, hopJoin's assoc-vs-slot
+            // probe, inlineDerivedCalls' compilable-callee probe — each
+            // falls back to the next resolution route, never swallows a
+            // verdict
+            Map.entry("GraphEmission.java", 3),
             Map.entry("ScanRelations.java", 1),
             Map.entry("StatementExecutor.java", 1),
             Map.entry("StaticFold.java", 1),
