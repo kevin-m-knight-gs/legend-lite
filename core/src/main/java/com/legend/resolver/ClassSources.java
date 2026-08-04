@@ -983,10 +983,19 @@ public final class ClassSources {
                             substituteSourceReads(nic.source(), srcVar, inner,
                                     classFqn, mappingFqn, bindingPosition),
                             nic.info(), nic.targetSetId());
+            // a LEAF read through the MILESTONED step keeps binding
+            // position (the marker chain: PropertyAccess over
+            // MilestonedAccess over the source marker — the graph
+            // child's primitive-array arm consumes it); ordinary
+            // chains still query-position their sources
             case TypedPropertyAccess pa ->
                     new TypedPropertyAccess(
                             substituteSourceReads(pa.source(), srcVar, inner,
-                                    classFqn, mappingFqn, false),
+                                    classFqn, mappingFqn,
+                                    bindingPosition && pa.source()
+                                            instanceof com.legend.compiler
+                                                    .spec.typed
+                                                    .TypedMilestonedAccess),
                             pa.property(), pa.info());
             // a MILESTONED property access ($src.product(%d)) is a
             // property step with temporal arguments — source and dates

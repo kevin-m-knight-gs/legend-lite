@@ -35,7 +35,7 @@ in-process Alloy-shaped path).
 | milestoning/tests | 224 | 210 | 3 | 1 | 10 | 33 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
-| modelToModelToRelational/milestoned | 7 | 1 | 0 | 4 | 2 | 0 |
+| modelToModelToRelational/milestoned | 7 | 2 | 0 | 3 | 2 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 | 1 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2237** | 72 | 102 | 127 | 240 |
+| **total** | 2538 | **2238** | 72 | 101 | 127 | 240 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1088,7 +1088,6 @@ in-process Alloy-shaped path).
 - 2x in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
-- 2x model-to-model binding of 'meta::relational::tests::milestoning::TargetProductFlattened' uses the whole source instance '$src' — not supported yet (H5b)
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x unknown function 'SimpleDateTimeFormat' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
@@ -1114,6 +1113,7 @@ in-process Alloy-shaped path).
 - 1x project expects ~[…] column specifications
 - 1x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=publicFnJoin]], candidateFqns=[]])
+- 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -1257,8 +1257,7 @@ in-process Alloy-shaped path).
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::TargetToModelMappingViaAllVersions' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not declared on class '
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty] — wall: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: no execute(|...) call [calls meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty] — wall: from() argument 1 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: model-to-model binding of 'meta::relational::tests::milestoning::TargetProductFlattened' uses the whole source instance '$src' — not supported yet (H5b)
-- ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: model-to-model binding of 'meta::relational::tests::milestoning::TargetProductFlattened' uses the whole source instance '$src' — not supported yet (H5b)
+- ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: resolver bug: row-read rewrite hit TypedMilestonedAccess, outside the normalizer's emission vocabulary
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: class 'meta::relational::tests::milestoning::TargetProductMilestoned' is not mapped in mapping 'meta::relational::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::TargetToModelMappingWithMilestonedComplexProperty' (M2M PropertyBinding 'synonymsMilestonedAllVersions' is not d
 - FAIL testReplaceTablesPostProcessor [postprocessor/tests]: h2-advisory divergence: golden SQL on H2 gave 0 row(s) [], our pipeline gave 7 row(s) [Firm A|Fabrice, Firm B|Oliver, Firm C|David, Firm X|Anthony, Firm X|John]
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: sql-only: 1 advisory golden-SQL assert(s), no row verification

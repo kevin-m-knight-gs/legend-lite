@@ -715,6 +715,35 @@ final class GraphEmission {
                         instanceof com.legend.compiler.element.type
                                 .Multiplicity.Bounded db1
                         && Integer.valueOf(1).equals(db1.upper()));
+        // M2M MILESTONED leaf chain (synonymNames:
+        // \$src.<nav>AllVersions.synonym): the VERSION-SWEEP hop serves
+        // the RAW extent — same primitive-array emission over the nav
+        // step's target (a DATED hop needs the window and stays loud)
+        if (declaredMany && inner instanceof TypedPropertyAccess mcp
+                && mcp.source() instanceof com.legend.compiler.spec.typed
+                        .TypedMilestonedAccess mma
+                && mma.sweep()
+                && mma.source() instanceof TypedVariable mmv
+                && mmv.name().equals(cs.rowVar())) {
+            var mNavP = Pipelines.outerNavSteps(cs.pipeline())
+                    .get(mma.property());
+            if (mNavP != null
+                    && mNavP.target() instanceof com.legend.compiler.spec
+                            .typed.TypedGetAll mtg
+                    && sources.binds(cs.mappingFqn(), mtg.classFqn())) {
+                ClassSource tcs = sources.get(cs.mappingFqn(),
+                        mtg.classFqn());
+                TypedSpec tPipe = Pipelines.materialize(tcs.pipeline(),
+                        java.util.Set.of(), mtg.classFqn()).pipeline();
+                TypedSpec hopVar = new TypedPropertyAccess(mma.source(),
+                        mma.property(), mma.info());
+                return primitiveArrayChild(keyOf(node), tPipe,
+                        mNavP.predicate(),
+                        new TypedPropertyAccess(hopVar, mcp.property(),
+                                mcp.info()),
+                        rowVar, rowType);
+            }
+        }
         if (!(inner instanceof TypedPropertyAccess colPa
                 && colPa.source() instanceof TypedPropertyAccess slotPa
                 && slotPa.source() instanceof TypedVariable slotV
