@@ -210,71 +210,82 @@ Non-negotiable, each earned the hard way this session:
 
 ## 3. Deliverable 3 — upgrading legend-lite's parser
 
-### 3.1 Which metamodel must match? **Theirs — and that changes the answer**
+### 3.1 The architecture decision: one parser, and the protocol is the output
 
-An earlier draft of this section asked the wrong question. It asked *"how do we carry source
-positions in legend-lite's records?"* and concluded the metamodel had to change. **That was wrong,
-and it was wrong because it assumed the drop-in path would emit legend-lite's AST and then convert.**
+**Context that changes the answer: the parser is stage one of a progressive replacement.** The
+stated end goal is to replace legend-engine incrementally — parser, then compiler, then
+sqlgen/plangen, then execution. That reframes the metamodel question completely.
 
-The consumer does not know legend-lite exists. Studio, the engine compiler and
-`/pure/v1/grammar/grammarToJson` all take **`PureModelContextData`** and its 444 protocol classes.
-`com.legend.model.ClassDefinition` is not a metamodel that needs upgrading to match theirs — it is a
-*different* metamodel, private to legend-lite's own compiler, and irrelevant to the drop-in.
+Legend's pipeline is four seams, each with a published type and SPI:
 
-**So the requirement is: the parser must be able to CONSTRUCT legend-engine's protocol objects.**
-Not adopt them, not convert into them — build them directly, with `SourceInformation` inline at
-construction, because that is the only point where token positions are in hand.
-
-### 3.2 The design: one parse core, two sinks
-
-Measured distribution of AST construction, which is what makes this tractable:
-
-| | count |
-|---|---:|
-| construction sites **inside `parser/`** | **88** (SpecParser 75, ElementParser 11, the two grammar parsers 1 each) |
-| construction sites elsewhere in `core/src/main` | 660 |
-| `core`'s dependencies on `org.finos.legend.engine` | **0** (pom and source) |
-
-The 660 are downstream code — desugaring, synthesis, lowering — building AST nodes for its own
-purposes. **They have nothing to do with parsing and need no positions.** Only the **88** parsing
-sites need a seam.
-
-**Introduce an AST-factory interface in `core`, implemented twice:**
-
-| implementation | lives in | builds | positions |
+| stage | input → output | seam type | SPI |
 |---|---|---|---|
-| `LegendLiteAst` (default) | `core` | today's `com.legend.model.*` records | discarded — zero cost |
-| `EngineProtocolAst` | the drop-in module | `org.finos.legend.engine.protocol.pure.v1.model.*` | inline, per §3.2 of the feasibility doc |
+| 1 parse | text → **`PureModelContextData`** | PMCD | `PureGrammarParserExtension` / `SectionParser` |
+| 2 compile | PMCD → **`PureModel`** | PureModel | `CompilerExtension` (51 registrations) |
+| 3 plan | PureModel + query → **`ExecutionPlan`** | SingleExecutionPlan | `PlanGeneratorExtension` |
+| 4 execute | plan → **`Result`** | Result | `StoreExecutorBuilder` |
 
-`core` declares the interface and stays free of any engine dependency — the direction that matters,
-and currently zero. The protocol implementation lives in the drop-in module, which is allowed to
-depend on both.
+**You cannot replace a stage without speaking its neighbours' language.** Every stage boundary is
+one of upstream's types. So adopting `PureModelContextData` as the parser's output is not a
+concession to the drop-in — **it is the strategy**, and stages 2–4 will each make the same call
+against their own seam type.
 
-**What this buys, versus the design I first proposed:**
+#### The measurement that makes it affordable
 
-- **legend-lite's metamodel does not change at all.** No position component, no `equals`/`hashCode`
-  override, no convenience constructors.
-- **The 111 `assertEquals(new CInteger(42L), spec)` assertions are untouched.** They were only ever
-  at risk because of the wrong architecture.
-- **Zero memory cost on legend-lite's own path** — the default factory drops positions, so the
-  25 B/char figure in §0.1 stands.
-- **No drift between two AST shapes**, because there is one parse core and the sinks are exhaustive
-  over the same call sites.
+Held-tree cost for the same 343 files / 2,880,655 chars:
 
-**The real new work this exposes**, which the earlier framing hid:
+| output shape | held | per char |
+|---|---:|---:|
+| protocol tree, `returnSourceInfo=true` | 16.3 MB | **5.9 B/char** |
+| protocol tree, `returnSourceInfo=false` | 15.8 MB | 5.8 B/char |
+| legend-lite `ParsedModel` | 10.5 MB | 3.8 B/char |
+| | | **1.6×** |
 
-1. **A line index in the lexer.** Positions must be cheap at all 88 sites. Today line/column is
-   computed *only when throwing*, by an O(offset) linear rescan (`TokenStreamCursor.java:285-301`).
-   Build an `int[]` of line-start offsets once per source and binary-search it. Small, self-contained,
-   and it does **not** touch the AST.
-2. **Threading the factory through the parser** — 88 call sites plus the cursor plumbing.
-3. **Fixing the column-base disagreement** — `TokenStreamCursor.java:295` starts at 0,
-   `LegendCompileException.java:66` at 1; engine is 1-based with an inclusive end column.
+**`SourceInformation` is 3% of the protocol tree.** The thing I assumed would be the expensive part
+is nearly free; the 1.6× is the protocol's shape (mutable POJOs, more nodes), not its positions. And
+1.6× on a *held tree* is nothing against the 1,287 B/char **allocation** ANTLR does to produce it
+(§0.1).
 
-**Fallback if the factory seam proves invasive:** positions on the records with an `equals` override
-excluding them, plus a transformer. It works, and the cost is measured — 47 record types, 111
-assertions to protect via the override, and a per-node memory hit to weigh against §0.1. Prefer the
-factory; keep this in reserve.
+#### Recommendation
+
+**One parser. Its output is `PureModelContextData`. legend-lite's compiler consumes PMCD through a
+transform into its own sealed records.**
+
+- **One parser, one output shape** — byte-identity by construction, not by parallel maintenance.
+  No factory, no two sinks, no coverage drift. This is what you asked for.
+- **legend-lite keeps its sealed, immutable, exhaustively-switched model** where it earns its keep —
+  inside the compiler. `AGENTS.md` invariant 5, the `NoEagerTypeReferences` guard and the javac
+  exhaustiveness property are all preserved.
+- **The transform is not waste — it is stage 2's input adapter.** When legend-lite's compiler
+  replaces legend-engine's, it must consume PMCD anyway. We are building that boundary now and
+  getting it exercised by legend-lite's entire existing test suite on every build, for free.
+- The 111 `assertEquals(new CInteger(42L), spec)` assertions survive untouched: they test the
+  records, which the transform still produces.
+
+#### The cost, stated plainly
+
+**`core` takes a dependency on `legend-engine-protocol-pure`.** Today that is zero — pom and source
+— and it is a deliberate clean-room property.
+
+**That property was right for a clean-room reimplementation and is wrong for a progressive
+replacement.** You cannot swap into someone's pipeline while refusing to name their types. The
+honest framing is that we are trading *independence* for *interoperability*, deliberately, at the
+moment the goal changed from "reimplement" to "replace".
+
+Three mitigations worth taking:
+1. Keep the protocol dependency to the **parse boundary and the stage-2 adapter**; the compiler,
+   lowering and execution layers keep speaking legend-lite types.
+2. Pin the protocol version explicitly and gate CI on upstream bumps (§5) — the protocol is
+   versioned and upstream-controlled.
+3. Keep an ArchUnit rule that no `com.legend.compiler` / `lowering` / `sql` class imports
+   `org.finos.legend.engine.protocol`.
+
+#### Alternative kept in reserve
+
+If the protocol dependency proves unacceptable: parser emits legend-lite records carrying a position
+component with `equals`/`hashCode` overridden to exclude it, plus a records→PMCD transform. Costs
+are measured — 47 record types, 111 assertions protected by the override, positions on our own hot
+path. It preserves independence and gives up construction-time byte-identity. **Prefer the protocol.**
 
 ### 3.3 The other parser work, in dependency order
 
