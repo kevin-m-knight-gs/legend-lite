@@ -1486,6 +1486,11 @@ public final class Pure {
     // with the engine-style dialect. mapping/databaseType/extensions type
     // as Any (the from()-convention for execution-context elements).
     public static final NativeFunctionDefinition TO_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toSQLString(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], databaseType:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
+    // toSQLStringPretty = toSQLString with the pretty Format (engine
+    // toSQLString.pure:35/:40) — same K-dispatch; every golden compare
+    // strips formatting (sqlRemoveFormatting), so the flat rendering is
+    // compare-equal. The 3rd argument is DatabaseType OR Runtime (:40).
+    public static final NativeFunctionDefinition TO_SQL_STRING_PRETTY__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toSQLStringPretty(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], databaseTypeOrRuntime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
     // walks the Database metamodel to spell DDL) — a K-native here, DDL
     // rendered from the compiled store model (com.legend.exec.Ddl). The

@@ -826,6 +826,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.FloatLit f) {
             return String.valueOf(f.value());
         }
+        // engine H2 DECIMAL-literal spelling (testDecimal golden)
+        if (e instanceof SqlExpr.DecimalLit d) {
+            return "cast(" + d.value().toPlainString() + " as Decimal(32,16))";
+        }
         if (e instanceof SqlExpr.Exists xx
                 && xx.subquery() instanceof SqlSelect xs) {
             return correlatedExistsSpelling(xs);

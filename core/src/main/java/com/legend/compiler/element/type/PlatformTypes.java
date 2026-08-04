@@ -156,6 +156,12 @@ public final class PlatformTypes {
     public static final String TO_SQL_STRING =
             "meta::relational::functions::sqlstring::toSQLString";
 
+    /** toSQLString with the engine's pretty Format — same K-dispatch
+     * (sqlRemoveFormatting normalizes the whitespace difference away in
+     * every golden compare; engine toSQLString.pure:35). */
+    public static final String TO_SQL_STRING_PRETTY =
+            "meta::relational::functions::sqlstring::toSQLStringPretty";
+
     /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
     public static final String SET_UP_DATA_SQLS_V2 =
             "meta::alloy::service::execution::setUpDataSQLsV2";
@@ -214,6 +220,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)
                 || TO_SQL_STRING.equals(fqn)
+                || TO_SQL_STRING_PRETTY.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)
                 || PLAN_TO_STRING.equals(fqn)
@@ -245,6 +252,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
+                || TO_SQL_STRING_PRETTY.equals(fqn)
                 || SET_UP_DATA_SQLS_V2.equals(fqn)
                 || SET_UP_DATA_SQLS.equals(fqn)
                 || EXECUTION_PLAN.equals(fqn)

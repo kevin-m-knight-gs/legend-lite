@@ -46,7 +46,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
-| tds/tests | 266 | 247 | 2 | 9 | 8 | 6 |
+| tds/tests | 266 | 248 | 2 | 9 | 7 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
 | tests | 39 | 30 | 3 | 0 | 6 | 0 |
 | tests/advanced | 68 | 59 | 2 | 5 | 2 | 17 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 43 | 3 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2249** | 79 | 99 | 111 | 235 |
+| **total** | 2538 | **2250** | 79 | 99 | 110 | 235 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1288,8 +1288,7 @@ in-process Alloy-shaped path).
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
-- SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: no overload of 'meta::relational::functions::sqlstring::toSQLStringPretty' matches the argument types
-- SHAPE testDecimal [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
 - ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType

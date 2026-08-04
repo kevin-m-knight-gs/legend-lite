@@ -112,7 +112,8 @@ final class ExecCallFinder {
             com.legend.model.ImportScope imports, String runtimeFqn,
             java.sql.Connection conn) {
         AppliedFunction term = findTerminal(side, lets, execStmts,
-                java.util.Set.of("execute", "toSQLString"),
+                java.util.Set.of("execute", "toSQLString",
+                        "toSQLStringPretty"),
                 java.util.Set.of("sqlRemoveFormatting", "sql", "toOne",
                         "at"));
         if (term == null) {

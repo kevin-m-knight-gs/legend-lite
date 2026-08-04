@@ -204,8 +204,11 @@ final class StatementExecutor {
             }
             preRoot = foldPairProjection(preRoot);
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall tsc
-                    && com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
-                            .equals(tsc.callee().qualifiedName())) {
+                    && (com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
+                            .equals(tsc.callee().qualifiedName())
+                        || com.legend.compiler.element.type.PlatformTypes
+                                .TO_SQL_STRING_PRETTY
+                                .equals(tsc.callee().qualifiedName()))) {
                 result = toSqlString(tsc, specs, env);
                 continue;
             }
@@ -357,7 +360,13 @@ final class StatementExecutor {
     private static @com.legend.Nullable ExecutionResult toSqlString(
             com.legend.compiler.spec.typed.TypedNativeCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        String db = typedEnumTail(call.args().get(2));
+        // toSQLStringPretty's RUNTIME overload carries the connection in
+        // arg 2 — resolve its DatabaseType; the enum overloads keep the
+        // direct tail read
+        TypedSpec dbArg = call.args().get(2);
+        String db = dbArg instanceof com.legend.compiler.spec.typed.TypedEnumValue
+                ? typedEnumTail(dbArg)
+                : String.valueOf(databaseTypeOf(dbArg));
         com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
             case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
             case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
