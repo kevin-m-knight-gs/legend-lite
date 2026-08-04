@@ -54,6 +54,16 @@ public final class ProtocolEmitter {
         return b.append("]}").toString();
     }
 
+    /**
+     * Emit ONE element's JSON — the granularity the equivalence harness compares at, so a file
+     * containing constructs we cannot yet emit still yields a verdict for the ones we can.
+     */
+    public static String emitElement(Element e) {
+        StringBuilder b = new StringBuilder(512);
+        element(b, e);
+        return b.toString();
+    }
+
     /** Exhaustive over {@link Element}. No {@code default} arm — a new variant must land here. */
     private static void element(StringBuilder b, Element e) {
         switch (e) {
@@ -88,6 +98,10 @@ public final class ProtocolEmitter {
     }
 
     private static void property(StringBuilder b, PProperty p) {
+        // Found by the equivalence harness on its first corpus run: the parser used to drop
+        // default values silently, so the emitted bytes were quietly missing `defaultValue` and the
+        // diff looked like a mystery. Silent omission is the one thing the emitter must never do.
+        require(!p.hasDefaultValue(), "property defaultValue", p.name());
         require(p.stereotypes().isEmpty(), "property stereotypes", p.name());
         require(p.taggedValues().isEmpty(), "property taggedValues", p.name());
         b.append("{\"genericType\":");

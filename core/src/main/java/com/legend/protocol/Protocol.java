@@ -113,7 +113,8 @@ public final class Protocol {
                             List<com.legend.model.StereotypeApplication> stereotypes,
                             List<com.legend.model.TaggedValue> taggedValues,
                             SourceInfo sourceInformation,
-                            SourceInfo typeSourceInformation) {
+                            SourceInfo typeSourceInformation,
+                            boolean hasDefaultValue) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);

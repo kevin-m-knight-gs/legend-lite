@@ -1519,7 +1519,9 @@ public final class ElementParser implements TokenStreamCursor {
         // parsed and DROPPED for now: defaults apply at ^construction,
         // which no supported path exercises for default-bearing classes.
         // A deliberate, documented divergence until construction demands it.
+        boolean hasDefaultValue = false;
         if (match(TokenType.EQUAL)) {
+            hasDefaultValue = true;
             int depth = 0;
             while (!atEnd()) {
                 TokenType t = peek();
@@ -1542,7 +1544,7 @@ public final class ElementParser implements TokenStreamCursor {
         // token span of this property is in hand. No side table, no second pass.
         return new com.legend.protocol.Protocol.PProperty(
                 name, type, mult, stereotypes, taggedValues,
-                span(startTok, pos - 1), span(typeStartTok, typeEndTok));
+                span(startTok, pos - 1), span(typeStartTok, typeEndTok), hasDefaultValue);
     }
 
     /** A {@link com.legend.protocol.Protocol.SourceInfo} for an inclusive token range. */

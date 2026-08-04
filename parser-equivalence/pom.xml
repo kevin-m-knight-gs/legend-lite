@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.finos.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-parser-equivalence</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - Parser Equivalence Harness</name>
+    <description>
+        Differential harness: runs legend-lite's parser and legend-engine's over the same input and
+        compares the emitted PureModelContextData bytes.
+
+        The upstream artifacts are TEST SCOPE and live only here. core/ must never depend on
+        org.finos.legend.engine — that invariant is the whole point of the clean-room protocol, and
+        this module exists so the reference can be generated without breaking it.
+    </description>
+
+    <properties>
+        <legend.engine.version>4.133.0</legend.engine.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.finos.legend</groupId>
+            <artifactId>legend-lite-core</artifactId>
+        </dependency>
+
+        <!-- the reference parser, and the DSL extensions that let it read non-Pure sections -->
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-language-pure-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-relationalStore-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.finos.legend.engine</groupId>
+            <artifactId>legend-engine-xt-diagram-grammar</artifactId>
+            <version>${legend.engine.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
