@@ -316,11 +316,13 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement parseSingleElement() {
         TokenType t = peek();
         return switch (t) {
-            case CLASS -> parseClassDefinition(false);
+            case CLASS -> com.legend.protocol.ProtocolToModel.toClassDefinition(
+                    parseClassDefinition(false));
             case NATIVE -> {
                 advance(); // consume 'native'
                 yield switch (peek()) {
-                    case CLASS -> parseClassDefinition(true);
+                    case CLASS -> com.legend.protocol.ProtocolToModel.toClassDefinition(
+                            parseClassDefinition(true));
                     case FUNCTION -> parseNativeFunction();
                     default -> throw error("expected 'Class' or 'function' after 'native', got "
                             + peek() + " ('" + safeText() + "')");
@@ -372,7 +374,8 @@ public final class ElementParser implements TokenStreamCursor {
     // Class declaration
     // ============================================================
 
-    private ClassDefinition parseClassDefinition(boolean isNative) {
+    private com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative) {
+        int classStartTok = pos;
         expect(TokenType.CLASS);
         List<StereotypeApplication> stereotypes = parseStereotypes();
         List<TaggedValue> taggedValues = parseTaggedValues();
@@ -391,9 +394,10 @@ public final class ElementParser implements TokenStreamCursor {
             if (peek() == TokenType.BRACE_OPEN) {
                 mappingGrammar.skipBalancedBlock();
             }
-            return new ClassDefinition(qualifiedName, typeParams, List.of(),
-                    List.of(), List.of(), List.of(), stereotypes,
-                    taggedValues, isNative);
+            String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
+            return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, List.of(),
+                    List.of(), List.of(), List.of(), stereotypes, taggedValues, isNative,
+                    span(classStartTok, pos - 1));
         }
 
         List<TypeExpression> superClasses = new ArrayList<>();
@@ -410,7 +414,7 @@ public final class ElementParser implements TokenStreamCursor {
 
         expect(TokenType.BRACE_OPEN);
 
-        List<ClassDefinition.PropertyDefinition> properties = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PProperty> properties = new ArrayList<>();
         List<DerivedPropertyDefinition> derivedProperties = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
             if (isDerivedPropertyStart()) {
@@ -421,8 +425,10 @@ public final class ElementParser implements TokenStreamCursor {
         }
         expect(TokenType.BRACE_CLOSE);
 
-        return new ClassDefinition(
-                qualifiedName,
+        String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
+        return new com.legend.protocol.Protocol.PClass(
+                pn[0],
+                pn[1],
                 typeParams,
                 superClasses,
                 properties,
@@ -430,7 +436,8 @@ public final class ElementParser implements TokenStreamCursor {
                 constraints,
                 stereotypes,
                 taggedValues,
-                isNative);
+                isNative,
+                span(classStartTok, pos - 1));
     }
 
     /** Optional generic type parameters: {@code <T>}, {@code <U, V>}, ... */
@@ -1498,12 +1505,15 @@ public final class ElementParser implements TokenStreamCursor {
     // Property declaration (regular)
     // ============================================================
 
-    private ClassDefinition.PropertyDefinition parseProperty() {
+    private com.legend.protocol.Protocol.PProperty parseProperty() {
+        int startTok = pos;
         List<StereotypeApplication> stereotypes = parseStereotypes();
         List<TaggedValue> taggedValues = parseTaggedValues();
         String name = parseIdentifier();
         expect(TokenType.COLON);
+        int typeStartTok = pos;
         TypeExpression type = parseType();
+        int typeEndTok = pos - 1;
         Multiplicity mult = parseMultiplicity();
         // property DEFAULT VALUE (real pure: prop: Boolean[1] = false;) —
         // parsed and DROPPED for now: defaults apply at ^construction,
@@ -1528,9 +1538,20 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
         expect(TokenType.SEMI_COLON);
-        return new ClassDefinition.PropertyDefinition(
-                name, type, mult, stereotypes, taggedValues);
+        // Positions are captured HERE, at construction, because this is the only point where the
+        // token span of this property is in hand. No side table, no second pass.
+        return new com.legend.protocol.Protocol.PProperty(
+                name, type, mult, stereotypes, taggedValues,
+                span(startTok, pos - 1), span(typeStartTok, typeEndTok));
     }
+
+    /** A {@link com.legend.protocol.Protocol.SourceInfo} for an inclusive token range. */
+    private com.legend.protocol.Protocol.SourceInfo span(int fromTok, int toTok) {
+        return new com.legend.protocol.Protocol.SourceInfo("",
+                tokens.startLine(fromTok), tokens.startColumn(fromTok),
+                tokens.endLine(toTok), tokens.endColumn(toTok));
+    }
+
 
     // ============================================================
     // Shared helpers (engine-parity)

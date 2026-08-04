@@ -63,6 +63,13 @@ public final class ProtocolEmitter {
     }
 
     private static void pclass(StringBuilder b, PClass c) {
+        // Not yet emitted. Loud rather than silently dropped — AGENTS.md invariant 4.
+        require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
+        require(c.superClasses().isEmpty(), "superTypes", c.qualifiedName());
+        require(c.derivedProperties().isEmpty(), "qualifiedProperties", c.qualifiedName());
+        require(c.constraints().isEmpty(), "constraints", c.qualifiedName());
+        require(c.stereotypes().isEmpty(), "stereotypes", c.qualifiedName());
+        require(c.taggedValues().isEmpty(), "taggedValues", c.qualifiedName());
         b.append("{\"_type\":\"class\",\"constraints\":[],\"name\":");
         str(b, c.name());
         b.append(",\"originalMilestonedProperties\":[],\"package\":");
@@ -81,8 +88,10 @@ public final class ProtocolEmitter {
     }
 
     private static void property(StringBuilder b, PProperty p) {
+        require(p.stereotypes().isEmpty(), "property stereotypes", p.name());
+        require(p.taggedValues().isEmpty(), "property taggedValues", p.name());
         b.append("{\"genericType\":");
-        genericType(b, p.genericType());
+        genericType(b, p.type(), p.typeSourceInformation());
         b.append(",\"multiplicity\":");
         multiplicity(b, p.multiplicity());
         b.append(",\"name\":");
@@ -92,19 +101,29 @@ public final class ProtocolEmitter {
         b.append(",\"stereotypes\":[],\"taggedValues\":[]}");
     }
 
-    private static void genericType(StringBuilder b, PGenericType g) {
+    /** The wire's {@code genericType}. Only a plain named type is expressible so far. */
+    private static void genericType(StringBuilder b, com.legend.model.TypeExpression t,
+                                    Protocol.SourceInfo pos) {
+        if (!(t instanceof com.legend.model.TypeExpression.NameRef n)) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for type expression "
+                            + t.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
+        }
         b.append("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
-        PPackageableType r = g.rawType();
-        str(b, r.fullPath());
+        str(b, n.name());
         b.append(",\"sourceInformation\":");
-        srcInfo(b, r.sourceInformation());
+        srcInfo(b, pos);
         b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}");
     }
 
-    private static void multiplicity(StringBuilder b, PMultiplicity m) {
-        b.append("{\"lowerBound\":").append(m.lowerBound());
-        if (m.upperBound() != null) {          // null upper bound is [n..*]; NON_NULL omits it
-            b.append(",\"upperBound\":").append(m.upperBound().intValue());
+    private static void multiplicity(StringBuilder b, com.legend.model.Multiplicity m) {
+        if (!(m instanceof com.legend.model.Multiplicity.Concrete c)) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for a multiplicity PARAMETER — add the emit rule.");
+        }
+        b.append("{\"lowerBound\":").append(c.lowerBound());
+        if (c.upperBound() != null) {          // null upper bound is [n..*]; NON_NULL omits it
+            b.append(",\"upperBound\":").append(c.upperBound().intValue());
         }
         b.append('}');
     }
@@ -154,6 +173,19 @@ public final class ProtocolEmitter {
         str(b, s.sourceId());
         b.append(",\"startColumn\":").append(s.startColumn())
                 .append(",\"startLine\":").append(s.startLine()).append('}');
+    }
+
+    /**
+     * A construct the emitter cannot yet put on the wire must stop the build, never vanish from it.
+     * Silent omission is how a byte-identity claim becomes a lie that every structural comparison
+     * still passes.
+     */
+    private static void require(boolean emitted, String what, String where) {
+        if (!emitted) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for " + what + " (at " + where
+                            + "). Add the emit rule — do not drop it.");
+        }
     }
 
     /** RFC-8259 string escaping, matching Jackson's default output. */

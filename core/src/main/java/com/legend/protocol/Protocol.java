@@ -41,11 +41,43 @@ public final class Protocol {
     public sealed interface Element permits PClass, PSectionIndex {
     }
 
-    /** {@code _type:"class"}. */
-    public record PClass(String pkg, String name, List<PProperty> properties,
+    /**
+     * {@code _type:"class"} — <b>the parser's output for a {@code Class} declaration</b>.
+     *
+     * <p>Carries everything the parse produced, which is a superset of what goes on the wire.
+     * {@code typeParams} and {@code isNative} have no protocol equivalent and
+     * {@link ProtocolEmitter} simply does not emit them: <b>these are our records; the wire shape
+     * is the emitter's decision, not the record's.</b> That is what lets the parser have exactly
+     * one output while still round-tripping losslessly into {@code com.legend.model} for our own
+     * compiler.
+     *
+     * <p>{@code superClasses}, {@code derivedProperties} and {@code constraints} still use the
+     * {@code com.legend.model} AST types. They gain protocol-native representations when they gain
+     * emitters; until then they are carried through untouched rather than duplicated.
+     */
+    public record PClass(String pkg, String name,
+                         List<String> typeParams,
+                         List<com.legend.model.TypeExpression> superClasses,
+                         List<PProperty> properties,
+                         List<com.legend.model.ClassDefinition.DerivedPropertyDefinition> derivedProperties,
+                         List<com.legend.model.ClassDefinition.ConstraintDefinition> constraints,
+                         List<com.legend.model.StereotypeApplication> stereotypes,
+                         List<com.legend.model.TaggedValue> taggedValues,
+                         boolean isNative,
                          SourceInfo sourceInformation) implements Element {
         public PClass {
+            typeParams = List.copyOf(typeParams);
+            superClasses = List.copyOf(superClasses);
             properties = List.copyOf(properties);
+            derivedProperties = List.copyOf(derivedProperties);
+            constraints = List.copyOf(constraints);
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
+
+        /** The wire's {@code package} + {@code name} recombined — legend-lite keys by FQN, always. */
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
         }
     }
 
@@ -65,9 +97,27 @@ public final class Protocol {
         }
     }
 
-    /** A simple (non-derived) property. */
-    public record PProperty(String name, PGenericType genericType, PMultiplicity multiplicity,
-                            SourceInfo sourceInformation) {
+    /**
+     * A simple (non-derived) property, carrying the <b>parse product</b> — the type expression and
+     * multiplicity exactly as parsed — plus the two spans the wire needs.
+     *
+     * <p>It deliberately does <em>not</em> pre-flatten the type into the wire's
+     * {@code genericType}/{@code rawType} shape. Doing that at parse time forced the parser to
+     * reject type expressions it can parse perfectly well, and to invent a multiplicity when the
+     * declaration used a parameter. <b>The parser stays total; the emitter owns what the wire can
+     * express</b> and walls loudly on the rest.
+     */
+    public record PProperty(String name,
+                            com.legend.model.TypeExpression type,
+                            com.legend.model.Multiplicity multiplicity,
+                            List<com.legend.model.StereotypeApplication> stereotypes,
+                            List<com.legend.model.TaggedValue> taggedValues,
+                            SourceInfo sourceInformation,
+                            SourceInfo typeSourceInformation) {
+        public PProperty {
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
     }
 
     /** Note: carries no {@code _type} on the wire. */
@@ -79,7 +129,7 @@ public final class Protocol {
     }
 
     /** Carries no {@code _type} and no source information. */
-    public record PMultiplicity(int lowerBound, Integer upperBound) {
+    public record PMultiplicity(int lowerBound, @com.legend.Nullable Integer upperBound) {
     }
 
     /**
@@ -88,5 +138,20 @@ public final class Protocol {
      */
     public record SourceInfo(String sourceId, int startLine, int startColumn,
                              int endLine, int endColumn) {
+    }
+
+    /**
+     * Splits an FQN into the wire's {@code package} / {@code name} pair.
+     *
+     * <p><b>This is the only place in legend-lite that splits an FQN</b>, and it exists solely to
+     * satisfy the wire. {@code PackageableElement} deliberately has no {@code simpleName()} /
+     * {@code packagePath()} because they invite {@code findClass(element.simpleName())} — the
+     * simple-name collision documented in {@code docs/NAME_RESOLUTION_BUG.md}. Splitting on the way
+     * OUT is safe; nothing reads these back as a lookup key.
+     */
+    public static String[] splitFqn(String qualifiedName) {
+        int i = qualifiedName.lastIndexOf("::");
+        return i < 0 ? new String[]{"", qualifiedName}
+                     : new String[]{qualifiedName.substring(0, i), qualifiedName.substring(i + 2)};
     }
 }

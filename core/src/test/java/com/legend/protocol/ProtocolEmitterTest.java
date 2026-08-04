@@ -1,9 +1,6 @@
 package com.legend.protocol;
 
 import com.legend.protocol.Protocol.PClass;
-import com.legend.protocol.Protocol.PGenericType;
-import com.legend.protocol.Protocol.PMultiplicity;
-import com.legend.protocol.Protocol.PPackageableType;
 import com.legend.protocol.Protocol.PProperty;
 import com.legend.protocol.Protocol.PSection;
 import com.legend.protocol.Protocol.PSectionIndex;
@@ -56,12 +53,13 @@ class ProtocolEmitterTest {
 
     @Test
     void simpleClassIsByteIdenticalToLegendEngine() {
-        PPackageableType stringType =
-                new PPackageableType("String", new SourceInfo("", 3, 9, 3, 14));
-        PProperty name = new PProperty("name", new PGenericType(stringType),
-                new PMultiplicity(1, 1), new SourceInfo("", 3, 3, 3, 18));
-        PClass person = new PClass("model", "Person", List.of(name),
-                new SourceInfo("", 1, 1, 4, 1));
+        PProperty name = new PProperty("name",
+                new com.legend.model.TypeExpression.NameRef("String"),
+                new com.legend.model.Multiplicity.Concrete(1, 1),
+                List.of(), List.of(),
+                new SourceInfo("", 3, 3, 3, 18), new SourceInfo("", 3, 9, 3, 14));
+        PClass person = new PClass("model", "Person", List.of(), List.of(), List.of(name),
+                List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 4, 1));
         PSectionIndex sections = new PSectionIndex("__internal__", "SectionIndex",
                 List.of(new PSection("Pure", List.of("model::Person"), List.of(),
                         new SourceInfo("", 1, 1, 6, 2))));
@@ -73,11 +71,13 @@ class ProtocolEmitterTest {
     /** {@code NON_NULL}: a {@code [1..*]} upper bound is null upstream and vanishes from the wire. */
     @Test
     void nullUpperBoundIsOmittedNotEmittedAsNull() {
-        PClass c = new PClass("m", "C",
+        PClass c = new PClass("m", "C", List.of(), List.of(),
                 List.of(new PProperty("xs",
-                        new PGenericType(new PPackageableType("String", new SourceInfo("", 1, 1, 1, 1))),
-                        new PMultiplicity(1, null), new SourceInfo("", 1, 1, 1, 1))),
-                new SourceInfo("", 1, 1, 1, 1));
+                        new com.legend.model.TypeExpression.NameRef("String"),
+                        new com.legend.model.Multiplicity.Concrete(1, null),
+                        List.of(), List.of(),
+                        new SourceInfo("", 1, 1, 1, 1), new SourceInfo("", 1, 1, 1, 1))),
+                List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 1, 1));
         String json = ProtocolEmitter.emit(new PureModelContextData(List.of(c)));
 
         org.junit.jupiter.api.Assertions.assertTrue(json.contains("\"multiplicity\":{\"lowerBound\":1}"),
@@ -88,7 +88,8 @@ class ProtocolEmitterTest {
     /** Strings are escaped the way Jackson escapes them, or the bytes diverge on any quoted name. */
     @Test
     void stringEscapingMatchesJackson() {
-        PClass c = new PClass("m", "A\"B\\C\nD", List.of(), new SourceInfo("", 1, 1, 1, 1));
+        PClass c = new PClass("m", "A\"B\\C\nD", List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 1, 1));
         assertEquals("\"A\\\"B\\\\C\\nD\"",
                 ProtocolEmitter.emit(new PureModelContextData(List.of(c)))
                         .replaceAll(".*\"name\":(\".*?[^\\\\]\"),\"original.*", "$1"));
