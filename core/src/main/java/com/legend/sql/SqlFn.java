@@ -23,6 +23,12 @@ public enum SqlFn {
     PARSE_INT,
     // Strings
     CONCAT, LENGTH, UPPER, LOWER, GREATEST, LEAST,
+    // joinStrings over a literal element list in VALUE (map) position:
+    // separator INTERLEAVED between elements. A DISTINCT fn from CONCAT
+    // so nested-concat splicing never flattens it (the engine keeps the
+    // joinStrings unit nested inside a '+' chain; DB2 spells it as a
+    // parenthesized infix chain).
+    CONCAT_JOIN,
     // Lists — SEMANTIC operations (encodings are the dialect's: DuckDB uses
     // list lambdas; Postgres would use unnest subqueries; SQLite json_each).
     // LIST_EXISTS/LIST_FOR_ALL carry (collection, predicate-lambda) and

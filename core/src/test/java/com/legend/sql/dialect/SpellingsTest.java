@@ -20,6 +20,9 @@ class SpellingsTest {
 
     /** Fns rendered by CODE (infix, shape logic, composites, idiom points). */
     private static final Set<SqlFn> CODED = Set.of(
+            // interleaved joinStrings unit — function-form concat in the
+            // base renderer, infix chain in DB2; never flatten-spliced
+            SqlFn.CONCAT_JOIN,
             SqlFn.BOOL_TO_TEXT,
             SqlFn.ADD_INTERVAL,
             SqlFn.AND,

@@ -69,19 +69,16 @@ final class Scalars {
     }
 
     static {
-        // equal/eq are PRECISION-AWARE over dates: a partial-date literal
-        // (%2014, %2014-01) equals only a SAME-precision value — real pure's
-        // rule, decided STATICALLY (partial precision is a literal-only
-        // phenomenon; columns are always full-precision). Same-precision
-        // partials compare as their ISO-prefix strings. eq = strict equality;
-        // over our SQL value set it IS the = operator.
-        // equal takes NO optionalOperandGuards DELIBERATELY (remediation
-        // T1.4 verdict): the guard inlines the [0..1] ORDERING overload
-        // bodies (isNotEmpty && ...) real pure defines — equal is a total
-        // NATIVE with no such overload ([] == [] is TRUE; the guard would
-        // spell it false). The residual both-NULL divergence (SQL NULL vs
-        // pure true) is the reference engine's own relational behavior
-        // (bare =; IS NOT DISTINCT FROM appears in no golden).
+        // equal/eq are PRECISION-AWARE over dates: a partial-date
+        // literal equals only a SAME-precision value (real pure, decided
+        // statically — partial precision is literal-only; columns are
+        // full-precision); same-precision partials compare as ISO-prefix
+        // strings. eq = strict equality = the = operator here.
+        // equal takes NO optionalOperandGuards DELIBERATELY (T1.4):
+        // equal is a total NATIVE ([] == [] is TRUE; the guard would
+        // spell it false). The residual both-NULL divergence (SQL NULL
+        // vs pure true) is the reference engine's own behavior (bare =;
+        // IS NOT DISTINCT FROM appears in no golden).
         for (String name : List.of("equal", "eq")) {
             for (String f : Pure.nativeKeysAt(name)) {
                 RULES.put(f, (n, args) -> {
@@ -814,6 +811,28 @@ final class Scalars {
         // (list, prefix, sep, suffix).
         for (String f : Pure.nativeKeysAt("joinStrings")) {
             RULES.put(f, (n, args) -> {
+                // VALUE (map) position over a literal element list — every
+                // element a toOne-conformed read: the engine INTERLEAVES
+                // the separator (a distinct CONCAT_JOIN unit; the TDS
+                // channel keeps the append-form STRING_AGG path below)
+                if (args.size() <= 2
+                        && n.args().get(0) instanceof com.legend.compiler.spec
+                                .typed.TypedCollection tcol
+                        && !tcol.elements().isEmpty()
+                        && tcol.elements().stream().allMatch(el ->
+                                el instanceof TypedNativeCall enc
+                                && enc.callee().qualifiedName().endsWith(
+                                        "::toOne"))
+                        && args.get(0) instanceof SqlExpr.ArrayLit jal) {
+                    List<SqlExpr> parts = new ArrayList<>();
+                    for (SqlExpr el : jal.elements()) {
+                        if (!parts.isEmpty() && args.size() == 2) {
+                            parts.add(args.get(1));
+                        }
+                        parts.add(el);
+                    }
+                    return new SqlExpr.Call(SqlFn.CONCAT_JOIN, parts);
+                }
                 // A TO-ONE source IS the joined string; an EMPTY list joins
                 // to '' (list_aggregate over NULL/[] is NULL — coalesce).
                 SqlExpr joined;
@@ -1402,8 +1421,7 @@ final class Scalars {
                     throw new IllegalStateException("regexpExtract extractAll must be literal");
                 }
                 SqlExpr allMatches = RegexpRules.regexpAll(n, args, 3);
-                // extract-one stays LIST-shaped ([first] / []) — the String[*]
-                // result contract unnests it
+                // extract-one stays LIST-shaped — String[*] unnests it
                 return all.value() ? allMatches
                         : SqlExpr.Call.of(SqlFn.LIST_SLICE, allMatches,
                                 new SqlExpr.IntLit(1), new SqlExpr.IntLit(1));
@@ -2435,22 +2453,14 @@ final class Scalars {
         return -1;
     }
 
-    /**
-     * The MIXED-ELEMENT two-channel encoding — DATABASE-EXECUTED. A
-     * collection whose elements carry DIFFERENT concrete kinds under the
-     * Number or Date LUB (2 vs 2.0 vs 7.345D; %2014 vs a DateTime) splits
-     * into an IDENTITY channel (each element's pure PRINT FORM, computed
-     * BY SQL from the element expression) and a COMPARABLE channel
-     * (CAST(e AS DOUBLE) / strptime-padded TIMESTAMP — also SQL).
-     * Selections order by the comparable and RETURN the identity.
-     *
-     * <p>TENET: the encodings are chosen by each element's STATIC TYPE
-     * (compiler knowledge); every VALUE computation — printing, casting,
-     * padding, comparison, selection — runs in the database. Elements may
-     * be arbitrary expressions, not just literals.
-     *
-     * <p>Null when the shape is not per-element encodable or not mixed.
-     */
+    /** The MIXED-ELEMENT two-channel encoding — DATABASE-EXECUTED.
+     * Elements of DIFFERENT concrete kinds under the Number/Date LUB
+     * split into an IDENTITY channel (pure print form, computed BY SQL)
+     * and a COMPARABLE channel (CAST AS DOUBLE / strptime-padded
+     * TIMESTAMP); selections order by the comparable, return the
+     * identity. TENET: encodings chosen by STATIC type; every value
+     * computation runs in the database (elements may be arbitrary
+     * expressions). Null when not per-element encodable or not mixed. */
     record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals) {
 
         SqlExpr idList() {
@@ -2797,19 +2807,14 @@ final class Scalars {
         }
     }
 
-    /**
-     * Real pure computes in BigDecimal the moment ONE operand of an
-     * arithmetic native is Decimal. In SQL that means the whole expression
-     * must stay DECIMAL — one {@code CAST(x AS DOUBLE)} operand poisons
-     * DuckDB's type resolution to DOUBLE and the scale (the value surface
-     * of a Decimal: 6.0D, not 6.000000000000000000D) is lost. When a
-     * decimal operand is present, FLOAT literals join as native DECIMAL
-     * literals at their PRINTED scale — exactly what real pure does
-     * (BigDecimal.valueOf(double) is the printed repr) — and DuckDB's
-     * DECIMAL arithmetic then reproduces BigDecimal's scale rules
-     * (add/sub = max scale, mul = sum of scales, mod = max scale).
-     * Only literals transform: a genuinely runtime DOUBLE stays DOUBLE.
-     */
+    /** Real pure computes in BigDecimal the moment ONE arithmetic
+     * operand is Decimal — the whole SQL expression must stay DECIMAL
+     * (one CAST AS DOUBLE poisons DuckDB's resolution and loses the
+     * scale surface, 6.0D not 6.000000000000000000D). With a decimal
+     * operand present, FLOAT LITERALS join as native DECIMAL literals
+     * at their printed scale (BigDecimal.valueOf repr); DuckDB's DECIMAL
+     * arithmetic then reproduces BigDecimal's scale rules. Only literals
+     * transform: a runtime DOUBLE stays DOUBLE. */
     /** new BigDecimal(s)'s scale: digits after the point (exponent forms fall back to 18). */
     private static int literalScale(String s) {
         if (s.indexOf('e') >= 0 || s.indexOf('E') >= 0) {
@@ -2996,14 +3001,11 @@ final class Scalars {
         return lowered;
     }
 
-    /**
-     * {@code dateDiff} with REAL pure's per-unit semantics (PCT-pinned):
-     * WEEKS counts SUNDAY-boundary crossings — {@code (d1, d2]} forward but
-     * {@code [d2, d1)} backward (NOT the negation; the audit's asymmetry);
-     * HOURS/MINUTES/SECONDS are TRUNCATED ELAPSED time (SQL date_diff
-     * counts boundary crossings — a different number); the calendar parts
-     * (year/month/day/ms) match SQL date_diff.
-     */
+    /** {@code dateDiff} with REAL pure's per-unit semantics (PCT-pinned):
+     * WEEKS counts Sunday-boundary crossings — (d1,d2] forward, [d2,d1)
+     * backward (not the negation); HOURS/MINUTES/SECONDS are truncated
+     * ELAPSED time (SQL date_diff counts crossings); calendar parts
+     * match SQL date_diff. */
     private static SqlExpr dateDiffExpr(String part, SqlExpr d1, SqlExpr d2) {
         switch (part) {
             case "week" -> {
@@ -3099,12 +3101,9 @@ final class Scalars {
                 new SqlExpr.Cast(pick, SqlType.Scalar.BIGINT)));
     }
 
-    /**
-     * Replace bare references to {@code name} with {@code replacement} across
-     * an expression tree — how a 2-param comparator lambda closes over the
-     * needle when squeezed into a 1-param SQL lambda. Inner lambdas that
-     * rebind the name SHADOW (no substitution inside).
-     */
+    /** Replace bare references to {@code name} with {@code replacement}
+     * across an expression tree (a 2-param comparator closing over the
+     * needle in a 1-param SQL lambda); rebinding lambdas SHADOW. */
     /** A comparator whose body is bare eq/equal over its two parameters. */
     private static boolean isEqualityComparator(TypedSpec spec) {
         if (!(spec instanceof TypedLambda cmp)

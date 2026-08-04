@@ -431,6 +431,10 @@ public class AnsiSqlRenderer implements SqlDialect {
             case CONCAT -> "concat(" + flattenConcat(a).stream()
                     .map(x -> expr(x, 0))
                     .collect(java.util.stream.Collectors.joining(", ")) + ")";
+            // never flattened into an enclosing concat (see SqlFn)
+            case CONCAT_JOIN -> "concat(" + a.stream()
+                    .map(x -> expr(x, 0))
+                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case NOT -> {
                 String inner = "NOT " + expr(a.get(0), 3);
                 yield 3 < parentPrec ? "(" + inner + ")" : inner;

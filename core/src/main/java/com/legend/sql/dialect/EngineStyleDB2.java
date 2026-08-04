@@ -62,6 +62,11 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             case CONCAT -> "(" + flattenConcat(a).stream()
                     .map(x -> expr(x, 0))
                     .collect(Collectors.joining(" concat ")) + ")";
+            // interleaved joinStrings unit: same infix chain, NEVER
+            // spliced into the enclosing '+' chain (its parens pin it)
+            case CONCAT_JOIN -> "(" + a.stream()
+                    .map(x -> expr(x, 0))
+                    .collect(Collectors.joining(" concat ")) + ")";
             case TRIM -> a.size() == 1
                     ? "trim(" + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
