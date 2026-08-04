@@ -816,14 +816,15 @@ final class Scalars {
                 // the separator (a distinct CONCAT_JOIN unit; the TDS
                 // channel keeps the append-form STRING_AGG path below)
                 if (args.size() <= 2
-                        && n.args().get(0) instanceof com.legend.compiler.spec
-                                .typed.TypedCollection tcol
-                        && !tcol.elements().isEmpty()
-                        && tcol.elements().stream().allMatch(el ->
+                        && n.args().get(0) instanceof com.legend.compiler
+                                .spec.typed.TypedCollection tcol
+                        && !tcol.elements().isEmpty() && args.get(0) instanceof SqlExpr.ArrayLit jal
+                        // subquery elements cannot ride the list literal
+                        // (DuckDB binder limit) — CONCAT_JOIN is lawful
+                        && (tcol.elements().stream().allMatch(el ->
                                 el instanceof TypedNativeCall enc
-                                && enc.callee().qualifiedName().endsWith(
-                                        "::toOne"))
-                        && args.get(0) instanceof SqlExpr.ArrayLit jal) {
+                                && enc.callee().qualifiedName().endsWith("::toOne"))
+                            || jal.elements().stream().anyMatch(SqlProbes::containsSubquery))) {
                     List<SqlExpr> parts = new ArrayList<>();
                     for (SqlExpr el : jal.elements()) {
                         if (!parts.isEmpty() && args.size() == 2) {

@@ -58,7 +58,13 @@ final class FromChecker {
                         a.args().get(i)));
                 jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i),
                         t::classFqnOf));
-                sqlSetups.addAll(TypedFrom.sqlSetupsIn(a.args().get(i)));
+                sqlSetups.addAll(TypedFrom.sqlSetupsIn(a.args().get(i),
+                        fq -> t.model().findFunction(fq).stream()
+                                .map(com.legend.compiler.element
+                                        .TypedFunction::body)
+                                .filter(java.util.Optional::isPresent)
+                                .map(java.util.Optional::get)
+                                .findFirst()));
                 if (connectionName == null) {
                     connectionName = TypedFrom.connectionNameIn(
                             a.args().get(i));

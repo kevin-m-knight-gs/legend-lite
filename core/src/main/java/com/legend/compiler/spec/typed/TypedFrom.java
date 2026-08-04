@@ -318,18 +318,32 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
      * unchecked body with let-binding resolution ({@code let csvData =
      * '...' + ...; ... testDataSetupSqls=[$csvData]}). */
     public static List<String> sqlSetupsIn(TypedSpec n) {
+        return sqlSetupsIn(n, f -> java.util.Optional.empty());
+    }
+
+    /** {@code fnBody}: RAW body lookup for NESTED helper calls inside a
+     * runtime builder ({@code getModelChainRuntime -> ^Runtime(
+     * connectionStores=[getAlloyTestH2Connection(), …])} — the inner
+     * helper's LocalH2 setup SQL is unreachable without expansion). */
+    public static List<String> sqlSetupsIn(TypedSpec n,
+            java.util.function.Function<String, java.util.Optional<
+                    java.util.List<com.legend.model.spec.ValueSpecification>>>
+                    fnBody) {
         List<String> out = new java.util.ArrayList<>();
-        collectSqlSetups(n, out);
+        collectSqlSetups(n, out, fnBody);
         return List.copyOf(out);
     }
 
-    private static void collectSqlSetups(TypedSpec n, List<String> out) {
+    private static void collectSqlSetups(TypedSpec n, List<String> out,
+            java.util.function.Function<String, java.util.Optional<
+                    java.util.List<com.legend.model.spec.ValueSpecification>>>
+                    fnBody) {
         if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
             java.util.Map<String, com.legend.model.spec.ValueSpecification>
                     lets = new java.util.HashMap<>();
             for (com.legend.model.spec.ValueSpecification b
                     : uc.callee().body().get()) {
-                collectSqlSetupsRaw(b, lets, out);
+                collectSqlSetupsRaw(b, lets, out, fnBody, 0);
             }
             return;
         }
@@ -344,7 +358,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             return;
         }
         for (TypedSpec c : n.children()) {
-            collectSqlSetups(c, out);
+            collectSqlSetups(c, out, fnBody);
         }
     }
 
@@ -354,7 +368,10 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
     private static void collectSqlSetupsRaw(
             com.legend.model.spec.ValueSpecification v,
             java.util.Map<String, com.legend.model.spec.ValueSpecification> lets,
-            List<String> out) {
+            List<String> out,
+            java.util.function.Function<String, java.util.Optional<
+                    java.util.List<com.legend.model.spec.ValueSpecification>>>
+                    fnBody, int depth) {
         switch (v) {
             case com.legend.model.spec.AppliedFunction af -> {
                 if ("letFunction".equals(af.function())
@@ -364,7 +381,21 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     lets.put(nm.value(), af.parameters().get(1));
                 }
                 for (var p : af.parameters()) {
-                    collectSqlSetupsRaw(p, lets, out);
+                    collectSqlSetupsRaw(p, lets, out, fnBody, depth);
+                }
+                // NESTED helper call (getAlloyTestH2Connection()): expand
+                // its body in a FRESH let scope (depth-capped)
+                if (depth < 3 && !"letFunction".equals(af.function())) {
+                    var body = fnBody.apply(af.function());
+                    if (body.isPresent()) {
+                        java.util.Map<String,
+                                com.legend.model.spec.ValueSpecification>
+                                inner = new java.util.HashMap<>();
+                        for (var b : body.get()) {
+                            collectSqlSetupsRaw(b, inner, out, fnBody,
+                                    depth + 1);
+                        }
+                    }
                 }
             }
             case com.legend.model.spec.NewInstance ni -> {
@@ -378,17 +409,17 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     return;
                 }
                 for (var ke : ni.properties().values()) {
-                    collectSqlSetupsRaw(ke.value(), lets, out);
+                    collectSqlSetupsRaw(ke.value(), lets, out, fnBody, depth);
                 }
             }
             case com.legend.model.spec.LambdaFunction lf -> {
                 for (var b : lf.body()) {
-                    collectSqlSetupsRaw(b, lets, out);
+                    collectSqlSetupsRaw(b, lets, out, fnBody, depth);
                 }
             }
             case com.legend.model.spec.PureCollection pc -> {
                 for (var e : pc.values()) {
-                    collectSqlSetupsRaw(e, lets, out);
+                    collectSqlSetupsRaw(e, lets, out, fnBody, depth);
                 }
             }
             default -> { }
