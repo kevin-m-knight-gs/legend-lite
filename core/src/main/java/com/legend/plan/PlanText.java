@@ -599,8 +599,26 @@ public final class PlanText {
                     return resolveStarColumn(ctx, dbFqn, j.right(), col);
                 }
             }
+            case SqlSource.Subselect ss -> {
+                // a PROJECTED subselect (the tdsJoin shape: star top over
+                // joined projection subselects): the named projection
+                // resolves THROUGH to its physical column (the engine
+                // types resultColumns by the physical store column); a
+                // star wrap or non-column projection descends by name
+                if (ss.inner() instanceof SqlSelect is) {
+                    for (SqlSelect.Projection p2 : is.projections()) {
+                        if (p2.outputName() != null
+                                && col.equalsIgnoreCase(strip(p2.outputName()))
+                                && p2.expr() instanceof SqlExpr.Column c2) {
+                            return resolvePhysical(is.from(), c2.table(),
+                                    strip(c2.name()));
+                        }
+                    }
+                    return resolveStarColumn(ctx, dbFqn, is.from(), col);
+                }
+            }
             default -> {
-                // subselect/values under a star top: fall through loud
+                // values under a star top: fall through loud
             }
         }
         throw new NotImplementedException("plan: star-top TDS column '"
