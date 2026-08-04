@@ -3,16 +3,18 @@
 
 package com.legend.validation;
 
+import com.legend.protocol.ConstraintDefinition;
+
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.NotImplementedException;
 import com.legend.model.ClassDefinition;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -131,7 +133,7 @@ public final class ValidateDesugar {
                     && pl.parameters().size() == 1) {
                 postTds = pl;
             } else if (mapping == null
-                    && a instanceof com.legend.model.spec
+                    && a instanceof com.legend.protocol.spec
                             .PackageableElementPtr) {
                 mapping = a;
                 runtime = af.parameters().get(++i);
@@ -143,7 +145,7 @@ public final class ValidateDesugar {
                 }
             } else if (a instanceof CString cs) {
                 ids.add(cs.value());
-            } else if (a instanceof com.legend.model.spec.NewInstance
+            } else if (a instanceof com.legend.protocol.spec.NewInstance
                     || (a instanceof AppliedFunction nw
                         && "new".equals(nw.function()))) {
                 continue;   // ^RelationalExecutionContext() — PK append is
@@ -166,10 +168,10 @@ public final class ValidateDesugar {
         ClassDefinition cd = ctx.findClassDefinition(classFqn).orElseThrow(
                 () -> new NotImplementedException("validate: class '"
                         + classFqn + "' has no parsed definition"));
-        List<ClassDefinition.ConstraintDefinition> constraints =
+        List<ConstraintDefinition> constraints =
                 constraintsInHierarchy(cd, ctx);
         if (!ids.isEmpty()) {
-            List<ClassDefinition.ConstraintDefinition> picked =
+            List<ConstraintDefinition> picked =
                     new ArrayList<>();
             for (String id : ids) {
                 constraints.stream().filter(c -> c.name().equals(id))
@@ -189,7 +191,7 @@ public final class ValidateDesugar {
         ValueSpecification queryChain = query.body()
                 .get(query.body().size() - 1);
         ValueSpecification tds = null;
-        for (ClassDefinition.ConstraintDefinition c : constraints) {
+        for (ConstraintDefinition c : constraints) {
             ValueSpecification one = constraintProject(queryChain, c,
                     userCols, overrides.get(c.name()));
             tds = tds == null ? one
@@ -215,9 +217,9 @@ public final class ValidateDesugar {
 
     /** Own constraints first, then supertypes' (the engine's
      * allConstraintsInHierarchy walk). */
-    private static List<ClassDefinition.ConstraintDefinition>
+    private static List<ConstraintDefinition>
             constraintsInHierarchy(ClassDefinition cd, ModelContext ctx) {
-        List<ClassDefinition.ConstraintDefinition> out =
+        List<ConstraintDefinition> out =
                 new ArrayList<>(cd.constraints());
         ctx.findClass(cd.qualifiedName()).ifPresent(tc -> {
             for (String sup : tc.superClassFqns()) {
@@ -256,7 +258,7 @@ public final class ValidateDesugar {
                 && af.parameters().get(0) instanceof CString id) {
             ValueSpecification level = af.parameters().get(2);
             String levelName = level
-                    instanceof com.legend.model.spec.EnumValue ev
+                    instanceof com.legend.protocol.spec.EnumValue ev
                     ? ev.value() : null;
             ValueSpecification msg = af.parameters().get(3);
             if (msg instanceof CString cs) {
@@ -327,7 +329,7 @@ public final class ValidateDesugar {
      * beta-application). */
     private static ValueSpecification constraintProject(
             ValueSpecification chain,
-            ClassDefinition.ConstraintDefinition c,
+            ConstraintDefinition c,
             List<ValueSpecification> userCols,
             Object @com.legend.Nullable [] override) {
         ValueSpecification body = c.expression();

@@ -2,29 +2,29 @@ package com.legend.normalizer;
 
 import com.legend.model.NormalizedModel;
 import com.legend.parser.ElementParser;
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 import com.legend.model.ParsedModel;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 import com.legend.model.PackageableElement;
 import com.legend.model.SynthHat;
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.KeyExpression;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.NewInstanceCast;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.KeyExpression;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.NewInstanceCast;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -458,7 +458,7 @@ class MappingNormalizerTest {
         // parity (H1: TableReferenceChecker serves both surfaces).
         assertEquals(new PackageableElementPtr("db::DB"),
                 tableRef.parameters().get(0));
-        assertEquals(new com.legend.model.spec.CString("T_PERSON"),
+        assertEquals(new com.legend.protocol.spec.CString("T_PERSON"),
                 tableRef.parameters().get(1));
 
         LambdaFunction lambda = (LambdaFunction) mapCall.parameters().get(1);
@@ -609,7 +609,7 @@ class MappingNormalizerTest {
         assertEquals("IS_ACTIVE", left.property());
         assertEquals(new Variable("row"), left.receiver());
         // right = 1 (CInteger)
-        assertEquals(new com.legend.model.spec.CInteger(1L),
+        assertEquals(new com.legend.protocol.spec.CInteger(1L),
                 condition.parameters().get(1));
     }
 
@@ -701,8 +701,8 @@ class MappingNormalizerTest {
 
         // department is class-typed: should be NewInstanceCast over $src.department.
         var deptValue = ni.properties().get("department").value();
-        com.legend.model.spec.NewInstanceCast deptCast =
-                assertInstanceOf(com.legend.model.spec.NewInstanceCast.class, deptValue,
+        com.legend.protocol.spec.NewInstanceCast deptCast =
+                assertInstanceOf(com.legend.protocol.spec.NewInstanceCast.class, deptValue,
                         "Class-typed M2M binding lowers to NewInstanceCast (^Target($srcExpr))");
         assertEquals("model::DeptInfo", deptCast.className(),
                 "NewInstanceCast carries the target class FQN");
@@ -776,8 +776,8 @@ class MappingNormalizerTest {
                     ((AppliedFunction) sole(lam.body())).parameters().get(1);
             // The single property value is a NewInstanceCast over a $src.<prop>
             // — no inlined ^Inner construction.
-            com.legend.model.spec.NewInstanceCast cast =
-                    assertInstanceOf(com.legend.model.spec.NewInstanceCast.class,
+            com.legend.protocol.spec.NewInstanceCast cast =
+                    assertInstanceOf(com.legend.protocol.spec.NewInstanceCast.class,
                             ni.properties().values().iterator().next().value(),
                             "Class-typed property lowers to NewInstanceCast");
             assertTrue(cast.className().equals("model::A") || cast.className().equals("model::B"),
@@ -855,8 +855,8 @@ class MappingNormalizerTest {
         assertEquals("tableReference", upstream.function());
 
         // ColSpec(~Person_Firm: tableRef(db::DB, T_FIRM))
-        com.legend.model.spec.ColSpec binding =
-                (com.legend.model.spec.ColSpec) join.parameters().get(1);
+        com.legend.protocol.spec.ColSpec binding =
+                (com.legend.protocol.spec.ColSpec) join.parameters().get(1);
         assertEquals("Person_Firm", binding.name(),
                 "single-hop alias is the join name");
         LambdaFunction targetLambda = binding.function1();
@@ -866,7 +866,7 @@ class MappingNormalizerTest {
         assertEquals("tableReference", targetTableRef.function());
         assertEquals(new PackageableElementPtr("db::DB"),
                 targetTableRef.parameters().get(0));
-        assertEquals(new com.legend.model.spec.CString("T_FIRM"),
+        assertEquals(new com.legend.protocol.spec.CString("T_FIRM"),
                 targetTableRef.parameters().get(1));
 
         // Condition lambda: {s, t | $s.FIRM_ID == $t.ID}
@@ -931,19 +931,19 @@ class MappingNormalizerTest {
         assertEquals("tableReference", tableRef.function());
 
         // Hop 1: alias Person_Firm, target T_FIRM, cond $s.FIRM_ID = $t.ID
-        com.legend.model.spec.ColSpec h1Spec =
-                (com.legend.model.spec.ColSpec) innerJoin.parameters().get(1);
+        com.legend.protocol.spec.ColSpec h1Spec =
+                (com.legend.protocol.spec.ColSpec) innerJoin.parameters().get(1);
         assertEquals("Person_Firm", h1Spec.name());
         AppliedFunction h1Target = (AppliedFunction) sole(h1Spec.function1().body());
-        assertEquals(new com.legend.model.spec.CString("T_FIRM"),
+        assertEquals(new com.legend.protocol.spec.CString("T_FIRM"),
                 h1Target.parameters().get(1));
 
         // Hop 2: alias Person_Firm__Firm_Org, target T_ORG
-        com.legend.model.spec.ColSpec h2Spec =
-                (com.legend.model.spec.ColSpec) outerJoin.parameters().get(1);
+        com.legend.protocol.spec.ColSpec h2Spec =
+                (com.legend.protocol.spec.ColSpec) outerJoin.parameters().get(1);
         assertEquals("Person_Firm__Firm_Org", h2Spec.name());
         AppliedFunction h2Target = (AppliedFunction) sole(h2Spec.function1().body());
-        assertEquals(new com.legend.model.spec.CString("T_ORG"),
+        assertEquals(new com.legend.protocol.spec.CString("T_ORG"),
                 h2Target.parameters().get(1));
 
         // Hop 2 condition: $s.Person_Firm.ORG_ID == $t.ID
@@ -1001,10 +1001,10 @@ class MappingNormalizerTest {
         assertEquals("join", joinCall.function());
 
         // Target table of the self-join is T_PERSON (same as source).
-        com.legend.model.spec.ColSpec spec =
-                (com.legend.model.spec.ColSpec) joinCall.parameters().get(1);
+        com.legend.protocol.spec.ColSpec spec =
+                (com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1);
         AppliedFunction targetTableRef = (AppliedFunction) sole(spec.function1().body());
-        assertEquals(new com.legend.model.spec.CString("T_PERSON"),
+        assertEquals(new com.legend.protocol.spec.CString("T_PERSON"),
                 targetTableRef.parameters().get(1),
                 "Self-join's target table is the same as the source");
 
@@ -1079,8 +1079,8 @@ class MappingNormalizerTest {
         assertEquals("tableReference", upstream.function());
 
         // ColSpec(~firm: {| getAll(model::Firm)}) — slot named after the property.
-        com.legend.model.spec.ColSpec slot =
-                (com.legend.model.spec.ColSpec) nav.parameters().get(1);
+        com.legend.protocol.spec.ColSpec slot =
+                (com.legend.protocol.spec.ColSpec) nav.parameters().get(1);
         assertEquals("firm", slot.name(),
                 "legacyNavigate slot is the PM property name");
         LambdaFunction slotLambda = slot.function1();
@@ -1312,8 +1312,8 @@ class MappingNormalizerTest {
 
         AppliedFunction joinCall = (AppliedFunction) filterCall.parameters().get(0);
         assertEquals("join", joinCall.function());
-        com.legend.model.spec.ColSpec spec =
-                (com.legend.model.spec.ColSpec) joinCall.parameters().get(1);
+        com.legend.protocol.spec.ColSpec spec =
+                (com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1);
         assertEquals("Person_Firm", spec.name(),
                 "JoinMediated filter alias = join name (shared with any PM "
                         + "going through @Person_Firm)");
@@ -1412,14 +1412,14 @@ class MappingNormalizerTest {
         AppliedProperty colRefA = (AppliedProperty) outerEq.parameters().get(0);
         assertEquals("STATUS", colRefA.property());
         assertEquals(new Variable("row"), colRefA.receiver());
-        assertEquals(new com.legend.model.spec.CString("A"),
+        assertEquals(new com.legend.protocol.spec.CString("A"),
                 outerEq.parameters().get(1),
                 "First branch tests against source value 'A'");
 
         LambdaFunction thenA = (LambdaFunction) outerIf.parameters().get(1);
         assertEquals(List.of(), thenA.parameters());
-        com.legend.model.spec.EnumValue activeRef =
-                (com.legend.model.spec.EnumValue) sole(thenA.body());
+        com.legend.protocol.spec.EnumValue activeRef =
+                (com.legend.protocol.spec.EnumValue) sole(thenA.body());
         assertEquals("app::Status", activeRef.fullPath());
         assertEquals("Active", activeRef.value());
 
@@ -1428,18 +1428,18 @@ class MappingNormalizerTest {
         AppliedFunction innerIf = (AppliedFunction) sole(elseOuter.body());
         assertEquals("if", innerIf.function());
         AppliedFunction innerEq = (AppliedFunction) innerIf.parameters().get(0);
-        assertEquals(new com.legend.model.spec.CString("I"),
+        assertEquals(new com.legend.protocol.spec.CString("I"),
                 innerEq.parameters().get(1),
                 "Second branch tests against 'I'");
         LambdaFunction thenI = (LambdaFunction) innerIf.parameters().get(1);
-        com.legend.model.spec.EnumValue inactiveRef =
-                (com.legend.model.spec.EnumValue) sole(thenI.body());
+        com.legend.protocol.spec.EnumValue inactiveRef =
+                (com.legend.protocol.spec.EnumValue) sole(thenI.body());
         assertEquals("Inactive", inactiveRef.value());
 
         // Final else: empty collection (no match).
         LambdaFunction defaultBranch = (LambdaFunction) innerIf.parameters().get(2);
-        com.legend.model.spec.PureCollection emptyColl =
-                (com.legend.model.spec.PureCollection) sole(defaultBranch.body());
+        com.legend.protocol.spec.PureCollection emptyColl =
+                (com.legend.protocol.spec.PureCollection) sole(defaultBranch.body());
         assertEquals(List.of(), emptyColl.values());
     }
 
@@ -1540,7 +1540,7 @@ class MappingNormalizerTest {
         // step; the terminal map composes otherwise(^Firm(<inline>), $row.firm).
         AppliedFunction nav = navStep(personFn);
         assertEquals("firm",
-                ((com.legend.model.spec.ColSpec) nav.parameters().get(1)).name(),
+                ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name(),
                 "OE fallback emits a legacyNavigate slot named after the property");
 
         // Condition: {s, t | $s.FIRM_ID == $t.ID}.
@@ -1651,7 +1651,7 @@ class MappingNormalizerTest {
         // hop (Person_Firm) is a join beneath it.
         AppliedFunction nav = navStep(personFn);
         assertEquals("firm",
-                ((com.legend.model.spec.ColSpec) nav.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name());
         AppliedFunction intermediate = (AppliedFunction) nav.parameters().get(0);
         assertEquals("join", intermediate.function(),
                 "multi-hop OE fallback emits the intermediate hop as a join");
@@ -1802,11 +1802,11 @@ class MappingNormalizerTest {
 
         // Aliases: hop1, hop1__hop2, hop1__hop2__hop3 (join-name concatenation)
         assertEquals("Person_Firm",
-                ((com.legend.model.spec.ColSpec) h1Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) h1Join.parameters().get(1)).name());
         assertEquals("Person_Firm__Firm_Org",
-                ((com.legend.model.spec.ColSpec) h2Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) h2Join.parameters().get(1)).name());
         assertEquals("Person_Firm__Firm_Org__Org_Country",
-                ((com.legend.model.spec.ColSpec) h3Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) h3Join.parameters().get(1)).name());
 
         // Hop 3 condition: $s.Person_Firm__Firm_Org.COUNTRY_ID == $t.ID
         // This is the load-bearing claim of the multi-hop algorithm: at
@@ -1967,8 +1967,8 @@ class MappingNormalizerTest {
         // Exactly ONE join: the shared Person_Firm chain.
         AppliedFunction joinCall = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("join", joinCall.function());
-        com.legend.model.spec.ColSpec spec =
-                (com.legend.model.spec.ColSpec) joinCall.parameters().get(1);
+        com.legend.protocol.spec.ColSpec spec =
+                (com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1);
         assertEquals("Person_Firm", spec.name(),
                 "Both PMs through @Person_Firm dedupe to ONE join");
 
@@ -2036,7 +2036,7 @@ class MappingNormalizerTest {
                 "T_FIRM resolves through firmName PM's alias");
 
         // Middle arg is the ' / ' string literal.
-        assertEquals(new com.legend.model.spec.CString(" / "),
+        assertEquals(new com.legend.protocol.spec.CString(" / "),
                 combo.get(1));
 
         AppliedProperty deptRef = (AppliedProperty) combo.get(2);
@@ -2348,7 +2348,7 @@ class MappingNormalizerTest {
         switch (vs) {
             case AppliedFunction af -> {
                 if ("tableReference".equals(af.function()) && af.parameters().size() == 2
-                        && af.parameters().get(1) instanceof com.legend.model.spec.CString cs) {
+                        && af.parameters().get(1) instanceof com.legend.protocol.spec.CString cs) {
                     out.add(cs.value());
                 }
                 for (ValueSpecification pp : af.parameters()) {
@@ -2997,7 +2997,7 @@ class MappingNormalizerTest {
         // condition reads through the prior hop's sub-row.
         AppliedFunction nav = navStep(personFn);
         assertEquals("org",
-                ((com.legend.model.spec.ColSpec) nav.parameters().get(1)).name(),
+                ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name(),
                 "final-hop slot is the PM property name");
 
         // Upstream of legacyNavigate is the intermediate Person_Firm join.
@@ -3062,7 +3062,7 @@ class MappingNormalizerTest {
         // the source column through the depth-2 sub-row (concatenated alias).
         AppliedFunction nav = navStep(personFn);
         assertEquals("division",
-                ((com.legend.model.spec.ColSpec) nav.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name());
         LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction eq = (AppliedFunction) sole(cond.body());
         AppliedProperty srcCol = (AppliedProperty) eq.parameters().get(0);
@@ -3164,7 +3164,7 @@ class MappingNormalizerTest {
         // Condition: {s, t | $s.Person_Firm.PARENT_ID == $t.ID}.
         AppliedFunction nav = navStep(personFn);
         assertEquals("parentFirm",
-                ((com.legend.model.spec.ColSpec) nav.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name());
         LambdaFunction cond = (LambdaFunction) nav.parameters().get(3);
         AppliedFunction eq = (AppliedFunction) sole(cond.body());
         AppliedProperty srcCol = (AppliedProperty) eq.parameters().get(0);
@@ -3229,9 +3229,9 @@ class MappingNormalizerTest {
 
         // Aliases: PM declaration order drives prelude order.
         assertEquals("Person_Firm",
-                ((com.legend.model.spec.ColSpec) innerJoin.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) innerJoin.parameters().get(1)).name());
         assertEquals("Person_Addr",
-                ((com.legend.model.spec.ColSpec) outerJoin.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) outerJoin.parameters().get(1)).name());
 
         // Project lambda: concat($row.Person_Firm.NAME, ' - ', $row.Person_Addr.STREET).
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
@@ -3347,7 +3347,7 @@ class MappingNormalizerTest {
         assertEquals("join", joinCall.function(),
                 "Chain from the filter condition is hoisted BEFORE the filter");
         assertEquals("Person_Firm",
-                ((com.legend.model.spec.ColSpec) joinCall.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1)).name());
 
         // Filter condition: $row.Person_Firm.IS_ACTIVE == 1
         LambdaFunction filterLambda = (LambdaFunction) filterCall.parameters().get(1);
@@ -3428,7 +3428,7 @@ class MappingNormalizerTest {
         assertEquals("join", joinCall.function(),
                 "Chain inside a LocalProperty body is hoisted into the prelude");
         assertEquals("Person_Firm",
-                ((com.legend.model.spec.ColSpec) joinCall.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) joinCall.parameters().get(1)).name());
 
         // The +local field's value is the translated expression reading
         // $row.Person_Firm.LEGAL_NAME.
@@ -3479,12 +3479,12 @@ class MappingNormalizerTest {
         AppliedFunction h2Join = (AppliedFunction) mapCall.parameters().get(0);
         assertEquals("join", h2Join.function());
         assertEquals("Person_Firm__Firm_Org",
-                ((com.legend.model.spec.ColSpec) h2Join.parameters().get(1)).name(),
+                ((com.legend.protocol.spec.ColSpec) h2Join.parameters().get(1)).name(),
                 "Hop 2 alias = join-name concatenation");
         AppliedFunction h1Join = (AppliedFunction) h2Join.parameters().get(0);
         assertEquals("join", h1Join.function());
         assertEquals("Person_Firm",
-                ((com.legend.model.spec.ColSpec) h1Join.parameters().get(1)).name());
+                ((com.legend.protocol.spec.ColSpec) h1Join.parameters().get(1)).name());
         AppliedFunction tableRef = (AppliedFunction) h1Join.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
 
@@ -3545,9 +3545,9 @@ class MappingNormalizerTest {
                 "Chain from the groupBy key is hoisted BEFORE the groupBy");
 
         // Key ColSpec lambda body: $row.Person_Firm.NAME
-        com.legend.model.spec.ColSpecArray keyArr =
-                (com.legend.model.spec.ColSpecArray) groupBy.parameters().get(1);
-        com.legend.model.spec.ColSpec firmKey = keyArr.colSpecs().get(0);
+        com.legend.protocol.spec.ColSpecArray keyArr =
+                (com.legend.protocol.spec.ColSpecArray) groupBy.parameters().get(1);
+        com.legend.protocol.spec.ColSpec firmKey = keyArr.colSpecs().get(0);
         AppliedProperty terminal = (AppliedProperty) sole(firmKey.function1().body());
         assertEquals("NAME", terminal.property());
         assertEquals("Person_Firm",
@@ -3597,8 +3597,8 @@ class MappingNormalizerTest {
         assertEquals("tableReference", tableRef.function());
 
         // Key ColSpecArray: exactly 2 keys, matching declaration order.
-        com.legend.model.spec.ColSpecArray keyArr =
-                (com.legend.model.spec.ColSpecArray) groupBy.parameters().get(1);
+        com.legend.protocol.spec.ColSpecArray keyArr =
+                (com.legend.protocol.spec.ColSpecArray) groupBy.parameters().get(1);
         assertEquals(2, keyArr.colSpecs().size(),
                 "Key count matches rcm.groupBy() verbatim — no inferred keys");
 
@@ -3608,8 +3608,8 @@ class MappingNormalizerTest {
         assertEquals("gsn",     keyArr.colSpecs().get(1).name());
 
         // Agg ColSpecArray: exactly 1 agg-spec for `quantity`.
-        com.legend.model.spec.ColSpecArray aggArr =
-                (com.legend.model.spec.ColSpecArray) groupBy.parameters().get(2);
+        com.legend.protocol.spec.ColSpecArray aggArr =
+                (com.legend.protocol.spec.ColSpecArray) groupBy.parameters().get(2);
         assertEquals(1, aggArr.colSpecs().size());
         assertEquals("quantity", aggArr.colSpecs().get(0).name());
     }
@@ -3640,8 +3640,8 @@ class MappingNormalizerTest {
 
         AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
         AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
-        com.legend.model.spec.ColSpecArray keyArr =
-                (com.legend.model.spec.ColSpecArray) groupBy.parameters().get(1);
+        com.legend.protocol.spec.ColSpecArray keyArr =
+                (com.legend.protocol.spec.ColSpecArray) groupBy.parameters().get(1);
         assertEquals(3, keyArr.colSpecs().size(),
                 "All three keys appear in groupBy, including the identity-only PRODUCT_ID");
 
@@ -3684,9 +3684,9 @@ class MappingNormalizerTest {
         FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
         AppliedFunction groupBy = (AppliedFunction) ((AppliedFunction) sole(fn.body()))
                 .parameters().get(0);
-        com.legend.model.spec.ColSpecArray aggArr =
-                (com.legend.model.spec.ColSpecArray) groupBy.parameters().get(2);
-        com.legend.model.spec.ColSpec totalSpec = aggArr.colSpecs().get(0);
+        com.legend.protocol.spec.ColSpecArray aggArr =
+                (com.legend.protocol.spec.ColSpecArray) groupBy.parameters().get(2);
+        com.legend.protocol.spec.ColSpec totalSpec = aggArr.colSpecs().get(0);
         assertEquals("total", totalSpec.name());
 
         // Selector: {row | $row.QTY}
@@ -3896,12 +3896,12 @@ class MappingNormalizerTest {
         assertEquals(2, assocFn.parameters().size());
         assertEquals("a", assocFn.parameters().get(0).name());
         assertEquals("model::Firm",
-                ((com.legend.model.TypeExpression.NameRef) assocFn.parameters().get(0).type()).name());
+                ((com.legend.protocol.TypeExpression.NameRef) assocFn.parameters().get(0).type()).name());
         assertEquals("b", assocFn.parameters().get(1).name());
         assertEquals("model::Person",
-                ((com.legend.model.TypeExpression.NameRef) assocFn.parameters().get(1).type()).name());
+                ((com.legend.protocol.TypeExpression.NameRef) assocFn.parameters().get(1).type()).name());
         assertEquals("meta::pure::metamodel::type::Boolean",
-                ((com.legend.model.TypeExpression.NameRef) assocFn.returnType()).name());
+                ((com.legend.protocol.TypeExpression.NameRef) assocFn.returnType()).name());
 
         // Body: legacyAssocPredicate($a, $b, #>{srcTable}#, #>{tgtTable}#,
         // {srcRow, tgtRow | cond}) — the two ends' ~mainTable rows are
@@ -3912,11 +3912,11 @@ class MappingNormalizerTest {
         assertEquals(new Variable("b"), lap.parameters().get(1));
         AppliedFunction srcRef = (AppliedFunction) lap.parameters().get(2);
         assertEquals("tableReference", srcRef.function());
-        assertEquals(new com.legend.model.spec.CString("T_FIRM"),
+        assertEquals(new com.legend.protocol.spec.CString("T_FIRM"),
                 srcRef.parameters().get(1), "src row source is classA's (Firm) ~mainTable");
         AppliedFunction tgtRef = (AppliedFunction) lap.parameters().get(3);
         assertEquals("tableReference", tgtRef.function());
-        assertEquals(new com.legend.model.spec.CString("T_PERSON"),
+        assertEquals(new com.legend.protocol.spec.CString("T_PERSON"),
                 tgtRef.parameters().get(1), "tgt row source is classB's (Person) ~mainTable");
         LambdaFunction adapter = (LambdaFunction) lap.parameters().get(4);
         assertEquals(List.of(new Variable("srcRow"), new Variable("tgtRow")),
@@ -4074,7 +4074,7 @@ class MappingNormalizerTest {
         AppliedFunction tableRef = (AppliedFunction) frame.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
-                ((com.legend.model.spec.CString) tableRef.parameters().get(1)).value(),
+                ((com.legend.protocol.spec.CString) tableRef.parameters().get(1)).value(),
                 "the frame's source is the view's physical root table");
 
         LambdaFunction projectLambda = (LambdaFunction) mapCall.parameters().get(1);
@@ -4183,7 +4183,7 @@ class MappingNormalizerTest {
         AppliedFunction tableRef = (AppliedFunction) joinCall.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
-                ((com.legend.model.spec.CString) tableRef.parameters().get(1)).value(),
+                ((com.legend.protocol.spec.CString) tableRef.parameters().get(1)).value(),
                 "the frame's source is the physical root table");
 
         NewInstance ni = ctorOf(fn);
@@ -4330,7 +4330,7 @@ class MappingNormalizerTest {
         AppliedFunction tableRef = (AppliedFunction) innerFilter.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T_PERSON",
-                ((com.legend.model.spec.CString) tableRef.parameters().get(1)).value());
+                ((com.legend.protocol.spec.CString) tableRef.parameters().get(1)).value());
 
         // Sanity: the two filter conditions read different columns (AGE vs
         // ACTIVE), proving neither filter was dropped or duplicated.
@@ -4370,7 +4370,7 @@ class MappingNormalizerTest {
         AppliedFunction tableRef = (AppliedFunction) groupBy.parameters().get(0);
         assertEquals("tableReference", tableRef.function());
         assertEquals("T",
-                ((com.legend.model.spec.CString) tableRef.parameters().get(1)).value(),
+                ((com.legend.protocol.spec.CString) tableRef.parameters().get(1)).value(),
                 "groupBy runs over the inferred physical root table");
     }
 
@@ -4472,13 +4472,13 @@ class MappingNormalizerTest {
         assertEquals("data", dataRef.property());
         assertEquals(new Variable("row"), dataRef.receiver());
         assertEquals("name",
-                ((com.legend.model.spec.CString) getCall.parameters().get(1)).value());
+                ((com.legend.protocol.spec.CString) getCall.parameters().get(1)).value());
 
         // Typed cast target @String.
-        com.legend.model.spec.TypeAnnotation.Named typeAnn =
-                (com.legend.model.spec.TypeAnnotation.Named) toCall.parameters().get(1);
+        com.legend.protocol.spec.TypeAnnotation.Named typeAnn =
+                (com.legend.protocol.spec.TypeAnnotation.Named) toCall.parameters().get(1);
         assertEquals("String",
-                ((com.legend.model.TypeExpression.NameRef) typeAnn.type()).name());
+                ((com.legend.protocol.TypeExpression.NameRef) typeAnn.type()).name());
     }
 
     // ====================================================================
@@ -4526,13 +4526,13 @@ class MappingNormalizerTest {
         // (Person_Address) is a join() beneath it — the shared multi-hop path.
         AppliedFunction nav = navStep(personFn);
         assertEquals("city",
-                ((com.legend.model.spec.ColSpec) nav.parameters().get(1)).name(),
+                ((com.legend.protocol.spec.ColSpec) nav.parameters().get(1)).name(),
                 "multi-hop association end emits legacyNavigate(~city)");
         AppliedFunction intermediate = (AppliedFunction) nav.parameters().get(0);
         assertEquals("join", intermediate.function(),
                 "the intermediate Person_Address hop is a join() step");
         assertEquals("Person_Address",
-                ((com.legend.model.spec.ColSpec) intermediate.parameters().get(1)).name(),
+                ((com.legend.protocol.spec.ColSpec) intermediate.parameters().get(1)).name(),
                 "intermediate join slot is the first join's alias");
 
         // LOAD-BEARING: the final-hop condition must read the intermediate

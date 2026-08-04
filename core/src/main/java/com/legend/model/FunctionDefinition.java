@@ -1,10 +1,10 @@
 package com.legend.model;
 
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
 import java.util.Objects;

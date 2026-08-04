@@ -1,15 +1,15 @@
 package com.legend.compiler;
 
 import com.legend.model.ImportScope;
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 import com.legend.model.ParsedModel;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationDefinition.AssociationEndDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.ClassDefinition;
-import com.legend.model.ClassDefinition.ConstraintDefinition;
-import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.protocol.ConstraintDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.model.ClassDefinition.PropertyDefinition;
 import com.legend.model.ClassMapping;
 import com.legend.model.AuthenticationSpec;
@@ -38,21 +38,21 @@ import com.legend.model.EnumerationMapping;
 import com.legend.model.EnumerationMapping.EnumValueMapping;
 import com.legend.model.EnumerationMapping.SourceValue;
 import com.legend.model.ProfileDefinition;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.EnumValue;
-import com.legend.model.spec.KeyExpression;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.TypeAnnotation;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.KeyExpression;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.TypeAnnotation;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import com.legend.model.FilterMapping;
 import com.legend.model.FilterPointer;
 import org.junit.jupiter.api.Test;
@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (wildcard / specific / FQN / ambiguity), reference-equality
  * preservation, and the structural walkers for every
  * {@link PackageableElement} kind, every
- * {@link com.legend.model.spec.ValueSpecification} variant, and the
+ * {@link com.legend.protocol.spec.ValueSpecification} variant, and the
  * shared {@link TypeExpression}, {@link RelationalOperation},
  * {@link PropertyMapping} hierarchies.
  */
@@ -182,21 +182,21 @@ class NameResolverTest {
         // ctor and silently DROPPED ~message/~enforcementLevel whenever
         // the body resolved differently — validate()'s MESSAGE column
         // went empty (testConstraintUsageOfThisMilestoningContext3).
-        var body = new com.legend.model.spec.AppliedFunction("f",
-                List.of(new com.legend.model.spec.PackageableElementPtr("Person")));
+        var body = new com.legend.protocol.spec.AppliedFunction("f",
+                List.of(new com.legend.protocol.spec.PackageableElementPtr("Person")));
         var c = new ClassDefinition("model::T2", List.of(), List.of(),
                 List.of(),
                 List.of(),
-                List.of(new ClassDefinition.ConstraintDefinition("CST",
-                        new com.legend.model.Realization.Inline(
+                List.of(new ConstraintDefinition("CST",
+                        new com.legend.protocol.Realization.Inline(
                                 List.of(body)),
-                        new com.legend.model.spec.CString("the message"),
+                        new com.legend.protocol.spec.CString("the message"),
                         "Warn")),
                 List.of(), List.of(), false);
         var r = (ClassDefinition) resolveOne(c);
         var rc = r.constraints().get(0);
         assertEquals("the message",
-                ((com.legend.model.spec.CString) rc.message()).value());
+                ((com.legend.protocol.spec.CString) rc.message()).value());
         assertEquals("Warn", rc.enforcementLevel());
     }
 

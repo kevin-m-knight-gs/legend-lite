@@ -9,7 +9,7 @@ import com.legend.protocol.Protocol.PProperty;
 import com.legend.protocol.Protocol.PSection;
 import com.legend.protocol.Protocol.PSectionIndex;
 import com.legend.protocol.Protocol.PureModelContextData;
-import com.legend.model.SourceInfo;
+import com.legend.protocol.SourceInfo;
 
 import java.util.List;
 
@@ -108,7 +108,7 @@ public final class ProtocolEmitter {
 
     /** {@code {"path":…,"sourceInformation":…,"type":"CLASS"}} — fields alphabetical, no {@code _type}. */
     private static void superType(StringBuilder b, Protocol.PSuperType st) {
-        if (!(st.type() instanceof com.legend.model.TypeExpression.NameRef n)) {
+        if (!(st.type() instanceof com.legend.protocol.TypeExpression.NameRef n)) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for a supertype of shape "
                             + st.type().getClass().getSimpleName() + " — add the emit rule.");
@@ -187,9 +187,9 @@ public final class ProtocolEmitter {
     }
 
     /** The wire's {@code genericType}. Only a plain named type is expressible so far. */
-    private static void genericType(StringBuilder b, com.legend.model.TypeExpression t,
-                                    com.legend.model.SourceInfo pos) {
-        if (!(t instanceof com.legend.model.TypeExpression.NameRef n)) {
+    private static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t,
+                                    com.legend.protocol.SourceInfo pos) {
+        if (!(t instanceof com.legend.protocol.TypeExpression.NameRef n)) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for type expression "
                             + t.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
@@ -201,8 +201,8 @@ public final class ProtocolEmitter {
         b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}");
     }
 
-    private static void multiplicity(StringBuilder b, com.legend.model.Multiplicity m) {
-        if (!(m instanceof com.legend.model.Multiplicity.Concrete c)) {
+    private static void multiplicity(StringBuilder b, com.legend.protocol.Multiplicity m) {
+        if (!(m instanceof com.legend.protocol.Multiplicity.Concrete c)) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for a multiplicity PARAMETER — add the emit rule.");
         }

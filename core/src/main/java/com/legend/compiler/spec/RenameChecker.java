@@ -2,9 +2,9 @@ package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
 

@@ -33,29 +33,29 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTypeRef;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.TypeExpression;
-import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CDate;
-import com.legend.model.spec.CLatestDate;
-import com.legend.model.spec.CTime;
-import com.legend.model.spec.CDecimal;
-import com.legend.model.spec.CFloat;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.EnumValue;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.NewInstanceCast;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CDate;
+import com.legend.protocol.spec.CLatestDate;
+import com.legend.protocol.spec.CTime;
+import com.legend.protocol.spec.CDecimal;
+import com.legend.protocol.spec.CFloat;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.NewInstanceCast;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
 import com.legend.values.PureDateLiteral;
-import com.legend.model.spec.TypeAnnotation;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.TypeAnnotation;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -329,10 +329,10 @@ final class Typer {
                 var read = new AppliedProperty(g.parameters().get(0), gc.value());
                 return synth(new AppliedFunction("if", List.of(
                         new AppliedFunction("isEmpty", List.of(read)),
-                        new com.legend.model.spec.LambdaFunction(List.of(),
+                        new com.legend.protocol.spec.LambdaFunction(List.of(),
                                 List.of(new CString(com.legend.compiler.element.type
                                         .PlatformTypes.TDS_NULL_CELL))),
-                        new com.legend.model.spec.LambdaFunction(List.of(),
+                        new com.legend.protocol.spec.LambdaFunction(List.of(),
                                 List.of(new AppliedFunction("toString", List.of(
                                         new AppliedFunction("toOne",
                                                 List.of(read)))))))), env);
@@ -368,7 +368,7 @@ final class Typer {
                         .toList();
                 AppliedFunction select = new AppliedFunction("select",
                         List.of(af.parameters().get(0),
-                                new com.legend.model.spec.ColSpecArray(specs)));
+                                new com.legend.protocol.spec.ColSpecArray(specs)));
                 return synth(af.function().equals("restrictDistinct")
                         ? new AppliedFunction("distinct", List.of(select)) : select, env);
             }
@@ -397,7 +397,7 @@ final class Typer {
         if (af.function().equals("instanceOf")
                 && af.parameters().size() == 2
                 && af.parameters().get(1)
-                        instanceof com.legend.model.spec.PackageableElementPtr pep
+                        instanceof com.legend.protocol.spec.PackageableElementPtr pep
                 && (pep.fullPath().equals("meta::pure::tds::TDSNull")
                         || pep.fullPath().equals("TDSNull"))) {
             return synth(new AppliedFunction("isEmpty",
@@ -1299,12 +1299,12 @@ final class Typer {
         return switch (v) {
             case LambdaFunction lf -> {
                 java.util.Map<String, ValueSpecification> ren = new java.util.LinkedHashMap<>();
-                List<com.legend.model.spec.Variable> params = new ArrayList<>(lf.parameters().size());
-                for (com.legend.model.spec.Variable p : lf.parameters()) {
+                List<com.legend.protocol.spec.Variable> params = new ArrayList<>(lf.parameters().size());
+                for (com.legend.protocol.spec.Variable p : lf.parameters()) {
                     String fresh = "_nr" + nrFresh++;
-                    ren.put(p.name(), new com.legend.model.spec.Variable(
+                    ren.put(p.name(), new com.legend.protocol.spec.Variable(
                             fresh, p.type(), p.multiplicity()));
-                    params.add(new com.legend.model.spec.Variable(
+                    params.add(new com.legend.protocol.spec.Variable(
                             fresh, p.type(), p.multiplicity()));
                 }
                 yield new LambdaFunction(params, lf.body().stream()
@@ -1314,18 +1314,18 @@ final class Typer {
             case AppliedFunction af2 -> new AppliedFunction(af2.function(),
                     af2.parameters().stream().map(this::alphaRename).toList(),
                     af2.candidateFqns());
-            case com.legend.model.spec.AppliedProperty ap -> new com.legend.model.spec.AppliedProperty(
+            case com.legend.protocol.spec.AppliedProperty ap -> new com.legend.protocol.spec.AppliedProperty(
                     alphaRename(ap.receiver()), ap.property());
-            case com.legend.model.spec.PureCollection pc -> new com.legend.model.spec.PureCollection(
+            case com.legend.protocol.spec.PureCollection pc -> new com.legend.protocol.spec.PureCollection(
                     pc.values().stream().map(this::alphaRename).toList());
-            case com.legend.model.spec.ColSpec cs -> new com.legend.model.spec.ColSpec(cs.name(),
+            case com.legend.protocol.spec.ColSpec cs -> new com.legend.protocol.spec.ColSpec(cs.name(),
                     cs.function1() == null ? null : (LambdaFunction) alphaRename(cs.function1()),
                     cs.function2() == null ? null : (LambdaFunction) alphaRename(cs.function2()),
                     cs.alias(),
                     cs.args().stream().map(this::alphaRename).toList());
-            case com.legend.model.spec.ColSpecArray ca -> new com.legend.model.spec.ColSpecArray(
+            case com.legend.protocol.spec.ColSpecArray ca -> new com.legend.protocol.spec.ColSpecArray(
                     ca.colSpecs().stream()
-                            .map(c -> (com.legend.model.spec.ColSpec) alphaRename(c)).toList());
+                            .map(c -> (com.legend.protocol.spec.ColSpec) alphaRename(c)).toList());
             default -> v.mapChildren(this::alphaRename);
         };
     }
@@ -2601,13 +2601,13 @@ final class Typer {
                 }
                 yield acc;
             }
-            case com.legend.model.spec.PackageableElementPtr ignored -> 0;
-            case com.legend.model.spec.EnumValue ignored -> 0;
+            case com.legend.protocol.spec.PackageableElementPtr ignored -> 0;
+            case com.legend.protocol.spec.EnumValue ignored -> 0;
             case CString ignored -> 0;
-            case com.legend.model.spec.CInteger ignored -> 0;
-            case com.legend.model.spec.CFloat ignored -> 0;
-            case com.legend.model.spec.CDecimal ignored -> 0;
-            case com.legend.model.spec.CBoolean ignored -> 0;
+            case com.legend.protocol.spec.CInteger ignored -> 0;
+            case com.legend.protocol.spec.CFloat ignored -> 0;
+            case com.legend.protocol.spec.CDecimal ignored -> 0;
+            case com.legend.protocol.spec.CBoolean ignored -> 0;
             default -> 2;   // unknown construct: conservatively non-strict
         };
     }

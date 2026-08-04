@@ -4,11 +4,11 @@
 package com.legend.harness;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -95,7 +95,7 @@ final class ObjectRefs {
                 || !TestBody.simpleName(mapAf.function()).equals("map")
                 || mapAf.parameters().size() != 2
                 || !(mapAf.parameters().get(1) instanceof
-                        com.legend.model.spec.LambdaFunction lf)
+                        com.legend.protocol.spec.LambdaFunction lf)
                 || lf.body().size() != 1
                 || !(lf.body().get(0) instanceof AppliedFunction dec)
                 || !TestBody.simpleName(dec.function())
@@ -103,7 +103,7 @@ final class ObjectRefs {
             return null;
         }
         ValueSpecification src = stripJson(mapAf.parameters().get(0));
-        if (src instanceof com.legend.model.spec.AppliedProperty ap
+        if (src instanceof com.legend.protocol.spec.AppliedProperty ap
                 && ap.property().equals("values")) {
             src = stripJson(ap.receiver());
         }
@@ -211,10 +211,10 @@ final class ObjectRefs {
                 continue;
             }
             List<ValueSpecification> body = null;
-            if (cb.realization() instanceof com.legend.model
+            if (cb.realization() instanceof com.legend.protocol
                     .Realization.Inline in) {
                 body = in.body();
-            } else if (cb.realization() instanceof com.legend.model
+            } else if (cb.realization() instanceof com.legend.protocol
                     .Realization.Ref rf) {
                 var fns = ctx.findFunction(rf.functionFqn());
                 if (!fns.isEmpty() && fns.get(0).body().isPresent()) {
@@ -260,7 +260,7 @@ final class ObjectRefs {
                     && tr.function().equals("tableReference")
                     && tr.parameters().size() >= 2
                     && tr.parameters().get(0) instanceof
-                            com.legend.model.spec.PackageableElementPtr db
+                            com.legend.protocol.spec.PackageableElementPtr db
                     && tr.parameters().get(1) instanceof CString tb) {
                 return new String[] {db.fullPath(), tb.value()};
             }

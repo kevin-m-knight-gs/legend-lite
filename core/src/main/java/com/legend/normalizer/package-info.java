@@ -29,7 +29,7 @@
  * <h2>Sub-slice E.2 &mdash; derived properties</h2>
  *
  * <p>Externalize each
- * {@link com.legend.model.ClassDefinition.DerivedPropertyDefinition} body
+ * {@link com.legend.protocol.DerivedPropertyDefinition} body
  * into a synthesized {@code <owner>$prop$<name>(this:Owner[1], <params>):T[m]}
  * function (see {@code docs/CORE_PHASE_F_TYPED_ELEMENTS_V2.md} §1.5); the class keeps
  * the derived-property signature + the function FQN.

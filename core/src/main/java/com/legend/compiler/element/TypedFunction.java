@@ -2,7 +2,7 @@ package com.legend.compiler.element;
 
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
 import java.util.Objects;

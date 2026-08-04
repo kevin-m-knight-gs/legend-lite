@@ -8,9 +8,9 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNavigate;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.LambdaFunction;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.LambdaFunction;
 
 import java.util.List;
 import java.util.Optional;

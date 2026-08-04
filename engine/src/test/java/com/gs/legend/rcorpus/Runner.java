@@ -148,13 +148,13 @@ public final class Runner {
     /** Every parsed corpus function: parameter names + body + imports —
      * the statement-position β-expansion index (audit 19d B1). */
     record FnDef(List<String> params,
-            List<com.legend.model.spec.ValueSpecification> body,
+            List<com.legend.protocol.spec.ValueSpecification> body,
             com.legend.model.ImportScope imports) {
     }
 
     private final Map<String, FnDef> fnIndex = new LinkedHashMap<>();
 
-    private final Map<String, java.util.List<com.legend.model.spec.ValueSpecification>>
+    private final Map<String, java.util.List<com.legend.protocol.spec.ValueSpecification>>
             setupFnAsts = new LinkedHashMap<>();
     private final Map<String, com.legend.model.ImportScope> setupFnImports =
             new LinkedHashMap<>();
@@ -515,24 +515,24 @@ public final class Runner {
      * expanded here — they inline in the PLATFORM (UserCallInliner); the
      * execute-shape guard keeps this to test orchestration.
      */
-    private List<com.legend.model.spec.ValueSpecification> expandHelperCalls(
-            List<com.legend.model.spec.ValueSpecification> stmts,
+    private List<com.legend.protocol.spec.ValueSpecification> expandHelperCalls(
+            List<com.legend.protocol.spec.ValueSpecification> stmts,
             ParsedTest t, int depth) {
         return expandHelperCalls(stmts, t, depth, false);
     }
 
-    private List<com.legend.model.spec.ValueSpecification> expandHelperCalls(
-            List<com.legend.model.spec.ValueSpecification> stmts,
+    private List<com.legend.protocol.spec.ValueSpecification> expandHelperCalls(
+            List<com.legend.protocol.spec.ValueSpecification> stmts,
             ParsedTest t, int depth, boolean assertExpansion) {
         if (depth >= 3) {
             return stmts;
         }
-        List<com.legend.model.spec.ValueSpecification> out = new ArrayList<>();
-        for (com.legend.model.spec.ValueSpecification stmt : stmts) {
+        List<com.legend.protocol.spec.ValueSpecification> out = new ArrayList<>();
+        for (com.legend.protocol.spec.ValueSpecification stmt : stmts) {
             FnDef callee = null;
-            com.legend.model.spec.AppliedFunction call = null;
+            com.legend.protocol.spec.AppliedFunction call = null;
             String letName = null;
-            if (stmt instanceof com.legend.model.spec.AppliedFunction af
+            if (stmt instanceof com.legend.protocol.spec.AppliedFunction af
                     && !af.function().equals("letFunction")
                     // assertEqualsH2Compatible is HARNESS vocabulary
                     // (TestBody's /3 arm verifies by rows through the H2
@@ -566,22 +566,22 @@ public final class Runner {
             // vocabulary shapes (the -53 sweep regression) — those
             // helpers must stay CALLS for their recognizers.
             if (callee == null
-                    && stmt instanceof com.legend.model.spec.AppliedFunction lf0
+                    && stmt instanceof com.legend.protocol.spec.AppliedFunction lf0
                     && lf0.function().equals("letFunction")
                     && lf0.parameters().size() == 2
                     && lf0.parameters().get(0)
-                            instanceof com.legend.model.spec.CString ln0
+                            instanceof com.legend.protocol.spec.CString ln0
                     && lf0.parameters().get(1)
-                            instanceof com.legend.model.spec.AppliedFunction af2
+                            instanceof com.legend.protocol.spec.AppliedFunction af2
                     && !af2.function().equals("letFunction")) {
                 String fqn2 = af2.function().contains("::")
                         ? af2.function() : qualify(af2.function(), t);
                 FnDef fd2 = fnIndex.get(fqn2 + "/" + af2.parameters().size());
-                com.legend.model.spec.ValueSpecification last2 =
+                com.legend.protocol.spec.ValueSpecification last2 =
                         fd2 == null || fd2.body().isEmpty() ? null
                                 : fd2.body().get(fd2.body().size() - 1);
                 boolean pairIdiom = fd2 != null
-                        && last2 instanceof com.legend.model.spec.AppliedFunction pl2
+                        && last2 instanceof com.legend.protocol.spec.AppliedFunction pl2
                         && pl2.function().endsWith("pair")
                         && containsExecuteShapeDeep(fd2.body(), t, 0);
                 // ...and the SINGLE-EXPRESSION execute wrapper
@@ -591,7 +591,7 @@ public final class Runner {
                 boolean singleExecute = fd2 != null
                         && fd2.body().size() == 1
                         && fd2.body().get(0)
-                                instanceof com.legend.model.spec.AppliedFunction ef2
+                                instanceof com.legend.protocol.spec.AppliedFunction ef2
                         && ef2.function()
                                 .substring(ef2.function().lastIndexOf(':') + 1)
                                 .equals("execute");
@@ -626,18 +626,18 @@ public final class Runner {
                 continue;
             }
             for (int i = 0; i < callee.params().size(); i++) {
-                out.add(new com.legend.model.spec.AppliedFunction("letFunction",
-                        List.of(new com.legend.model.spec.CString(
+                out.add(new com.legend.protocol.spec.AppliedFunction("letFunction",
+                        List.of(new com.legend.protocol.spec.CString(
                                         callee.params().get(i)),
                                 call.parameters().get(i))));
             }
-            List<com.legend.model.spec.ValueSpecification> expanded =
+            List<com.legend.protocol.spec.ValueSpecification> expanded =
                     expandHelperCalls(callee.body(), t, depth + 1,
                             assertExpansion);
             if (letName != null && !expanded.isEmpty()) {
-                com.legend.model.spec.ValueSpecification last =
+                com.legend.protocol.spec.ValueSpecification last =
                         expanded.remove(expanded.size() - 1);
-                if (last instanceof com.legend.model.spec.AppliedFunction ll
+                if (last instanceof com.legend.protocol.spec.AppliedFunction ll
                         && ll.function().equals("letFunction")
                         && ll.parameters().size() == 2) {
                     last = ll.parameters().get(1);
@@ -646,15 +646,15 @@ public final class Runner {
                 // would rebind letName to itself downstream of renames —
                 // keep the reference as-is only when names DIFFER; a
                 // same-name rebinding (let result = $result) is dropped
-                if (last instanceof com.legend.model.spec.Variable tv
+                if (last instanceof com.legend.protocol.spec.Variable tv
                         && tv.name().equals(letName)) {
                     out.addAll(expanded);
                     continue;
                 }
                 out.addAll(expanded);
-                out.add(new com.legend.model.spec.AppliedFunction(
+                out.add(new com.legend.protocol.spec.AppliedFunction(
                         "letFunction", List.of(
-                                new com.legend.model.spec.CString(letName),
+                                new com.legend.protocol.spec.CString(letName),
                                 last)));
                 continue;
             }
@@ -669,20 +669,20 @@ public final class Runner {
      * ^RelationalDebugContext(forcedIsolation=...) execute argument —
      * arity alone also matches validation helpers (regression source). */
     private static boolean isDebugContextNew(
-            com.legend.model.spec.ValueSpecification v) {
-        return v instanceof com.legend.model.spec.AppliedFunction af
+            com.legend.protocol.spec.ValueSpecification v) {
+        return v instanceof com.legend.protocol.spec.AppliedFunction af
                 && af.function().equals("new")
                 && !af.parameters().isEmpty()
                 && af.parameters().get(0)
-                        instanceof com.legend.model.spec.PackageableElementPtr pe
+                        instanceof com.legend.protocol.spec.PackageableElementPtr pe
                 && (pe.fullPath().equals("RelationalDebugContext")
                         || pe.fullPath().equals("meta::relational::runtime"
                                 + "::RelationalDebugContext"));
     }
 
     private static boolean containsDebugArityExecute(
-            com.legend.model.spec.ValueSpecification v) {
-        if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            com.legend.protocol.spec.ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
             String simple = af.function()
                     .substring(af.function().lastIndexOf(':') + 1);
             if (simple.equals("execute") && af.parameters().size() >= 5
@@ -690,7 +690,7 @@ public final class Runner {
                             Runner::isDebugContextNew)) {
                 return true;
             }
-            for (com.legend.model.spec.ValueSpecification p2 : af.parameters()) {
+            for (com.legend.protocol.spec.ValueSpecification p2 : af.parameters()) {
                 if (containsDebugArityExecute(p2)) {
                     return true;
                 }
@@ -705,7 +705,7 @@ public final class Runner {
      * wrapper-overload idiom: a 2-arg assert helper delegating to the
      * 3-arg one that holds the executionPlan call). */
     private boolean containsExecuteShapeDeep(
-            List<com.legend.model.spec.ValueSpecification> stmts,
+            List<com.legend.protocol.spec.ValueSpecification> stmts,
             ParsedTest t, int depth) {
         if (containsExecuteShape(stmts)) {
             return true;
@@ -713,8 +713,8 @@ public final class Runner {
         if (depth >= 3) {
             return false;
         }
-        for (com.legend.model.spec.ValueSpecification stmt : stmts) {
-            if (stmt instanceof com.legend.model.spec.AppliedFunction af
+        for (com.legend.protocol.spec.ValueSpecification stmt : stmts) {
+            if (stmt instanceof com.legend.protocol.spec.AppliedFunction af
                     && !af.function().equals("letFunction")) {
                 String fqn = af.function().contains("::")
                         ? af.function() : qualify(af.function(), t);
@@ -730,12 +730,12 @@ public final class Runner {
     }
 
     private static boolean containsExecuteShape(
-            List<com.legend.model.spec.ValueSpecification> stmts) {
-        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+            List<com.legend.protocol.spec.ValueSpecification> stmts) {
+        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(stmts);
         while (!work.isEmpty()) {
             var v = work.poll();
-            if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
                 String simple = af.function()
                         .substring(af.function().lastIndexOf(':') + 1);
                 if (simple.equals("execute") || simple.equals("toSQLString")
@@ -746,11 +746,11 @@ public final class Runner {
                     return true;
                 }
                 work.addAll(af.parameters());
-            } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+            } else if (v instanceof com.legend.protocol.spec.AppliedProperty ap) {
                 work.add(ap.receiver());
-            } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+            } else if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
                 work.addAll(lf.body());
-            } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+            } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
                 work.addAll(pc.values());
             }
         }
@@ -758,14 +758,14 @@ public final class Runner {
     }
 
     private List<String> executeMappingRefs(
-            List<com.legend.model.spec.ValueSpecification> body, ParsedTest t) {
+            List<com.legend.protocol.spec.ValueSpecification> body, ParsedTest t) {
         List<String> out = new ArrayList<>();
         // LET-BOUND mapping refs (the corpus's dominant graphFetch idiom:
         // `let mapping = X; ... execute($q, $mapping, ...)`) resolve through
         // this binding table — TestBody substitutes them at run time, so
         // the DISCOVERY gate must see through them too (bucket analysis:
         // 133/150 graphFetch execute calls were walled by this alone).
-        Map<String, com.legend.model.spec.ValueSpecification> lets =
+        Map<String, com.legend.protocol.spec.ValueSpecification> lets =
                 new LinkedHashMap<>();
         // executionPlan only counts as an execute shape when the body
         // READS the plan text — the printer's servable contract; plan
@@ -775,21 +775,21 @@ public final class Runner {
                         || containsCallNamed(v,
                                 "planToStringWithoutFormatting")
                         || containsPropertyNamed(v, "rootExecutionNode"));
-        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
-            com.legend.model.spec.ValueSpecification v = work.poll();
-            if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            com.legend.protocol.spec.ValueSpecification v = work.poll();
+            if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
                 if (af.function().equals("letFunction")
                         && af.parameters().size() == 2
                         && af.parameters().get(0)
-                                instanceof com.legend.model.spec.CString ln) {
-                    com.legend.model.spec.ValueSpecification rhs =
+                                instanceof com.legend.protocol.spec.CString ln) {
+                    com.legend.protocol.spec.ValueSpecification rhs =
                             af.parameters().get(1);
                     // a β-expansion prologue rebinding (let mapping =
                     // $mapping) must not shadow the POINTER the caller
                     // bound — chase Variable RHS through current lets
-                    if (rhs instanceof com.legend.model.spec.Variable rv
+                    if (rhs instanceof com.legend.protocol.spec.Variable rv
                             && lets.containsKey(rv.name())) {
                         rhs = lets.get(rv.name());
                     }
@@ -825,16 +825,16 @@ public final class Runner {
                 if (executeShape || fromShape) {
                     // validate's EXTENDED overloads put the mapping after
                     // the col/postTDS args — take the FIRST pointer arg
-                    java.util.List<com.legend.model.spec.ValueSpecification>
+                    java.util.List<com.legend.protocol.spec.ValueSpecification>
                             cands = simple.equals("validate")
                                     ? af.parameters()
                                     : java.util.List.of(af.parameters().get(1));
-                    for (com.legend.model.spec.ValueSpecification arg : cands) {
-                        if (arg instanceof com.legend.model.spec.Variable var
+                    for (com.legend.protocol.spec.ValueSpecification arg : cands) {
+                        if (arg instanceof com.legend.protocol.spec.Variable var
                                 && lets.containsKey(var.name())) {
                             arg = lets.get(var.name());
                         }
-                        if (arg instanceof com.legend.model.spec.PackageableElementPtr ptr) {
+                        if (arg instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
                             String ref = qualify(ptr.fullPath(), t);
                             if (ref.matches("[\\w:]+") && !out.contains(ref)) {
                                 out.add(ref);
@@ -851,17 +851,17 @@ public final class Runner {
                 for (int i = af.parameters().size() - 1; i >= 0; i--) {
                     work.addFirst(af.parameters().get(i));
                 }
-            } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+            } else if (v instanceof com.legend.protocol.spec.AppliedProperty ap) {
                 work.addFirst(ap.receiver());
-            } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+            } else if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
                 for (int i = lf.body().size() - 1; i >= 0; i--) {
                     work.addFirst(lf.body().get(i));
                 }
-            } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+            } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
                 for (int i = pc.values().size() - 1; i >= 0; i--) {
                     work.addFirst(pc.values().get(i));
                 }
-            } else if (v instanceof com.legend.model.spec.NewInstance ni) {
+            } else if (v instanceof com.legend.protocol.spec.NewInstance ni) {
                 var kes = new java.util.ArrayList<>(ni.properties().values());
                 for (int i = kes.size() - 1; i >= 0; i--) {
                     work.addFirst(kes.get(i).value());
@@ -877,22 +877,22 @@ public final class Runner {
                 containsCallNamed(v, "mayExecuteAlloyTest")
                         || containsCallNamed(v, "pkOfFunc"));
         if (fallback) {
-            java.util.List<com.legend.model.spec.ValueSpecification> ptrs =
+            java.util.List<com.legend.protocol.spec.ValueSpecification> ptrs =
                     new ArrayList<>(lets.values());
-            java.util.ArrayDeque<com.legend.model.spec.ValueSpecification>
+            java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification>
                     w2 = new java.util.ArrayDeque<>(body);
             while (!w2.isEmpty()) {
                 var v = w2.poll();
-                if (v instanceof com.legend.model.spec.PackageableElementPtr) {
+                if (v instanceof com.legend.protocol.spec.PackageableElementPtr) {
                     ptrs.add(v);
-                } else if (v instanceof com.legend.model.spec.AppliedFunction f2) {
+                } else if (v instanceof com.legend.protocol.spec.AppliedFunction f2) {
                     w2.addAll(f2.parameters());
-                } else if (v instanceof com.legend.model.spec.PureCollection c2) {
+                } else if (v instanceof com.legend.protocol.spec.PureCollection c2) {
                     w2.addAll(c2.values());
                 }
             }
-            for (com.legend.model.spec.ValueSpecification v : ptrs) {
-                if (v instanceof com.legend.model.spec.PackageableElementPtr p2) {
+            for (com.legend.protocol.spec.ValueSpecification v : ptrs) {
+                if (v instanceof com.legend.protocol.spec.PackageableElementPtr p2) {
                     String path = p2.fullPath();
                     // fn-ref spellings carry the __<sig>_ mangle
                     int mangle = path.indexOf("__");
@@ -909,27 +909,27 @@ public final class Runner {
         return out;
     }
     private static boolean containsCallNamed(
-            com.legend.model.spec.ValueSpecification n, String name) {
-        if (n instanceof com.legend.model.spec.AppliedFunction af) {
+            com.legend.protocol.spec.ValueSpecification n, String name) {
+        if (n instanceof com.legend.protocol.spec.AppliedFunction af) {
             if (name.equals(af.function()
                     .substring(af.function().lastIndexOf(':') + 1))) {
                 return true;
             }
-            for (com.legend.model.spec.ValueSpecification p : af.parameters()) {
+            for (com.legend.protocol.spec.ValueSpecification p : af.parameters()) {
                 if (containsCallNamed(p, name)) {
                     return true;
                 }
             }
-        } else if (n instanceof com.legend.model.spec.AppliedProperty ap) {
+        } else if (n instanceof com.legend.protocol.spec.AppliedProperty ap) {
             return containsCallNamed(ap.receiver(), name);
-        } else if (n instanceof com.legend.model.spec.LambdaFunction lf) {
-            for (com.legend.model.spec.ValueSpecification b : lf.body()) {
+        } else if (n instanceof com.legend.protocol.spec.LambdaFunction lf) {
+            for (com.legend.protocol.spec.ValueSpecification b : lf.body()) {
                 if (containsCallNamed(b, name)) {
                     return true;
                 }
             }
-        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
-            for (com.legend.model.spec.ValueSpecification e : pc.values()) {
+        } else if (n instanceof com.legend.protocol.spec.PureCollection pc) {
+            for (com.legend.protocol.spec.ValueSpecification e : pc.values()) {
                 if (containsCallNamed(e, name)) {
                     return true;
                 }
@@ -940,21 +940,21 @@ public final class Runner {
 
 
     private static boolean containsPropertyNamed(
-            com.legend.model.spec.ValueSpecification n, String name) {
-        if (n instanceof com.legend.model.spec.AppliedProperty ap) {
+            com.legend.protocol.spec.ValueSpecification n, String name) {
+        if (n instanceof com.legend.protocol.spec.AppliedProperty ap) {
             return name.equals(ap.property())
                     || containsPropertyNamed(ap.receiver(), name);
         }
-        if (n instanceof com.legend.model.spec.AppliedFunction af) {
-            for (com.legend.model.spec.ValueSpecification p
+        if (n instanceof com.legend.protocol.spec.AppliedFunction af) {
+            for (com.legend.protocol.spec.ValueSpecification p
                     : af.parameters()) {
                 if (containsPropertyNamed(p, name)) {
                     return true;
                 }
             }
         }
-        if (n instanceof com.legend.model.spec.PureCollection pc) {
-            for (com.legend.model.spec.ValueSpecification e : pc.values()) {
+        if (n instanceof com.legend.protocol.spec.PureCollection pc) {
+            for (com.legend.protocol.spec.ValueSpecification e : pc.values()) {
                 if (containsPropertyNamed(e, name)) {
                     return true;
                 }
@@ -993,9 +993,9 @@ public final class Runner {
 
     /** Whether any statement is an assert* call (top level only). */
     private static boolean containsAssertCall(
-            List<com.legend.model.spec.ValueSpecification> body) {
-        for (com.legend.model.spec.ValueSpecification st : body) {
-            if (st instanceof com.legend.model.spec.AppliedFunction af) {
+            List<com.legend.protocol.spec.ValueSpecification> body) {
+        for (com.legend.protocol.spec.ValueSpecification st : body) {
+            if (st instanceof com.legend.protocol.spec.AppliedFunction af) {
                 String fn = af.function();
                 String simple = fn.substring(fn.lastIndexOf(':') + 1);
                 if (simple.startsWith("assert")) {
@@ -1017,11 +1017,11 @@ public final class Runner {
             @com.legend.Nullable String wall) { }
 
     private TryRun tryRunNoExecute(ParsedTest t,
-            List<com.legend.model.spec.ValueSpecification> body) {
+            List<com.legend.protocol.spec.ValueSpecification> body) {
         body = expandHelperCalls(body, t, 0, true);
         java.util.Set<String> called = new java.util.LinkedHashSet<>();
         java.util.Set<String> elements = new java.util.LinkedHashSet<>();
-        for (com.legend.model.spec.ValueSpecification stmt : body) {
+        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
             collectCalledFqns(stmt, called, elements);
         }
         // DEMAND-PULL retry (single-FILE vehicle — the transitive-closure
@@ -1131,10 +1131,10 @@ public final class Runner {
     /** The most-called function NAMESPACE of a no-execute body — the
      * functional identity of the feature the test exercises. */
     private static String dominantNamespace(
-            List<com.legend.model.spec.ValueSpecification> body) {
+            List<com.legend.protocol.spec.ValueSpecification> body) {
         java.util.Set<String> called = new java.util.LinkedHashSet<>();
         java.util.Set<String> elements = new java.util.LinkedHashSet<>();
-        for (com.legend.model.spec.ValueSpecification stmt : body) {
+        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
             collectCalledFqns(stmt, called, elements);
         }
         java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
@@ -1192,7 +1192,7 @@ public final class Runner {
         // The original execute-visibility rationale (audit 19d B1) is
         // OBSOLETE since B2b made execute a platform native — the sweep
         // with raw bodies regressed ONLY the assert-in-helper shape.
-        List<com.legend.model.spec.ValueSpecification> body =
+        List<com.legend.protocol.spec.ValueSpecification> body =
                 expandHelperCalls(t.fn().body(), t, 0);
         List<String> mappingRefs = executeMappingRefs(body, t);
         if (mappingRefs.isEmpty()) {
@@ -1203,7 +1203,7 @@ public final class Runner {
             // The engine runs them as vacuous passes; scoring them SHAPE
             // would misfile engine semantics as a vocabulary gap.
             if (body.size() == 1
-                    && body.get(0) instanceof com.legend.model.spec
+                    && body.get(0) instanceof com.legend.protocol.spec
                             .CBoolean cb && cb.value()) {
                 return new Outcome(t.fqn(), Status.PASS,
                         "vacuous placeholder (engine body = true)");
@@ -1230,7 +1230,7 @@ public final class Runner {
         // close over what the test names). Same rule as the mapping pull.
         java.util.Set<String> called = new java.util.LinkedHashSet<>();
         java.util.Set<String> elements = new java.util.LinkedHashSet<>();
-        for (com.legend.model.spec.ValueSpecification stmt : body) {
+        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
             collectCalledFqns(stmt, called, elements);
         }
         List<String> moduleRefs = new ArrayList<>(mappingRefs);
@@ -1659,12 +1659,12 @@ public final class Runner {
     private boolean lastRunShared;
 
     private static boolean carriesInlineCsv(
-            List<com.legend.model.spec.ValueSpecification> body) {
-        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> q =
+            List<com.legend.protocol.spec.ValueSpecification> body) {
+        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> q =
                 new java.util.ArrayDeque<>(body);
         while (!q.isEmpty()) {
-            com.legend.model.spec.ValueSpecification v = q.poll();
-            if (v instanceof com.legend.model.spec.NewInstance ni
+            com.legend.protocol.spec.ValueSpecification v = q.poll();
+            if (v instanceof com.legend.protocol.spec.NewInstance ni
                     && ni.properties().containsKey("testDataSetupCsv")) {
                 return true;
             }
@@ -1915,14 +1915,14 @@ public final class Runner {
             if (!seen.add(fqn)) {
                 continue;
             }
-            List<com.legend.model.spec.ValueSpecification> body =
+            List<com.legend.protocol.spec.ValueSpecification> body =
                     setupFnAsts.get(fqn);
             if (body == null) {
                 continue;
             }
             java.util.Set<String> called = new java.util.HashSet<>();
             java.util.Set<String> elements = new java.util.HashSet<>();
-            for (com.legend.model.spec.ValueSpecification stmt : body) {
+            for (com.legend.protocol.spec.ValueSpecification stmt : body) {
                 collectCalledFqns(stmt, called, elements);
             }
             for (String c : called) {
@@ -1968,25 +1968,25 @@ public final class Runner {
      * too — the propertyLevel setups name foreign stores inside
      * {@code ^ConnectionStore(element=...)}. */
     private static void collectCalledFqns(
-            com.legend.model.spec.ValueSpecification v, java.util.Set<String> out,
+            com.legend.protocol.spec.ValueSpecification v, java.util.Set<String> out,
             java.util.Set<String> elements) {
-        if (v instanceof com.legend.model.spec.AppliedFunction af) {
+        if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
             if (af.function().contains("::")) {
                 out.add(af.function());
             }
             af.parameters().forEach(x -> collectCalledFqns(x, out, elements));
-        } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+        } else if (v instanceof com.legend.protocol.spec.AppliedProperty ap) {
             collectCalledFqns(ap.receiver(), out, elements);
-        } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+        } else if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
             lf.body().forEach(x -> collectCalledFqns(x, out, elements));
-        } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+        } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
             pc.values().forEach(x -> collectCalledFqns(x, out, elements));
-        } else if (v instanceof com.legend.model.spec.NewInstance ni) {
+        } else if (v instanceof com.legend.protocol.spec.NewInstance ni) {
             ni.properties().values().forEach(ke ->
                     collectCalledFqns(ke.value(), out, elements));
-        } else if (v instanceof com.legend.model.spec.NewInstanceCast nic) {
+        } else if (v instanceof com.legend.protocol.spec.NewInstanceCast nic) {
             collectCalledFqns(nic.src(), out, elements);
-        } else if (v instanceof com.legend.model.spec.PackageableElementPtr ptr) {
+        } else if (v instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
             elements.add(ptr.fullPath());
         }
     }
@@ -2000,13 +2000,13 @@ public final class Runner {
     }
 
     private boolean isEffectfulSetup(String setupFqn, java.util.Set<String> seen) {
-        List<com.legend.model.spec.ValueSpecification> body =
+        List<com.legend.protocol.spec.ValueSpecification> body =
                 setupFnAsts.get(setupFqn);
         if (body == null || !seen.add(setupFqn)) {
             return false;
         }
         java.util.Set<String> called = new java.util.HashSet<>();
-        for (com.legend.model.spec.ValueSpecification stmt : body) {
+        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
             collectCalledNames(stmt, called);
         }
         if (called.contains("executeInDb") || called.contains("dropAndCreateTableInDb")
@@ -2054,8 +2054,8 @@ public final class Runner {
     }
 
     private static void collectCalledNames(
-            com.legend.model.spec.ValueSpecification v, java.util.Set<String> out) {
-        if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            com.legend.protocol.spec.ValueSpecification v, java.util.Set<String> out) {
+        if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
             String fn = af.function();
             // BOTH spellings: the bare name feeds the effect-keyword check
             // (executeInDb etc.); the FQN feeds resolveSetupName's exact
@@ -2067,11 +2067,11 @@ public final class Runner {
                 out.add(fn);
             }
             af.parameters().forEach(x -> collectCalledNames(x, out));
-        } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+        } else if (v instanceof com.legend.protocol.spec.AppliedProperty ap) {
             collectCalledNames(ap.receiver(), out);
-        } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+        } else if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
             lf.body().forEach(x -> collectCalledNames(x, out));
-        } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+        } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
             pc.values().forEach(x -> collectCalledNames(x, out));
         }
     }
@@ -2081,9 +2081,9 @@ public final class Runner {
     private void callSetup(String setupFqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn,
             List<String> failedSeeds) {
-        com.legend.model.spec.ValueSpecification call =
+        com.legend.protocol.spec.ValueSpecification call =
                 com.legend.compiler.NameResolver.resolveQuery(
-                        new com.legend.model.spec.AppliedFunction(
+                        new com.legend.protocol.spec.AppliedFunction(
                                 setupFqn, List.of()));
         // PREFLIGHT, not retry (audit 17): the universe path re-running a
         // PARTIALLY-executed setup doubles non-drop-guarded inserts, so the

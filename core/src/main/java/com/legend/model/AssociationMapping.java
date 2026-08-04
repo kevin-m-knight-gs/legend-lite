@@ -1,6 +1,6 @@
 package com.legend.model;
 
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
 import java.util.Objects;
@@ -98,7 +98,7 @@ public sealed interface AssociationMapping permits AssociationMapping.Relational
      * over the Relation-function mappings' columns.
      */
     record ModelJoin(String associationName,
-            com.legend.model.spec.LambdaFunction lambda)
+            com.legend.protocol.spec.LambdaFunction lambda)
             implements AssociationMapping {
 
         public ModelJoin {

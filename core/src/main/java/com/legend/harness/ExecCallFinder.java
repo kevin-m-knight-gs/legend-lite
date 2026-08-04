@@ -3,9 +3,9 @@
 
 package com.legend.harness;
 
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.List;
 import java.util.Map;
@@ -85,7 +85,7 @@ final class ExecCallFinder {
                 cur = TestBody.substitute(af.parameters().get(0), lets);
                 continue;
             }
-            if (cur instanceof com.legend.model.spec.AppliedProperty ap) {
+            if (cur instanceof com.legend.protocol.spec.AppliedProperty ap) {
                 cur = ap.receiver();
                 continue;
             }
@@ -128,7 +128,7 @@ final class ExecCallFinder {
                 List<ValueSpecification> ps = new java.util.ArrayList<>();
                 ps.add(TestBody.substitute(term.parameters().get(0), lets));
                 ps.add(term.parameters().get(1));
-                ps.add(new com.legend.model.spec.EnumValue(
+                ps.add(new com.legend.protocol.spec.EnumValue(
                         "meta::relational::runtime::DatabaseType", "H2"));
                 for (int i = 3; i < term.parameters().size(); i++) {
                     ps.add(term.parameters().get(i));
@@ -158,7 +158,7 @@ final class ExecCallFinder {
                     && lf.function().equals("letFunction")
                     && lf.parameters().size() == 2
                     && lf.parameters().get(0)
-                            instanceof com.legend.model.spec.CString n
+                            instanceof com.legend.protocol.spec.CString n
                     && n.value().equals(name)) {
                 bound = lf.parameters().get(1);
             }

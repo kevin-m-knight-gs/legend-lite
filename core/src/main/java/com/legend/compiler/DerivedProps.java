@@ -2,12 +2,14 @@
 
 package com.legend.compiler;
 
+import com.legend.protocol.ParameterDefinition;
+
 import com.legend.model.ClassDefinition;
-import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.model.FunctionDefinition;
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 import com.legend.model.SynthHat;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +42,7 @@ public final class DerivedProps {
                 new ArrayList<>(dp.parameters().size() + 1);
         params.add(new FunctionDefinition.ParameterDefinition(
                 "this", thisType, Multiplicity.Concrete.PURE_ONE));
-        for (ClassDefinition.ParameterDefinition p : dp.parameters()) {
+        for (ParameterDefinition p : dp.parameters()) {
             params.add(new FunctionDefinition.ParameterDefinition(
                     p.name(), p.type(), p.multiplicity()));
         }

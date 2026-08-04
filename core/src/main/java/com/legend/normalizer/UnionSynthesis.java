@@ -7,10 +7,10 @@ import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 import com.legend.model.NormalizedModel;
 import com.legend.model.ParsedModel;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
@@ -29,30 +29,30 @@ import com.legend.model.MappingDefinition;
 import com.legend.model.MappingInclude;
 import com.legend.model.PackageableElement;
 import com.legend.model.PropertyMapping;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
 import com.legend.model.SynthHat;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CDate;
-import com.legend.model.spec.CDecimal;
-import com.legend.model.spec.CFloat;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.EnumValue;
-import com.legend.model.spec.KeyExpression;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.NewInstanceCast;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.TypeAnnotation;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CDate;
+import com.legend.protocol.spec.CDecimal;
+import com.legend.protocol.spec.CFloat;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.KeyExpression;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.NewInstanceCast;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.TypeAnnotation;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1241,15 +1241,15 @@ final class UnionSynthesis {
             // the owning member's thread carries that join (the same
             // two-hop-body shape chained-lift key columns project)
             case AppliedProperty ap -> ap.receiver()
-                    instanceof com.legend.model.spec.Variable rv
+                    instanceof com.legend.protocol.spec.Variable rv
                     ? rv.name().equals(rowVar)
                     : ap.receiver() instanceof AppliedProperty inner
                             && inner.receiver()
-                                    instanceof com.legend.model.spec.Variable rv2
+                                    instanceof com.legend.protocol.spec.Variable rv2
                             && rv2.name().equals(rowVar);
             case AppliedFunction f -> f.parameters().stream()
                     .allMatch(x -> isThreadProjectable(x, rowVar));
-            case com.legend.model.spec.Variable var2 -> false;
+            case com.legend.protocol.spec.Variable var2 -> false;
             case NewInstance ni -> false;
             default -> true;   // literals / annotations
         };

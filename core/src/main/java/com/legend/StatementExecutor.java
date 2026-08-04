@@ -29,7 +29,7 @@ final class StatementExecutor {
 
     /** The G½→H→I→J→K back half over a name-RESOLVED query AST. */
     static @com.legend.Nullable ExecutionResult execute(
-            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,

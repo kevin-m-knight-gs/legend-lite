@@ -470,7 +470,7 @@ public final class Compiler {
      * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
      */
     public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
-            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection)
             throws java.sql.SQLException {
@@ -491,7 +491,7 @@ public final class Compiler {
      * it (Java orchestrates, the database executes — the envelope stays).
      */
     public static com.legend.sql.SqlQuery lowerResolved(
-            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn, boolean relationalRootForm) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
@@ -520,7 +520,7 @@ public final class Compiler {
      * seed; the caller's ledger feeds its emptiness guard). Null = throw.
      */
     public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
-            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn, java.sql.Connection connection,
             java.util.function.@com.legend.Nullable Consumer<String> rawSqlFailureSink)
             throws java.sql.SQLException {

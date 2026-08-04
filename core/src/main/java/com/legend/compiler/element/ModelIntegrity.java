@@ -1,11 +1,17 @@
 package com.legend.compiler.element;
 
+import com.legend.protocol.DerivedPropertyDefinition;
+
+import com.legend.protocol.ConstraintDefinition;
+
+import com.legend.protocol.ParameterDefinition;
+
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.model.ClassDefinition;
 import com.legend.model.Function;
 import com.legend.model.MappingDefinition;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 
 import java.util.List;
 
@@ -79,16 +85,16 @@ final class ModelIntegrity {
         for (ClassDefinition.PropertyDefinition pd : cd.properties()) {
             classifier.classify(pd.type(), typeParams);
         }
-        for (ClassDefinition.DerivedPropertyDefinition dp : cd.derivedProperties()) {
+        for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             classifier.classify(dp.type(), typeParams);
-            for (ClassDefinition.ParameterDefinition p : dp.parameters()) {
+            for (ParameterDefinition p : dp.parameters()) {
                 classifier.classify(p.type(), typeParams);
             }
             functions.requireFunction(
                     realizedFqn(dp.realization(), SynthFqn.prop(cd.qualifiedName(), dp.name())),
                     "derived property '" + dp.name() + "' of " + cd.qualifiedName());
         }
-        for (ClassDefinition.ConstraintDefinition con : cd.constraints()) {
+        for (ConstraintDefinition con : cd.constraints()) {
             String fqn = realizedFqn(con.realization(),
                     SynthFqn.constraint(cd.qualifiedName(), con.name()));
             String site = "constraint '" + con.name() + "' of " + cd.qualifiedName();

@@ -2,7 +2,7 @@ package com.legend.compiler.spec;
 
 import com.legend.compiler.spec.typed.TypedAggregate;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedFunction;
 
 /**
  * Whole-relation {@code aggregate} (engine {@code AggregateChecker}) &mdash; a

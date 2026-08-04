@@ -5,7 +5,7 @@ import com.legend.protocol.Protocol.PProperty;
 import com.legend.protocol.Protocol.PSection;
 import com.legend.protocol.Protocol.PSectionIndex;
 import com.legend.protocol.Protocol.PureModelContextData;
-import com.legend.model.SourceInfo;
+import com.legend.protocol.SourceInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -54,8 +54,8 @@ class ProtocolEmitterTest {
     @Test
     void simpleClassIsByteIdenticalToLegendEngine() {
         PProperty name = new PProperty("name",
-                new com.legend.model.TypeExpression.NameRef("String"),
-                new com.legend.model.Multiplicity.Concrete(1, 1),
+                new com.legend.protocol.TypeExpression.NameRef("String"),
+                new com.legend.protocol.Multiplicity.Concrete(1, 1),
                 List.of(), List.of(),
                 new SourceInfo("", 3, 3, 3, 18), new SourceInfo("", 3, 9, 3, 14), false);
         PClass person = new PClass("model", "Person", List.of(), List.of(), List.of(name),
@@ -77,7 +77,7 @@ class ProtocolEmitterTest {
     void superTypesMatchTheWire() {
         PClass c = new PClass("a", "B", List.of(),
                 List.of(new Protocol.PSuperType(
-                        new com.legend.model.TypeExpression.NameRef("a::C"),
+                        new com.legend.protocol.TypeExpression.NameRef("a::C"),
                         new SourceInfo("", 1, 20, 1, 23))),
                 List.of(), List.of(), List.of(), List.of(), List.of(), false,
                 new SourceInfo("", 1, 1, 3, 1));
@@ -92,8 +92,8 @@ class ProtocolEmitterTest {
     void nullUpperBoundIsOmittedNotEmittedAsNull() {
         PClass c = new PClass("m", "C", List.of(), List.of(),
                 List.of(new PProperty("xs",
-                        new com.legend.model.TypeExpression.NameRef("String"),
-                        new com.legend.model.Multiplicity.Concrete(1, null),
+                        new com.legend.protocol.TypeExpression.NameRef("String"),
+                        new com.legend.protocol.Multiplicity.Concrete(1, null),
                         List.of(), List.of(),
                         new SourceInfo("", 1, 1, 1, 1), new SourceInfo("", 1, 1, 1, 1), false)),
                 List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 1, 1));

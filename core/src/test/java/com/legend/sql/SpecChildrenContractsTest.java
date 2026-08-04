@@ -4,9 +4,9 @@
 package com.legend.sql;
 
 import com.legend.model.RelationalOperation;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -79,7 +79,7 @@ class SpecChildrenContractsTest {
         for (Class<?> node : permittedClosure(iface)) {
             Object instance = build(node);
             var expected = new ArrayList<>();
-            if (com.legend.model.spec.TypeAnnotation.class
+            if (com.legend.protocol.spec.TypeAnnotation.class
                     .isAssignableFrom(node)) {
                 // TYPE METADATA is a leaf for expression traversal: a
                 // RelationShape's per-column annotations carry types, not
@@ -253,22 +253,22 @@ class SpecChildrenContractsTest {
         if (type == ValueSpecification.class) {
             return new CString("x");
         }
-        if (type == com.legend.model.spec.Variable.class) {
-            return new com.legend.model.spec.Variable("v", null, null);
+        if (type == com.legend.protocol.spec.Variable.class) {
+            return new com.legend.protocol.spec.Variable("v", null, null);
         }
         if (type == LambdaFunction.class) {
             return new LambdaFunction(
-                    List.of(new com.legend.model.spec.Variable("v", null, null)),
+                    List.of(new com.legend.protocol.spec.Variable("v", null, null)),
                     List.of(new CString("b")));
         }
-        if (type == com.legend.model.spec.ColSpec.class) {
-            return new com.legend.model.spec.ColSpec("n");
+        if (type == com.legend.protocol.spec.ColSpec.class) {
+            return new com.legend.protocol.spec.ColSpec("n");
         }
-        if (type == com.legend.model.TypeExpression.class) {
-            return new com.legend.model.TypeExpression.NameRef("T");
+        if (type == com.legend.protocol.TypeExpression.class) {
+            return new com.legend.protocol.TypeExpression.NameRef("T");
         }
-        if (type == com.legend.model.Multiplicity.class) {
-            return com.legend.model.Multiplicity.Concrete.PURE_ONE;
+        if (type == com.legend.protocol.Multiplicity.class) {
+            return com.legend.protocol.Multiplicity.Concrete.PURE_ONE;
         }
         if (type == com.legend.values.PureDateLiteral.class) {
             return new com.legend.values.PureDateLiteral.StrictDate(2020, 1, 1);

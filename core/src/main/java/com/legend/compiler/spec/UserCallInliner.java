@@ -234,11 +234,11 @@ public final class UserCallInliner {
                 instanceof com.legend.model.FunctionDefinition fd)) {
             return false;
         }
-        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(fd.body());
         while (!work.isEmpty()) {
             var vs = work.poll();
-            if (vs instanceof com.legend.model.spec.AppliedFunction af
+            if (vs instanceof com.legend.protocol.spec.AppliedFunction af
                     && af.function().equals(callee.qualifiedName())) {
                 return true;
             }

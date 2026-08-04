@@ -1,7 +1,7 @@
 package com.legend.parser;
 
-import com.legend.model.Multiplicity;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.ParsedModel;
 import com.legend.model.ImportScope;
 
@@ -9,9 +9,9 @@ import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationDefinition.AssociationEndDefinition;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ClassDefinition;
-import com.legend.model.ClassDefinition.ConstraintDefinition;
-import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.protocol.ConstraintDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
+import com.legend.protocol.ParameterDefinition;
 import com.legend.model.ClassDefinition.PropertyDefinition;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
@@ -34,7 +34,7 @@ import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 import com.legend.model.PropertyMapping;
 import com.legend.model.JsonModelConnection;
 import com.legend.model.PackageableElement;
@@ -52,15 +52,15 @@ import com.legend.model.RuntimeDefinition;
 import com.legend.model.ServiceDefinition;
 import com.legend.model.StereotypeApplication;
 import com.legend.model.TaggedValue;
-import com.legend.model.TypeExpression.FunctionType;
-import com.legend.model.TypeExpression.NameRef;
-import com.legend.model.TypeExpression.Op;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.TypeExpression.FunctionType;
+import com.legend.protocol.TypeExpression.NameRef;
+import com.legend.protocol.TypeExpression.Op;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.Variable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -587,7 +587,7 @@ final class ElementParserTest {
                 "Class P { fullName() { my::funcs::fullName }: String[1]; }");
         DerivedPropertyDefinition d = c.derivedProperties().get(0);
         assertEquals("fullName", d.name());
-        var ref = assertInstanceOf(com.legend.model.Realization.Ref.class, d.realization(),
+        var ref = assertInstanceOf(com.legend.protocol.Realization.Ref.class, d.realization(),
                 "a bare-FQN body binds to a function (not an inline expression)");
         assertEquals("my::funcs::fullName", ref.functionFqn());
         // The inline accessor is invalid for a ref binding.
@@ -599,7 +599,7 @@ final class ElementParserTest {
     void derivedProperty_inlineBody_isInlineRealization() {
         ClassDefinition c = parseOneClass(
                 "Class P { fullName() { $this.a + $this.b }: String[1]; }");
-        assertInstanceOf(com.legend.model.Realization.Inline.class,
+        assertInstanceOf(com.legend.protocol.Realization.Inline.class,
                 c.derivedProperties().get(0).realization());
     }
 
@@ -610,7 +610,7 @@ final class ElementParserTest {
                 "Class P [adult: my::funcs::isAdult] { age: Integer[1]; }");
         var con = c.constraints().get(0);
         assertEquals("adult", con.name());
-        var ref = assertInstanceOf(com.legend.model.Realization.Ref.class, con.realization());
+        var ref = assertInstanceOf(com.legend.protocol.Realization.Ref.class, con.realization());
         assertEquals("my::funcs::isAdult", ref.functionFqn());
         assertThrows(IllegalStateException.class, con::expression);
     }

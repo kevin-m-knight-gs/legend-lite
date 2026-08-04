@@ -1,12 +1,14 @@
 package com.legend.model;
 
-import com.legend.model.TypeExpression.Column;
-import com.legend.model.TypeExpression.Generic;
-import com.legend.model.TypeExpression.NameRef;
-import com.legend.model.TypeExpression.Op;
-import com.legend.model.TypeExpression.RelationType;
-import com.legend.model.TypeExpression.SchemaAlgebra;
-import com.legend.model.TypeExpression.TypedParameter;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.TypeExpression.Column;
+import com.legend.protocol.TypeExpression.Generic;
+import com.legend.protocol.TypeExpression.NameRef;
+import com.legend.protocol.TypeExpression.Op;
+import com.legend.protocol.TypeExpression.RelationType;
+import com.legend.protocol.TypeExpression.SchemaAlgebra;
+import com.legend.protocol.TypeExpression.TypedParameter;
 
 import java.util.List;
 

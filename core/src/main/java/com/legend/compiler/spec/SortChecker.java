@@ -5,12 +5,12 @@ import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSortInfo;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.EnumValue;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;

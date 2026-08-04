@@ -838,8 +838,8 @@ public final class Pure {
         for (var f : nativeFunctionsAt(name)) {
             for (var prm : f.parameters()) {
                 String head = switch (prm.type()) {
-                    case com.legend.model.TypeExpression.NameRef nr -> nr.name();
-                    case com.legend.model.TypeExpression.Generic g -> g.name();
+                    case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
+                    case com.legend.protocol.TypeExpression.Generic g -> g.name();
                     default -> null;
                 };
                 if (paramClassFqn.equals(head)) {

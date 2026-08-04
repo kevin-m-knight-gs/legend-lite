@@ -5,11 +5,11 @@ package com.legend.harness;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.ImportScope;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.sql.Connection;
 import java.util.ArrayList;

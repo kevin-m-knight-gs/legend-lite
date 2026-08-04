@@ -1,36 +1,36 @@
 package com.legend.parser;
 
-import com.legend.model.Multiplicity;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CDate;
-import com.legend.model.spec.CDecimal;
-import com.legend.model.spec.CFloat;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CLatestDate;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.CTime;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CDate;
+import com.legend.protocol.spec.CDecimal;
+import com.legend.protocol.spec.CFloat;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CLatestDate;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.CTime;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.ColumnInstance;
-import com.legend.model.spec.EnumValue;
-import com.legend.model.spec.KeyExpression;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.NewInstanceCast;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.TypeAnnotation;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.ColumnInstance;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.KeyExpression;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.NewInstanceCast;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.TypeAnnotation;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -2238,7 +2238,7 @@ public final class SpecParser implements TokenStreamCursor {
         // carries Path<Root,Leaf>) — the annotated lambda self-types in
         // let/argument positions, not just call positions
         LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path",
-                new com.legend.model.TypeExpression.NameRef(segs[0].strip()),
+                new com.legend.protocol.TypeExpression.NameRef(segs[0].strip()),
                 null)), List.of(body));
         if (alias == null) {
             return fn;

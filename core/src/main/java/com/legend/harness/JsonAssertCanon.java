@@ -3,12 +3,12 @@
 
 package com.legend.harness;
 
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -110,7 +110,7 @@ final class JsonAssertCanon {
                 return false;
             }
         }
-        return sawParse && (v instanceof com.legend.model.spec.Variable
+        return sawParse && (v instanceof com.legend.protocol.spec.Variable
                 || v instanceof AppliedProperty);
     }
 
@@ -163,7 +163,7 @@ final class JsonAssertCanon {
                 out.add(new CString(sv));
             }
         }
-        return new com.legend.model.spec.PureCollection(out);
+        return new com.legend.protocol.spec.PureCollection(out);
     }
 
     /** Identity wrappers around a JSON value expression: parseJSON /

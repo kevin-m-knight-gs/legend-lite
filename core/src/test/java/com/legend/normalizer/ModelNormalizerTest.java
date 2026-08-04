@@ -1,17 +1,19 @@
 package com.legend.normalizer;
 
+import com.legend.protocol.DerivedPropertyDefinition;
+
 import com.legend.model.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.NameResolver;
 import com.legend.parser.ElementParser;
-import com.legend.model.Multiplicity;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.ClassDefinition;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.SynthHat;
 import com.legend.model.ServiceDefinition;
-import com.legend.model.spec.LambdaFunction;
+import com.legend.protocol.spec.LambdaFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -129,7 +131,7 @@ class ModelNormalizerTest {
 
         ClassDefinition cd = clazz(m, "model::Person");
         assertEquals(1, cd.derivedProperties().size(), "derived property retained on the class");
-        ClassDefinition.DerivedPropertyDefinition dp = cd.derivedProperties().get(0);
+        DerivedPropertyDefinition dp = cd.derivedProperties().get(0);
         assertEquals("fullName", dp.name());
         assertFalse(dp.expression().isEmpty(),
                 "additive normalization leaves the parsed class a faithful source image "
@@ -242,7 +244,7 @@ class ModelNormalizerTest {
         assertEquals(1, fn.parameters().size());
         assertEquals("this", fn.parameters().get(0).name(),
                 "constraint is a predicate of `this`");
-        assertTrue(((com.legend.model.TypeExpression.NameRef) fn.returnType()).name()
+        assertTrue(((com.legend.protocol.TypeExpression.NameRef) fn.returnType()).name()
                         .endsWith("::Boolean"),
                 "return type is the Boolean primitive FQN so Phase F can classify it");
         assertEquals(Multiplicity.Concrete.PURE_ONE, fn.returnMultiplicity());

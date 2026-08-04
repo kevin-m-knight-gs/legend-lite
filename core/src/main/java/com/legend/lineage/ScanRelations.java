@@ -12,14 +12,14 @@ import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PropertyMapping;
 import com.legend.model.RelationalOperation;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.TypeAnnotation;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.TypeAnnotation;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -371,9 +371,9 @@ public final class ScanRelations {
                         .startsWith("get")
                 && af.parameters().size() == 2
                 && af.parameters().get(0)
-                        instanceof com.legend.model.spec.Variable var
+                        instanceof com.legend.protocol.spec.Variable var
                 && af.parameters().get(1)
-                        instanceof com.legend.model.spec.CString c) {
+                        instanceof com.legend.protocol.spec.CString c) {
             return new String[]{var.name(), c.value()};
         }
         return null;
@@ -419,7 +419,7 @@ public final class ScanRelations {
                                     .equals("col")
                             && colFn.parameters().size() >= 2
                             && colFn.parameters().get(1)
-                                    instanceof com.legend.model.spec.CString a
+                                    instanceof com.legend.protocol.spec.CString a
                             && colFn.parameters().get(0)
                                     instanceof LambdaFunction cl
                             && !cl.body().isEmpty()) {
@@ -449,7 +449,7 @@ public final class ScanRelations {
     }
 
     private static List<ValueSpecification> flatValues(ValueSpecification v) {
-        if (v instanceof com.legend.model.spec.PureCollection pc) {
+        if (v instanceof com.legend.protocol.spec.PureCollection pc) {
             List<ValueSpecification> out = new ArrayList<>();
             for (ValueSpecification e : pc.values()) {
                 out.addAll(flatValues(e));
@@ -461,7 +461,7 @@ public final class ScanRelations {
 
     private static void collectStrings(ValueSpecification n,
             Set<String> out) {
-        if (n instanceof com.legend.model.spec.CString cs) {
+        if (n instanceof com.legend.protocol.spec.CString cs) {
             out.add(cs.value());
         } else if (n instanceof AppliedFunction af) {
             for (ValueSpecification p : af.parameters()) {
@@ -473,7 +473,7 @@ public final class ScanRelations {
             for (ValueSpecification b : lf.body()) {
                 collectStrings(b, out);
             }
-        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+        } else if (n instanceof com.legend.protocol.spec.PureCollection pc) {
             for (ValueSpecification e : pc.values()) {
                 collectStrings(e, out);
             }
@@ -492,7 +492,7 @@ public final class ScanRelations {
                     && tr.parameters().get(0)
                             instanceof PackageableElementPtr db
                     && tr.parameters().get(2)
-                            instanceof com.legend.model.spec.CString t) {
+                            instanceof com.legend.protocol.spec.CString t) {
                 Node node = new Node(db.fullPath(), t.value(), null);
                 var td = ctx.findTableDefinition(db.fullPath(), t.value());
                 if (td.isPresent()) {
@@ -512,7 +512,7 @@ public final class ScanRelations {
             for (ValueSpecification b : lf.body()) {
                 collectTableToTds(ctx, b, out);
             }
-        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+        } else if (n instanceof com.legend.protocol.spec.PureCollection pc) {
             for (ValueSpecification e : pc.values()) {
                 collectTableToTds(ctx, e, out);
             }
@@ -538,7 +538,7 @@ public final class ScanRelations {
                     return true;
                 }
             }
-        } else if (n instanceof com.legend.model.spec.PureCollection pc) {
+        } else if (n instanceof com.legend.protocol.spec.PureCollection pc) {
             for (ValueSpecification e : pc.values()) {
                 if (containsCall(e, name)) {
                     return true;
@@ -1232,13 +1232,13 @@ public final class ScanRelations {
         if (cd == null) {
             return null;
         }
-        for (com.legend.model.ClassDefinition.DerivedPropertyDefinition dp
+        for (com.legend.protocol.DerivedPropertyDefinition dp
                 : cd.derivedProperties()) {
             if (!dp.name().equals(prop)) {
                 continue;
             }
             if (!(dp.realization()
-                    instanceof com.legend.model.Realization.Inline inl)) {
+                    instanceof com.legend.protocol.Realization.Inline inl)) {
                 return null;
             }
             // VAR-SCOPED collection: $this chains splice verbatim; an
@@ -1631,12 +1631,12 @@ public final class ScanRelations {
             }
             for (var p : cd.properties()) {
                 if (p.name().equals(prop)
-                        && p.type() instanceof com.legend.model.TypeExpression.NameRef nr) {
+                        && p.type() instanceof com.legend.protocol.TypeExpression.NameRef nr) {
                     return nr.name();
                 }
             }
-            for (com.legend.model.TypeExpression s : cd.superClasses()) {
-                if (s instanceof com.legend.model.TypeExpression.NameRef snr
+            for (com.legend.protocol.TypeExpression s : cd.superClasses()) {
+                if (s instanceof com.legend.protocol.TypeExpression.NameRef snr
                         && seen.add(snr.name())) {
                     q.add(snr.name());
                 }
@@ -1644,7 +1644,7 @@ public final class ScanRelations {
             // association ends are class properties semantically
             var end = ctx.findAssociationEnd(cd.qualifiedName(), prop);
             if (end.isPresent() && end.get().targetClass()
-                    instanceof com.legend.model.TypeExpression.NameRef anr) {
+                    instanceof com.legend.protocol.TypeExpression.NameRef anr) {
                 return anr.name();
             }
         }
@@ -1839,18 +1839,18 @@ public final class ScanRelations {
             // function2 = the lambda-wrapped nested sub-tree): chains
             // compose parent-first — product{name} contributes [product]
             // and [product, name]
-            case com.legend.model.spec.ColSpecArray ca ->
+            case com.legend.protocol.spec.ColSpecArray ca ->
                     collectTreeChains(ca, List.of(), out);
-            case com.legend.model.spec.ColSpec cs -> collectTreeChains(
-                    new com.legend.model.spec.ColSpecArray(List.of(cs)),
+            case com.legend.protocol.spec.ColSpec cs -> collectTreeChains(
+                    new com.legend.protocol.spec.ColSpecArray(List.of(cs)),
                     List.of(), out);
             default -> n.children().forEach(x -> collectChains(x, out));
         }
     }
 
-    private static void collectTreeChains(com.legend.model.spec.ColSpecArray tree,
+    private static void collectTreeChains(com.legend.protocol.spec.ColSpecArray tree,
             List<Seg> parent, List<List<Seg>> out) {
-        for (com.legend.model.spec.ColSpec cs : tree.colSpecs()) {
+        for (com.legend.protocol.spec.ColSpec cs : tree.colSpecs()) {
             List<Seg> hop = null;
             if (cs.function1() != null && cs.function1().body().size() == 1) {
                 List<Seg> c = chainOf(cs.function1().body().get(0));
@@ -1872,7 +1872,7 @@ public final class ScanRelations {
             out.add(full);
             if (cs.function2() != null) {
                 for (var b : cs.function2().body()) {
-                    if (b instanceof com.legend.model.spec.ColSpecArray sub) {
+                    if (b instanceof com.legend.protocol.spec.ColSpecArray sub) {
                         collectTreeChains(sub, full, out);
                     }
                 }
@@ -1965,8 +1965,8 @@ public final class ScanRelations {
     private static String typeName(ValueSpecification v) {
         if (v instanceof TypeAnnotation.Named named) {
             return switch (named.type()) {
-                case com.legend.model.TypeExpression.NameRef nr -> nr.name();
-                case com.legend.model.TypeExpression.Generic g -> g.name();
+                case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
+                case com.legend.protocol.TypeExpression.Generic g -> g.name();
                 default -> throw new NotImplementedException(
                         "scanRelations: structural subType annotation");
             };

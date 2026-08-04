@@ -141,10 +141,10 @@ class NameResolutionContractTest {
     void preludeNativesJoinCallCandidates() {
         var imports = new com.legend.model.ImportScope.Builder()
                 .add("app::fns::*").build();
-        var call = new com.legend.model.spec.AppliedFunction("schema",
-                List.of(new com.legend.model.spec.Variable("db"),
-                        new com.legend.model.spec.CString("default")));
-        var resolved = (com.legend.model.spec.AppliedFunction)
+        var call = new com.legend.protocol.spec.AppliedFunction("schema",
+                List.of(new com.legend.protocol.spec.Variable("db"),
+                        new com.legend.protocol.spec.CString("default")));
+        var resolved = (com.legend.protocol.spec.AppliedFunction)
                 com.legend.compiler.NameResolver.resolveQuery(call, imports,
                         java.util.Set.of("app::fns::schema"));
         assertTrue(resolved.candidateFqns().contains("app::fns::schema"),

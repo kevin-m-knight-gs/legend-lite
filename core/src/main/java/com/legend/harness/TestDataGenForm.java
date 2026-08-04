@@ -7,17 +7,17 @@ import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.NotImplementedException;
 import com.legend.model.ImportScope;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CFloat;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CFloat;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import com.legend.testdatagen.TestDataGenerator;
 
 import java.sql.Connection;
@@ -221,7 +221,7 @@ final class TestDataGenForm {
                     for (int i = 0; i < af.parameters().size() && i < 3;
                             i++) {
                         ValueSpecification pv = af.parameters().get(i);
-                        if (pv instanceof com.legend.model.spec.CDate cd) {
+                        if (pv instanceof com.legend.protocol.spec.CDate cd) {
                             d[i] = cd.value().toEngineString();
                         } else if (!(pv instanceof PureCollection pc2)
                                 || !pc2.values().isEmpty()) {
@@ -248,7 +248,7 @@ final class TestDataGenForm {
                 }
             }
         }
-        if (arg instanceof com.legend.model.spec.NewInstance ni) {
+        if (arg instanceof com.legend.protocol.spec.NewInstance ni) {
             // ^ExecutionContext()-style defaults ride along; anything
             // carrying properties is semantics we must not drop
             if (ni.properties().isEmpty()) {
@@ -340,7 +340,7 @@ final class TestDataGenForm {
         if (v instanceof CBoolean b) {
             return b.value();
         }
-        if (v instanceof com.legend.model.spec.CDecimal d) {
+        if (v instanceof com.legend.protocol.spec.CDecimal d) {
             return d.value();
         }
         if (v instanceof AppliedFunction af
@@ -349,7 +349,7 @@ final class TestDataGenForm {
                 && af.parameters().get(0) instanceof CString s) {
             return s.value();   // dates ride as strings; SQL types them
         }
-        if (v instanceof com.legend.model.spec.CDate d) {
+        if (v instanceof com.legend.protocol.spec.CDate d) {
             return d.value().toEngineString();
         }
         throw new NotImplementedException("testDataGen: non-literal row"

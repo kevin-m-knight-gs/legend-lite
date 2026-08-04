@@ -1,9 +1,15 @@
 package com.legend.compiler.element;
 
+import com.legend.protocol.ParameterDefinition;
+
+import com.legend.protocol.ConstraintDefinition;
+
+import com.legend.protocol.DerivedPropertyDefinition;
+
 import com.legend.compiler.SynthFqn;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.ClassDefinition;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,9 +47,9 @@ final class ClassCompiler {
                     classifier.classify(pd.type(), typeParams),
                     TypeClassifier.multiplicity(pd.multiplicity())));
         }
-        for (ClassDefinition.DerivedPropertyDefinition dp : cd.derivedProperties()) {
+        for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             List<TypedParameter> params = new ArrayList<>(dp.parameters().size());
-            for (ClassDefinition.ParameterDefinition p : dp.parameters()) {
+            for (ParameterDefinition p : dp.parameters()) {
                 params.add(new TypedParameter(
                         p.name(),
                         classifier.classify(p.type(), typeParams),
@@ -64,7 +70,7 @@ final class ClassCompiler {
         }
 
         List<TypedConstraint> constraints = new ArrayList<>(cd.constraints().size());
-        for (ClassDefinition.ConstraintDefinition con : cd.constraints()) {
+        for (ConstraintDefinition con : cd.constraints()) {
             // Lifted <owner>$constraint$<name> for sugar; the bound FQN for Door 4.
             String fqn = realizedFqn(con.realization(), SynthFqn.constraint(cd.qualifiedName(), con.name()));
             constraints.add(new TypedConstraint(con.name(),

@@ -1,6 +1,6 @@
 package com.legend;
 
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -260,18 +260,24 @@ final class ArchitectureTest {
 
     @Test
     void resolverNeverSeesTheUntypedAst() {
+        // Strengthened 2026-08-04 with the protocol move: the resolver sees no
+        // parse product at all — not the value-spec AST, not TypeExpression,
+        // not Multiplicity. Measured true before pinning.
         noClasses()
             .that().resideInAPackage("com.legend.resolver")
-            .should().dependOnClassesThat().resideInAPackage("com.legend.model.spec..")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.protocol..")
             .as("Invariant 6c': the resolver consumes model RECORDS and the"
-              + " typed HIR — never the untyped value-spec AST")
+              + " typed HIR — never any parse product (com.legend.protocol)")
             .check(CORE_PROD_CLASSES);
     }
 
     /**
-     * The model is DATA: element records + the untyped value-spec AST
-     * (model.spec — the normalizer synthesizes bodies as model content).
-     * It sits below every phase and may reach only the value vocabulary.
+     * The model is DATA: element records for the compiler. It sits below every
+     * phase and may reach only the parse vocabulary ({@code protocol} — the
+     * value-spec AST and type/multiplicity records are parse products and live
+     * there) and the value vocabulary. Amended 2026-08-04: protocol became the
+     * bottom layer (PARSER_DROP_IN_STATUS.md §2.3), so {@code model → protocol}
+     * is the sanctioned direction; {@code protocol → model} is banned by 7b.
      */
     @Test
     void modelIsPureData() {
@@ -280,11 +286,92 @@ final class ArchitectureTest {
             .should().onlyDependOnClassesThat(
                     com.tngtech.archunit.core.domain.JavaClass.Predicates
                             .resideInAnyPackage("com.legend.model..",
+                                    "com.legend.protocol..",
                                     "com.legend.values",
                                     "com.legend.error", "java..")
                             .or(NULLNESS_ANNOTATIONS))
-            .as("Invariant 6j: com.legend.model depends only on values/error"
+            .as("Invariant 6j: com.legend.model depends only on protocol/values/error"
               + " and the JDK — producers and consumers both sit above it")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    // ================================================================
+    // Invariant 7 — the standalone drop-in (PARSER_DROP_IN_PLAN.md).
+    // The extractable parser artifact is {lexer, parser, protocol,
+    // values}: a future legend-parser jar must carry NOTHING else.
+    // These three rules are the wall that keeps it extractable. They
+    // are deliberately allowlists, not blacklists — a new dependency
+    // is a failure until it is argued into the rule.
+    // ================================================================
+
+    /**
+     * <strong>Invariant 7a — the lexer depends on the JDK. Full stop.</strong>
+     * No model, no protocol, no values — a token stream is characters in,
+     * offsets out. (The nullness annotations are compile-time vocabulary,
+     * carried by every layer.)
+     */
+    @Test
+    void lexerDependsOnNothingButTheJdk() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.lexer..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.lexer..", "java..")
+                            .or(NULLNESS_ANNOTATIONS))
+            .as("Invariant 7a: com.legend.lexer depends on the JDK and nothing else")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>Invariant 7b — protocol is the bottom parse-product layer.</strong>
+     * It holds everything the parser produces (elements-for-the-wire, the
+     * value-spec AST, TypeExpression, Multiplicity, SourceInfo, Realization)
+     * and may reach only {@code com.legend.values} (date/time literal
+     * vocabulary — itself JDK-only by 6g) and the JDK. In particular:
+     * <b>no model, no parser, no lexer</b>. The wire-shape knowledge stays in
+     * {@code ProtocolEmitter}; the model adapter lives on the model side
+     * ({@code com.legend.model.FromProtocol}).
+     */
+    @Test
+    void protocolIsTheBottomLayer() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.protocol..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.protocol..",
+                                    "com.legend.values", "java..")
+                            .or(NULLNESS_ANNOTATIONS))
+            .as("Invariant 7b: com.legend.protocol depends only on values and the"
+              + " JDK — it is the bottom layer of the standalone drop-in")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>Invariant 7c — the parser's dependency surface is pinned.</strong>
+     * Endgame ({@code PARSER_DROP_IN_PLAN.md} §2.1): the parser reads tokens
+     * and produces protocol records — {@code lexer + protocol + values} and
+     * nothing else. Today it still constructs {@code com.legend.model} records
+     * for the element kinds that have not yet been migrated to protocol
+     * output, so {@code model..} remains in the allowlist. <b>Shrink this
+     * list; never grow it.</b> When the last element kind emits protocol,
+     * delete {@code model..} here and the drop-in is extractable.
+     */
+    @Test
+    void parserDependencySurfaceIsPinned() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.parser..")
+            .should().onlyDependOnClassesThat(
+                    com.tngtech.archunit.core.domain.JavaClass.Predicates
+                            .resideInAnyPackage("com.legend.parser..",
+                                    "com.legend.lexer..",
+                                    "com.legend.protocol..",
+                                    "com.legend.model..",   // shrinking: dies with the last model-record output
+                                    "com.legend.values",
+                                    "com.legend.error",     // ParseException extends the shared error vocabulary (a JDK-only leaf, 6g)
+                                    "java..")
+                            .or(NULLNESS_ANNOTATIONS))
+            .as("Invariant 7c: the parser consumes tokens and produces protocol"
+              + " (+ model records, temporarily) — nothing above it, ever")
             .check(CORE_PROD_CLASSES);
     }
 

@@ -22,15 +22,10 @@ import java.util.List;
  * </ul>
  *
  * <p>Positions are captured at construction because that is the only point where token offsets are
- * in hand. {@link com.legend.model.SourceInfo} follows the engine's convention exactly: 1-based lines, 1-based start
+ * in hand. {@link com.legend.protocol.SourceInfo} follows the engine's convention exactly: 1-based lines, 1-based start
  * column, and an <em>inclusive</em> end column.
  */
 public final class Protocol {
-
-    /** Re-exported so protocol code reads naturally; the type lives in {@code com.legend.model}
-     * because both the AST and the protocol carry spans and {@code protocol -> model} is the
-     * cycle-free direction (ArchitectureTest invariants 4 and 6j). */
-    
 
     private Protocol() {
     }
@@ -53,23 +48,19 @@ public final class Protocol {
      * {@code typeParams} and {@code isNative} have no protocol equivalent and
      * {@link ProtocolEmitter} simply does not emit them: <b>these are our records; the wire shape
      * is the emitter's decision, not the record's.</b> That is what lets the parser have exactly
-     * one output while still round-tripping losslessly into {@code com.legend.model} for our own
-     * compiler.
-     *
-     * <p>{@code superClasses}, {@code derivedProperties} and {@code constraints} still use the
-     * {@code com.legend.model} AST types. They gain protocol-native representations when they gain
-     * emitters; until then they are carried through untouched rather than duplicated.
+     * one output while still round-tripping losslessly (via {@code com.legend.model.FromProtocol})
+     * into the model for our own compiler.
      */
     public record PClass(String pkg, String name,
                          List<String> typeParams,
                          List<PSuperType> superTypes,
                          List<PProperty> properties,
-                         List<com.legend.model.ClassDefinition.DerivedPropertyDefinition> derivedProperties,
-                         List<com.legend.model.ClassDefinition.ConstraintDefinition> constraints,
+                         List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                         List<com.legend.protocol.ConstraintDefinition> constraints,
                          List<PStereotype> stereotypes,
                          List<PTaggedValue> taggedValues,
                          boolean isNative,
-                         com.legend.model.SourceInfo sourceInformation) implements Element {
+                         com.legend.protocol.SourceInfo sourceInformation) implements Element {
         public PClass {
             typeParams = List.copyOf(typeParams);
             superTypes = List.copyOf(superTypes);
@@ -95,7 +86,7 @@ public final class Protocol {
 
     /** {@code _type:"importAware"} — the only section kind emitted for {@code ###Pure}. */
     public record PSection(String parserName, List<String> elements, List<String> imports,
-                           com.legend.model.SourceInfo sourceInformation) {
+                           com.legend.protocol.SourceInfo sourceInformation) {
         public PSection {
             elements = List.copyOf(elements);
             imports = List.copyOf(imports);
@@ -113,12 +104,12 @@ public final class Protocol {
      * express</b> and walls loudly on the rest.
      */
     public record PProperty(String name,
-                            com.legend.model.TypeExpression type,
-                            com.legend.model.Multiplicity multiplicity,
+                            com.legend.protocol.TypeExpression type,
+                            com.legend.protocol.Multiplicity multiplicity,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
-                            com.legend.model.SourceInfo sourceInformation,
-                            com.legend.model.SourceInfo typeSourceInformation,
+                            com.legend.protocol.SourceInfo sourceInformation,
+                            com.legend.protocol.SourceInfo typeSourceInformation,
                             boolean hasDefaultValue) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);
@@ -138,8 +129,8 @@ public final class Protocol {
      * {@code sourceInformation} covers the whole {@code a::P.s1}.
      */
     public record PStereotype(String profile, String value,
-                              com.legend.model.SourceInfo profileSourceInformation,
-                              com.legend.model.SourceInfo sourceInformation) {
+                              com.legend.protocol.SourceInfo profileSourceInformation,
+                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /**
@@ -149,12 +140,12 @@ public final class Protocol {
      * assumed.
      */
     public record PTag(String profile, String value,
-                       com.legend.model.SourceInfo profileSourceInformation,
-                       com.legend.model.SourceInfo sourceInformation) {
+                       com.legend.protocol.SourceInfo profileSourceInformation,
+                       com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code {"sourceInformation":…,"tag":{…},"value":…}}. */
-    public record PTaggedValue(PTag tag, String value, com.legend.model.SourceInfo sourceInformation) {
+    public record PTaggedValue(PTag tag, String value, com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /**
@@ -164,11 +155,11 @@ public final class Protocol {
      * reason {@link PProperty} does — the parser stays total and the emitter owns what the wire can
      * express.
      */
-    public record PSuperType(com.legend.model.TypeExpression type, com.legend.model.SourceInfo sourceInformation) {
+    public record PSuperType(com.legend.protocol.TypeExpression type, com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"packageableType"}. */
-    public record PPackageableType(String fullPath, com.legend.model.SourceInfo sourceInformation) {
+    public record PPackageableType(String fullPath, com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** Carries no {@code _type} and no source information. */

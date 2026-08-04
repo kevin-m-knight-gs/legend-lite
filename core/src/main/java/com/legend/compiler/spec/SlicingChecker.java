@@ -4,7 +4,7 @@ import com.legend.compiler.spec.typed.TypedDrop;
 import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedSlice;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedFunction;
 
 /**
  * The slicing family (engine {@code SlicingChecker}): {@code limit}/{@code take}
@@ -23,7 +23,7 @@ final class SlicingChecker {
         // engine's optional-limit spelling is the identity, no LIMIT emitted
         if (af.parameters().size() == 2
                 && af.parameters().get(1)
-                        instanceof com.legend.model.spec.PureCollection pc
+                        instanceof com.legend.protocol.spec.PureCollection pc
                 && pc.values().isEmpty()) {
             return t.synth(af.parameters().get(0), env);
         }

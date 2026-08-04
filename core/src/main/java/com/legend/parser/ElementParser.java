@@ -1,7 +1,7 @@
 package com.legend.parser;
 
-import com.legend.model.Multiplicity;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.ParsedModel;
 import com.legend.model.ImportScope;
 
@@ -14,9 +14,9 @@ import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ClassDefinition;
-import com.legend.model.ClassDefinition.ConstraintDefinition;
-import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.protocol.ConstraintDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
+import com.legend.protocol.ParameterDefinition;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
 import com.legend.model.DatabaseDefinition;
@@ -29,10 +29,10 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 import com.legend.model.MappingInclude;
 import com.legend.model.PropertyMapping;
-import com.legend.model.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.model.JsonModelConnection;
 import com.legend.model.PackageableElement;
 import com.legend.model.ComparisonOp;
@@ -46,7 +46,7 @@ import com.legend.model.RuntimeDefinition;
 import com.legend.model.ServiceDefinition;
 import com.legend.model.StereotypeApplication;
 import com.legend.model.TaggedValue;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -316,12 +316,12 @@ public final class ElementParser implements TokenStreamCursor {
     private PackageableElement parseSingleElement() {
         TokenType t = peek();
         return switch (t) {
-            case CLASS -> com.legend.protocol.ProtocolToModel.toClassDefinition(
+            case CLASS -> com.legend.model.FromProtocol.toClassDefinition(
                     parseClassDefinition(false));
             case NATIVE -> {
                 advance(); // consume 'native'
                 yield switch (peek()) {
-                    case CLASS -> com.legend.protocol.ProtocolToModel.toClassDefinition(
+                    case CLASS -> com.legend.model.FromProtocol.toClassDefinition(
                             parseClassDefinition(true));
                     case FUNCTION -> parseNativeFunction();
                     default -> throw error("expected 'Class' or 'function' after 'native', got "
@@ -714,17 +714,17 @@ public final class ElementParser implements TokenStreamCursor {
      * {@code Error} / {@code Warn} spellings arrive as refs or enum-style
      * accesses; the projection wants the simple name. */
     private static @com.legend.Nullable String enforcementLevelName(ValueSpecification lv) {
-        if (lv instanceof com.legend.model.spec.PackageableElementPtr p) {
+        if (lv instanceof com.legend.protocol.spec.PackageableElementPtr p) {
             String f = p.fullPath();
             return f.contains("::") ? f.substring(f.lastIndexOf("::") + 2) : f;
         }
-        if (lv instanceof com.legend.model.spec.CString cs) {
+        if (lv instanceof com.legend.protocol.spec.CString cs) {
             return cs.value();
         }
-        if (lv instanceof com.legend.model.spec.AppliedProperty ap) {
+        if (lv instanceof com.legend.protocol.spec.AppliedProperty ap) {
             return ap.property();
         }
-        if (lv instanceof com.legend.model.spec.Variable v) {
+        if (lv instanceof com.legend.protocol.spec.Variable v) {
             return v.name();
         }
         return null;
@@ -780,7 +780,7 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_OPEN);
 
         List<AssociationEndDefinition> ends = new ArrayList<>();
-        List<ClassDefinition.DerivedPropertyDefinition> derived = new ArrayList<>();
+        List<DerivedPropertyDefinition> derived = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
             // real pure allows QUALIFIED properties in associations — they
             // are alternate accessors of one end, owned by the OPPOSITE
@@ -935,8 +935,8 @@ public final class ElementParser implements TokenStreamCursor {
         // It converts back when function emission lands.
         return new FunctionSignature(qualifiedName, List.copyOf(typeParams),
                 List.copyOf(multParams), params, returnType, returnMult,
-                com.legend.protocol.ProtocolToModel.stereotypes(stereotypes),
-                com.legend.protocol.ProtocolToModel.taggedValues(taggedValues));
+                com.legend.model.FromProtocol.stereotypes(stereotypes),
+                com.legend.model.FromProtocol.taggedValues(taggedValues));
     }
 
     private FunctionDefinition parseFunctionDefinition() {
@@ -1554,9 +1554,9 @@ public final class ElementParser implements TokenStreamCursor {
                 span(startTok, pos - 1), span(typeStartTok, typeEndTok), hasDefaultValue);
     }
 
-    /** A {@link com.legend.model.SourceInfo} for an inclusive token range. */
-    private com.legend.model.SourceInfo span(int fromTok, int toTok) {
-        return new com.legend.model.SourceInfo("",
+    /** A {@link com.legend.protocol.SourceInfo} for an inclusive token range. */
+    private com.legend.protocol.SourceInfo span(int fromTok, int toTok) {
+        return new com.legend.protocol.SourceInfo("",
                 tokens.startLine(fromTok), tokens.startColumn(fromTok),
                 tokens.endLine(toTok), tokens.endColumn(toTok));
     }

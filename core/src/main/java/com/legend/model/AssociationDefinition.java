@@ -1,8 +1,10 @@
 package com.legend.model;
 
-import com.legend.model.TypeExpression;
+import com.legend.protocol.DerivedPropertyDefinition;
 
-import com.legend.model.Multiplicity;
+import com.legend.protocol.TypeExpression;
+
+import com.legend.protocol.Multiplicity;
 
 import java.util.List;
 import java.util.Objects;
@@ -32,7 +34,7 @@ public record AssociationDefinition(
         String qualifiedName,
         AssociationEndDefinition property1,
         AssociationEndDefinition property2,
-        List<ClassDefinition.DerivedPropertyDefinition> derivedProperties)
+        List<DerivedPropertyDefinition> derivedProperties)
         implements PackageableElement {
 
     public AssociationDefinition {

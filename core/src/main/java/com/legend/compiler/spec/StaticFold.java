@@ -4,18 +4,18 @@
 package com.legend.compiler.spec;
 
 import com.legend.compiler.element.type.Type;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -141,7 +141,7 @@ final class StaticFold {
             }
         }
         // if over a static condition: fold the taken branch's body
-        if (com.legend.model.spec.AppliedFunction.isIf(af) && ps.size() == 3
+        if (com.legend.protocol.spec.AppliedFunction.isIf(af) && ps.size() == 3
                 && eval(ps.get(0), scope) instanceof Boolean cond
                 && ps.get(1) instanceof LambdaFunction thenL
                 && ps.get(2) instanceof LambdaFunction elseL) {
@@ -160,7 +160,7 @@ final class StaticFold {
         return switch (v) {
             case CString s -> s.value();
             case CInteger i -> i.value().longValue();
-            case com.legend.model.spec.CFloat f -> f.value();
+            case com.legend.protocol.spec.CFloat f -> f.value();
             case CBoolean b -> b.value();
             case Variable var -> scope.get(var.name());
             case PureCollection pc -> {
@@ -522,7 +522,7 @@ final class StaticFold {
         return switch (v) {
             case String s -> new CString(s);
             case Long l -> new CInteger(l);
-            case Double d -> new com.legend.model.spec.CFloat(d);
+            case Double d -> new com.legend.protocol.spec.CFloat(d);
             case Boolean b -> new CBoolean(b);
             case Pair p -> {
                 ValueSpecification f = reify(p.first());

@@ -673,8 +673,8 @@ public final class PureModelParser {
 
         // Parameters: ( paramDef, ... )
         expect(TokenType.PAREN_OPEN);
-        // DerivedPropertyDefinition uses ClassDefinition.ParameterDefinition, not FunctionDefinition's
-        List<ClassDefinition.ParameterDefinition> params = new ArrayList<>();
+        // DerivedPropertyDefinition uses ParameterDefinition, not FunctionDefinition's
+        List<ParameterDefinition> params = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
             params.add(parseDerivedPropertyParameter());
             while (match(TokenType.COMMA)) {
@@ -709,12 +709,12 @@ public final class PureModelParser {
                 ret.multiplicity().lowerBound(), ret.multiplicity().upperBound());
     }
 
-    private ClassDefinition.ParameterDefinition parseDerivedPropertyParameter() {
+    private ParameterDefinition parseDerivedPropertyParameter() {
         String name = parseIdentifier();
         expect(TokenType.COLON);
         String type = parseType();
         Multiplicity mult = parseMultiplicity();
-        return new ClassDefinition.ParameterDefinition(name, type,
+        return new ParameterDefinition(name, type,
                 mult.lowerBound(), mult.upperBound());
     }
 

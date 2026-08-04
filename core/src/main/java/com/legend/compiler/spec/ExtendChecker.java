@@ -7,10 +7,10 @@ import com.legend.compiler.spec.typed.TypedExtendAgg;
 import com.legend.compiler.spec.typed.TypedExtendWindow;
 import com.legend.compiler.spec.typed.TypedOver;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
 
@@ -83,7 +83,7 @@ final class ExtendChecker {
         // a single BARE col(fn,'name') (corpus testTdsExtension spelling:
         // extend(col(x:TDSRow[1]|..., 'name')) — no wrapping collection)
         // converts the same way; anything else without a collection passes
-        if (!(af.parameters().get(colsIx) instanceof com.legend.model.spec.PureCollection pc)) {
+        if (!(af.parameters().get(colsIx) instanceof com.legend.protocol.spec.PureCollection pc)) {
             ColSpec bare = legacyColToSpec(af.parameters().get(colsIx));
             if (bare == null) {
                 return af;
@@ -116,38 +116,38 @@ final class ExtendChecker {
      * that instance (tds/tdsColumn.pure); null when the shape is anything
      * else. */
     private static @com.legend.Nullable ColSpec legacyColToSpec(ValueSpecification v) {
-        com.legend.model.spec.LambdaFunction fn;
-        com.legend.model.spec.CString nm;
+        com.legend.protocol.spec.LambdaFunction fn;
+        com.legend.protocol.spec.CString nm;
         if (v instanceof AppliedFunction nw && nw.function().equals("new")
                 && nw.parameters().size() >= 2
                 && nw.parameters().get(0)
-                        instanceof com.legend.model.spec.PackageableElementPtr pep
+                        instanceof com.legend.protocol.spec.PackageableElementPtr pep
                 && (pep.fullPath().equals("BasicColumnSpecification")
                         || pep.fullPath().equals(
                                 "meta::pure::tds::BasicColumnSpecification"))
                 && nw.parameters().get(1)
-                        instanceof com.legend.model.spec.NewInstance ni
+                        instanceof com.legend.protocol.spec.NewInstance ni
                 && ni.properties().get("func") != null
                 && ni.properties().get("name") != null
                 && ni.properties().get("func").value()
-                        instanceof com.legend.model.spec.LambdaFunction bf
+                        instanceof com.legend.protocol.spec.LambdaFunction bf
                 && ni.properties().get("name").value()
-                        instanceof com.legend.model.spec.CString bn) {
+                        instanceof com.legend.protocol.spec.CString bn) {
             fn = bf;
             nm = bn;
         } else if (v instanceof AppliedFunction cf && cf.function().equals("col")
                 && cf.parameters().size() == 2
-                && cf.parameters().get(0) instanceof com.legend.model.spec.LambdaFunction cfn
-                && cf.parameters().get(1) instanceof com.legend.model.spec.CString cnm) {
+                && cf.parameters().get(0) instanceof com.legend.protocol.spec.LambdaFunction cfn
+                && cf.parameters().get(1) instanceof com.legend.protocol.spec.CString cnm) {
             fn = cfn;
             nm = cnm;
         } else {
             return null;
         }
-        java.util.List<com.legend.model.spec.Variable> params = fn.parameters().stream()
-                .map(pv -> new com.legend.model.spec.Variable(pv.name())).toList();
+        java.util.List<com.legend.protocol.spec.Variable> params = fn.parameters().stream()
+                .map(pv -> new com.legend.protocol.spec.Variable(pv.name())).toList();
         return new ColSpec(nm.value(),
-                new com.legend.model.spec.LambdaFunction(params, fn.body()), null);
+                new com.legend.protocol.spec.LambdaFunction(params, fn.body()), null);
     }
 
     private static boolean isAgg(TypedSpec arg) {

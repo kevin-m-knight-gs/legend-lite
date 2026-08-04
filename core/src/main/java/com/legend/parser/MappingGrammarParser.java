@@ -2,8 +2,8 @@
 
 package com.legend.parser;
 
-import com.legend.model.Multiplicity;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
@@ -14,9 +14,9 @@ import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ClassDefinition;
-import com.legend.model.ClassDefinition.ConstraintDefinition;
-import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
-import com.legend.model.ClassDefinition.ParameterDefinition;
+import com.legend.protocol.ConstraintDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
+import com.legend.protocol.ParameterDefinition;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
 import com.legend.model.DatabaseDefinition;
@@ -29,10 +29,10 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 import com.legend.model.MappingInclude;
 import com.legend.model.PropertyMapping;
-import com.legend.model.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.model.JsonModelConnection;
 import com.legend.model.PackageableElement;
 import com.legend.model.ComparisonOp;
@@ -46,7 +46,7 @@ import com.legend.model.RuntimeDefinition;
 import com.legend.model.ServiceDefinition;
 import com.legend.model.StereotypeApplication;
 import com.legend.model.TaggedValue;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ValueSpecification;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -419,7 +419,7 @@ final class MappingGrammarParser {
                     }
                     p.advance();
                 }
-                List<com.legend.model.spec.ValueSpecification> exprs =
+                List<com.legend.protocol.spec.ValueSpecification> exprs =
                         SpecParser.parseCodeBlock(p.tokens.slice(exprStart, p.pos));
                 if (exprs.size() != 1) {
                     throw p.error("XStore property '" + prop + "' must be a single"
@@ -471,10 +471,10 @@ final class MappingGrammarParser {
             p.expect(TokenType.BRACE_OPEN);
             int lamStart = p.pos;
             skipBalancedBlock();    // the {params | cond} lambda block
-            List<com.legend.model.spec.ValueSpecification> lam =
+            List<com.legend.protocol.spec.ValueSpecification> lam =
                     SpecParser.parseCodeBlock(p.tokens.slice(lamStart, p.pos));
             if (lam.size() != 1
-                    || !(lam.get(0) instanceof com.legend.model.spec.LambdaFunction lf)) {
+                    || !(lam.get(0) instanceof com.legend.protocol.spec.LambdaFunction lf)) {
                 throw p.error("ModelJoin body for '" + elementPath
                         + "' must be a single typed lambda");
             }

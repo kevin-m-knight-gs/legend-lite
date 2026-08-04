@@ -9,7 +9,7 @@ import com.legend.compiler.spec.typed.TypedOver;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortInfo;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedFunction;
 
 import java.util.ArrayList;
 import java.util.List;

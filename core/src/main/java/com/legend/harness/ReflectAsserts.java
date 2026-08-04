@@ -6,16 +6,16 @@ package com.legend.harness;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;
 import com.legend.model.ImportScope;
-import com.legend.model.Multiplicity;
-import com.legend.model.TypeExpression;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CInteger;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 /**
  * M3-REFLECTION asserts over LAMBDA LITERALS host-evaluated: the
@@ -145,7 +145,7 @@ final class ReflectAsserts {
                     return null;
                 }
                 if (f.parameters().get(1)
-                        instanceof com.legend.model.spec.TypeAnnotation.Named tn
+                        instanceof com.legend.protocol.spec.TypeAnnotation.Named tn
                         && tn.type() instanceof TypeExpression.NameRef nr) {
                     String nm = nr.name();
                     String simple = nm.substring(nm.lastIndexOf("::") + 2);

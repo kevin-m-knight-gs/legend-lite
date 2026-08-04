@@ -2,7 +2,7 @@ package com.legend.compiler;
 
 import com.legend.model.ImportScope;
 import com.legend.model.ParsedModel;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;
 import com.legend.model.AssociationMapping;
@@ -606,7 +606,7 @@ public final class ModelBuilder {
             }
             findClass(cls).ifPresent(cd -> {
                 for (var sup : cd.superClasses()) {
-                    if (sup instanceof com.legend.model.TypeExpression.NameRef nr) {
+                    if (sup instanceof com.legend.protocol.TypeExpression.NameRef nr) {
                         level.add(nr.name());
                     }
                 }

@@ -9,14 +9,14 @@ import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.ClassMapping;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.TypeExpression;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -123,7 +123,7 @@ final class ModelJoinNesting {
                     nmj.associationName(), md, Map.of());
             ValueSpecification composite = new AppliedFunction("join", List.of(
                     var.equals(aVar) ? pipeA : pipeB,
-                    new com.legend.model.spec.ColSpec(prop,
+                    new com.legend.protocol.spec.ColSpec(prop,
                             new LambdaFunction(List.of(),
                                     List.of(nEnd.pipeline())),
                             null),

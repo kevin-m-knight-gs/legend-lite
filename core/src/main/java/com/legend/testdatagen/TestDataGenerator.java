@@ -9,7 +9,7 @@ import com.legend.lineage.ScanRelations;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalDataType;
 import com.legend.model.RelationalOperation;
-import com.legend.model.spec.LambdaFunction;
+import com.legend.protocol.spec.LambdaFunction;
 
 import java.sql.Connection;
 import java.sql.ResultSet;

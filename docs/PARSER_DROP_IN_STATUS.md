@@ -72,37 +72,36 @@ The protocol is a **serialization contract, not a design constraint**.
 `ProtocolEmitter`'s dispatch has no `default` arm, so adding a protocol variant without an emit rule
 is a **compile error** — the same discipline invariant 3 imposes on MIR → dialect.
 
-### 2.3 The correction still outstanding — DO THIS FIRST
+### 2.3 The correction — DONE 2026-08-04
 
-**The code does not yet match §2.1.** `com.legend.protocol` currently reaches into
-`com.legend.model` for `TypeExpression`, `Multiplicity`, and (worst) two records nested inside
-`ClassDefinition`. That was a shortcut: I wanted the parser to stay total and borrowed model's AST
-rather than giving protocol its own types.
+**Landed, by MOVE rather than duplication.** `com.legend.protocol` reached into
+`com.legend.model` for `TypeExpression`, `Multiplicity`, and two records nested inside
+`ClassDefinition`. Instead of giving protocol duplicate types and transforming, the shared
+syntax vocabulary was recognized as what it is — **parse products** — and moved INTO protocol:
 
-It is wrong, and it was justified at the time with a "shared syntax vocabulary" argument that does
-not survive scrutiny — the wire's `genericType` is fully self-describing
-(`{"multiplicityArguments":[],"rawType":{"_type":"packageableType","fullPath":…},"typeArguments":[…],"typeVariableValues":[]}`),
-so protocol needs nothing from model.
+- `TypeExpression`, `Multiplicity`, `SourceInfo`, `Realization` → `com.legend.protocol`
+- the whole untyped value-spec AST `com.legend.model.spec.*` → `com.legend.protocol.spec.*`
+  (this **resolves §4.1.1's one-family question**: the value-spec family IS the protocol now;
+  the `CInteger`/`CString` position work is on the right side of the boundary after all)
+- `ClassDefinition.{ParameterDefinition, DerivedPropertyDefinition, ConstraintDefinition}` →
+  top-level `com.legend.protocol` records (they are syntax; `PropertyDefinition` stays nested
+  in the model element, which remains a separate family — the FQN-key discipline)
+- `ProtocolToModel` → `com.legend.model.FromProtocol`
 
-**The refactor:**
+**Elements remain two families + transform** (`FromProtocol`), for the documented reason:
+model keys by single `qualifiedName` (NAME_RESOLUTION_BUG.md defense); the wire's
+`package`/`name` split happens only on emission.
 
-1. Give `protocol` its own `PGenericType` / `PMultiplicity` / value-spec hierarchy, rich enough to
-   hold everything the parser produces.
-2. `parseType()` and friends return protocol types; `parser` stops importing `com.legend.model`.
-3. Move `ProtocolToModel` → `com.legend.model.FromProtocol`.
-4. **Amend ArchUnit invariant 6j.** It currently says *"`com.legend.model` depends only on
-   values/error and the JDK."* Under the correct layering `model → protocol`, so protocol becomes
-   the new bottom. This is a deliberate change; make the invariant say so.
+**Enforced by ArchUnit invariant 7** (`ArchitectureTest`), all allowlists:
+- **7a** — `lexer` depends on the JDK, full stop.
+- **7b** — `protocol` depends only on `values` + JDK. No model, no parser, no lexer.
+- **7c** — `parser` depends only on `lexer + protocol + model + values + error` — with
+  `model..` marked shrinking: it dies when the last element kind emits protocol records.
+- **6j amended** — `model → protocol` is the sanctioned direction; `6c'` strengthened —
+  the resolver sees no parse product at all.
 
-**Scale**, measured across the 7 files in `parser/`: `ValueSpecification` ×106, `TypeExpression`
-×59, `Multiplicity` ×27, `ClassDefinition` ×14, `PackageableElement` ×12.
-
-> **Consequence for `PARSER_DROP_IN_PLAN.md` §4.1.1.** That section concluded value specs should be
-> *one family* (positions added to `com.legend.model.spec` with `equals` overridden to exclude
-> them). **Under §2.1 that inverts**: value specs become protocol types, and `com.legend.model.spec`
-> becomes something `FromProtocol` produces. The `CInteger`/`CString` position work in commit
-> `2bf56cd3` solved a problem that should not exist — the *mechanism* is proven (218
-> `SpecParserTest` tests passed unchanged), but it is on the wrong side of the boundary.
+The extractable drop-in artifact is therefore `{lexer, parser, protocol, values, error}`,
+where `values`/`error` are themselves JDK-only leaves (6g).
 
 ---
 
@@ -114,9 +113,9 @@ so protocol needs nothing from model.
 |---|---|
 | `com.legend.protocol.Protocol` | sealed, immutable protocol records |
 | `com.legend.protocol.ProtocolEmitter` | byte-exact emitter, no `default` arm, walls loudly |
-| `com.legend.protocol.ProtocolToModel` | adapter (**to be moved** — §2.3) |
+| `com.legend.protocol.{TypeExpression, Multiplicity, SourceInfo, Realization, spec.*}` | the parse vocabulary, moved to the bottom (§2.3) |
+| `com.legend.model.FromProtocol` | protocol → model adapter, on the model side |
 | `com.legend.lexer.TokenStream` | lazily-built line index, binary search |
-| `com.legend.model.SourceInfo` | the span type |
 | `parser-equivalence/` | **the differential harness** |
 
 ### 3.1 Current numbers
@@ -172,8 +171,8 @@ Compares **emitted bytes**, per element, against the live upstream parser.
 
 ### 4.1 Immediate
 
-1. **The §2.3 refactor.** Protocol standalone. Everything else is easier afterwards and harder
-   before.
+1. ~~**The §2.3 refactor.**~~ **DONE 2026-08-04** — protocol standalone, ArchUnit invariant 7
+   enforces it (7a lexer=JDK-only, 7b protocol=values+JDK, 7c parser surface pinned).
 2. **The ValueSpecification emitter** — 270 of the 359 remaining walls, and the foundation for
    everything after `Class`. Wire shapes already captured:
    - `lambda` `{"_type":"lambda","body":[…],"parameters":[…]}` — no `sourceInformation` on the lambda itself

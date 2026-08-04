@@ -3,7 +3,7 @@
 package com.legend.normalizer;
 
 import com.legend.model.JoinChainElement;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ValueSpecification;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;

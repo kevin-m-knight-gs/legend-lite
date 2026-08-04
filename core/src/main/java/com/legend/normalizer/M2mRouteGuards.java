@@ -9,7 +9,7 @@ import com.legend.error.ModelException;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ClassMapping;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -97,7 +97,7 @@ final class M2mRouteGuards {
                     .filter(cm -> setIdMatches(cm, tgtSet))
                     .findFirst().orElse(null);
             if (routed != null && (sets.size() == 1 || routed.root()
-                    || pb.expression() instanceof com.legend.model.spec.Variable)) {
+                    || pb.expression() instanceof com.legend.protocol.spec.Variable)) {
                 // honored routes: the sole set, the root, or the
                 // WHOLE-SOURCE identity binding ($src) — its cast carries
                 // targetSetId (route A edit 3) and the graph consumer
@@ -140,7 +140,7 @@ final class M2mRouteGuards {
      * binding column. A local COLLIDING with a declared property stays
      * the designed poison (audit 21a: the name-keyed binding table
      * cannot hold both, and silent retargeting was the original bug). */
-    static com.legend.model.spec.KeyExpression localField(
+    static com.legend.protocol.spec.KeyExpression localField(
             com.legend.model.ClassMapping.Pure.PropertyBinding pb,
             com.legend.model.@com.legend.Nullable ClassDefinition tgt,
             com.legend.model.LegacyMappingDefinition md,
@@ -154,7 +154,7 @@ final class M2mRouteGuards {
                   + " and the shared binding table cannot hold both;"
                   + " mapping=" + md.qualifiedName());
         }
-        return new com.legend.model.spec.KeyExpression(
+        return new com.legend.protocol.spec.KeyExpression(
                 pb.expression(), false, true);
     }
 }

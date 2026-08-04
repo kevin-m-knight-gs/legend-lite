@@ -20,7 +20,7 @@
  *
  * <h2>Records</h2>
  * Parsed records live in {@link com.legend.model} (declarations)
- * and {@code com.legend.model.spec} (value specifications). Class names
+ * and {@code com.legend.protocol.spec} (value specifications). Class names
  * mirror engine's {@code com.gs.legend.model.def} / {@code com.gs.legend.ast}
  * verbatim for parity testing.
  *

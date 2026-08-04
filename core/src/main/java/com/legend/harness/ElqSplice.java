@@ -3,14 +3,14 @@
 
 package com.legend.harness;
 
-import com.legend.model.TypeExpression;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.CDate;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CDate;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import com.legend.values.PureDateLiteral;
 
 import java.util.ArrayList;
@@ -112,7 +112,7 @@ final class ElqSplice {
      * that still sees the variable spelling (TestBody.substitute's
      * ColSpecArray arm). Null-alias pass-through otherwise. */
     static @com.legend.Nullable String keyAlias(
-            com.legend.model.spec.ColSpec cs,
+            com.legend.protocol.spec.ColSpec cs,
             Map<String, ValueSpecification> lets) {
         if (cs.alias() != null || cs.args().isEmpty()
                 || cs.args().stream().noneMatch(a -> a instanceof Variable v
@@ -128,8 +128,8 @@ final class ElqSplice {
             switch (cs.args().get(i)) {
                 case Variable v -> k.append('$').append(v.name());
                 case CString s -> k.append('\'').append(s.value()).append('\'');
-                case com.legend.model.spec.CInteger ci -> k.append(ci.value());
-                case com.legend.model.spec.CBoolean cb -> k.append(cb.value());
+                case com.legend.protocol.spec.CInteger ci -> k.append(ci.value());
+                case com.legend.protocol.spec.CBoolean cb -> k.append(cb.value());
                 case CDate cd -> {
                     String d = cd.value().toEngineString();
                     k.append(d).append(d.indexOf('T') >= 0 ? "+0000" : "");
@@ -204,7 +204,7 @@ final class ElqSplice {
                     "Decimal", "Any" -> val;
             // a non-primitive named type over a string value is the
             // engine's enum-name binding
-            default -> new com.legend.model.spec.EnumValue(
+            default -> new com.legend.protocol.spec.EnumValue(
                     ref.name(), cs.value());
         };
     }

@@ -9,14 +9,14 @@ import com.legend.compiler.spec.typed.TypedJoin;
 import com.legend.compiler.spec.typed.TypedJoinSlot;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.EnumValue;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.List;
 
@@ -313,7 +313,7 @@ final class JoinChecker {
         if (v instanceof CString c) {
             return List.of(c.value());
         }
-        if (v instanceof com.legend.model.spec.PureCollection pc
+        if (v instanceof com.legend.protocol.spec.PureCollection pc
                 && !pc.values().isEmpty()
                 && pc.values().stream().allMatch(x -> x instanceof CString)) {
             return pc.values().stream().map(x -> ((CString) x).value()).toList();

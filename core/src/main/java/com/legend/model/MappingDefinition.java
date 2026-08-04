@@ -1,6 +1,8 @@
 package com.legend.model;
 
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.Realization;
+
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
 import java.util.Objects;

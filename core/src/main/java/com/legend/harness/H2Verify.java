@@ -441,9 +441,9 @@ public final class H2Verify {
      * counted decline for them (never a guessed decode). */
     static java.util.Map<Integer, java.util.Map<String, String>> enumDecodeFor(
             com.legend.exec.@com.legend.Nullable ExecutionResult result,
-            com.legend.model.spec.@com.legend.Nullable ValueSpecification actual,
-            java.util.Map<String, com.legend.model.spec.ValueSpecification> lets,
-            List<com.legend.model.spec.ValueSpecification> execStmts,
+            com.legend.protocol.spec.@com.legend.Nullable ValueSpecification actual,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets,
+            List<com.legend.protocol.spec.ValueSpecification> execStmts,
             com.legend.compiler.element.ModelContext ctx,
             com.legend.model.ImportScope imports) {
         if (!(result instanceof ExecutionResult.Tabular tab)) {
@@ -457,7 +457,7 @@ public final class H2Verify {
         var exec = ExecCallFinder.find(actual, lets, execStmts);
         String mappingRef = exec != null && exec.parameters().size() >= 2
                 && exec.parameters().get(1) instanceof
-                        com.legend.model.spec.PackageableElementPtr p
+                        com.legend.protocol.spec.PackageableElementPtr p
                 ? p.fullPath() : null;
         if (mappingRef == null) {
             return java.util.Map.of();

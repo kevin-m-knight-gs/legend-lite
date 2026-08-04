@@ -3,17 +3,17 @@ package com.legend.builtin;
 import com.legend.model.ClassDefinition;
 import com.legend.model.EnumDefinition;
 import com.legend.model.FunctionDefinition.ParameterDefinition;
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 import com.legend.model.NativeFunctionDefinition;
-import com.legend.model.TypeExpression;
-import com.legend.model.TypeExpression.Column;
-import com.legend.model.TypeExpression.FunctionType;
-import com.legend.model.TypeExpression.Generic;
-import com.legend.model.TypeExpression.NameRef;
-import com.legend.model.TypeExpression.Op;
-import com.legend.model.TypeExpression.RelationType;
-import com.legend.model.TypeExpression.SchemaAlgebra;
-import com.legend.model.TypeExpression.TypedParameter;
+import com.legend.protocol.TypeExpression;
+import com.legend.protocol.TypeExpression.Column;
+import com.legend.protocol.TypeExpression.FunctionType;
+import com.legend.protocol.TypeExpression.Generic;
+import com.legend.protocol.TypeExpression.NameRef;
+import com.legend.protocol.TypeExpression.Op;
+import com.legend.protocol.TypeExpression.RelationType;
+import com.legend.protocol.TypeExpression.SchemaAlgebra;
+import com.legend.protocol.TypeExpression.TypedParameter;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -87,20 +87,20 @@ class NativeFunctionTest {
                 .append(d.returnMultiplicity()).toString();
     }
 
-    private static String renderType(com.legend.model.TypeExpression t) {
+    private static String renderType(com.legend.protocol.TypeExpression t) {
         return switch (t) {
-            case com.legend.model.TypeExpression.NameRef n -> n.name();
-            case com.legend.model.TypeExpression.Generic g -> g.name() + "<"
+            case com.legend.protocol.TypeExpression.NameRef n -> n.name();
+            case com.legend.protocol.TypeExpression.Generic g -> g.name() + "<"
                     + String.join(",", g.arguments().stream()
                             .map(NativeFunctionTest::renderType).toList()) + ">";
-            case com.legend.model.TypeExpression.FunctionType f -> "{"
+            case com.legend.protocol.TypeExpression.FunctionType f -> "{"
                     + String.join(",", f.parameters().stream()
                             .map(pp -> renderType(pp.type()) + pp.multiplicity()).toList())
                     + "->" + renderType(f.result().type()) + f.result().multiplicity() + "}";
-            case com.legend.model.TypeExpression.RelationType r -> "("
+            case com.legend.protocol.TypeExpression.RelationType r -> "("
                     + String.join(",", r.columns().stream()
                             .map(c -> c.name() + ":" + renderType(c.type())).toList()) + ")";
-            case com.legend.model.TypeExpression.SchemaAlgebra a ->
+            case com.legend.protocol.TypeExpression.SchemaAlgebra a ->
                     renderType(a.left()) + a.op() + renderType(a.right());
         };
     }

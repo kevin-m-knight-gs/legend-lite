@@ -4,7 +4,7 @@ import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.ClassDefinition;
 import com.legend.model.EnumDefinition;
 
@@ -135,7 +135,7 @@ final class TypeClassifier {
         };
     }
 
-    static Multiplicity multiplicity(com.legend.model.Multiplicity m) {
+    static Multiplicity multiplicity(com.legend.protocol.Multiplicity m) {
         return Multiplicity.from(m);
     }
 

@@ -7,18 +7,18 @@ import com.legend.Compiler;
 
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
-import com.legend.model.spec.KeyExpression;
+import com.legend.protocol.spec.KeyExpression;
 import com.legend.model.ImportScope;
 import com.legend.parser.SpecParser;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.sql.Connection;
 import java.util.ArrayList;
@@ -628,7 +628,7 @@ public final class TestBody {
         while (v instanceof AppliedFunction f && f.function().equals("if")
                 && f.parameters().size() == 3
                 && f.parameters().get(0)
-                        instanceof com.legend.model.spec.CBoolean b
+                        instanceof com.legend.protocol.spec.CBoolean b
                 && f.parameters().get(1) instanceof LambdaFunction t
                 && t.parameters().isEmpty() && t.body().size() == 1
                 && f.parameters().get(2) instanceof LambdaFunction e
@@ -641,9 +641,9 @@ public final class TestBody {
     /** Strip JSON canonicalization wrappers (parseJSON / toPrettyJSONString)
      * from an assertJsonStringsEqual argument — the assert parses and
      * deep-compares both sides itself, so the wrappers are identity. */
-    private static com.legend.model.spec.@com.legend.Nullable ValueSpecification stripJsonCanon(
-            com.legend.model.spec.ValueSpecification v) {
-        while (v instanceof com.legend.model.spec.AppliedFunction af
+    private static com.legend.protocol.spec.@com.legend.Nullable ValueSpecification stripJsonCanon(
+            com.legend.protocol.spec.ValueSpecification v) {
+        while (v instanceof com.legend.protocol.spec.AppliedFunction af
                 && af.parameters().size() == 1
                 && (af.function().equals("parseJSON")
                         || af.function().equals("toPrettyJSONString")
@@ -803,7 +803,7 @@ public final class TestBody {
                 cur = af.parameters().get(0);
             } else if (n.equals("at") && af.parameters().size() == 2
                     && af.parameters().get(1)
-                            instanceof com.legend.model.spec.CInteger ci) {
+                            instanceof com.legend.protocol.spec.CInteger ci) {
                 idx = ci.value().longValue();
                 cur = af.parameters().get(0);
             } else {
@@ -914,7 +914,7 @@ public final class TestBody {
                 com.legend.exec.ExecutionResult.Scalar sc9
                 ? sc9.value() : null;
         String tn9 = args.get(1) instanceof
-                com.legend.model.spec.PackageableElementPtr pep9
+                com.legend.protocol.spec.PackageableElementPtr pep9
                 ? pep9.fullPath().substring(
                         pep9.fullPath().lastIndexOf(':') + 1)
                 : null;
@@ -1090,7 +1090,7 @@ public final class TestBody {
                 && simpleName(c.function()).equals("pkOfFunc") ? c : null;
         if (pk == null || pk.parameters().size() != 1
                 || !(pk.parameters().get(0)
-                        instanceof com.legend.model.spec
+                        instanceof com.legend.protocol.spec
                                 .PackageableElementPtr ptr)) {
             return NOT_TDG_MARKER;
         }
@@ -1499,7 +1499,7 @@ public final class TestBody {
                 if (r == null || bound == null || expected == null
                         || !"dataCsvString".equals(r.kind())
                         || !(substitute(args.get(2), lets)
-                                instanceof com.legend.model.spec
+                                instanceof com.legend.protocol.spec
                                         .PackageableElementPtr dbp)) {
                     return UNSUPPORTED_MARKER;
                 }
@@ -1632,7 +1632,7 @@ public final class TestBody {
             long got = java.util.Objects.requireNonNull(
                     java.util.Objects.requireNonNull(tdg.get(v.name())).tables()).size();
             if (!(args.get(0)
-                    instanceof com.legend.model.spec.CInteger ci)) {
+                    instanceof com.legend.protocol.spec.CInteger ci)) {
                 return NOT_TDG_MARKER;
             }
             return ci.value().longValue() == got ? null
@@ -2180,10 +2180,10 @@ public final class TestBody {
             // loose property match must never unroll it (the
             // testComplexOrExistsToManyProperty misfire)
             if (!evs.isEmpty() && evs.stream().allMatch(
-                    x -> x instanceof com.legend.model.spec.EnumValue
+                    x -> x instanceof com.legend.protocol.spec.EnumValue
                             || (x instanceof AppliedProperty ap0
                                 && ap0.receiver() instanceof com.legend
-                                    .model.spec.PackageableElementPtr))) {
+                                    .protocol.spec.PackageableElementPtr))) {
                 List<ValueSpecification> unrolled = new ArrayList<>();
                 for (ValueSpecification ev : evs) {
                     for (ValueSpecification b : dl.body()) {
@@ -2267,7 +2267,7 @@ public final class TestBody {
     /** The trailing member name of an enum-shaped read ({@code DatabaseType.H2}
      * as an EnumValue or a property read); null when neither shape. */
     private static @com.legend.Nullable String enumTail(ValueSpecification v) {
-        if (v instanceof com.legend.model.spec.EnumValue ev) {
+        if (v instanceof com.legend.protocol.spec.EnumValue ev) {
             return ev.value();
         }
         if (v instanceof AppliedProperty ap) {
@@ -3427,10 +3427,10 @@ public final class TestBody {
             // calls in fetch trees: authors($businessDate) { ... } — the
             // tree rides its own let and the date var must inline like
             // any other read)
-            case com.legend.model.spec.ColSpecArray csa ->
-                    new com.legend.model.spec.ColSpecArray(
+            case com.legend.protocol.spec.ColSpecArray csa ->
+                    new com.legend.protocol.spec.ColSpecArray(
                             csa.colSpecs().stream().map(cs2 ->
-                                    new com.legend.model.spec.ColSpec(
+                                    new com.legend.protocol.spec.ColSpec(
                                             cs2.name(),
                                             (LambdaFunction) substitute(
                                                     cs2.function1(), lets),

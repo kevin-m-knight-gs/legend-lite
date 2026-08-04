@@ -8,9 +8,9 @@ import com.legend.model.ClassDefinition;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PackageableElement;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.Variable;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

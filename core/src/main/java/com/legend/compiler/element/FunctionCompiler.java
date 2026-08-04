@@ -2,7 +2,7 @@ package com.legend.compiler.element;
 
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
@@ -132,7 +132,7 @@ final class FunctionCompiler {
                     classifier.classify(p.type(), typeParams),
                     TypeClassifier.multiplicity(p.multiplicity())));
         }
-        Optional<List<com.legend.model.spec.ValueSpecification>> body = f instanceof FunctionDefinition fd
+        Optional<List<com.legend.protocol.spec.ValueSpecification>> body = f instanceof FunctionDefinition fd
                 ? Optional.of(fd.body())
                 : Optional.empty();
         return new TypedFunction(
@@ -176,14 +176,14 @@ final class FunctionCompiler {
     /** Returns exactly {@code Boolean[1]} (exact — Boolean is a primitive, no subtypes). */
     static boolean returnsBooleanOne(Function f) {
         return named(f.returnType(), Pure.BOOLEAN.qualifiedName())
-                && com.legend.model.Multiplicity.Concrete.PURE_ONE.equals(f.returnMultiplicity());
+                && com.legend.protocol.Multiplicity.Concrete.PURE_ONE.equals(f.returnMultiplicity());
     }
 
     /** Returns some class type with multiplicity {@code [*]} (kind check — which
      *  class is right needs subtyping, deferred to G). */
     boolean returnsClassMany(Function f) {
         return f.returnType() instanceof TypeExpression.NameRef nr && classifier.isClassFqn(nr.name())
-                && com.legend.model.Multiplicity.Concrete.ZERO_MANY.equals(f.returnMultiplicity());
+                && com.legend.protocol.Multiplicity.Concrete.ZERO_MANY.equals(f.returnMultiplicity());
     }
 
     private static boolean named(TypeExpression t, String fqn) {

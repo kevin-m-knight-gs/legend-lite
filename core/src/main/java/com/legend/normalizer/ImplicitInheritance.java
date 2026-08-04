@@ -195,7 +195,7 @@ final class ImplicitInheritance {
             }
             model.findClass(cls).ifPresent(cd -> {
                 for (var sup : cd.superClasses()) {
-                    if (sup instanceof com.legend.model.TypeExpression.NameRef nr) {
+                    if (sup instanceof com.legend.protocol.TypeExpression.NameRef nr) {
                         level.add(nr.name());
                     }
                 }

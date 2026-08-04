@@ -1,10 +1,9 @@
 package com.legend.model;
 
-import com.legend.model.TypeExpression;
-
-import com.legend.model.Multiplicity;
-
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.ConstraintDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
+import com.legend.protocol.Multiplicity;
+import com.legend.protocol.TypeExpression;
 
 import java.util.List;
 import java.util.Objects;
@@ -30,10 +29,11 @@ import java.util.Objects;
  * {@code isNative}. Sub-slices B.2+ will populate
  * {@code derivedProperties} and {@code constraints}.
  *
- * <p>{@link PropertyDefinition}, {@link DerivedPropertyDefinition},
- * {@link ConstraintDefinition}, and {@link ParameterDefinition} are
- * nested for engine parity &mdash; engine has them all inside
- * {@code ClassDefinition.java} as nested records.
+ * <p>{@link PropertyDefinition} stays nested for engine parity.
+ * {@link DerivedPropertyDefinition}, {@link ConstraintDefinition}, and
+ * {@link com.legend.protocol.ParameterDefinition} are parse products and live
+ * in {@code com.legend.protocol} — the parser's output types depend on
+ * nothing above the protocol layer.
  *
  * @param qualifiedName     fully qualified class name (e.g. {@code "model::Person"})
  * @param typeParams        generic type parameter names ({@code <T, U>}); empty list if absent
@@ -103,106 +103,4 @@ public record ClassDefinition(
         }
     }
 
-    /**
-     * A derived (computed) property declaration. Body is parsed eagerly
-     * by {@code ElementParser} into a sequence of {@link ValueSpecification}
-     * statements (the body grammar matches a function body's braced block).
-     *
-     * @param name        property name
-     * @param parameters  parameter list (zero or more)
-     * @param expression  parsed body statements between {@code {...}}; non-null,
-     *                    may be empty for a {@code {}} body
-     * @param type        return type
-     * @param lowerBound  lower multiplicity bound
-     * @param upperBound  upper multiplicity bound ({@code null} = unbounded)
-     */
-    public record DerivedPropertyDefinition(
-            String name,
-            List<ParameterDefinition> parameters,
-            Realization realization,
-            TypeExpression type,
-            Multiplicity multiplicity) {
-        public DerivedPropertyDefinition {
-            Objects.requireNonNull(name, "Derived property name cannot be null");
-            Objects.requireNonNull(type, "Derived property type cannot be null");
-            Objects.requireNonNull(multiplicity, "Derived property multiplicity cannot be null");
-            Objects.requireNonNull(realization, "Derived property realization cannot be null");
-            parameters = parameters == null ? List.of() : List.copyOf(parameters);
-        }
-
-        /** Convenience: the sugar (inline-expression) form. */
-        public DerivedPropertyDefinition(String name, List<ParameterDefinition> parameters,
-                                         List<ValueSpecification> expression,
-                                         TypeExpression type, Multiplicity multiplicity) {
-            this(name, parameters, new Realization.Inline(expression), type, multiplicity);
-        }
-
-        /**
-         * The inline body (sugar form). Valid only when the realization is an
-         * {@link Realization.Inline}; a Door-4 function-ref binding has no inline
-         * body (its realizing function is the bound FQN).
-         */
-        public List<ValueSpecification> expression() {
-            if (realization instanceof Realization.Inline inl) return inl.body();
-            throw new IllegalStateException(
-                    "derived property '" + name + "' is a function-ref binding, not an inline body");
-        }
-    }
-
-    /**
-     * A parameter declaration on a derived property or function.
-     *
-     * @param name         parameter name
-     * @param type         parameter type
-     * @param multiplicity declared multiplicity (concrete or parameter ref)
-     */
-    public record ParameterDefinition(
-            String name,
-            TypeExpression type,
-            Multiplicity multiplicity) {
-        public ParameterDefinition {
-            Objects.requireNonNull(name, "Parameter name cannot be null");
-            Objects.requireNonNull(type, "Parameter type cannot be null");
-            Objects.requireNonNull(multiplicity, "Parameter multiplicity cannot be null");
-        }
-    }
-
-    /**
-     * A class-level constraint (validation rule). The constraint body is
-     * a single Pure expression that must evaluate to a {@code Boolean};
-     * {@code ElementParser} parses it eagerly into a {@link ValueSpecification}.
-     *
-     * @param name       constraint name
-     * @param expression parsed expression AST that must evaluate to true
-     */
-    public record ConstraintDefinition(String name, Realization realization,
-            @com.legend.Nullable ValueSpecification message,
-            @com.legend.Nullable String enforcementLevel) {
-        public ConstraintDefinition {
-            Objects.requireNonNull(name, "Constraint name cannot be null");
-            Objects.requireNonNull(realization, "Constraint realization cannot be null");
-        }
-
-        /** The common form: no ~message / ~enforcementLevel clauses. */
-        public ConstraintDefinition(String name, Realization realization) {
-            this(name, realization, null, null);
-        }
-
-        /** Convenience: the sugar (inline-predicate) form. */
-        public ConstraintDefinition(String name, ValueSpecification expression) {
-            this(name, new Realization.Inline(List.of(expression)), null, null);
-        }
-
-        /**
-         * The inline predicate (sugar form). Valid only when the realization is
-         * an {@link Realization.Inline}; a Door-4 function-ref binding has none.
-         */
-        public ValueSpecification expression() {
-            if (realization instanceof Realization.Inline inl && inl.body().size() == 1) {
-                return inl.body().get(0);
-            }
-            throw new IllegalStateException(
-                    "constraint '" + name + "' is a function-ref binding, not an inline predicate");
-        }
-    }
 }

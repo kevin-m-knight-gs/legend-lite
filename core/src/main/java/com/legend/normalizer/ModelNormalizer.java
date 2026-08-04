@@ -5,23 +5,23 @@ import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
-import com.legend.model.Multiplicity;
+import com.legend.protocol.Multiplicity;
 import com.legend.model.NormalizedModel;
 import com.legend.model.ParsedModel;
-import com.legend.model.TypeExpression;
+import com.legend.protocol.TypeExpression;
 import com.legend.model.AssociationDefinition;
-import com.legend.model.ClassDefinition.ConstraintDefinition;
-import com.legend.model.ClassDefinition.DerivedPropertyDefinition;
+import com.legend.protocol.ConstraintDefinition;
+import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.model.ClassDefinition;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.PackageableElement;
-import com.legend.model.Realization;
+import com.legend.protocol.Realization;
 import com.legend.model.ServiceDefinition;
 import com.legend.model.SynthHat;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PackageableElementPtr;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -144,7 +144,7 @@ public final class ModelNormalizer {
     }
 
     private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {
-        Map<String, List<ClassDefinition.DerivedPropertyDefinition>> adoptions =
+        Map<String, List<DerivedPropertyDefinition>> adoptions =
                 new LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof AssociationDefinition ad)
@@ -153,7 +153,7 @@ public final class ModelNormalizer {
             }
             String t1 = rawName(ad.property1().targetClass());
             String t2 = rawName(ad.property2().targetClass());
-            for (ClassDefinition.DerivedPropertyDefinition dp : ad.derivedProperties()) {
+            for (DerivedPropertyDefinition dp : ad.derivedProperties()) {
                 String ret = rawName(dp.type());
                 // EXACT FQN comparison — this pass runs post-NameResolver, so
                 // end targets and return types are FQNs. Real pure resolves
@@ -191,7 +191,7 @@ public final class ModelNormalizer {
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof ClassDefinition cd
                     && adoptions.containsKey(cd.qualifiedName())) {
-                List<ClassDefinition.DerivedPropertyDefinition> merged =
+                List<DerivedPropertyDefinition> merged =
                         new ArrayList<>(cd.derivedProperties());
                 merged.addAll(adoptions.get(cd.qualifiedName()));
                 out.add(new ClassDefinition(cd.qualifiedName(), cd.typeParams(),

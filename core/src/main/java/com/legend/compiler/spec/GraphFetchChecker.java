@@ -7,10 +7,10 @@ import com.legend.compiler.spec.typed.TypedGraphFetch;
 import com.legend.compiler.spec.typed.TypedGraphTree;
 import com.legend.compiler.spec.typed.TypedSerialize;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,8 +107,8 @@ final class GraphFetchChecker {
             if (cs.name().equals("->subType")) {
                 String subFqn = cs.args().size() == 1
                         && cs.args().get(0)
-                                instanceof com.legend.model.spec.TypeAnnotation.Named tn
-                        && tn.type() instanceof com.legend.model.TypeExpression.NameRef nr
+                                instanceof com.legend.protocol.spec.TypeAnnotation.Named tn
+                        && tn.type() instanceof com.legend.protocol.TypeExpression.NameRef nr
                         ? nr.name() : null;
                 if (subFqn == null || t.model().findClass(subFqn).isEmpty()) {
                     throw new TypeInferenceException(fn + " tree: ->subType"
@@ -192,7 +192,7 @@ final class GraphFetchChecker {
                     // a VARIABLE arg keeps its SOURCE spelling even when
                     // let-inlining resolved its value — the engine key is
                     // "customer($processingDate, $businessDate)" verbatim
-                    ta.add(a instanceof com.legend.model.spec.Variable v
+                    ta.add(a instanceof com.legend.protocol.spec.Variable v
                             && !(syn instanceof com.legend.compiler.spec
                                     .typed.TypedVariable)
                             ? new com.legend.compiler.spec.typed
@@ -258,7 +258,7 @@ final class GraphFetchChecker {
     /** Fold a literal string-concatenation chain ('a' + 'b' + ...) to its
      * value, or null when any operand is not a literal string. */
     private static @com.legend.Nullable String foldStringConcat(ValueSpecification v) {
-        if (v instanceof com.legend.model.spec.CString cs) {
+        if (v instanceof com.legend.protocol.spec.CString cs) {
             return cs.value();
         }
         if (v instanceof AppliedFunction pf
@@ -266,7 +266,7 @@ final class GraphFetchChecker {
                         || pf.function().equals("meta::pure::functions::math::plus"))) {
             StringBuilder sb = new StringBuilder();
             for (ValueSpecification p : pf.parameters()) {
-                if (p instanceof com.legend.model.spec.PureCollection pc) {
+                if (p instanceof com.legend.protocol.spec.PureCollection pc) {
                     for (ValueSpecification e : pc.values()) {
                         String part = foldStringConcat(e);
                         if (part == null) {

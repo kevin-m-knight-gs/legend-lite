@@ -6,15 +6,15 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.AppliedProperty;
-import com.legend.model.spec.CString;
-import com.legend.model.spec.ColSpec;
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.LambdaFunction;
-import com.legend.model.spec.PureCollection;
-import com.legend.model.spec.ValueSpecification;
-import com.legend.model.spec.Variable;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -200,8 +200,8 @@ final class ProjectChecker {
                             || laf.parameters().get(0) instanceof AppliedProperty
                             || laf.parameters().get(0) instanceof AppliedFunction)
                     && laf.parameters().subList(1, laf.parameters().size()).stream()
-                            .allMatch(a -> a instanceof com.legend.model.spec.CDate
-                                    || a instanceof com.legend.model.spec.CLatestDate
+                            .allMatch(a -> a instanceof com.legend.protocol.spec.CDate
+                                    || a instanceof com.legend.protocol.spec.CLatestDate
                                     || a instanceof Variable)) {
                 // the promised catalog-native guard (audit 23 A4 — the
                 // comment claimed it, the code lacked it): a CATALOG

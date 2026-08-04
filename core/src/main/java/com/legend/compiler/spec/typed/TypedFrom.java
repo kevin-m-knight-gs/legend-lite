@@ -90,7 +90,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         // convention)
         if (n instanceof TypedUserCall uc
                 && uc.callee().body().isPresent()) {
-            for (com.legend.model.spec.ValueSpecification b
+            for (com.legend.protocol.spec.ValueSpecification b
                     : uc.callee().body().get()) {
                 String r = rawConnectionNameIn(b);
                 if (r != null) {
@@ -108,8 +108,8 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
     }
 
     private static @com.legend.Nullable String rawConnectionNameIn(
-            com.legend.model.spec.ValueSpecification n) {
-        if (n instanceof com.legend.model.spec.NewInstance ni) {
+            com.legend.protocol.spec.ValueSpecification n) {
+        if (n instanceof com.legend.protocol.spec.NewInstance ni) {
             String cn = ni.className();
             String simple = switch (cn) {
                 case "DatabaseConnection",
@@ -126,30 +126,30 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                 default -> null;
             };
             if (simple != null) {
-                com.legend.model.spec.KeyExpression ke =
+                com.legend.protocol.spec.KeyExpression ke =
                         ni.properties().get("type");
                 String db = ke != null && ke.value()
-                        instanceof com.legend.model.spec.EnumValue ev
+                        instanceof com.legend.protocol.spec.EnumValue ev
                         ? ev.value() : "H2";
                 return simple + "(type = \"" + db + "\")";
             }
         }
-        java.util.List<com.legend.model.spec.ValueSpecification> kids =
+        java.util.List<com.legend.protocol.spec.ValueSpecification> kids =
                 switch (n) {
-                    case com.legend.model.spec.AppliedFunction af ->
+                    case com.legend.protocol.spec.AppliedFunction af ->
                             af.parameters();
-                    case com.legend.model.spec.NewInstance ni2 ->
+                    case com.legend.protocol.spec.NewInstance ni2 ->
                             ni2.properties().values().stream()
-                                    .map(com.legend.model.spec
+                                    .map(com.legend.protocol.spec
                                             .KeyExpression::value)
                                     .toList();
-                    case com.legend.model.spec.PureCollection pc ->
+                    case com.legend.protocol.spec.PureCollection pc ->
                             pc.values();
-                    case com.legend.model.spec.LambdaFunction lf ->
+                    case com.legend.protocol.spec.LambdaFunction lf ->
                             lf.body();
                     default -> java.util.List.of();
                 };
-        for (com.legend.model.spec.ValueSpecification c : kids) {
+        for (com.legend.protocol.spec.ValueSpecification c : kids) {
             String r = rawConnectionNameIn(c);
             if (r != null) {
                 return r;
@@ -183,7 +183,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
         // (TradeLinkage cross-store golden)
         if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
                 && uc.callee().body().isPresent()) {
-            for (com.legend.model.spec.ValueSpecification b
+            for (com.legend.protocol.spec.ValueSpecification b
                     : uc.callee().body().get()) {
                 collectJsonRaw(b, out, canon);
             }
@@ -207,18 +207,18 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
     /** The UNCHECKED-source mirror of {@link #collectJson} for helper
      * bodies (class refs canonicalized through {@code canon}). */
     private static void collectJsonRaw(
-            com.legend.model.spec.ValueSpecification v,
+            com.legend.protocol.spec.ValueSpecification v,
             java.util.Map<String, String> out,
             java.util.function.UnaryOperator<String> canon) {
         switch (v) {
-            case com.legend.model.spec.NewInstance ni -> {
+            case com.legend.protocol.spec.NewInstance ni -> {
                 if (ni.className().endsWith("JsonModelConnection")) {
                     var cls = ni.properties().get("class");
                     var url = ni.properties().get("url");
                     if (cls != null && cls.value() instanceof
-                            com.legend.model.spec.PackageableElementPtr pr
+                            com.legend.protocol.spec.PackageableElementPtr pr
                             && url != null && url.value() instanceof
-                                    com.legend.model.spec.CString us) {
+                                    com.legend.protocol.spec.CString us) {
                         out.put(canon.apply(pr.fullPath()), us.value());
                     }
                     return;
@@ -227,17 +227,17 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     collectJsonRaw(ke.value(), out, canon);
                 }
             }
-            case com.legend.model.spec.AppliedFunction af -> {
+            case com.legend.protocol.spec.AppliedFunction af -> {
                 for (var p2 : af.parameters()) {
                     collectJsonRaw(p2, out, canon);
                 }
             }
-            case com.legend.model.spec.LambdaFunction lf -> {
+            case com.legend.protocol.spec.LambdaFunction lf -> {
                 for (var b2 : lf.body()) {
                     collectJsonRaw(b2, out, canon);
                 }
             }
-            case com.legend.model.spec.PureCollection pc -> {
+            case com.legend.protocol.spec.PureCollection pc -> {
                 for (var e2 : pc.values()) {
                     collectJsonRaw(e2, out, canon);
                 }
@@ -327,7 +327,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
      * helper's LocalH2 setup SQL is unreachable without expansion). */
     public static List<String> sqlSetupsIn(TypedSpec n,
             java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.model.spec.ValueSpecification>>>
+                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
                     fnBody) {
         List<String> out = new java.util.ArrayList<>();
         collectSqlSetups(n, out, fnBody);
@@ -336,12 +336,12 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
 
     private static void collectSqlSetups(TypedSpec n, List<String> out,
             java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.model.spec.ValueSpecification>>>
+                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
                     fnBody) {
         if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
-            java.util.Map<String, com.legend.model.spec.ValueSpecification>
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification>
                     lets = new java.util.HashMap<>();
-            for (com.legend.model.spec.ValueSpecification b
+            for (com.legend.protocol.spec.ValueSpecification b
                     : uc.callee().body().get()) {
                 collectSqlSetupsRaw(b, lets, out, fnBody, 0);
             }
@@ -366,18 +366,18 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
      * bodies carry the blobs behind lets (bare + FQN class spellings, the
      * collectJsonRaw convention). */
     private static void collectSqlSetupsRaw(
-            com.legend.model.spec.ValueSpecification v,
-            java.util.Map<String, com.legend.model.spec.ValueSpecification> lets,
+            com.legend.protocol.spec.ValueSpecification v,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets,
             List<String> out,
             java.util.function.Function<String, java.util.Optional<
-                    java.util.List<com.legend.model.spec.ValueSpecification>>>
+                    java.util.List<com.legend.protocol.spec.ValueSpecification>>>
                     fnBody, int depth) {
         switch (v) {
-            case com.legend.model.spec.AppliedFunction af -> {
+            case com.legend.protocol.spec.AppliedFunction af -> {
                 if ("letFunction".equals(af.function())
                         && af.parameters().size() == 2
                         && af.parameters().get(0)
-                                instanceof com.legend.model.spec.CString nm) {
+                                instanceof com.legend.protocol.spec.CString nm) {
                     lets.put(nm.value(), af.parameters().get(1));
                 }
                 for (var p : af.parameters()) {
@@ -389,7 +389,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     var body = fnBody.apply(af.function());
                     if (body.isPresent()) {
                         java.util.Map<String,
-                                com.legend.model.spec.ValueSpecification>
+                                com.legend.protocol.spec.ValueSpecification>
                                 inner = new java.util.HashMap<>();
                         for (var b : body.get()) {
                             collectSqlSetupsRaw(b, inner, out, fnBody,
@@ -398,7 +398,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     }
                 }
             }
-            case com.legend.model.spec.NewInstance ni -> {
+            case com.legend.protocol.spec.NewInstance ni -> {
                 if (ni.className().endsWith("LocalH2DatasourceSpecification")) {
                     var ke = ni.properties().get("testDataSetupSqls");
                     String s = ke == null ? null
@@ -412,12 +412,12 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                     collectSqlSetupsRaw(ke.value(), lets, out, fnBody, depth);
                 }
             }
-            case com.legend.model.spec.LambdaFunction lf -> {
+            case com.legend.protocol.spec.LambdaFunction lf -> {
                 for (var b : lf.body()) {
                     collectSqlSetupsRaw(b, lets, out, fnBody, depth);
                 }
             }
-            case com.legend.model.spec.PureCollection pc -> {
+            case com.legend.protocol.spec.PureCollection pc -> {
                 for (var e : pc.values()) {
                     collectSqlSetupsRaw(e, lets, out, fnBody, depth);
                 }
@@ -429,15 +429,15 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
     /** A raw-spec string literal folded through '+' chains, collections,
      * and let-bound variables; null when any part is non-literal. */
     private static @com.legend.Nullable String foldRawLiteral(
-            com.legend.model.spec.ValueSpecification v,
-            java.util.Map<String, com.legend.model.spec.ValueSpecification> lets) {
+            com.legend.protocol.spec.ValueSpecification v,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
         return switch (v) {
-            case com.legend.model.spec.CString cs -> cs.value();
-            case com.legend.model.spec.Variable vr -> {
+            case com.legend.protocol.spec.CString cs -> cs.value();
+            case com.legend.protocol.spec.Variable vr -> {
                 var bound = lets.get(vr.name());
                 yield bound == null ? null : foldRawLiteral(bound, lets);
             }
-            case com.legend.model.spec.AppliedFunction af
+            case com.legend.protocol.spec.AppliedFunction af
                     when "plus".equals(af.function()) -> {
                 StringBuilder sb = new StringBuilder();
                 for (var p : af.parameters()) {
@@ -449,7 +449,7 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                 }
                 yield sb.toString();
             }
-            case com.legend.model.spec.PureCollection pc -> {
+            case com.legend.protocol.spec.PureCollection pc -> {
                 StringBuilder sb = new StringBuilder();
                 for (var e : pc.values()) {
                     String part = foldRawLiteral(e, lets);

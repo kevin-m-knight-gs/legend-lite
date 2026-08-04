@@ -3,10 +3,10 @@
 
 package com.legend.harness;
 
-import com.legend.model.spec.AppliedFunction;
-import com.legend.model.spec.KeyExpression;
-import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.KeyExpression;
+import com.legend.protocol.spec.NewInstance;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -72,7 +72,7 @@ final class ConnEquality {
         }
         Boolean hf = tryEval(substituted, ctx, imports);
         if (hf != null) {
-            return new com.legend.model.spec.CBoolean(hf);
+            return new com.legend.protocol.spec.CBoolean(hf);
         }
         return ObjectRefs.build(rhs, ctx);
     }

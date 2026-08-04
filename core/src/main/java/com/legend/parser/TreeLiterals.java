@@ -1,7 +1,7 @@
 package com.legend.parser;
 
-import com.legend.model.spec.ColSpecArray;
-import com.legend.model.spec.ValueSpecification;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.ValueSpecification;
 
 /**
  * The QUOTE/EVAL boundary for graph-tree literals carried as STRINGS:
