@@ -53,7 +53,7 @@ in-process Alloy-shaped path).
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
-| tests/mapping/association | 23 | 20 | 0 | 3 | 0 | 0 |
+| tests/mapping/association | 23 | 21 | 0 | 2 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 34 | 2 | 4 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2188** | 75 | 139 | 136 | 255 |
+| **total** | 2538 | **2189** | 75 | 138 | 136 | 255 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1382,7 +1382,6 @@ in-process Alloy-shaped path).
 - FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
 - FAIL testQuery [tests/mapping]: assertSize(result.values): expected 1, got 2 (TDS = one carrier; collections splat)
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
-- ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: association 'meta::relational::tests::model::simple::AddressLocation' is not mapped in mapping 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded'
 - ERROR testSubTypeFilter [tests/mapping/association]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets' (Embedded PM 'planes' on 'meta::relational::tests::model::inheritance::VehicleOwner' has non-class property type
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^

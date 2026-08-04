@@ -236,8 +236,39 @@ final class AssociationSynthesis {
             List<PropertyMapping> forSet = sets.get(MappingNormalizer.setIdOf(rcm));
             if (forSet != null) add.addAll(forSet);
         }
-        if (add.isEmpty()) return null;
+        // EMBEDDED-set sources: an entry keyed <thisSetId>_<embProp> (or
+        // the default <classFqnUnderscored>_<embProp>) belongs INSIDE this
+        // set's embedded block — location[f1_address, loc] appends to
+        // Firm[f1]'s address block, whose join chain then hoists through
+        // the ordinary embedded sub-PM machinery.
         List<PropertyMapping> pms = new ArrayList<>(rcm.propertyMappings());
+        boolean nested = false;
+        String sid = MappingNormalizer.setIdOf(rcm);
+        String classId = rcm.className().replace("::", "_");
+        for (Map<String, List<PropertyMapping>> anySets : bySet.values()) {
+            for (var en : anySets.entrySet()) {
+                String key = en.getKey();
+                String prop = key.startsWith(sid + "_")
+                        ? key.substring(sid.length() + 1)
+                        : key.startsWith(classId + "_")
+                                ? key.substring(classId.length() + 1) : null;
+                if (prop == null) {
+                    continue;
+                }
+                for (int i = 0; i < pms.size(); i++) {
+                    if (pms.get(i) instanceof PropertyMapping.Embedded emb
+                            && emb.propertyName().equals(prop)) {
+                        List<PropertyMapping> sub =
+                                new ArrayList<>(emb.propertyMappings());
+                        sub.addAll(en.getValue());
+                        pms.set(i, new PropertyMapping.Embedded(
+                                emb.propertyName(), sub));
+                        nested = true;
+                    }
+                }
+            }
+        }
+        if (add.isEmpty() && !nested) return null;
         pms.addAll(add);
         return new ClassMapping.Relational(
                 rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
