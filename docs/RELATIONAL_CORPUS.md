@@ -22,7 +22,7 @@ in-process Alloy-shaped path).
 | aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 110 | 60 | 19 | 7 | 24 | 0 |
+| executionPlan/tests | 110 | 62 | 17 | 7 | 24 | 0 |
 | functions/tests | 258 | 234 | 8 | 11 | 5 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 134 | 6 | 12 | 3 | 1 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 43 | 3 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2250** | 79 | 99 | 110 | 235 |
+| **total** | 2538 | **2252** | 77 | 99 | 110 | 235 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1152,8 +1152,6 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
 - SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': property 'table' of 'meta::relational::mapping::TableTDS': expected meta::relational::metamodel::relation::NamedRelation, got meta::relational::metamodel::relation::View (value: Variable[name=vie
-- FAIL testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: assertEquals: expected true, got false
-- FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
 - ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'sqlComment'
 - ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: graphFetch expects (classCollection, #{Class{…}}#)
@@ -1310,7 +1308,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL testDynaComplexInference2 [tests]: assertEquals: expected VARCHAR(400), got VARCHAR(200)

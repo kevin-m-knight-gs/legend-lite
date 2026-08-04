@@ -1844,9 +1844,15 @@ final class StatementExecutor {
                             lam.parameters().get(i),
                             com.legend.lowering.PlanParams.kindOf(p.type()),
                             opt));
-            // supportsStream: TRUE for collection-multiplicity params
+            // supportsStream (engine storeContract:221 + executionPlan_
+            // generation findParamsSupportedForStreamInput): the param
+            // streams iff it is read under an in(...) call at least once
+            // and NEVER in any other call position
             fps.add(new com.legend.plan.PlanNode.Param(
-                    lam.parameters().get(i), many));
+                    lam.parameters().get(i),
+                    supportsStream(lam, lam.parameters().get(i),
+                            src -> streamStoreOf(src, env.ctx(),
+                                    pr.fullPath()))));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
         // the runtime argument may carry relationalMapperPostProcessor
@@ -2615,6 +2621,87 @@ final class StatementExecutor {
     }
 
     /** The member name of a typed enum-shaped read (DatabaseType.H2). */
+    /** Engine stream-input rule (storeContract.pure:221 supportsStream +
+     * executionPlan_generation.pure findParamsSupportedForStreamInput): a
+     * parameter SUPPORTS STREAM iff at least one read sits under an
+     * {@code in(...)} call (directly or through a collection literal) and
+     * NO read sits anywhere else. The supported flag re-evaluates at
+     * every call boundary (a read under {@code isEmpty}/{@code map}/...
+     * is an unsupported occurrence, even inside an in's argument tree). */
+    private static boolean supportsStream(
+            com.legend.compiler.spec.typed.TypedLambda lam, String param,
+            java.util.function.Function<TypedSpec, String> storeOf) {
+        boolean[] flags = new boolean[2];   // {under-in, elsewhere}
+        java.util.Set<String> inStores = new java.util.LinkedHashSet<>();
+        for (TypedSpec b : lam.body()) {
+            streamScan(b, param, false, "", flags, inStores, storeOf);
+        }
+        // engine findParamsSupportedForStreamInput: supported usages
+        // spanning MORE THAN ONE STORE also disqualify (the TwoDB pin)
+        return flags[0] && !flags[1] && inStores.size() <= 1;
+    }
+
+    private static void streamScan(TypedSpec n, String param,
+            boolean underIn, String store, boolean[] flags,
+            java.util.Set<String> inStores,
+            java.util.function.Function<TypedSpec, String> storeOf) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && v.name().equals(param)) {
+            if (underIn) {
+                flags[0] = true;
+                inStores.add(store);
+            } else {
+                flags[1] = true;
+            }
+            return;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedLambda il
+                && il.parameters().contains(param)) {
+            return;   // shadowed
+        }
+        // a FILTER's predicate reads belong to ITS chain's store
+        // (engine elementPathForCluster — each cluster carries its store)
+        if (n instanceof com.legend.compiler.spec.typed.TypedFilter tf) {
+            streamScan(tf.source(), param, false, store, flags, inStores,
+                    storeOf);
+            streamScan(tf.predicate(), param, false,
+                    storeOf.apply(tf.source()), flags, inStores, storeOf);
+            return;
+        }
+        boolean isIn = n instanceof
+                com.legend.compiler.spec.typed.TypedNativeCall nc
+                && "meta::pure::functions::collection::in"
+                        .equals(nc.callee().qualifiedName());
+        boolean carry = n instanceof
+                com.legend.compiler.spec.typed.TypedCollection && underIn;
+        for (TypedSpec c : n.children()) {
+            streamScan(c, param, isIn || carry, store, flags, inStores,
+                    storeOf);
+        }
+    }
+
+    /** The DATABASE behind a chain's first class extent — the stream
+     * scan's store key (falls back to the class FQN when unmapped). */
+    private static String streamStoreOf(TypedSpec source,
+            com.legend.compiler.element.ModelContext ctx, String mappingFqn) {
+        TypedSpec cur = source;
+        java.util.ArrayDeque<TypedSpec> q = new java.util.ArrayDeque<>();
+        q.add(cur);
+        while (!q.isEmpty()) {
+            TypedSpec x = q.poll();
+            if (x instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
+                try {
+                    return com.legend.lineage.ScanRelations.rootImpl(ctx,
+                            mappingFqn, ga.classFqn())[2];
+                } catch (com.legend.error.NotImplementedException e) {
+                    return ga.classFqn();
+                }
+            }
+            q.addAll(x.children());
+        }
+        return "";
+    }
+
     private static String typedEnumTail(TypedSpec v) {
         if (v instanceof com.legend.compiler.spec.typed.TypedEnumValue ev) {
             return ev.value();
