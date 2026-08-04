@@ -27,6 +27,64 @@ import java.util.stream.Collectors;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer {
 
+    @Override
+    protected String listCall(com.legend.sql.SqlFn fn,
+            java.util.List<SqlExpr> args) {
+        // greatest/least over a LITERAL collection: the engine's H2
+        // emission is VARIADIC greatest(a, b, c); EMPTY = greatest(null)
+        if ((fn == com.legend.sql.SqlFn.LIST_MAX
+                || fn == com.legend.sql.SqlFn.LIST_MIN)
+                && args.get(0) instanceof SqlExpr.ArrayLit al) {
+            return variadicExtreme(fn == com.legend.sql.SqlFn.LIST_MAX,
+                    al.elements());
+        }
+        if ((fn == com.legend.sql.SqlFn.LIST_MAX
+                || fn == com.legend.sql.SqlFn.LIST_MIN)
+                && args.get(0) instanceof SqlExpr.NullLit) {
+            // the EMPTY collection ([]->cast(@String)) — engine emits
+            // greatest(null)
+            return variadicExtreme(fn == com.legend.sql.SqlFn.LIST_MAX,
+                    java.util.List.of());
+        }
+        // the mixed-identity carrier's selection recipe
+        // ids[list_position(vals, list_max(vals))] renders the SAME
+        // variadic form over the ORIGINAL elements (identity == value
+        // for the engine's scalar greatest/least)
+        if (fn == com.legend.sql.SqlFn.LIST_GET && args.size() == 2
+                && args.get(0) instanceof SqlExpr.ArrayLit
+                && args.get(1) instanceof SqlExpr.Call pos
+                && pos.fn() == com.legend.sql.SqlFn.LIST_POSITION
+                && pos.args().size() == 2
+                && pos.args().get(0) instanceof SqlExpr.ArrayLit vals
+                && pos.args().get(1) instanceof SqlExpr.Call win
+                && (win.fn() == com.legend.sql.SqlFn.LIST_MAX
+                        || win.fn() == com.legend.sql.SqlFn.LIST_MIN)) {
+            // render over the RAW comparables (vals), not the identity
+            // encodings (ids) — engine: greatest("root".quantity, 1, 3)
+            return variadicExtreme(
+                    win.fn() == com.legend.sql.SqlFn.LIST_MAX,
+                    vals.elements());
+        }
+        return super.listCall(fn, args);
+    }
+
+    private String variadicExtreme(boolean max,
+            java.util.List<SqlExpr> elems) {
+        String name = max ? "greatest" : "least";
+        return elems.isEmpty() ? name + "(null)"
+                : name + "(" + elems.stream()
+                        // LUB-coercion casts around LITERALS are noise in
+                        // the engine text (greatest coerces anyway)
+                        .map(e -> e instanceof SqlExpr.Cast c
+                                && (c.value() instanceof SqlExpr.IntLit
+                                        || c.value() instanceof
+                                                SqlExpr.FloatLit)
+                                ? c.value() : e)
+                        .map(e -> expr(e, 0))
+                        .collect(java.util.stream.Collectors
+                                .joining(", ")) + ")";
+    }
+
     /** The engine connection's {@code quoteIdentifiers} flag: every
      * physical identifier (schema, table, column) renders double-quoted
      * (plan goldens testQuoteIdentifiersFlag*). */
