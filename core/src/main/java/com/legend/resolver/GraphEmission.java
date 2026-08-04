@@ -2258,7 +2258,11 @@ final class GraphEmission {
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                 new Type.Param(Type.Primitive.BOOLEAN,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+        // conjuncts AND-fold: a multi-statement lambda body keeps only
+        // its LAST statement (the chained-hop lesson — a compound join
+        // condition would silently drop all but one equality)
+        TypedLambda corr = new TypedLambda(List.of(tVar),
+                List.of(andFold(corrBody)),
                 new ExprType(boolFn,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         return new HeadRel(target, targetRow,
