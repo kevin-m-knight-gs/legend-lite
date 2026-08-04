@@ -56,9 +56,13 @@ public final class PlanText {
             java.util.List<String> chainMappings) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
+        com.legend.compiler.element.type.Type.RelationType rrt =
+                !body.isEmpty() && body.get(body.size() - 1).info().type()
+                        instanceof com.legend.compiler.element.type
+                                .Type.RelationType r2 ? r2 : null;
         return "Relational\n(\n"
                 + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
-                + "  resultColumns = [" + resultColumns(ctx, impl[2], plan)
+                + "  resultColumns = [" + resultColumns(ctx, impl[2], plan, rrt)
                 + "]\n"
                 + "  sql = " + sql + "\n"
                 + "  connection = " + connectionName + "\n"
@@ -466,10 +470,40 @@ public final class PlanText {
     }
 
     private static String resultColumns(ModelContext ctx, String dbFqn,
-            SqlQuery plan) {
+            SqlQuery plan,
+            com.legend.compiler.element.type.Type
+                    .@com.legend.Nullable RelationType rt) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
                     "plan: non-select top query (union) pending");
+        }
+        // STAR pass-through top (the tdsJoin plans): no positional
+        // projections — every TDS column resolves BY NAME through the
+        // from tree, the same physical typing the type = TDS[...] line
+        // spells (resolveStarColumn)
+        boolean starTop = s.projections().isEmpty()
+                || s.projections().stream()
+                        .anyMatch(x -> x.expr() instanceof SqlExpr.Star);
+        if (starTop) {
+            if (rt == null) {
+                throw new NotImplementedException(
+                        "plan: star-top resultColumns need the TDS type");
+            }
+            StringBuilder star = new StringBuilder();
+            for (var col : rt.columns()) {
+                if (star.length() > 0) {
+                    star.append(", ");
+                }
+                String name = strip(col.name());
+                String[] pc = resolveStarColumn(ctx, dbFqn, s.from(), name);
+                var td = ctx.findTableDefinition(dbFqn, pc[0]).orElseThrow();
+                star.append("(\"").append(name).append("\", ")
+                        .append(spell(td.columns().stream()
+                                .filter(x -> x.name().equalsIgnoreCase(pc[1]))
+                                .findFirst().orElseThrow().dataType()))
+                        .append(')');
+            }
+            return star.toString();
         }
         StringBuilder sb = new StringBuilder();
         for (SqlSelect.Projection p : s.projections()) {
