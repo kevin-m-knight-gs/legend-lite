@@ -1844,6 +1844,36 @@ public final class StoreResolver {
                 chain -> resolveNode(chain, context));
     }
 
+    /** 2a' JOIN-KEY WIDENING body (extracted from resolveObject): every
+     * demanded join/exists condition's source-side key columns must
+     * survive the mapping ~distinct narrowing select and the union
+     * projection (engine L5135 / partial-union goldens). */
+    private static TypedSpec widenPipeForJoinKeys(TypedSpec materializedPipe,
+            List<AssociationJoins.AssocJoin> assocJoins,
+            Map<String, AssociationJoins.AssocJoin> aggMaterials,
+            Map<String, Substitution.ExistsSub> existsSubs) {
+        Set<String> joinKeyReads = new LinkedHashSet<>();
+        for (AssociationJoins.AssocJoin aj : assocJoins) {
+            var ajCondR = aj.condition();
+            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
+        }
+        for (AssociationJoins.AssocJoin aj : aggMaterials.values()) {
+            var ajCondR = aj.condition();
+            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
+        }
+        for (Substitution.ExistsSub ex : existsSubs.values()) {
+            CorrelatedSubselects.collectParamColumnReads(ex.orientedCond(), joinKeyReads);
+        }
+        if (joinKeyReads.isEmpty()) {
+            return materializedPipe;
+        }
+        // UNION root: member threads carry the demanded join keys
+        // through the union projection (engine partial-union goldens)
+        return Pipelines.widenConcatenateForKeys(
+                Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads),
+                joinKeyReads);
+    }
+
     /** PHASE 2b-ii output: the pipeline with association joins folded
      * (descriptor -> emission, first-demand order) plus the aggregated-
      * navigation materials the fold and substitution both consume. */
@@ -1857,7 +1887,8 @@ public final class StoreResolver {
             Pipelines.Materialized m, TypedSpec keyWidenedPipe,
             List<AssociationJoins.AssocJoin> assocJoins,
             Map<String, AssociationJoins.AssocJoin> aggMaterials,
-            Map<String, List<AggDemand>> aggDemands) {
+            Map<String, List<AggDemand>> aggDemands,
+            Map<String, AssociationJoins.AssocJoin> chainMids) {
         // 2b. Materialize the association joins (descriptor -> emission,
         //     first-demand order) onto the pipeline.
         TypedSpec withJoins = keyWidenedPipe;
@@ -1916,12 +1947,26 @@ public final class StoreResolver {
         List<Map.Entry<String, List<AggDemand>>> aggGroups =
                 CorrelatedSubselects.splitAggGroups(aggDemands);
         Set<String> aggJoinHeads = new LinkedHashSet<>();
+        Set<String> usedChainPrefixes = new LinkedHashSet<>();
         for (var entry : aggGroups) {
             String head = entry.getKey();
             boolean filterPos = entry.getValue().get(0).filterPosition();
             AssociationJoins.AssocJoin aj = aggMaterials.get(head);
             if (aggJoinHeads.add(head)) {
                 aggAssocJoins.add(aj);
+            }
+            // CHAIN-AGG head (mid.final — the aggScan chain arm): emit the
+            // MID hop's LEFT join with a chain-private prefix, then re-point
+            // the FINAL hop's parent-side condition reads onto the prefixed
+            // columns; the grouped subselect below then keys/joins back
+            // against the mid hop's row exactly like a depth-1 parent.
+            AssociationJoins.AssocJoin midAj = chainMids.get(head);
+            if (midAj != null && aj != null) {
+                var cmf = corrSubs.foldChainMid(cs, head, aj, midAj,
+                        filterPos, synthetics, withJoins, usedChainPrefixes,
+                        ViewFrames.frameNameOf(ctx, midAj.target()));
+                withJoins = cmf.withJoins();
+                aj = cmf.aj();
             }
             // #69 THE CORRELATED-AGGREGATE SUBSELECT (engine parent-copy
             // architecture): a correlated pred's parent-nav reads can
@@ -2788,28 +2833,13 @@ public final class StoreResolver {
         // over the widened row, exactly the engine's query-dependent
         // distinct tuple). Aggregated-navigation materials build here so
         // their conditions participate.
+        Map<String, AssociationJoins.AssocJoin> chainMids =
+                new LinkedHashMap<>();
         Map<String, AssociationJoins.AssocJoin> aggMaterials =
-                corrSubs.buildAggMaterials(temporal, cs, context, aggDemands);
-        Set<String> joinKeyReads = new LinkedHashSet<>();
-        for (AssociationJoins.AssocJoin aj : assocJoins) {
-            var ajCondR = aj.condition();
-            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
-        }
-        for (AssociationJoins.AssocJoin aj : aggMaterials.values()) {
-            var ajCondR = aj.condition();
-            if (ajCondR != null) { CorrelatedSubselects.collectParamColumnReads(ajCondR, joinKeyReads); }
-        }
-        for (Substitution.ExistsSub ex : existsSubs.values()) {
-            CorrelatedSubselects.collectParamColumnReads(ex.orientedCond(), joinKeyReads);
-        }
-        TypedSpec keyWidenedPipe = joinKeyReads.isEmpty() ? materializedPipe
-                : Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads);
-        if (!joinKeyReads.isEmpty()) {
-            // UNION root: member threads carry the demanded join keys
-            // through the union projection (engine partial-union goldens)
-            keyWidenedPipe = Pipelines.widenConcatenateForKeys(
-                    keyWidenedPipe, joinKeyReads);
-        }
+                corrSubs.buildAggMaterials(temporal, cs, context, aggDemands,
+                        chainMids);
+        TypedSpec keyWidenedPipe = widenPipeForJoinKeys(materializedPipe,
+                assocJoins, aggMaterials, existsSubs);
         if (keyWidenedPipe != materializedPipe) {
             m = new Pipelines.Materialized(keyWidenedPipe, m.slotPrefixes(),
                     m.stripped());
@@ -2819,7 +2849,7 @@ public final class StoreResolver {
                 existsSubs);
 
         JoinedPipe joined = foldAssociationJoins(cs, m, keyWidenedPipe,
-                assocJoins, aggMaterials, aggDemands);
+                assocJoins, aggMaterials, aggDemands, chainMids);
         m = joined.m();
         // form-2 outer-nav dates: windows over the JOINED frame (Leg 2)
         m = temporal.applyOuterNavDateFilters(cs, m, joinsByChain);

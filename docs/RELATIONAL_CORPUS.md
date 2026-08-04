@@ -25,7 +25,7 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 65 | 14 | 7 | 24 | 0 |
 | functions/tests | 258 | 234 | 8 | 11 | 5 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 134 | 6 | 12 | 3 | 1 |
+| functions/tests/projection | 155 | 135 | 6 | 11 | 3 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 143 | 136 | 3 | 2 | 2 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
@@ -80,11 +80,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 117 | 0 | 6 | 1 | 6 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 83 | 74 | 1 | 7 | 1 | 35 |
+| tests/query | 83 | 75 | 1 | 6 | 1 | 35 |
 | transform/fromPure/tests | 50 | 43 | 3 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
-| validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2255** | 74 | 99 | 110 | 235 |
+| validation/tests | 23 | 20 | 0 | 3 | 0 | 0 |
+| **total** | 2538 | **2258** | 74 | 96 | 110 | 235 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1112,8 +1112,8 @@ in-process Alloy-shaped path).
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - 1x no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - 1x project expects ~[…] column specifications
-- 1x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=publicFnJoin]], candidateFqns=[]])
+- 1x property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -1190,7 +1190,6 @@ in-process Alloy-shaped path).
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
-- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as date)), got select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when 1 - date_part('isodow', cast(now() as date)) > 0 then 1 - date_part('isodow', cast(now() as date)) - 7 else 1 - date_part('isodow', cast(now() as date)) end, cast(now() as date))
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
@@ -1305,7 +1304,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL testDynaComplexInference2 [tests]: assertEquals: expected VARCHAR(400), got VARCHAR(200)
@@ -1380,7 +1379,6 @@ in-process Alloy-shaped path).
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
-- ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::groupBy::datePeriods::domain::FiscalCalendarDate, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::groupBy:
 - ERROR testWithParameterToClassNestedSelect [tests/query]: store resolution left getAll(meta::relational::tests::model::simple::Product) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedFilter]
 - SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testPushDownProjectWithParameter [tests/query]: unknown function 'meta::json::parseJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -1396,7 +1394,6 @@ in-process Alloy-shaped path).
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::extension] — wall: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-text: expected select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" left outer join (select "root".trade_id as trade_id, max("root".eventDate) as maxTradeEventDate from tradeEventTable as "root" group by "root".trade_id) as "tradeEventViewMaxTradeEventDate_d#4_d#4_m5" on ("root".ID = "tradeEventViewMaxTradeEventDate_d#4_d#4_m5".trade_id) where "root".ID = 2, got select ((1.0 * "root".quantity) / 1000000) from tradeTable as "root" where "root".ID = 2
 - FAIL testIsDistinctSQLGeneration [transform/fromPure/tests]: sql-text: expected select "root".LEGALNAME as "LegalName", count(distinct("personTable_d#4_d_m1".FIRSTNAME)) = count("personTable_d#4_d_m1".FIRSTNAME) as "IsDistinctFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "LegalName", got select "root".LEGALNAME as "LegalName", count(DISTINCT "persontable_0".FIRSTNAME) = count("persontable_0".FIRSTNAME) as "IsDistinctFirstName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "LegalName"
-- ERROR validateComplexValidation2 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::LegalEntity], multiplicity=Bounded[lower=1, upp
 - ERROR validateComplexValidation3 [validation/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]]
 - ERROR validateComplexValidation5 [validation/tests]: object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[source=TypedProject[source=TypedPropertyAccess[source=TypedVariable[name=this, info=ExprType[type=ClassType[fqn=meta::relational::validation::complex::Firm], multiplicity=Bounded[lower=1, upper=1]]], pro
 - ERROR validateComplexValidation6 [validation/tests]: filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::complex::Address' — slot-demanding leaves under value-position filters are not supported yet

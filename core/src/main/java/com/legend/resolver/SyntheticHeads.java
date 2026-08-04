@@ -424,6 +424,14 @@ final class SyntheticHeads {
                     (TypedLambda) liftFilteredHeads(tm2.mapper(), enabled),
                     tm2.info());
         }
+        // BARE-AGGREGATE filtered navigation (no leaf read) — see
+        // liftAggBareFilter.
+        if (enabled && n instanceof TypedNativeCall agg) {
+            TypedSpec lifted = liftAggBareFilter(agg, enabled);
+            if (lifted != null) {
+                return lifted;
+            }
+        }
         // CONCATENATED navigation streams read as a bare collection —
         // $p.head->filter(f1).leaf spelled over concatenate(...): every
         // branch is a (possibly filtered) navigation of the SAME head
@@ -534,6 +542,51 @@ final class SyntheticHeads {
                             gb.info());
             default -> n;
         };
+    }
+
+    /**
+     * BARE-AGGREGATE filtered navigation (no leaf read):
+     * count(filter($p.firm->toOne().employees, pred)) — the filter is the
+     * DIRECT collection argument of an aggregate call (engine:
+     * employeesByAge(30)->count() groups the filtered chained hop in a
+     * parent-keyed subselect). The filter lifts into a synthetic filtered
+     * head exactly like the leaf-read spelling; CONTEXT-GATED to the
+     * aggregate-argument position — a global bare-filter arm hijacks
+     * exists-over-filter and correlated shapes owned by other routes (the
+     * reverted -22 regression). Null when the arm does not apply.
+     */
+    private @com.legend.Nullable TypedSpec liftAggBareFilter(
+            TypedNativeCall agg, boolean enabled) {
+        if (agg.args().isEmpty()
+                || !CorrelatedSubselects.isAggregate(agg.callee())
+                || !(agg.args().get(0) instanceof TypedFilter fa)
+                || fa.predicate().parameters().size() != 1
+                || !(fa.info().type() instanceof Type.ClassType)
+                || !isLiftableNav(fa.source())
+                || (fa.info().multiplicity()
+                        instanceof Multiplicity.Bounded ab
+                        && Integer.valueOf(1).equals(ab.upper()))) {
+            return null;
+        }
+        TypedSpec head = liftFilteredHeads(fa.source(), true);
+        TypedSpec renamed;
+        String synth;
+        if (head instanceof TypedMilestonedAccess ma) {
+            synth = parkFiltered(ma.property(), fa.predicate());
+            renamed = new TypedMilestonedAccess(
+                    ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
+        } else {
+            var hp = (TypedPropertyAccess) head;
+            synth = parkFiltered(hp.property(), fa.predicate());
+            renamed = new TypedPropertyAccess(
+                    hp.source(), synth, hp.info());
+        }
+        List<TypedSpec> newArgs = new java.util.ArrayList<>(agg.args());
+        newArgs.set(0, renamed);
+        for (int i = 1; i < newArgs.size(); i++) {
+            newArgs.set(i, liftFilteredHeads(newArgs.get(i), enabled));
+        }
+        return new TypedNativeCall(agg.callee(), newArgs, agg.info());
     }
 
     /**

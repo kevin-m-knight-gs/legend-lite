@@ -83,7 +83,8 @@ final class CorrelatedSubselects {
     Map<String, AssociationJoins.AssocJoin> buildAggMaterials(
             TemporalFrame temporal, ClassSource cs,
             StoreResolver.Context context,
-            Map<String, List<StoreResolver.AggDemand>> aggDemands) {
+            Map<String, List<StoreResolver.AggDemand>> aggDemands,
+            Map<String, AssociationJoins.AssocJoin> chainMidsOut) {
         Map<String, AssociationJoins.AssocJoin> aggMaterials = new LinkedHashMap<>();
         for (var entry : aggDemands.entrySet()) {
             Set<String> leaves = new LinkedHashSet<>();
@@ -97,13 +98,97 @@ final class CorrelatedSubselects {
                     }
                 }
             }
-            aggMaterials.put(entry.getKey(),
-                    assocMaterial.aggJoinMaterial(temporal, cs, entry.getKey(),
-                            context, leaves, mapperPaths));
+            String key = entry.getKey();
+            int dot = key.indexOf('.');
+            if (dot < 0) {
+                aggMaterials.put(key,
+                        assocMaterial.aggJoinMaterial(temporal, cs, key,
+                                context, leaves, mapperPaths));
+                continue;
+            }
+            // CHAIN-AGG key (mid.final — the aggScan chain arm): the MID
+            // to-one hop materializes as an ordinary association/nav join
+            // and the FINAL head's aggregation material anchors at the mid
+            // hop's target class (its parked filter applies there exactly
+            // like the depth-1 route).
+            String mid = key.substring(0, dot);
+            String fin = key.substring(dot + 1);
+            AssociationJoins.AssocJoin midAj = assocMaterial.aggJoinMaterial(
+                    temporal, cs, mid, context, java.util.Set.of(),
+                    java.util.Set.of());
+            chainMidsOut.put(key, midAj);
+            aggMaterials.put(key,
+                    assocMaterial.aggJoinMaterial(temporal, midAj.target(),
+                            fin, context, leaves, mapperPaths));
         }
         return aggMaterials;
     }
 
+
+    /** CHAIN-AGG fold step output: the pipe widened with the MID hop's
+     * LEFT join, and the FINAL hop's material with its parent-side
+     * condition reads re-pointed onto the mid-prefixed columns. */
+    record ChainMidFold(TypedSpec withJoins, AssociationJoins.AssocJoin aj) {}
+
+    /** CHAIN-AGG head (mid.final — the aggScan chain arm): emit the MID
+     * hop's LEFT join with a chain-private prefix and re-point the FINAL
+     * hop's parent-side condition reads onto it; the caller's grouped
+     * subselect then keys/joins back against the mid hop's row exactly
+     * like a depth-1 parent. Filter-position and outer-correlated chain
+     * predicates stay LOUD (their isolation shapes are not built). */
+    ChainMidFold foldChainMid(ClassSource cs, String head,
+            AssociationJoins.AssocJoin aj, AssociationJoins.AssocJoin midAj,
+            boolean filterPos, SyntheticHeads synthetics, TypedSpec withJoins,
+            Set<String> usedChainPrefixes, @com.legend.Nullable String frameName) {
+        String chainFinal = head.substring(head.indexOf('.') + 1);
+        if (filterPos) {
+            throw new NotImplementedException("aggregate over the chained"
+                    + " navigation '" + SyntheticHeads.realHead(chainFinal)
+                    + "' in filter position is not supported yet");
+        }
+        if (synthetics.correlatedPred(chainFinal) != null) {
+            throw new NotImplementedException("aggregate over the chained"
+                    + " navigation '" + SyntheticHeads.realHead(chainFinal)
+                    + "' whose filter predicate reads the outer row is not"
+                    + " supported yet");
+        }
+        String midBase = head.substring(0, head.indexOf('.')) + "_"
+                + SyntheticHeads.realHead(chainFinal) + "_mid";
+        String midPrefix = AssociationJoins.prefixFor(midBase, cs);
+        int mOrd = 2;
+        while (!usedChainPrefixes.add(midPrefix)) {
+            midPrefix = AssociationJoins.prefixFor(midBase + "_" + mOrd++, cs);
+        }
+        Type.RelationType leftRowM =
+                (Type.RelationType) withJoins.info().type();
+        List<Type.Column> colsM = new ArrayList<>(leftRowM.columns());
+        for (Type.Column c : midAj.targetRow().columns()) {
+            colsM.add(new Type.Column(midPrefix + c.name(),
+                    c.type(), c.multiplicity()));
+        }
+        Type.RelationType midJoinedRow = new Type.RelationType(colsM);
+        TypedSpec widened = new TypedJoin(withJoins, midAj.targetPipeline(),
+                StoreResolver.leftKind(),
+                java.util.Objects.requireNonNull(midAj.condition(),
+                        "mid-hop association condition"),
+                Optional.of(midPrefix), frameName,
+                new ExprType(midJoinedRow,
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE));
+        TypedLambda finCond = java.util.Objects.requireNonNull(
+                aj.condition(), "chain-final association condition");
+        String lpChain = finCond.parameters().get(0);
+        TypedSpec finBody = Pipelines.prefixColumns(
+                finCond.body().get(finCond.body().size() - 1),
+                lpChain, midPrefix,
+                v -> new TypedVariable(lpChain,
+                        new ExprType(midJoinedRow,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)));
+        return new ChainMidFold(widened,
+                aj.withCondition(new TypedLambda(finCond.parameters(),
+                        List.of(finBody), finCond.info())));
+    }
 
     record CorrAggSub(TypedSpec subSource,
             @com.legend.Nullable List<String> keyCols,
@@ -1942,6 +2027,41 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                 new Type.Param(Type.Primitive.INTEGER, one1)),
                                 one1));
                 aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
+                        .add(new StoreResolver.AggDemand(nc, null,
+                                constMapper));
+                for (int i = 1; i < nc.args().size(); i++) {
+                    aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut,
+                            toManyHead, bareHead);
+                }
+                return;
+            }
+            // CHAIN bare count over a TO-ONE hop's to-many navigation —
+            // count($p.firm.employees#f0), the qualifier-inlined
+            // employeesByAge(30)->count() shape (engine: a grouped
+            // subselect keyed on the chained hop's parent, joined back
+            // through the mid hop). Registers under the DOTTED chain key;
+            // buildAggMaterials anchors the material at the mid hop's
+            // target class and the fold emits the mid LEFT join + the
+            // prefix-re-pointed join-back condition.
+            if (path != null && path.size() == 2 && isCountFamily(nc)
+                    && !toManyHead.test(cs, path.get(0))
+                    && bareHead.test(cs, path.get(0))
+                    && !(nc.args().get(0).info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded bm
+                            && Integer.valueOf(1).equals(bm.upper()))) {
+                var one1 = com.legend.compiler.element.type.Multiplicity
+                        .Bounded.ONE;
+                TypedLambda constMapper = new TypedLambda(List.of("_cnt"),
+                        List.of(new TypedCInteger(1,
+                                new ExprType(Type.Primitive.INTEGER, one1))),
+                        new ExprType(new Type.FunctionType(
+                                List.of(new Type.Param(
+                                        nc.args().get(0).info().type(), one1)),
+                                new Type.Param(Type.Primitive.INTEGER, one1)),
+                                one1));
+                aggOut.computeIfAbsent(path.get(0) + "." + path.get(1),
+                                k -> new ArrayList<>())
                         .add(new StoreResolver.AggDemand(nc, null,
                                 constMapper));
                 for (int i = 1; i < nc.args().size(); i++) {

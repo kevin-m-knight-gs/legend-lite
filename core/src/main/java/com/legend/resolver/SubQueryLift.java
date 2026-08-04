@@ -53,7 +53,9 @@ final class SubQueryLift {
         if (underLambda && n instanceof TypedPropertyAccess pa) {
             TypedSpec chain = peelScalarWraps(pa.source());
             if (chain != null && StoreResolver.containsGetAll(chain)
-                    && readsNoVariables(chain)) {
+                    && uncorrelated(chain,
+                            new java.util.LinkedHashSet<>(
+                                    letBindings.keySet()))) {
                 return resolveScalarRead(chain, pa, context, ctx, specs,
                         letBindings);
             }
@@ -89,14 +91,31 @@ final class SubQueryLift {
                 ? cur : null;
     }
 
-    /** No variable reads anywhere — the sub-chain must be UNCORRELATED
-     * (a correlated class subquery is its own rung, loud downstream). */
-    private static boolean readsNoVariables(TypedSpec n) {
-        if (n instanceof TypedVariable) {
-            return false;
+    /** UNCORRELATED check, SHADOW-AWARE: every variable read is either
+     * bound by a lambda INSIDE the chain (a filter predicate's own
+     * parameter — {@code FiscalCalendarDate.all()->filter(d|$d.date ==
+     * $endDate)->toOne()}) or a top-level LET name the recursive
+     * resolution serves through {@code letBindings}. Any other read means
+     * the chain reads the enclosing row — a correlated class subquery,
+     * its own rung, loud downstream. */
+    private static boolean uncorrelated(TypedSpec n,
+            java.util.Set<String> bound) {
+        if (n instanceof TypedVariable v) {
+            return bound.contains(v.name());
+        }
+        if (n instanceof TypedLambda l) {
+            java.util.Set<String> inner =
+                    new java.util.LinkedHashSet<>(bound);
+            inner.addAll(l.parameters());
+            for (TypedSpec c : l.children()) {
+                if (!uncorrelated(c, inner)) {
+                    return false;
+                }
+            }
+            return true;
         }
         for (TypedSpec c : n.children()) {
-            if (!readsNoVariables(c)) {
+            if (!uncorrelated(c, bound)) {
                 return false;
             }
         }

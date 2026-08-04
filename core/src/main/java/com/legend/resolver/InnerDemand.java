@@ -308,11 +308,19 @@ final class InnerDemand {
                 // an INLINED derived CONCATENATION under the emptiness
                 // call contributes each member's chain (the concat-split
                 // emission consumes the dotted materials per branch)
+                // the FILTER-WRAPPED spelling — isNotEmpty(filter(
+                // $this.firm.employees, pred)) ≡ exists(nav, pred) — peels
+                // to the same dotted chain (the substitution's filter-
+                // wrapped emptiness arm merges the predicates)
+                TypedSpec a0 = c.args().get(0);
+                while (a0 instanceof TypedFilter tf0) {
+                    a0 = tf0.source();
+                }
                 List<TypedSpec> heads =
-                        c.args().get(0) instanceof TypedNativeCall cc
+                        a0 instanceof TypedNativeCall cc
                         && "meta::pure::functions::collection::concatenate"
                                 .equals(cc.callee().qualifiedName())
-                        ? cc.args() : List.of(c.args().get(0));
+                        ? cc.args() : List.of(a0);
                 for (TypedSpec h : heads) {
                     List<String> p = Substitution.pathOf(h, userVar);
                     if (p != null && p.size() >= 2) {

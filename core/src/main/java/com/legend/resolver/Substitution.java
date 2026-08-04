@@ -910,6 +910,17 @@ final class Substitution {
                         return rewriteExists(call,
                                 target.existsSubs().get(fp.get(0)), chainPreds);
                     }
+                    // DOTTED chain spelling — isNotEmpty(filter(
+                    // $this.firm.employees, pred)): the class-typed-leaf
+                    // EXISTS material registered under the dotted path
+                    // (registerDottedExistsSubs peels the same filters);
+                    // the filter predicates merge into the correlated set
+                    // exactly like the depth-1 arm.
+                    ExistsSub dottedEx = fp == null || fp.size() < 2 ? null
+                            : target.existsSubs().get(String.join(".", fp));
+                    if (dottedEx != null) {
+                        return rewriteExists(call, dottedEx, chainPreds);
+                    }
                 }
             }
         }
