@@ -716,13 +716,13 @@ final class GraphEmission {
                                 .Multiplicity.Bounded db1
                         && Integer.valueOf(1).equals(db1.upper()));
         // M2M MILESTONED leaf chain (synonymNames:
-        // \$src.<nav>AllVersions.synonym): the VERSION-SWEEP hop serves
-        // the RAW extent — same primitive-array emission over the nav
-        // step's target (a DATED hop needs the window and stays loud)
+        // \$src.<nav>AllVersions.synonym / <nav>(%date).synonym): the
+        // hop's temporal spec windows the nav target (a SWEEP serves the
+        // RAW extent, a DATED hop stamps) — same primitive-array
+        // emission over the resolved target pipeline
         if (declaredMany && inner instanceof TypedPropertyAccess mcp
                 && mcp.source() instanceof com.legend.compiler.spec.typed
                         .TypedMilestonedAccess mma
-                && mma.sweep()
                 && mma.source() instanceof TypedVariable mmv
                 && mmv.name().equals(cs.rowVar())) {
             var mNavP = Pipelines.outerNavSteps(cs.pipeline())
@@ -733,8 +733,15 @@ final class GraphEmission {
                     && sources.binds(cs.mappingFqn(), mtg.classFqn())) {
                 ClassSource tcs = sources.get(cs.mappingFqn(),
                         mtg.classFqn());
-                TypedSpec tPipe = Pipelines.materialize(tcs.pipeline(),
-                        java.util.Set.of(), mtg.classFqn()).pipeline();
+                TemporalFrame tf2 = temporal.withSpecs(java.util.Map.of(
+                        mma.property(), new TemporalFrame.TemporalSpec(
+                                temporal.normalizeContextDates(mma.dates()),
+                                mma.sweep())));
+                TypedSpec tPipe = tf2.temporalTargetPipe(cs, tcs,
+                        mma.property(),
+                        Pipelines.materialize(tcs.pipeline(),
+                                java.util.Set.of(), mtg.classFqn())
+                                .pipeline());
                 TypedSpec hopVar = new TypedPropertyAccess(mma.source(),
                         mma.property(), mma.info());
                 return primitiveArrayChild(keyOf(node), tPipe,
