@@ -30,6 +30,12 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 List.of(), null, null, from.outputs());
     }
 
+    /** SYNTHETIC scalar-map column-name marker (resolver
+     * scalarMapAsProject): the engine spells a bare map scalar select
+     * UNALIASED — the engine-TEXT channel drops such aliases entirely;
+     * execution keeps them (downstream references use the row type). */
+    public static final String SYNTH_MAP_COL = "u_map__";
+
     public record Projection(SqlExpr expr, @Nullable String alias) {
 
         /**

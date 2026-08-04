@@ -963,8 +963,9 @@ public final class StoreResolver {
     private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper,
             com.legend.compiler.element.type.Multiplicity valueMult) {
         TypedSpec body = mapper.body().get(mapper.body().size() - 1);
-        String name = body instanceof TypedPropertyAccess bpa
-                ? bpa.property() : "value";
+        String name = com.legend.sql.SqlSelect.SYNTH_MAP_COL
+                + (body instanceof TypedPropertyAccess bpa
+                        ? bpa.property() : "value");
         Type.Param result =
                 ((Type.FunctionType) mapper.info().type()).result();
         Type.RelationType row =

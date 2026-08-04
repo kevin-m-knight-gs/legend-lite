@@ -757,6 +757,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         String e = p.expr() instanceof SqlExpr.DateLit dl
                 ? "'" + dl.iso() + "'"
                 : expr(p.expr(), 0);
+        // synthetic scalar-map column: the engine spells a bare map
+        // scalar select UNALIASED — TEXT channel only (h2-backend
+        // EXECUTION composes these columns; references need the alias)
+        if (p.alias() != null
+                && p.alias().startsWith(com.legend.sql.SqlSelect.SYNTH_MAP_COL)
+                && TextGoldens.active()) {
+            return e;
+        }
         if (frameDepth > 0 && p.outputName() != null) {
             // engine view SQL: '"root".ORDER_ID as ORDER_ID' — always
             // aliased, unquoted

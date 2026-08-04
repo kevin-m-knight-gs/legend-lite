@@ -188,6 +188,9 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     protected String projection(SqlSelect.Projection p) {
+        // the synthetic scalar-map marker (PlatformTypes.SYNTH_MAP_COL)
+        // stays IN the execution alias — downstream references are built
+        // from the (prefixed) row type; engine-TEXT renderers drop it
         String e = expr(p.expr(), 0);
         return p.alias() == null ? e : e + " AS " + ident(p.alias());
     }

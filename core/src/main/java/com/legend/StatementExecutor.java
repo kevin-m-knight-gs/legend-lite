@@ -445,7 +445,8 @@ final class StatementExecutor {
         }
         planParams.values().forEach(lw::bindPlanParam);
         com.legend.sql.SqlQuery plan; // ENGINE-TEXT: wire coercions read bare
-        try (var ignored = com.legend.lowering.EngineTextBoundary.enter()) {
+        try (var ignored = com.legend.lowering.EngineTextBoundary.enter();
+                var ignored2 = com.legend.sql.dialect.TextGoldens.enter()) {
             plan = lw.lower(body);
         }
         // engine plans keep enum columns RAW (host-side decode) — the
@@ -462,7 +463,12 @@ final class StatementExecutor {
             plan = com.legend.lowering.SqlPostProcessors.apply(p2,
                     tableRenames);
         }
-        return new EngineSql(plan, renderer.render(plan), body);
+        // TEXT-channel rendering (synthetic scalar-map aliases drop)
+        String text;
+        try (var ignored3 = com.legend.sql.dialect.TextGoldens.enter()) {
+            text = renderer.render(plan);
+        }
+        return new EngineSql(plan, text, body);
     }
 
     /** HOST channel BEFORE the inliner: recursive corpus functions over
