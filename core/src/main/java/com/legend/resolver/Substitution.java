@@ -721,18 +721,25 @@ final class Substitution {
                         .equals("meta::pure::functions::lang::subType")
                 && !sc.args().isEmpty()
                 && sc.info().type() instanceof Type.ClassType sct) {
+            // IDENTITY cast (subType(@Product) over a Product-typed nav —
+            // the engine's context-propagation spelling): transparent,
+            // the plain property path serves it (no stc dispatch)
+            boolean identity = sc.args().get(0).info().type()
+                    instanceof Type.ClassType argCt
+                    && argCt.fqn().equals(sct.fqn());
+            String comp = identity ? pa0.property()
+                    : com.legend.model.ClassMapping
+                            .subTypeColumn(sct.fqn(), pa0.property());
             if (sc.args().get(0) instanceof TypedVariable v0
                     && v0.name().equals(userVar)) {
-                return List.of(com.legend.model.ClassMapping
-                        .subTypeColumn(sct.fqn(), pa0.property()));
+                return List.of(comp);
             }
             List<String> inner = pathOf(sc.args().get(0), userVar);
             if (inner == null) {
                 return null;
             }
             List<String> out = new ArrayList<>(inner);
-            out.add(com.legend.model.ClassMapping
-                    .subTypeColumn(sct.fqn(), pa0.property()));
+            out.add(comp);
             return out;
         }
         if (!(n instanceof TypedPropertyAccess pa)) {
