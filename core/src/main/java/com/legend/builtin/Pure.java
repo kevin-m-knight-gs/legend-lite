@@ -166,11 +166,17 @@ public final class Pure {
 
     // ---- Top of the hierarchy ----
     public static final ClassDefinition ANY  = nativeClass("native Class meta::pure::metamodel::type::Any {}");
+    /** M3 ElementOverride: the Typer serves {@code Any.elementOverride}
+     * reads as this type and folds them EMPTY (never installed here). */
+    public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::extension::ElementOverride {}");
     public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
     // ModelElement; letFn's removeDuplicates over classes needs it)
     public static final ClassDefinition TYPE = nativeClass("native Class meta::pure::metamodel::type::Type extends meta::pure::metamodel::ModelElement {}");
+    /** Real M3 GenericType — {@code $x->genericType().rawType} reflection
+     * (inheritance testGetAll: per-instance member class over a union). */
+    public static final ClassDefinition GENERIC_TYPE_META = nativeClass("native Class meta::pure::metamodel::type::generics::GenericType { rawType: meta::pure::metamodel::type::Type[0..1]; }");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
 
@@ -1134,6 +1140,12 @@ public final class Pure {
     // TypedFrom.chainMappings)
     public static final NativeFunctionDefinition WITH_CHAINED_MAPPINGS = signature("native function meta::pure::mapping::withChainedMappings<T>(source:T[*], mappings:meta::pure::mapping::Mapping[*]):T[*];");
     public static final NativeFunctionDefinition GENERATE_GUID = signature("native function meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel::type::String[1];");
+    // real legend-pure platform/pure/essential/meta/type/genericType.pure
+    public static final NativeFunctionDefinition GENERIC_TYPE__ANY_MANY = signature("native function meta::pure::functions::meta::genericType(any:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::generics::GenericType[1];");
+    // real legend-pure platform/pure/essential/meta/instance/getHiddenPayload.pure
+    // (compile surface only — reachable solely behind the elementOverride
+    // guard, which our execution answers empty)
+    public static final NativeFunctionDefinition GET_HIDDEN_PAYLOAD__ANY_1 = signature("native function meta::pure::functions::meta::getHiddenPayload(o:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
     public static final NativeFunctionDefinition GET_ALL__CLASS_1 = signature("native function meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*];");
     public static final NativeFunctionDefinition GET_ALL__CLASS_1__DATE_1 = signature("native function meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*];");
     public static final NativeFunctionDefinition GET_ALL__CLASS_1__DATE_1__DATE_1 = signature("native function meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], from:meta::pure::metamodel::type::Date[1], to:meta::pure::metamodel::type::Date[1]):T[*];");

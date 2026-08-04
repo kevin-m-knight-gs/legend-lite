@@ -497,18 +497,20 @@ public final class TestBody {
                 }
                 continue;
             }
-            // the conventional trailing `true`
-            if (stmt instanceof CBoolean) {
+            if (stmt instanceof CBoolean) {   // conventional trailing true
                 continue;
             }
-            // K-natives arc (S4): any other EXPRESSION STATEMENT executes
-            // through the platform — the engine's setup calls
-            // (createTablesAndFillDb(), setUp($m), executeInDb(...)) are
-            // ordinary pure code, and the pipeline is the only executor
-            // (a statement-position execute() runs its frame there too).
-            // SQLExceptions propagate (an honest ERROR); compile/type
-            // failures report Unsupported — the body's data cannot be
-            // trusted after a failed setup statement.
+            // runtime-conditional if (RuntimeIfForm): branch re-enters
+            if (RuntimeIfForm.splice(subst(stmt, lets), lets, execStmts,
+                    execVars, execChains, ctx, imports, runtimeFqn, conn,
+                    work)) {
+                executed++;
+                continue;
+            }
+            // K-natives arc (S4): any other EXPRESSION STATEMENT runs
+            // through the platform (setup calls are ordinary pure code).
+            // SQLExceptions propagate (honest ERROR); compile/type
+            // failures report Unsupported (body data untrusted after).
             if (stmt instanceof AppliedFunction af3) {
                 try {
                     ValueSpecification sub = java.util.Objects.requireNonNull(

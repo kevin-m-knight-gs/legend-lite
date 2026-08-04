@@ -176,6 +176,8 @@ meta::pure::mapping::from<T>(source:meta::pure::metamodel::relation::Relation<T>
 meta::pure::mapping::from<T|m>(source:T[m], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1]):T[m]
 meta::pure::mapping::withChainedMappings<T>(source:T[*], mappings:meta::pure::mapping::Mapping[*]):T[*]
 meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel::type::String[1]
+meta::pure::functions::meta::genericType(any:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::generics::GenericType[1]
+meta::pure::functions::meta::getHiddenPayload(o:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1]
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1]):T[*]
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], date:meta::pure::metamodel::type::Date[1]):T[*]
 meta::pure::functions::collection::getAll<T>(class:meta::pure::metamodel::type::Class<T>[1], from:meta::pure::metamodel::type::Date[1], to:meta::pure::metamodel::type::Date[1]):T[*]

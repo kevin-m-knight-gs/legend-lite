@@ -481,7 +481,9 @@ class NativeFunctionTest {
         //     GlobalGraphFetchExecutionNode,
         //     StoreMappingGlobalGraphFetchExecutionNode (all grounded in
         //     engine/legend-pure declarations; see PLAN_SURFACE map).
-        assertEquals(197, Pure.allNativeClasses().size(),
+        // 199: +GenericType (genericType().rawType reflection) +
+        //     ElementOverride (M3 Any.elementOverride, folded empty).
+        assertEquals(199, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -844,7 +846,11 @@ class NativeFunctionTest {
                     "meta::external::store::model::JsonModelConnection",
                     List.of("class", "url"),
                     "meta::external::store::model::ModelChainConnection",
-                    List.of("mappings"));
+                    List.of("mappings"),
+                    // real m3 generics.pure: rawType is the reflection
+                    // surface ($x->genericType().rawType — testGetAll)
+                    "meta::pure::metamodel::type::generics::GenericType",
+                    List.of("rawType"));
 
     /** task #78 step-1 TDS + aggregationAware surfaces (Map.of caps at 10
      * pairs — second map, same contract). */

@@ -2355,6 +2355,16 @@ final class Typer {
                     if (gen != null) {
                         yield gen;
                     }
+                    // real M3: Any.elementOverride surfaces on every class
+                    // (the corpus KeyInformation guard); folded to empty
+                    // below — Any itself stays property-FREE (its shape is
+                    // load-bearing for the struct/variant carrier)
+                    if (ap.property().equals("elementOverride")) {
+                        yield new ExprType(new Type.ClassType(
+                                com.legend.builtin.Pure.ELEMENT_OVERRIDE
+                                        .qualifiedName()),
+                                Multiplicity.Bounded.ZERO_ONE);
+                    }
                     throw new TypeInferenceException("class " + ct.fqn()
                             + " has no property '" + ap.property() + "'");
                 }
@@ -2383,21 +2393,7 @@ final class Typer {
             }
             case Type.RelationType rel -> {
                 // QUOTE-BEARING column identity (the pivot rule's sibling):
-                // a store-declared "FIRST NAME" column carries its quotes
-                // as identity; getString('FIRST NAME') reads it unquoted —
-                // exact match wins, then the quote-stripped fallback, and
-                // the ACCESS adopts the column's own spelling so every
-                // downstream lookup matches (task #78).
-                Type.Column col = rel.columns().stream()
-                        .filter(c -> c.name().equals(ap.property()))
-                        .findFirst()
-                        .orElseGet(() -> rel.columns().stream()
-                                .filter(c -> stripColQuotes(c.name()).equals(
-                                        stripColQuotes(ap.property())))
-                                .findFirst()
-                                .orElseThrow(() -> new TypeInferenceException(
-                                        "relation has no column '"
-                                                + ap.property() + "'")));
+                Type.Column col = relationColumn(rel, ap.property());
                 relColName = col.name();
                 yield new ExprType(col.type(), col.multiplicity());
             }
@@ -2405,9 +2401,30 @@ final class Typer {
                     + "' on " + source.info().type().typeName());
         };
         Multiplicity mult = compose(source.info().multiplicity(), member.multiplicity());
+        if (ap.property().equals("elementOverride")   // M3: never
+                && source.info().type() instanceof Type.ClassType) {
+            return new com.legend.compiler.spec.typed.TypedCollection(
+                    List.of(), new ExprType(member.type(),
+                            Multiplicity.Bounded.ZERO_ONE));
+        }
         return new TypedPropertyAccess(source,
                 relColName != null ? relColName : ap.property(),
                 new ExprType(member.type(), mult));
+    }
+
+    /** Store-declared column lookup: a quoted "FIRST NAME" carries its
+     * quotes as identity — exact match wins, then the quote-stripped
+     * fallback; the access adopts the column's own spelling (task #78). */
+    private static Type.Column relationColumn(Type.RelationType rel,
+            String name) {
+        return rel.columns().stream()
+                .filter(c -> c.name().equals(name)).findFirst()
+                .orElseGet(() -> rel.columns().stream()
+                        .filter(c -> stripColQuotes(c.name())
+                                .equals(stripColQuotes(name)))
+                        .findFirst()
+                        .orElseThrow(() -> new TypeInferenceException(
+                                "relation has no column '" + name + "'")));
     }
 
     /**
