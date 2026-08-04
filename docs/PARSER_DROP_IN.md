@@ -391,6 +391,76 @@ grammar documents, plus 101 PMCD-shaped `.json`.
 
 ---
 
+### 6.1 legend-pure — a second, complementary corpus
+
+Checked separately; it was not part of the first sweep. legend-pure's parser is **(B)**, producing
+`CoreInstance` graphs, so its expected *outputs* are not protocol oracles. What transfers is inputs,
+error positions, and literal-form pins.
+
+| | |
+|---|---:|
+| `.pure` files | **275** / 21,634 lines |
+| test classes / `@Test` methods | **542** / **3,119** |
+| inline Pure snippets (`compileTestSource`, `createInMemorySource`) | **~2,800** |
+| **`assertPureException(PureParserException.class, …)`** — negative parse pins | **69** |
+| all `assertPureException(…)` pins | **546** |
+| unparser / round-trip tests / golden fixture files | **none** |
+
+**The negative pins are the highest-value material anywhere, in either repo**, because a drop-in
+parser must reject exactly what the original rejects and **legend-lite has zero tests of that**.
+Each carries a complete tuple — source, message, file, line, column:
+
+```java
+PureParserException e = Assert.assertThrows(PureParserException.class, () -> compileTestSource(
+        "fromString.pure",
+        "function myAdd(a:String[1], b:String[1]):String[1]\n{\n   'aa';\n} helloeoe"));
+assertPureException(PureParserException.class,
+        "expected: one of {<EOF>, '^', 'native', 'function', 'Primitive', 'Class', 'Association', 'Profile', 'Enum', 'Measure'} found: 'helloeoe'",
+        "fromString.pure", 4, 3, e);
+```
+
+**The other ~477 pins are a free positive corpus.** They pin *compilation* errors, which means the
+input **parsed successfully** and failed later — so each is a guaranteed-parseable snippet carrying
+an implicit "this must parse" assertion.
+
+**Do not match the message strings.** They are ANTLR-shaped (`"expected: one of {…} found: 'x'"`)
+and use `m4.SourceInformation`, a different type from the engine's. A hand-written recursive-descent
+parser will never produce them naturally. Match **which inputs fail and at what line/column** —
+that is achievable and is the property that matters.
+
+#### Exclude `m3.pure` from any corpus
+
+`platform/pure/grammar/m3.pure` (3,607 lines, 16.7% of all `.pure` lines) is **not normal Pure**.
+Verified: **2,186 lines of `^Root.children[…]` bootstrap-instance syntax and zero `Class`/`function`
+declarations.** It materialises the metamodel graph by instance literal. Including it skews every
+frequency count and demands a grammar nothing else uses. Clean corpus: **274 files / 18,027 lines**,
+252 of them fully plain M3.
+
+#### What the corpus says to prioritise (verified independently)
+
+| construct | occurrences | files |
+|---|---:|---:|
+| **`Function<{A[1]->B[*]}>` function-type literals** | **1,031** | **150** |
+| `<T\|m>` type + multiplicity parameters | 483 | 123 |
+| stereotype blocks `<<…>>` | 1,293 | 218 |
+| date literals (`%…`), incl. **56 with `±HHMM` offsets** | 645 | 36 |
+| tagged-value assignments | 184 | — |
+| `native function` split across lines | — | **46** |
+| class type-variable params `Class X(v:Integer[1])` | 7 | 3 |
+| **`/* */` block comments** | **0** | 0 |
+
+Function-type literals are the dominant hard surface — nested forms like
+`Function<{Function<{->Z[y]}>[1]->Z[y]}>[1]` are routine. Typed lambda params outnumber untyped
+**~8:1**, so `{ident|…}` is the wrong thing to optimise for.
+
+**Zero-use in the `.pure` corpus** — `%latest`, `#/…/#`, `#>{…}#`, `~enforcementLevel`/`~owner`/
+`~externalId`, milestoning, `###` extension sections. **But that is corpus-specific, not a licence
+to skip them**: milestoning alone has **207 occurrences across 108 snippets** in the Java-embedded
+corpus. The two corpora are complementary, which is the argument for building the string extractor
+rather than relying on files.
+
+---
+
 ## 7. The risk that outranks every other
 
 **I have not measured whether parsing is a bottleneck in legend-engine's request path.**
