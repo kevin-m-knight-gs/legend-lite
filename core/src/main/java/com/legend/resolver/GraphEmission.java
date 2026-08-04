@@ -890,6 +890,12 @@ final class GraphEmission {
                 srcCast = nic2;
                 inner = nic2.source();
             }
+            // DATED fetch over a NON-TEMPORAL channel: [] at any date
+            var edc = datedNonTemporalChild(cs, node, inner, context,
+                    parentRowVar, parentRowType);
+            if (edc != null) {
+                return edc;
+            }
             if (inner instanceof TypedPropertyAccess pa
                     && pa.source() instanceof TypedVariable v
                     && v.name().equals(cs.rowVar())
@@ -1169,6 +1175,68 @@ final class GraphEmission {
      * preserves the inner pipeline and row var — the correlation aligns by
      * construction, asserted loudly).
      */
+    /** DATED fetch over a NON-TEMPORAL channel (nonMilestonedSource ->
+     * milestoned target): the produced instances carry NO business
+     * validity — the engine serializes [] at any date (the AllVersions
+     * fetch still serves the rows). The child emits with a FALSE
+     * correlation; null when not this shape. */
+    private TypedSerializeGraph.@com.legend.Nullable Child
+            datedNonTemporalChild(ClassSource cs, TypedGraphTree node,
+            TypedSpec inner, StoreResolver.Context context,
+            String parentRowVar, Type.RelationType parentRowType) {
+        if (!(!node.args().isEmpty() && !node.sweep()
+                    && inner instanceof TypedPropertyAccess pdt
+                    && pdt.source() instanceof TypedVariable pvt
+                    && pvt.name().equals(cs.rowVar())
+                    && pdt.info().type() instanceof Type.ClassType pdc
+                    && com.legend.compiler.element.Temporal.strategyOf(
+                            ctx, pdc.fqn()) == null
+                    && ctx.findProperty(cs.classFqn(), node.property())
+                            .map(pp -> pp.type()
+                                    instanceof Type.ClassType tcc
+                                    && com.legend.compiler.element.Temporal
+                                            .strategyOf(ctx, tcc.fqn())
+                                            != null)
+                            .orElse(false))) {
+            return null;
+        }
+                var declP = ctx.findProperty(cs.classFqn(), node.property())
+                        .orElseThrow();
+                String ccFqn = ((Type.ClassType) declP.type()).fqn();
+                String key0 = (context.explicitMapping() == null ? ""
+                        : context.explicitMapping()) + '\u0000'
+                        + (context.runtimeFqn() == null ? ""
+                                : context.runtimeFqn());
+                ClassSource ecs = sources.get(
+                        dispatch.apply(context, ccFqn), ccFqn,
+                        (t2, ex2) -> dispatch.apply(context, t2), key0);
+                Pipelines.Materialized eMat = Pipelines.materialize(
+                        ecs.pipeline(), java.util.Set.of(), ccFqn);
+                var one0 = com.legend.compiler.element.type
+                        .Multiplicity.Bounded.ONE;
+                Type.RelationType eRow = (Type.RelationType)
+                        eMat.pipeline().info().type();
+                TypedLambda never = new TypedLambda(
+                        java.util.List.of("p_ec", "t_ec"),
+                        java.util.List.of(new com.legend.compiler.spec.typed
+                                .TypedCBoolean(false,
+                                        new ExprType(Type.Primitive.BOOLEAN,
+                                                one0))),
+                        new ExprType(new Type.FunctionType(
+                                java.util.List.of(
+                                        new Type.Param(parentRowType, one0),
+                                        new Type.Param(eRow, one0)),
+                                new Type.Param(Type.Primitive.BOOLEAN, one0)),
+                                one0));
+                boolean eMany = !(declP.multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded eb
+                        && Integer.valueOf(1).equals(eb.upper()));
+                return correlatedGraphChild(ecs, eMat.pipeline(), eRow,
+                        never, eMany, node, parentRowVar, parentRowType,
+                        context, eMat.slotPrefixes());
+    }
+
     TypedSerializeGraph.Child m2mAssocChild(ClassSource cs, TypedGraphTree node,
             String srcClassFqn, String assocProp, StoreResolver.Context context,
             String parentRowVar,
