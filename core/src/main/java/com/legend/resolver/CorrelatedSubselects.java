@@ -1654,6 +1654,40 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      */
     TypedSpec subTypeNavCastCanon(TypedSpec n,
             Function<String, String> mappingOf, TypedFunction isNotEmpty) {
+        // EMPTINESS over the bare cast (exists(nav->subType(@Car), pred)):
+        // same routing rule, no leaf — the cast canonicalizes to the
+        // filtered-nav head and the PREDICATE's depth-1 subtype reads
+        // rename to their stc columns (the union frame's flat spellings)
+        if (n instanceof TypedNativeCall em && !em.args().isEmpty()
+                && (com.legend.builtin.Pure.nativeNamed("exists",
+                                em.callee().signatureKey())
+                        || com.legend.builtin.Pure.nativeNamed("isEmpty",
+                                em.callee().signatureKey())
+                        || com.legend.builtin.Pure.nativeNamed("isNotEmpty",
+                                em.callee().signatureKey()))
+                && em.args().get(0) instanceof TypedNativeCall sc0
+                && sc0.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                && !sc0.args().isEmpty()
+                && sc0.info().type() instanceof Type.ClassType sct0
+                && sc0.args().get(0).info().type()
+                        instanceof Type.ClassType navCt0) {
+            ClassSource t0 = castTarget(mappingOf, navCt0);
+            String wKey0 = com.legend.model.ClassMapping.subTypeColumn(
+                    sct0.fqn(), com.legend.model.ClassMapping.memberWitness());
+            if (t0 != null && t0.bindings().containsKey(wKey0)) {
+                TypedSpec nav0 = sc0.args().get(0);
+                List<TypedSpec> newArgs = new ArrayList<>(em.args());
+                newArgs.set(0, new TypedFilter(nav0,
+                        witnessPred(navCt0, wKey0, isNotEmpty), nav0.info()));
+                if (em.args().size() == 2
+                        && em.args().get(1) instanceof TypedLambda pl0
+                        && pl0.parameters().size() == 1) {
+                    newArgs.set(1, renameSubTypeReads(pl0, sct0.fqn(), t0));
+                }
+                return new TypedNativeCall(em.callee(), newArgs, em.info());
+            }
+        }
         if (!(n instanceof TypedPropertyAccess pa)
                 || !(pa.source() instanceof TypedNativeCall sc)
                 || !sc.callee().qualifiedName()
@@ -1691,21 +1725,38 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
         String wKey = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
                 com.legend.model.ClassMapping.memberWitness());
-        // audit 23 A5: only an UNDECIDABLE dispatch context (no runtime,
-        // unknown mapping) skips canonicalization; a resolution failure
-        // AFTER binds() confirmed the class is a real bug and propagates
+        ClassSource target = castTarget(mappingOf, navCt);
+        if (target == null || !target.bindings().containsKey(wKey)) {
+            return n;
+        }
+        TypedSpec nav = sc.args().get(0);
+        return new TypedPropertyAccess(
+                new TypedFilter(nav, witnessPred(navCt, wKey, isNotEmpty),
+                        nav.info()),
+                com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
+                        pa.property()),
+                pa.info());
+    }
+
+    /** The cast head's dispatch-resolved ClassSource — audit 23 A5: only
+     * an UNDECIDABLE dispatch context (no runtime, unknown mapping) skips
+     * canonicalization (null); a resolution failure AFTER binds()
+     * confirmed the class is a real bug and propagates. */
+    private @com.legend.Nullable ClassSource castTarget(
+            Function<String, String> mappingOf, Type.ClassType navCt) {
         String m;
         try {
             m = mappingOf.apply(navCt.fqn());
         } catch (MappingResolutionException e) {
             m = null;
         }
-        ClassSource target = m != null && sources.binds(m, navCt.fqn())
+        return m != null && sources.binds(m, navCt.fqn())
                 ? sources.get(m, navCt.fqn()) : null;
-        if (target == null || !target.bindings().containsKey(wKey)) {
-            return n;
-        }
-        TypedSpec nav = sc.args().get(0);
+    }
+
+    /** {@code v | $v.<witness>->isNotEmpty()} — the member-routing filter. */
+    private TypedLambda witnessPred(Type.ClassType navCt, String wKey,
+            TypedFunction isNotEmpty) {
         var bool1 = new ExprType(Type.Primitive.BOOLEAN,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec wRead = new TypedPropertyAccess(
@@ -1719,7 +1770,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 wKey, new ExprType(Type.Primitive.BOOLEAN,
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_ONE));
-        TypedLambda pred = new TypedLambda(List.of("v_stw"),
+        return new TypedLambda(List.of("v_stw"),
                 List.of(new TypedNativeCall(isNotEmpty, List.of(wRead), bool1)),
                 new ExprType(new Type.FunctionType(
                         List.of(new Type.Param(navCt,
@@ -1730,11 +1781,36 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                         .Multiplicity.Bounded.ONE)),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ONE));
-        return new TypedPropertyAccess(
-                new TypedFilter(nav, pred, nav.info()),
-                com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
-                        pa.property()),
-                pa.info());
+    }
+
+    /** The predicate's DEPTH-1 subtype reads ({@code $c.engineType})
+     * renamed to their stc-qualified union-frame spellings when the cast
+     * target binds them; shared properties keep their plain reads. */
+    private TypedLambda renameSubTypeReads(TypedLambda pl, String subFqn,
+            ClassSource target) {
+        String p0 = pl.parameters().get(0);
+        List<TypedSpec> body = pl.body().stream()
+                .map(b -> renameSubTypeReads(b, p0, subFqn, target)).toList();
+        return new TypedLambda(pl.parameters(), body, pl.info());
+    }
+
+    private TypedSpec renameSubTypeReads(TypedSpec n, String p0,
+            String subFqn, ClassSource target) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(p0)) {
+            String stc = com.legend.model.ClassMapping.subTypeColumn(
+                    subFqn, pa.property());
+            if (target.bindings().containsKey(stc)) {
+                return new TypedPropertyAccess(pa.source(), stc, pa.info());
+            }
+            return n;
+        }
+        if (n instanceof TypedLambda sh && sh.parameters().contains(p0)) {
+            return n;   // shadowing binder stops the rename
+        }
+        return SyntheticHeads.rebuildChildren(n,
+                c -> renameSubTypeReads(c, p0, subFqn, target));
     }
 
     /** ORDERING CONTRACT (audit 15 B3): aggReads is IDENTITY-keyed on the

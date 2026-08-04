@@ -53,7 +53,7 @@ in-process Alloy-shaped path).
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
-| tests/mapping/association | 23 | 22 | 0 | 1 | 0 | 0 |
+| tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
@@ -65,7 +65,7 @@ in-process Alloy-shaped path).
 | tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 4 |
 | tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 |
-| tests/mapping/inheritance | 47 | 44 | 0 | 3 | 0 | 0 |
+| tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 24 | 2 | 2 | 0 | 8 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2218** | 72 | 113 | 135 | 240 |
+| **total** | 2538 | **2221** | 72 | 110 | 135 | 240 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1085,7 +1085,6 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 5x Binder Error: No function matches the given name and argument types 'struct_extract(VARCHAR, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	struct_extract(STRUCT, VARCHAR) -> ANY | 	struct_extract(STRUCT, BIGINT) -> ANY |  |  | LINE 1: SELECT struct_extract(CASE WHEN 0 >= len(NULL) OR 0 < 0 THEN error... |                ^
-- 3x class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
@@ -1114,6 +1113,7 @@ in-process Alloy-shaped path).
 - 1x zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - 1x no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
+- 1x project expects ~[…] column specifications
 
 ### per-test outcomes (non-passing)
 
@@ -1359,7 +1359,6 @@ in-process Alloy-shaped path).
 - FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
 - FAIL testQuery [tests/mapping]: assertSize(result.values): expected 1, got 2 (TDS = one carrier; collections splat)
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
-- ERROR testSubTypeFilter [tests/mapping/association]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
@@ -1381,9 +1380,7 @@ in-process Alloy-shaped path).
 - FAIL testProjectWithIfWhereBothSidesUseTheSameEnumMapping [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, CUSIP]
 - FAIL testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call — wall: assert form 'assertIs/2' is not supported yet
-- ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'stc_meta__relational__tests__model__inheritance__Bicycle___person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' has no binding in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (unmapped, or routed to a non-root mapping s
-- ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types (ExprType[
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
