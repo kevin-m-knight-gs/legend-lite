@@ -455,7 +455,7 @@ class NameResolverTest {
                 "Person", "p_set", null, true,
                 new TableReference("DB", "PersonTbl"),
                 null, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
@@ -511,7 +511,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "PersonTbl"),
                 null, false, List.of(), List.of(), List.of(col),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -529,7 +529,7 @@ class NameResolverTest {
                 "model::Sub", "s_set", null, true,
                 new TableReference("store::DB", "T"),
                 null, false, List.of(), List.of(), List.of(lp),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         ImportScope both = new ImportScope.Builder()
@@ -912,7 +912,7 @@ class NameResolverTest {
                 className, "s_set", null, true,
                 new TableReference("DB", "T"),
                 null, false, List.of(), List.of(), List.of(pm),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         return new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
     }
@@ -1122,7 +1122,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1137,7 +1137,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1157,7 +1157,7 @@ class NameResolverTest {
                 "model::Person", "p_set", null, true,
                 new TableReference("store::DB", "T"),
                 fm, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, WILDCARD_STORE, FQNS);
@@ -1365,7 +1365,7 @@ class NameResolverTest {
                 "Person", "p_set", "parent_set", true,
                 new TableReference("DB", "T"),
                 null, false, List.of(), List.of(), List.of(),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, imp, trickyFqns);
@@ -1738,7 +1738,7 @@ class NameResolverTest {
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "g")),  // groupBy
                 List.of(new RelationalOperation.ColumnRef("DB", "T", "pk")), // primaryKey
                 List.of(pmCol, pmJoin),
-                /* sourceUrl */ null, java.util.Map.of());
+                /* sourceUrl */ null, java.util.Map.of(), false);
         var md = new LegacyMappingDefinition("mapping::M", List.of(),
                 List.of(rel), List.of(), List.of(), null);
         var r = (LegacyMappingDefinition) resolveOne(md, both, FQNS);

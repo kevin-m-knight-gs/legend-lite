@@ -2416,6 +2416,47 @@ final class StatementExecutor {
                             w.callee(), args, w.info());
                 }
             }
+            // $r.activities->filter(instanceOf AggregationAwareActivity)
+            // ->at(0)->cast(@…).rewrittenQuery over an AGGREGATION-AWARE-
+            // routed frame: the ONE recorded activity's routed-query print
+            // (AggAwareActivities; null keeps the honest fallback below)
+            if (n instanceof com.legend.compiler.spec.typed
+                    .TypedPropertyAccess rqa
+                    && rqa.property().equals("rewrittenQuery")) {
+                TypedSpec inner = rqa.source();
+                while (true) {
+                    if (inner instanceof com.legend.compiler.spec.typed
+                            .TypedCast tc) {
+                        inner = tc.source();
+                    } else if (inner instanceof com.legend.compiler.spec.typed
+                            .TypedNativeCall w
+                            && !w.args().isEmpty()
+                            && (AT_FQN.equals(w.callee().qualifiedName())
+                                || FIRST_FQN.equals(w.callee().qualifiedName())
+                                || TO_ONE_FQN.equals(
+                                        w.callee().qualifiedName()))) {
+                        inner = w.args().get(0);
+                    } else {
+                        break;
+                    }
+                }
+                if (inner instanceof com.legend.compiler.spec.typed
+                        .TypedFilter af
+                        && activitiesRead(af.source(), execFrames)
+                        && af.source() instanceof com.legend.compiler.spec
+                                .typed.TypedPropertyAccess ap2
+                        && ap2.source() instanceof com.legend.compiler.spec
+                                .typed.TypedVariable av2) {
+                    ExecFrame afr = execFrames.get(av2.name());
+                    String rq = afr == null ? null
+                            : AggAwareActivities.rewrittenQuery(
+                                    afr.chain(), env.ctx());
+                    if (rq != null) {
+                        return new com.legend.compiler.spec.typed
+                                .TypedCString(rq, n.info());
+                    }
+                }
+            }
             // $r.activities: the engine's execution-activity trail (routing/
             // aggregationAware rewrite records). We record NONE — the read
             // is the EMPTY collection, so absence asserts (assertEmpty over
