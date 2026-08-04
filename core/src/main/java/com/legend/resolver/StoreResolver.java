@@ -2932,7 +2932,8 @@ public final class StoreResolver {
         if (tree != null) {
             TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(),
                     fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
-            return serializeTypeCfg == null ? env : GraphEmission.withTypeKey(env, serializeTypeCfg);
+            return serializeTypeCfg == null ? env : GraphEmission.withTypeKey(
+                    env, serializeTypeCfg, GraphEmission.stringPlusCallee(ctx));
         }
 
         // 4. The relation-shaping boundary: info UNCHANGED.

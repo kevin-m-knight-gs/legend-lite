@@ -2855,7 +2855,8 @@ final class GraphEmission {
     /** The supported serialize-config surface: includeType (+ typeKeyName,
      * fullyQualifiedTypePath) emit the type key; every OTHER envelope-
      * changing flag walls loudly — never a silently-ignored config. */
-    record SerializeTypeConfig(String typeKey, boolean fq) {
+    record SerializeTypeConfig(String typeKey, boolean fq,
+            boolean includeEnumType) {
     }
 
     static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
@@ -2876,7 +2877,6 @@ final class GraphEmission {
                     : n >= 7 ? boolArg(a.get(n - 1)) : false;
             // ORDERED walls (deterministic scoreboard message)
             String[][] flags = {
-                    {"includeEnumType", includeEnumType ? "y" : ""},
                     {"removePropertiesWithNullValues",
                             boolArg(a.get(rn)) ? "y" : ""},
                     {"removePropertiesWithEmptySets",
@@ -2889,7 +2889,10 @@ final class GraphEmission {
                             + " supported yet");
                 }
             }
-            return includeType ? new SerializeTypeConfig(key, fq) : null;
+            return includeType || includeEnumType
+                    ? new SerializeTypeConfig(key, includeType && fq,
+                            includeEnumType)
+                    : null;
         }
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
                 || !"meta::pure::graphFetch::execution::AlloySerializationConfig"
@@ -2898,6 +2901,7 @@ final class GraphEmission {
                     + cfg.getClass().getSimpleName() + " is not supported yet");
         }
         boolean includeType = false;
+        boolean includeEnumType2 = false;
         boolean fq = false;
         String key = "@type";
         for (var e : ni.properties().entrySet()) {
@@ -2909,6 +2913,9 @@ final class GraphEmission {
                     }
                 }
                 case "includeType" -> includeType =
+                        v instanceof com.legend.compiler.spec.typed
+                                .TypedCBoolean b && b.value();
+                case "includeEnumType" -> includeEnumType2 =
                         v instanceof com.legend.compiler.spec.typed
                                 .TypedCBoolean b && b.value();
                 case "fullyQualifiedTypePath" -> fq =
@@ -2925,7 +2932,10 @@ final class GraphEmission {
                 }
             }
         }
-        return includeType ? new SerializeTypeConfig(key, fq) : null;
+        return includeType || includeEnumType2
+                ? new SerializeTypeConfig(key, includeType && fq,
+                        includeEnumType2)
+                : null;
     }
 
     private static boolean boolArg(TypedSpec v) {
@@ -2939,24 +2949,77 @@ final class GraphEmission {
     }
 
     /** Stamp the type-key config on EVERY node of a built envelope
-     * (nested + patch children) — one application at the serialize arm. */
+     * (nested + patch children) — one application at the serialize arm.
+     * includeEnumType wraps ENUM-typed leaf bodies with the enum's FQN
+     * prefix ('pkg::Enum.VALUE' — the engine's includeEnumType form);
+     * {@code plusCallee} is the registered String+String overload. */
     static TypedSerializeGraph withTypeKey(TypedSerializeGraph g,
-            SerializeTypeConfig c) {
-        return new TypedSerializeGraph(g.source(), g.rowVar(), g.leaves(),
+            SerializeTypeConfig c,
+            com.legend.compiler.element.TypedFunction plusCallee) {
+        List<TypedFuncCol> leaves = c.includeEnumType()
+                ? g.leaves().stream().map(l ->
+                        enumPrefixed(l, plusCallee)).toList()
+                : g.leaves();
+        return new TypedSerializeGraph(g.source(), g.rowVar(), leaves,
                 g.nested().stream().map(ch -> new TypedSerializeGraph.Child(
-                        ch.property(), withTypeKey(ch.node(), c))).toList(),
+                        ch.property(), withTypeKey(ch.node(), c, plusCallee)))
+                        .toList(),
                 g.arrayWrap(), g.bareValue(), g.classFqn(), g.info(),
                 g.inlineChild(),
                 g.subTypePatches().stream().map(p ->
                         new TypedSerializeGraph.SubTypePatch(p.subTypeFqn(),
-                                p.leaves(), p.member(),
+                                c.includeEnumType()
+                                        ? p.leaves().stream().map(l ->
+                                                enumPrefixed(l, plusCallee))
+                                                .toList()
+                                        : p.leaves(),
+                                p.member(),
                                 p.children().stream().map(ch ->
                                         new TypedSerializeGraph.Child(
                                                 ch.property(),
-                                                withTypeKey(ch.node(), c)))
+                                                withTypeKey(ch.node(), c,
+                                                        plusCallee)))
                                         .toList()))
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq());
+    }
+
+    /** The String+String plus overload — the includeEnumType prefix. */
+    static com.legend.compiler.element.TypedFunction stringPlusCallee(
+            ModelContext mc) {
+        return mc.findFunction("meta::pure::functions::math::plus").stream()
+                .filter(f -> f.parameters().size() == 2
+                        && f.parameters().get(0).type()
+                                == Type.Primitive.STRING)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no String plus registration"));
+    }
+
+    /** An ENUM-typed leaf body concat-prefixed with its enumeration FQN
+     * (a NULL enum rides concat's null-skip — acceptable until the
+     * removeNull sub-slice owns null keys). Non-enum leaves unchanged. */
+    private static TypedFuncCol enumPrefixed(TypedFuncCol l,
+            com.legend.compiler.element.TypedFunction plusCallee) {
+        if (!(l.fn() instanceof TypedLambda lam)
+                || lam.body().isEmpty()) {
+            return l;
+        }
+        TypedSpec body = lam.body().get(lam.body().size() - 1);
+        if (!(body.info().type() instanceof Type.EnumType et)) {
+            return l;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        TypedSpec prefixed = new TypedNativeCall(plusCallee, List.of(
+                new com.legend.compiler.spec.typed.TypedCString(
+                        et.fqn() + ".",
+                        new ExprType(Type.Primitive.STRING, one)),
+                body),
+                new ExprType(Type.Primitive.STRING,
+                        body.info().multiplicity()));
+        List<TypedSpec> nb = new ArrayList<>(lam.body());
+        nb.set(nb.size() - 1, prefixed);
+        return new TypedFuncCol(l.name(), new TypedLambda(lam.parameters(),
+                nb, lam.info()));
     }
 
     /** β-substitute free variables by name over the derived-body
