@@ -31,18 +31,39 @@ public final class ProtocolToModel {
     private ProtocolToModel() {
     }
 
+    /** Protocol stereotypes to the model's, dropping positions the compiler does not want. */
+    public static List<com.legend.model.StereotypeApplication> stereotypes(
+            List<Protocol.PStereotype> ss) {
+        List<com.legend.model.StereotypeApplication> out = new ArrayList<>(ss.size());
+        for (Protocol.PStereotype s : ss) {
+            out.add(new com.legend.model.StereotypeApplication(s.profile(), s.value()));
+        }
+        return out;
+    }
+
+    /** Protocol tagged values to the model's. */
+    public static List<com.legend.model.TaggedValue> taggedValues(List<Protocol.PTaggedValue> ts) {
+        List<com.legend.model.TaggedValue> out = new ArrayList<>(ts.size());
+        for (Protocol.PTaggedValue t : ts) {
+            out.add(new com.legend.model.TaggedValue(t.tag().profile(), t.tag().value(), t.value()));
+        }
+        return out;
+    }
+
     public static ClassDefinition toClassDefinition(PClass c) {
         List<ClassDefinition.PropertyDefinition> props = new ArrayList<>(c.properties().size());
         for (PProperty p : c.properties()) {
             props.add(new ClassDefinition.PropertyDefinition(
-                    p.name(), p.type(), p.multiplicity(), p.stereotypes(), p.taggedValues()));
+                    p.name(), p.type(), p.multiplicity(),
+                    stereotypes(p.stereotypes()), taggedValues(p.taggedValues())));
         }
         List<com.legend.model.TypeExpression> supers = new ArrayList<>(c.superTypes().size());
         for (Protocol.PSuperType st : c.superTypes()) {
             supers.add(st.type());
         }
         return new ClassDefinition(c.qualifiedName(), c.typeParams(), supers, props,
-                c.derivedProperties(), c.constraints(), c.stereotypes(), c.taggedValues(),
+                c.derivedProperties(), c.constraints(),
+                stereotypes(c.stereotypes()), taggedValues(c.taggedValues()),
                 c.isNative());
     }
 

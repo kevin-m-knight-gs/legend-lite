@@ -377,8 +377,8 @@ public final class ElementParser implements TokenStreamCursor {
     private com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative) {
         int classStartTok = pos;
         expect(TokenType.CLASS);
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
 
         List<String> typeParams = parseClassTypeParams();
@@ -913,8 +913,8 @@ public final class ElementParser implements TokenStreamCursor {
 
     private FunctionSignature parseFunctionSignature() {
         expect(TokenType.FUNCTION);
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
         List<String> typeParams = new ArrayList<>();
         List<String> multParams = new ArrayList<>();
@@ -931,9 +931,12 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.COLON);
         TypeExpression returnType = parseType();
         Multiplicity returnMult = parseMultiplicity();
+        // Functions have no emitter yet, so the signature keeps the model's annotation shape.
+        // It converts back when function emission lands.
         return new FunctionSignature(qualifiedName, List.copyOf(typeParams),
                 List.copyOf(multParams), params, returnType, returnMult,
-                stereotypes, taggedValues);
+                com.legend.protocol.ProtocolToModel.stereotypes(stereotypes),
+                com.legend.protocol.ProtocolToModel.taggedValues(taggedValues));
     }
 
     private FunctionDefinition parseFunctionDefinition() {
@@ -1511,8 +1514,8 @@ public final class ElementParser implements TokenStreamCursor {
 
     private com.legend.protocol.Protocol.PProperty parseProperty() {
         int startTok = pos;
-        List<StereotypeApplication> stereotypes = parseStereotypes();
-        List<TaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String name = parseIdentifier();
         expect(TokenType.COLON);
         int typeStartTok = pos;
@@ -1594,13 +1597,13 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /** {@code <<profile.stereotype, ...>>}; returns empty list if absent. */
-    List<StereotypeApplication> parseStereotypes() {
+    List<com.legend.protocol.Protocol.PStereotype> parseStereotypes() {
         if (peek() != TokenType.LESS_THAN || peek(1) != TokenType.LESS_THAN) {
             return List.of();
         }
         advance();
         advance();
-        List<StereotypeApplication> result = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PStereotype> result = new ArrayList<>();
         result.add(parseStereotype());
         while (match(TokenType.COMMA)) {
             result.add(parseStereotype());
@@ -1610,20 +1613,24 @@ public final class ElementParser implements TokenStreamCursor {
         return result;
     }
 
-    private StereotypeApplication parseStereotype() {
+    private com.legend.protocol.Protocol.PStereotype parseStereotype() {
+        int profStart = pos;
         String profile = parseQualifiedName();
+        int profEnd = pos - 1;
         expect(TokenType.DOT);
         String name = parseIdentifier();
-        return new StereotypeApplication(profile, name);
+        // profileSourceInformation covers the profile FQN; sourceInformation the whole ptr.
+        return new com.legend.protocol.Protocol.PStereotype(profile, name,
+                span(profStart, profEnd), span(profStart, pos - 1));
     }
 
     /** {@code { profile.tag = 'value', ... }}; returns empty list if not a tag block. */
-    List<TaggedValue> parseTaggedValues() {
+    List<com.legend.protocol.Protocol.PTaggedValue> parseTaggedValues() {
         if (peek() != TokenType.BRACE_OPEN) return List.of();
         if (!looksLikeTaggedValueBlock(tokens, pos)) return List.of();
 
         advance(); // skip {
-        List<TaggedValue> result = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PTaggedValue> result = new ArrayList<>();
         result.add(parseTaggedValue());
         while (match(TokenType.COMMA)) {
             result.add(parseTaggedValue());
@@ -1666,17 +1673,27 @@ public final class ElementParser implements TokenStreamCursor {
         return p < n && tokens.type(p) == TokenType.EQUAL;
     }
 
-    private TaggedValue parseTaggedValue() {
+    private com.legend.protocol.Protocol.PTaggedValue parseTaggedValue() {
+        int start = pos;
+        int profStart = pos;
         String profile = parseQualifiedName();
+        int profEnd = pos - 1;
         expect(TokenType.DOT);
+        int tagStart = pos;
         String tag = parseIdentifier();
+        int tagEnd = pos - 1;
         expect(TokenType.EQUAL);
         String rawValue = consume(TokenType.STRING);
         String value = rawValue;
         if (value.startsWith("'") && value.endsWith("'") && value.length() >= 2) {
             value = value.substring(1, value.length() - 1);
         }
-        return new TaggedValue(profile, tag, value);
+        // NOTE the asymmetry, verified against legend-engine: a TAG's sourceInformation covers only
+        // the tag name, while a STEREOTYPE's covers the whole profile.name.
+        return new com.legend.protocol.Protocol.PTaggedValue(
+                new com.legend.protocol.Protocol.PTag(profile, tag,
+                        span(profStart, profEnd), span(tagStart, tagEnd)),
+                value, span(start, pos - 1));
     }
 
     // ============================================================

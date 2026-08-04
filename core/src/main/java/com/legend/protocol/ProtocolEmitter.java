@@ -77,8 +77,6 @@ public final class ProtocolEmitter {
         require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
         require(c.derivedProperties().isEmpty(), "qualifiedProperties", c.qualifiedName());
         require(c.constraints().isEmpty(), "constraints", c.qualifiedName());
-        require(c.stereotypes().isEmpty(), "stereotypes", c.qualifiedName());
-        require(c.taggedValues().isEmpty(), "taggedValues", c.qualifiedName());
         b.append("{\"_type\":\"class\",\"constraints\":[],\"name\":");
         str(b, c.name());
         b.append(",\"originalMilestonedProperties\":[],\"package\":");
@@ -93,7 +91,9 @@ public final class ProtocolEmitter {
         }
         b.append("],\"qualifiedProperties\":[],\"sourceInformation\":");
         srcInfo(b, c.sourceInformation());
-        b.append(",\"stereotypes\":[],\"superTypes\":[");
+        b.append(",\"stereotypes\":");
+        stereotypes(b, c.stereotypes());
+        b.append(",\"superTypes\":[");
         List<Protocol.PSuperType> sts = c.superTypes();
         for (int i = 0; i < sts.size(); i++) {
             if (i > 0) {
@@ -101,7 +101,9 @@ public final class ProtocolEmitter {
             }
             superType(b, sts.get(i));
         }
-        b.append("],\"taggedValues\":[]}");
+        b.append("],\"taggedValues\":");
+        taggedValues(b, c.taggedValues());
+        b.append('}');
     }
 
     /** {@code {"path":…,"sourceInformation":…,"type":"CLASS"}} — fields alphabetical, no {@code _type}. */
@@ -123,8 +125,6 @@ public final class ProtocolEmitter {
         // default values silently, so the emitted bytes were quietly missing `defaultValue` and the
         // diff looked like a mystery. Silent omission is the one thing the emitter must never do.
         require(!p.hasDefaultValue(), "property defaultValue", p.name());
-        require(p.stereotypes().isEmpty(), "property stereotypes", p.name());
-        require(p.taggedValues().isEmpty(), "property taggedValues", p.name());
         b.append("{\"genericType\":");
         genericType(b, p.type(), p.typeSourceInformation());
         b.append(",\"multiplicity\":");
@@ -133,7 +133,57 @@ public final class ProtocolEmitter {
         str(b, p.name());
         b.append(",\"sourceInformation\":");
         srcInfo(b, p.sourceInformation());
-        b.append(",\"stereotypes\":[],\"taggedValues\":[]}");
+        b.append(",\"stereotypes\":");
+        stereotypes(b, p.stereotypes());
+        b.append(",\"taggedValues\":");
+        taggedValues(b, p.taggedValues());
+        b.append('}');
+    }
+
+    /** {@code [{"profile":…,"profileSourceInformation":…,"sourceInformation":…,"value":…}]} */
+    private static void stereotypes(StringBuilder b, List<Protocol.PStereotype> ss) {
+        b.append('[');
+        for (int i = 0; i < ss.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PStereotype st = ss.get(i);
+            b.append("{\"profile\":");
+            str(b, st.profile());
+            b.append(",\"profileSourceInformation\":");
+            srcInfo(b, st.profileSourceInformation());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, st.sourceInformation());
+            b.append(",\"value\":");
+            str(b, st.value());
+            b.append('}');
+        }
+        b.append(']');
+    }
+
+    /** {@code [{"sourceInformation":…,"tag":{…},"value":…}]} */
+    private static void taggedValues(StringBuilder b, List<Protocol.PTaggedValue> ts) {
+        b.append('[');
+        for (int i = 0; i < ts.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PTaggedValue tv = ts.get(i);
+            b.append("{\"sourceInformation\":");
+            srcInfo(b, tv.sourceInformation());
+            b.append(",\"tag\":{\"profile\":");
+            str(b, tv.tag().profile());
+            b.append(",\"profileSourceInformation\":");
+            srcInfo(b, tv.tag().profileSourceInformation());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, tv.tag().sourceInformation());
+            b.append(",\"value\":");
+            str(b, tv.tag().value());
+            b.append("},\"value\":");
+            str(b, tv.value());
+            b.append('}');
+        }
+        b.append(']');
     }
 
     /** The wire's {@code genericType}. Only a plain named type is expressible so far. */

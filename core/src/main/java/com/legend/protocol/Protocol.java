@@ -61,8 +61,8 @@ public final class Protocol {
                          List<PProperty> properties,
                          List<com.legend.model.ClassDefinition.DerivedPropertyDefinition> derivedProperties,
                          List<com.legend.model.ClassDefinition.ConstraintDefinition> constraints,
-                         List<com.legend.model.StereotypeApplication> stereotypes,
-                         List<com.legend.model.TaggedValue> taggedValues,
+                         List<PStereotype> stereotypes,
+                         List<PTaggedValue> taggedValues,
                          boolean isNative,
                          SourceInfo sourceInformation) implements Element {
         public PClass {
@@ -110,8 +110,8 @@ public final class Protocol {
     public record PProperty(String name,
                             com.legend.model.TypeExpression type,
                             com.legend.model.Multiplicity multiplicity,
-                            List<com.legend.model.StereotypeApplication> stereotypes,
-                            List<com.legend.model.TaggedValue> taggedValues,
+                            List<PStereotype> stereotypes,
+                            List<PTaggedValue> taggedValues,
                             SourceInfo sourceInformation,
                             SourceInfo typeSourceInformation,
                             boolean hasDefaultValue) {
@@ -123,6 +123,33 @@ public final class Protocol {
 
     /** Note: carries no {@code _type} on the wire. */
     public record PGenericType(PPackageableType rawType) {
+    }
+
+    /**
+     * The wire's {@code StereotypePtr}:
+     * {@code {"profile":…,"profileSourceInformation":…,"sourceInformation":…,"value":…}}.
+     *
+     * <p>Two spans: {@code profileSourceInformation} covers just the profile FQN,
+     * {@code sourceInformation} covers the whole {@code a::P.s1}.
+     */
+    public record PStereotype(String profile, String value,
+                              SourceInfo profileSourceInformation,
+                              SourceInfo sourceInformation) {
+    }
+
+    /**
+     * The wire's {@code TagPtr}. Same four fields as {@link PStereotype} — but note the
+     * <b>asymmetry</b>: a tag's {@code sourceInformation} covers only the tag NAME, where a
+     * stereotype's covers the whole {@code profile.name}. Verified against legend-engine, not
+     * assumed.
+     */
+    public record PTag(String profile, String value,
+                       SourceInfo profileSourceInformation,
+                       SourceInfo sourceInformation) {
+    }
+
+    /** {@code {"sourceInformation":…,"tag":{…},"value":…}}. */
+    public record PTaggedValue(PTag tag, String value, SourceInfo sourceInformation) {
     }
 
     /**
