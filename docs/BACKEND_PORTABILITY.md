@@ -242,6 +242,16 @@ It is about **whether anyone can get a server**.
 Registries are overridable (`-Dlegend.engine.testcontainer.registry=…`). Nothing is `@Ignore`d;
 gating is entirely pom-profile plus CI conditionals.
 
+> **Postgres is tier I, and upstream's own docs say otherwise — the docs are wrong.**
+> `legend-engine/CLAUDE.md:41` lists Postgres among *"Cloud stores (`pct-cloud-test` profile,
+> CI-only, requires secrets)"*. The code disagrees:
+> `PostgresTestConnectionIntegration.java:49` is
+> `new PostgreSQLContainer(DockerImageName.parse("postgres").withTag("16.10"))`, the module's pom
+> declares the testcontainers dependencies with **no `<skip>`**, and `postgres` is a group in
+> `.github/workflows/resources/modulesToTest.json`. This table follows the code — the same
+> discipline as §9's *"don't trust documentation on any of this"*, applied to upstream's prose
+> rather than a vendor's.
+
 **Tier III is not a choice.** It is what a database gets when nobody can run one. No vendor sits
 there on purpose.
 
