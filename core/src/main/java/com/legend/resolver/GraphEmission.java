@@ -2857,7 +2857,7 @@ final class GraphEmission {
      * changing flag walls loudly — never a silently-ignored config. */
     record SerializeTypeConfig(@com.legend.Nullable String typeKey,
             boolean fq, boolean includeEnumType, boolean removeNull,
-            boolean removeEmpty) {
+            boolean removeEmpty, boolean includeObjectReference) {
     }
 
     static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
@@ -2876,18 +2876,13 @@ final class GraphEmission {
             boolean fq = n >= 6 ? boolArg(a.get(n == 8 ? 6 : 5)) : true;
             boolean ior = n == 5 ? boolArg(a.get(4))
                     : n >= 7 ? boolArg(a.get(n - 1)) : false;
-            if (ior) {
-                throw new NotImplementedException("serialize config"
-                        + " flag 'includeObjectReference' is not"
-                        + " supported yet");
-            }
             boolean removeNull = boolArg(a.get(rn));
             boolean removeEmpty = boolArg(a.get(rn + 1));
             return includeType || includeEnumType || removeNull
-                    || removeEmpty
+                    || removeEmpty || ior
                     ? new SerializeTypeConfig(includeType ? key : null,
                             includeType && fq, includeEnumType,
-                            removeNull, removeEmpty)
+                            removeNull, removeEmpty, ior)
                     : null;
         }
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
@@ -2930,7 +2925,8 @@ final class GraphEmission {
         }
         return includeType || includeEnumType2
                 ? new SerializeTypeConfig(includeType ? key : null,
-                        includeType && fq, includeEnumType2, false, false)
+                        includeType && fq, includeEnumType2, false, false,
+                        false)
                 : null;
     }
 
@@ -2952,6 +2948,15 @@ final class GraphEmission {
     static TypedSerializeGraph withTypeKey(TypedSerializeGraph g,
             SerializeTypeConfig c,
             com.legend.compiler.element.TypedFunction plusCallee) {
+        return withTypeKey(g, c, plusCallee, null);
+    }
+
+    /** {@code objectRefPrefix} stamps the ROOT node only (children never
+     * carry the ASOR channel). */
+    static TypedSerializeGraph withTypeKey(TypedSerializeGraph g,
+            SerializeTypeConfig c,
+            com.legend.compiler.element.TypedFunction plusCallee,
+            @com.legend.Nullable String objectRefPrefix) {
         List<TypedFuncCol> leaves = c.includeEnumType()
                 ? g.leaves().stream().map(l ->
                         enumPrefixed(l, plusCallee)).toList()
@@ -2978,7 +2983,56 @@ final class GraphEmission {
                                         .toList()))
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq(),
-                g.checkedConstraints(), c.removeNull(), c.removeEmpty());
+                g.checkedConstraints(), c.removeNull(), c.removeEmpty(),
+                objectRefPrefix);
+    }
+
+    /** The ASOR objectReference STATIC prefix (engine store-object-
+     * reference protocol, decoded from the goldens): '001:010:' +
+     * len10-prefixed segments — store kind, the DEFINING (include-aware)
+     * mapping, the mangled set id twice, the canonical test-H2
+     * connection protocol JSON. The per-row pk segment appends in SQL. */
+    static String asorPrefix(ModelContext mc, ClassSource cs) {
+        String defining = definingMapping(mc, cs.mappingFqn(), cs.classFqn());
+        String setId = cs.classFqn().replace("::", "_");
+        String conn = "{\"_type\":\"RelationalDatabaseConnection\","
+                + "\"authenticationStrategy\":{\"_type\":\"h2Default\"},"
+                + "\"datasourceSpecification\":{\"_type\":\"h2Local\"},"
+                + "\"element\":\"\",\"postProcessorWithParameter\":[],"
+                + "\"postProcessors\":[],\"timeZone\":\"GMT\","
+                + "\"type\":\"H2\"}";
+        return "001:010:" + seg("Relational") + seg(defining) + seg(setId)
+                + seg(setId) + seg(conn);
+    }
+
+    private static String seg(String v) {
+        return String.format("%010d", v.length()) + ":" + v + ":";
+    }
+
+    /** The include-closure mapping that DEFINES the class binding (the
+     * engine's reference names the OWNING mapping, not the queried one):
+     * own declarations win, else the first include that defines it. */
+    private static String definingMapping(ModelContext mc, String mappingFqn,
+            String classFqn) {
+        String r = definingMapping0(mc, mappingFqn, classFqn);
+        return r == null ? mappingFqn : r;
+    }
+
+    private static @com.legend.Nullable String definingMapping0(
+            ModelContext mc, String mappingFqn, String classFqn) {
+        var m = mc.findMapping(mappingFqn).orElse(null);
+        if (m == null) {
+            return null;
+        }
+        for (var inc : m.includes()) {
+            String r = definingMapping0(mc, inc.mappingPath(), classFqn);
+            if (r != null) {
+                return r;
+            }
+        }
+        return m.classBindings().stream()
+                .anyMatch(cb -> cb.classFqn().equals(classFqn))
+                ? mappingFqn : null;
     }
 
     /** The String+String plus overload — the includeEnumType prefix. */

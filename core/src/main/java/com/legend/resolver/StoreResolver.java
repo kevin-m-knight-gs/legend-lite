@@ -2928,12 +2928,12 @@ public final class StoreResolver {
             };
         }
 
-        // 4a. GRAPH terminal (plan H4a SNAPSHOT envelope).
-        if (tree != null) {
-            TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(),
-                    fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
+        if (tree != null) {   // 4a. GRAPH terminal (H4a snapshot envelope)
+            TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++)
+                    .buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(), fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
             return serializeTypeCfg == null ? env : GraphEmission.withTypeKey(
-                    env, serializeTypeCfg, GraphEmission.stringPlusCallee(ctx));
+                    env, serializeTypeCfg, GraphEmission.stringPlusCallee(ctx),
+                    serializeTypeCfg.includeObjectReference() ? GraphEmission.asorPrefix(ctx, cs) : null);
         }
 
         // 4. The relation-shaping boundary: info UNCHANGED.

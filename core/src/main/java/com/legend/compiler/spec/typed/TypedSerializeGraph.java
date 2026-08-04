@@ -53,8 +53,25 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   boolean fqTypePath,
                                   @com.legend.Nullable List<CheckedConstraint> checkedConstraints,
                                   boolean removeNullKeys,
-                                  boolean removeEmptySets)
+                                  boolean removeEmptySets,
+                                  @com.legend.Nullable String objectRefPrefix)
         implements TypedSpec {
+
+    /** Config compat (no objectReference channel). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches,
+            List<TypedFuncCol> orderKeys,
+            @com.legend.Nullable String typeKeyName,
+            boolean fqTypePath,
+            @com.legend.Nullable List<CheckedConstraint> checkedConstraints,
+            boolean removeNullKeys, boolean removeEmptySets) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, orderKeys, typeKeyName,
+                fqTypePath, checkedConstraints, removeNullKeys,
+                removeEmptySets, null);
+    }
 
     /** Pre-config compat (removeNull/removeEmpty default off). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
@@ -78,7 +95,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                 leaves, nested, true, bareValue, classFqn, info,
                 inlineChild, subTypePatches, orderKeys, typeKeyName,
                 fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets);
+                removeEmptySets, objectRefPrefix);
     }
 
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
@@ -246,6 +263,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         TypedSpec.expectChildren(kids, i, "TypedSerializeGraph");
         return new TypedSerializeGraph(kids.get(0), rowVar, ls, ns, arrayWrap,
                 bareValue, classFqn, info, inlineChild, sps, oks, typeKeyName,
-                fqTypePath, ccs, removeNullKeys, removeEmptySets);
+                fqTypePath, ccs, removeNullKeys, removeEmptySets,
+                objectRefPrefix);
     }
 }

@@ -582,14 +582,10 @@ public final class Lowerer {
                 .withProjections(ps, outputsOf(g.info()));
     }
 
-    /** The GRAPH-serialize envelope (H4a SNAPSHOT): one json_object per
-     * row keyed by the tree's leaves; nested children = CORRELATED scalar
-     * subqueries (enclosing-resolver channel); arrayWrap aggregates into
-     * one JSON-array result value. */
     /** One envelope lambda lowered STRICTLY against the base select —
      * leaves, subType patches, witnesses, order keys and checked
-     * constraints share the rule: read your own row only; an outer-scope
-     * fallback could silently supply a same-named parent column (audit
+     * constraints share the rule: read your own row only (an outer-scope
+     * fallback could silently supply a same-named parent column, audit
      * L2); a miss is loud naming the site. */
     private SqlExpr envelopeScalar(TypedFuncCol cc, SqlSelect base,
             String what) {
@@ -695,6 +691,10 @@ public final class Lowerer {
         if (g.checkedConstraints() != null) {
             obj = CheckedEnvelope.wrap(g, obj,
                     cc -> envelopeScalar(cc, base, "checked constraint"));
+        }
+        if (g.objectRefPrefix() != null) {   // ASOR {objectReference, value}
+            obj = SnapshotEnvelope.asorWrap(g, obj,
+                    k -> envelopeScalar(k, base, "objectReference pk"));
         }
         SqlExpr result;
         if (g.arrayWrap()) {

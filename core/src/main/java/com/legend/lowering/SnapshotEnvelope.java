@@ -78,4 +78,58 @@ final class SnapshotEnvelope {
                 : new SqlExpr.Call(com.legend.sql.SqlFn.JSON_MERGE_PATCH,
                         pieces);
     }
+
+    /** The ASOR objectReference wrap (Lowerer.serializeGraph): the
+     * per-row pk json appends to the resolver-built static prefix and
+     * base64-encodes IN SQL (padding stripped). PK values come from the
+     * PK_ORDER_PREFIX order keys — LOAD-BEARING here (loud when absent,
+     * never a silent partial reference). */
+    static SqlExpr asorWrap(
+            com.legend.compiler.spec.typed.TypedSerializeGraph g,
+            SqlExpr obj,
+            java.util.function.Function<com.legend.compiler.spec.typed
+                    .TypedFuncCol, SqlExpr> scalar) {
+        java.util.List<SqlExpr> parts = new java.util.ArrayList<>();
+        parts.add(new SqlExpr.StringLit("{"));
+        int i = 0;
+        for (var k : g.orderKeys()) {
+            if (!k.name().startsWith(com.legend.compiler.spec.typed
+                    .TypedSerializeGraph.PK_ORDER_PREFIX)) {
+                continue;
+            }
+            parts.add(new SqlExpr.StringLit(
+                    (i > 0 ? "," : "") + "\"pk$_" + i + "\":"));
+            parts.add(new SqlExpr.Cast(scalar.apply(k),
+                    com.legend.sql.SqlType.Scalar.VARCHAR));
+            i++;
+        }
+        if (i == 0) {
+            throw new IllegalStateException("objectReference needs pk order"
+                    + " keys — none projected on the root envelope");
+        }
+        parts.add(new SqlExpr.StringLit("}"));
+        SqlExpr pkJson = new SqlExpr.Call(com.legend.sql.SqlFn.CONCAT, parts);
+        SqlExpr full = new SqlExpr.Call(com.legend.sql.SqlFn.CONCAT,
+                java.util.List.of(
+                        new SqlExpr.StringLit(java.util.Objects
+                                .requireNonNull(g.objectRefPrefix())),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.LPAD,
+                                new SqlExpr.Cast(
+                                        SqlExpr.Call.of(com.legend.sql
+                                                .SqlFn.LENGTH, pkJson),
+                                        com.legend.sql.SqlType.Scalar.VARCHAR),
+                                new SqlExpr.IntLit(10),
+                                new SqlExpr.StringLit("0")),
+                        new SqlExpr.StringLit(":"), pkJson));
+        SqlExpr asor = new SqlExpr.Call(com.legend.sql.SqlFn.CONCAT,
+                java.util.List.of(
+                        new SqlExpr.StringLit("ASOR:"),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.RTRIM,
+                                SqlExpr.Call.of(com.legend.sql.SqlFn
+                                        .ENCODE_BASE64, full),
+                                new SqlExpr.StringLit("="))));
+        return new SqlExpr.JsonObject(java.util.List.of(
+                new SqlExpr.StringLit("objectReference"), asor,
+                new SqlExpr.StringLit("value"), obj));
+    }
 }
