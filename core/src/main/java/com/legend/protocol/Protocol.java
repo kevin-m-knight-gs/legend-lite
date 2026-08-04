@@ -111,11 +111,23 @@ public final class Protocol {
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation,
-                            boolean hasDefaultValue) {
+                            @com.legend.Nullable PDefaultValue defaultValue) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);
         }
+    }
+
+    /**
+     * A property's default value: {@code {"sourceInformation":…,"value":…}} on the wire, no
+     * {@code _type}. The outer span covers the whole default expression.
+     *
+     * <p>{@code value} is {@code null} when the parser accepted the default expression but
+     * could not build a value-spec tree for it — the parser stays total; {@link ProtocolEmitter}
+     * walls loudly on the null rather than dropping the property or the build silently.
+     */
+    public record PDefaultValue(@com.legend.Nullable com.legend.protocol.spec.ValueSpecification value,
+                                com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** Note: carries no {@code _type} on the wire. */

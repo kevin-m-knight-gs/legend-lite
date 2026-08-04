@@ -53,4 +53,13 @@ class ValueSpecEqualityTest {
         assertEquals(A, new CInteger(42L, A).pos());
         assertEquals(A, new CString("x", A).pos());
     }
+
+    @Test
+    void booleansAreEqualRegardlessOfPosition() {
+        assertEquals(new CBoolean(true), new CBoolean(true, A));
+        assertEquals(new CBoolean(true, A), new CBoolean(true, B));
+        assertEquals(new CBoolean(true, A).hashCode(), new CBoolean(true, B).hashCode());
+        assertNotEquals(new CBoolean(true, A), new CBoolean(false, A));
+        assertEquals(A, new CBoolean(true, A).pos());
+    }
 }

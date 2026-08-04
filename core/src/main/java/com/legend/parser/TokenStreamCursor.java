@@ -469,7 +469,7 @@ public interface TokenStreamCursor {
             advance();
         }
         if (!match(TokenType.LESS_THAN)) {
-            return new TypeExpression.NameRef(name, typeSpan(startTok, pos() - 1));
+            return new TypeExpression.NameRef(name, spanOf(startTok, pos() - 1));
         }
         List<TypeExpression> args = new ArrayList<>();
         args.add(parseTypeArgument());
@@ -490,12 +490,12 @@ public interface TokenStreamCursor {
         // Engine convention (verified via ProbeWireShapes): a generic's rawType span
         // covers the WHOLE application incl. the closing '>'; each argument carries
         // its own span on its own node.
-        return new TypeExpression.Generic(name, args, multArgs, typeSpan(startTok, pos() - 1));
+        return new TypeExpression.Generic(name, args, multArgs, spanOf(startTok, pos() - 1));
     }
 
     /** A {@link com.legend.protocol.SourceInfo} covering an inclusive token range,
      *  in the engine's 1-based / inclusive-end convention. */
-    default com.legend.protocol.SourceInfo typeSpan(int fromTok, int toTok) {
+    default com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
         TokenStream ts = tokens();
         return new com.legend.protocol.SourceInfo("",
                 ts.startLine(fromTok), ts.startColumn(fromTok),

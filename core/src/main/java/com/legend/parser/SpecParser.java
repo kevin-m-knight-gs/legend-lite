@@ -683,11 +683,12 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private CInteger parseInteger() {
         String text = text();
+        int tok = pos;
         pos++;
         try {
-            return new CInteger(Long.parseLong(text));
+            return new CInteger(Long.parseLong(text), spanOf(tok, tok));
         } catch (NumberFormatException overflow) {
-            return new CInteger(new BigInteger(text));
+            return new CInteger(new BigInteger(text), spanOf(tok, tok));
         }
     }
 
@@ -762,8 +763,10 @@ public final class SpecParser implements TokenStreamCursor {
         }
         String body = raw.substring(1, raw.length() - 1);
         String unescaped = unescapeString(body);
+        int tok = pos;
         pos++;
-        return new CString(unescaped);
+        // Engine convention: a string literal's span INCLUDES the surrounding quotes.
+        return new CString(unescaped, spanOf(tok, tok));
     }
 
     private String unescapeString(String body) {
@@ -803,8 +806,9 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private CBoolean consumeBoolean(boolean value) {
+        int tok = pos;
         pos++;
-        return new CBoolean(value);
+        return new CBoolean(value, spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------

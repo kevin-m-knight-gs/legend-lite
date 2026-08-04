@@ -57,7 +57,7 @@ class ProtocolEmitterTest {
                 new com.legend.protocol.TypeExpression.NameRef("String", new SourceInfo("", 3, 9, 3, 14)),
                 new com.legend.protocol.Multiplicity.Concrete(1, 1),
                 List.of(), List.of(),
-                new SourceInfo("", 3, 3, 3, 18), false);
+                new SourceInfo("", 3, 3, 3, 18), null);
         PClass person = new PClass("model", "Person", List.of(), List.of(), List.of(name),
                 List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 4, 1));
         PSectionIndex sections = new PSectionIndex("__internal__", "SectionIndex",
@@ -95,7 +95,7 @@ class ProtocolEmitterTest {
                         new com.legend.protocol.TypeExpression.NameRef("String", new SourceInfo("", 1, 1, 1, 1)),
                         new com.legend.protocol.Multiplicity.Concrete(1, null),
                         List.of(), List.of(),
-                        new SourceInfo("", 1, 1, 1, 1), false)),
+                        new SourceInfo("", 1, 1, 1, 1), null)),
                 List.of(), List.of(), List.of(), List.of(), false, new SourceInfo("", 1, 1, 1, 1));
         String json = ProtocolEmitter.emit(new PureModelContextData(List.of(c)));
 

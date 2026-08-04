@@ -1557,13 +1557,14 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.COLON);
         TypeExpression type = parseType();   // parseType threads the type's own span onto the node
         Multiplicity mult = parseMultiplicity();
-        // property DEFAULT VALUE (real pure: prop: Boolean[1] = false;) —
-        // parsed and DROPPED for now: defaults apply at ^construction,
-        // which no supported path exercises for default-bearing classes.
-        // A deliberate, documented divergence until construction demands it.
-        boolean hasDefaultValue = false;
+        // property DEFAULT VALUE (real pure: prop: Boolean[1] = false;). The expression is
+        // captured as a value-spec tree via SpecParser over a slice of THIS token stream, so
+        // positions stay file-absolute. If SpecParser cannot read it the parser STAYS TOTAL —
+        // the default is carried with a null value and the emitter walls loudly (never a
+        // silent drop; the harness found exactly that failure mode on its first corpus run).
+        com.legend.protocol.Protocol.PDefaultValue defaultValue = null;
         if (match(TokenType.EQUAL)) {
-            hasDefaultValue = true;
+            int defStart = pos;
             int depth = 0;
             while (!atEnd()) {
                 TokenType t = peek();
@@ -1580,13 +1581,21 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 advance();
             }
+            ValueSpecification value;
+            try {
+                value = SpecParser.parse(tokens.slice(defStart, pos));
+            } catch (ParseException unsupportedExpression) {
+                value = null;   // parser stays total; the emitter walls on the null, loudly
+            }
+            defaultValue = new com.legend.protocol.Protocol.PDefaultValue(
+                    value, span(defStart, pos - 1));
         }
         expect(TokenType.SEMI_COLON);
         // Positions are captured HERE, at construction, because this is the only point where the
         // token span of this property is in hand. No side table, no second pass.
         return new com.legend.protocol.Protocol.PProperty(
                 name, type, mult, stereotypes, taggedValues,
-                span(startTok, pos - 1), hasDefaultValue);
+                span(startTok, pos - 1), defaultValue);
     }
 
     /** A {@link com.legend.protocol.SourceInfo} for an inclusive token range. */

@@ -130,11 +130,23 @@ public final class ProtocolEmitter {
     }
 
     private static void property(StringBuilder b, PProperty p) {
-        // Found by the equivalence harness on its first corpus run: the parser used to drop
-        // default values silently, so the emitted bytes were quietly missing `defaultValue` and the
-        // diff looked like a mystery. Silent omission is the one thing the emitter must never do.
-        require(!p.hasDefaultValue(), "property defaultValue", p.name());
-        b.append("{\"genericType\":");
+        b.append('{');
+        if (p.defaultValue() != null) {
+            // Alphabetically first among the property's fields. Outer span covers the whole
+            // default expression; the value node carries its own (identical for literals).
+            b.append("\"defaultValue\":{\"sourceInformation\":");
+            srcInfo(b, p.defaultValue().sourceInformation());
+            b.append(",\"value\":");
+            if (p.defaultValue().value() == null) {
+                throw new UnsupportedOperationException(
+                        "ProtocolEmitter has no rule for this defaultValue expression (at "
+                                + p.name() + ") — the parser accepted it but built no value-spec;"
+                                + " extend SpecParser coverage, do not drop it.");
+            }
+            valueSpec(b, p.defaultValue().value());
+            b.append("},");
+        }
+        b.append("\"genericType\":");
         genericType(b, p.type());
         b.append(",\"multiplicity\":");
         multiplicity(b, p.multiplicity());
@@ -238,6 +250,46 @@ public final class ProtocolEmitter {
             genericType(b, args.get(i));
         }
         b.append("],\"typeVariableValues\":[]}");
+    }
+
+    /**
+     * The wire's value-specification encoding — the seed of the full emitter
+     * (PARSER_DROP_IN_STATUS.md §4.1 item 2). Literals only so far; every other node
+     * walls by name. The {@code default} arm THROWS — it exists because coverage is
+     * deliberately partial, never to pass silently.
+     *
+     * <p>Shapes verified via {@code ProbeWireShapes}: {@code _type} first, then
+     * {@code sourceInformation}, then {@code value}; a string literal's span includes
+     * its quotes.
+     */
+    private static void valueSpec(StringBuilder b, com.legend.protocol.spec.ValueSpecification v) {
+        switch (v) {
+            case com.legend.protocol.spec.CBoolean c ->
+                    literal(b, "boolean", String.valueOf(c.value()), c.pos());
+            case com.legend.protocol.spec.CInteger c ->
+                    literal(b, "integer", c.value().toString(), c.pos());
+            case com.legend.protocol.spec.CString c -> {
+                StringBuilder quoted = new StringBuilder();
+                str(quoted, c.value());
+                literal(b, "string", quoted.toString(), c.pos());
+            }
+            default -> throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for value specification "
+                            + v.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
+        }
+    }
+
+    /** {@code {"_type":…,"sourceInformation":…,"value":…}} — {@code rendered} is emitted verbatim. */
+    private static void literal(StringBuilder b, String type, String rendered,
+                                com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+        if (pos == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter needs a source position for a " + type
+                            + " literal and the parser did not thread one — fix the parse site.");
+        }
+        b.append("{\"_type\":\"").append(type).append("\",\"sourceInformation\":");
+        srcInfo(b, pos);
+        b.append(",\"value\":").append(rendered).append('}');
     }
 
     private static void multiplicity(StringBuilder b, com.legend.protocol.Multiplicity m) {

@@ -121,22 +121,29 @@ where `values`/`error` are themselves JDK-only leaves (6g).
 ### 3.1 Current numbers
 
 ```
-core suite            : 1625 tests, 0 failures
+core suite            : 1627 tests, 0 failures
 
 parser-equivalence:
   corpus sources      : 2289 files
   verdicts            : 6053
-    MATCH (byte-equal): 5725
+    MATCH (byte-equal): 5733
     DIFF  (BUG)       :    0
-    WALL  (no rule)   :  273
+    WALL  (no rule)   :  265
     PARSE_FAIL        :   55
-  coverage            : 5725 of 5725 comparable (100.0%)
+  coverage            : 5733 of 5733 comparable (100.0%)
 ```
 
-Progression: 1,750 → (superTypes) → 5,152 → (annotations) → 5,638 → (generics) → **5,725**,
-DIFF 0 throughout. Remaining walls: constraints 222, qualifiedProperties 40, defaultValue 9,
-generic multiplicity args 2. (Walls report the FIRST failure per element — clearing one wall
-grows the next's count as elements progress deeper.)
+Progression: 1,750 → (superTypes) → 5,152 → (annotations) → 5,638 → (generics) → 5,725 →
+(defaults) → **5,733**, DIFF 0 throughout. Remaining walls: constraints 222,
+qualifiedProperties 40, generic multiplicity args 2, PureCollection default 1.
+(Walls report the FIRST failure per element — clearing one wall grows the next's count as
+elements progress deeper.)
+
+**The value-spec emitter has begun**: `ProtocolEmitter.valueSpec` covers the literal nodes
+(boolean / integer / string) with engine-verified spans (a string literal's span INCLUDES its
+quotes); `SpecParser` threads positions at those construction sites. Default values ride it:
+`PProperty.defaultValue : PDefaultValue{value, sourceInformation}` — the parser stays total
+(a default it cannot spec-parse carries `value=null`; the emitter walls on it by name).
 
 ### 3.2 How to run it
 
