@@ -128,6 +128,66 @@ final class ReflectAsserts {
                 return r == null ? null
                         : new Walk(r.classFqn(), r.data(), 1, 1);
             }
+            // filter keeps the element class; matches may be empty
+            case AppliedFunction f
+                    when TestBody.simpleName(f.function()).equals("filter")
+                    && f.parameters().size() == 2 -> {
+                Walk r = walk(f.parameters().get(0), param, ctx, imports);
+                return r == null ? null
+                        : new Walk(r.classFqn(), r.data(), 0, r.upper());
+            }
+            // ->cast(@T): multiplicity-preserving retype
+            case AppliedFunction f
+                    when TestBody.simpleName(f.function()).equals("cast")
+                    && f.parameters().size() == 2 -> {
+                Walk r = walk(f.parameters().get(0), param, ctx, imports);
+                if (r == null) {
+                    return null;
+                }
+                if (f.parameters().get(1)
+                        instanceof com.legend.model.spec.TypeAnnotation.Named tn
+                        && tn.type() instanceof TypeExpression.NameRef nr) {
+                    String nm = nr.name();
+                    String simple = nm.substring(nm.lastIndexOf("::") + 2);
+                    if (java.util.Set.of("String", "Integer", "Float",
+                            "Boolean", "Number", "Decimal", "Date",
+                            "StrictDate", "DateTime").contains(simple)) {
+                        return new Walk(null, true, r.lower(), r.upper());
+                    }
+                    String fqn = resolveClass(nm, ctx, imports);
+                    if (fqn != null) {
+                        return new Walk(fqn, false, r.lower(), r.upper());
+                    }
+                }
+                return r;
+            }
+            // QUALIFIED-property call over a walked receiver
+            // (tradeDateEvent()): the derived property's declared
+            // type/multiplicity multiply like a plain step
+            case AppliedFunction f when !f.parameters().isEmpty() -> {
+                Walk r = walk(f.parameters().get(0), param, ctx, imports);
+                if (r == null || r.classFqn() == null) {
+                    return null;
+                }
+                var dp = ctx.findProperty(r.classFqn(),
+                        TestBody.simpleName(f.function())).orElse(null);
+                if (!(dp instanceof com.legend.compiler.element
+                        .Property.Derived d
+                        && d.parameters().size()
+                                == f.parameters().size() - 1)
+                        || !(d.multiplicity()
+                                instanceof com.legend.compiler.element.type
+                                        .Multiplicity.Bounded dm)) {
+                    return null;
+                }
+                String cls = d.type() instanceof Type.ClassType ct2
+                        ? ct2.fqn() : null;
+                boolean data = d.type() instanceof Type.Primitive
+                        || d.type() instanceof Type.EnumType;
+                return new Walk(cls, data, r.lower() * dm.lower(),
+                        r.upper() == null || dm.upper() == null ? null
+                                : r.upper() * dm.upper());
+            }
             case PureCollection c -> {
                 boolean allData = c.values().stream().allMatch(e ->
                         e instanceof CString || e instanceof CInteger);

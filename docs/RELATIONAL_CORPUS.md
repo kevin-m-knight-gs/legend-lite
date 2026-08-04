@@ -38,7 +38,7 @@ in-process Alloy-shaped path).
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 | 0 |
 | postprocessor | 7 | 7 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 22 | 3 | 1 | 4 | 1 |
-| pureToSQLQuery/tests | 14 | 4 | 0 | 0 | 10 | 0 |
+| pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 |
 | router/tests | 26 | 20 | 0 | 3 | 3 | 3 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2234** | 72 | 103 | 129 | 240 |
+| **total** | 2538 | **2236** | 72 | 103 | 127 | 240 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1270,8 +1270,6 @@ in-process Alloy-shaped path).
 - SHAPE testDb2ColumnRename [postprocessor/tests]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testPostProcessTransformJoinOp [postprocessor/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testFindFunctionSequenceMultiplicity [pureToSQLQuery/tests]: no execute(|...) call — wall: 'ZeroMany' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- SHAPE tesIsToOneDataTypeFunctionExpressionSequenceWithQualifiers [pureToSQLQuery/tests]: no execute(|...) call — wall: Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
-- SHAPE tesIsToOneDataTypeFunctionExpressionSequenceWithCastExpressions [pureToSQLQuery/tests]: no execute(|...) call — wall: Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - SHAPE testMergeOldAliasToNewAlias [pureToSQLQuery/tests]: no execute(|...) call — wall: in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V
 - SHAPE testReAliasMergedJoinOperations [pureToSQLQuery/tests]: no execute(|...) call — wall: in function 'meta::relational::tests::functions::pureToSqlQuery::buildJoinTreeNode': class 'meta::external::query::sql::metamodel::Join' has no property 'name'
 - SHAPE testFindAliasMappingBySchemaName [pureToSQLQuery/tests]: no execute(|...) call — wall: unknown function 'relation' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -1320,7 +1318,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL testDynaComplexInference2 [tests]: assertEquals: expected VARCHAR(400), got VARCHAR(200)
