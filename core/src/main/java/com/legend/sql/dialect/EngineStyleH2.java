@@ -218,6 +218,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     public String render(SqlQuery query) {
+        query = wrapTdsJoinTop(query);
         renames.clear();
         subselects.clear();
         rootConsumed.clear();
@@ -225,6 +226,37 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         StringBuilder sb = new StringBuilder();
         query(sb, query, 0);
         return sb.toString();
+    }
+
+    /** The engine ISOLATES a user TDS join's result (isolateTdsSelect):
+     * the plan spells {@code select <each TDS col quoted> from (select *
+     * from (a join b)) as "<group>_0"} — the wrap alias plans PRE-ORDER
+     * so it claims the group's _0 and pushes the inner left subselect to
+     * _1 (tdsJoinOneDBOneExpression golden). TEXT-channel only: the
+     * executed SQL keeps the flat star form (identical rows). Applies to
+     * the BARE star-over-join top (every other clause empty — exactly
+     * SqlSelect.starOf of a join) with named outputs. */
+    private static SqlQuery wrapTdsJoinTop(SqlQuery query) {
+        if (query instanceof SqlSelect s
+                && s.projections().isEmpty() && !s.distinct()
+                && s.from() instanceof SqlSource.Join
+                && s.where() == null && s.groupBy().isEmpty()
+                && s.having() == null && s.qualify() == null
+                && s.orderBy().isEmpty() && s.limit() == null
+                && s.offset() == null && !s.outputs().isEmpty()) {
+            String wrap = "tdswrap__";
+            java.util.List<SqlSelect.Projection> cols =
+                    s.outputs().stream().map(o ->
+                            new SqlSelect.Projection(new SqlExpr.Column(
+                                    wrap, "\"" + o.name() + "\""),
+                                    o.name()))
+                            .toList();
+            return new SqlSelect(cols, false,
+                    new SqlSource.Subselect(s, wrap, null), null,
+                    java.util.List.of(), null, null, java.util.List.of(),
+                    null, null, s.outputs());
+        }
+        return query;
     }
 
     // == the engine's alias plan (replaceAliasName parity, audit 19 F2) ==
