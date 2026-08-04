@@ -8,6 +8,11 @@
 >
 > Companion: `DUCKDB_FUNCTION_COVERAGE.md` (the vocabulary-growth question, which turns out to share
 > a root cause with §5 below).
+>
+> **§7 is a different kind of evidence** — not what the engines can do, but **how upstream Legend
+> actually tests them**: three tiers, split by whether anyone can get a server. It answers "there
+> are DB2 tests upstream, how do those run?" (they never touch a database) and it settles what our
+> own harness should and should not reproduce natively.
 
 **Evidence standard.** ~5,000 probe statements, one shared harness, the same corpus on every
 backend, so results are comparable cell-by-cell. Real engines throughout: DuckDB 1.5.0.0,
@@ -219,7 +224,88 @@ rather than parse success.
 
 ---
 
-## 7. Recommended sequencing
+## 7. How upstream tests backends — the three tiers
+
+> Measured against `legend-engine 4.135.0` / `legend-pure 5.89.2`. This section exists because a
+> reasonable question — *"legend-engine has DB2 tests, how do they run those?"* — has an answer
+> that reframes what a backend doc like this one is even claiming.
+
+Upstream splits every database into exactly three tiers, and the split is not about importance.
+It is about **whether anyone can get a server**.
+
+| tier | how a server is obtained | databases | runs in CI? |
+|---|---|---|---|
+| **I — executed, containerised** | testcontainers, public image | Postgres `postgres:16.10`, Oracle `gvenzl/oracle-xe:21-slim-faststart`, SqlServer `mcr.microsoft.com/mssql/server:2019-latest` (`ACCEPT_EULA=Y`), MemSQL `ghcr.io/singlestore-labs/singlestoredb-dev`, ClickHouse, Trino; H2 + DuckDB in-process; **Spanner via the *emulator*** `gcr.io/cloud-spanner-emulator/emulator` | **yes, every build**, unconditional |
+| **II — executed, credential-gated** | a real SaaS account | Snowflake, Databricks | **skipped by default** — poms carry `<skip>true</skip>`, re-enabled by a `pct-cloud-test` profile reading AWS Secrets Manager; CI activates it only on same-repo PRs/pushes, so **fork PRs skip silently** |
+| **III — SQL text only** | *none* | **DB2**, Sybase, SybaseIQ, Hive, Presto, SparkSQL, Athena, Aurora, BigQuery, Redshift | n/a — no database is involved |
+
+Registries are overridable (`-Dlegend.engine.testcontainer.registry=…`). Nothing is `@Ignore`d;
+gating is entirely pom-profile plus CI conditionals.
+
+**Tier III is not a choice.** It is what a database gets when nobody can run one. No vendor sits
+there on purpose.
+
+### 7.1 DB2 in particular — and why our renderer is already at parity
+
+DB2 has roughly 30 tests upstream and **not one of them touches a database.** All are of the form:
+
+```pure
+let db2sql = toSQLString(|Person.all()->project(p|length($p.firstName), 'nameLength'),
+                         simpleRelationalMapping, DatabaseType.DB2, ...);
+assertEquals('select CHARACTER_LENGTH("root".FIRSTNAME,CODEUNITS32) as "nameLength" from personTable as "root"', $db2sql);
+```
+
+spread across `testToSQLString.pure`, `testSqlFunctionsInMapping.pure`, `testPostProcessor.pure`
+(`testDb2ColumnRename`), `executionPlanTest.pure`, and a few TDS/groupBy tests.
+
+**DB2 is not runnable in upstream Legend at all.** A repo-wide search for `com.ibm` / `jcc` /
+`jdbc:db2` returns three hits, all documentation URLs inside comments — there is no JDBC
+dependency at any scope, so `DatabaseManager.fromString("DB2")` reaches
+`throw new RuntimeException(dbType + " not supported yet")`. IBM does publish a free Db2 Community
+Edition container; **upstream does not use it** — no compose file, no testcontainers reference, no
+image name anywhere. The driver-licensing question is sidestepped by never pulling the driver.
+
+DB2 also sits at the *lowest* tier structurally: no `-pure`, `-protocol`, `-grammar`, `-execution`,
+`-connection`, `-PCT` or `-SDT` module, and its 196-line dialect is still inside
+`core_relational/.../sqlQueryToString/dbSpecific/db2/` when every other vendor was promoted out to
+`dbExtension/`. Even Hive and Sybase have their own `-pure` module. There is no
+`Test_Relational_DB2_PCT.java` and no `pct-manifests/relational-db2/` — the complete manifest set is
+h2, duckdb, postgres, snowflake, databricks, clickhouse, trino, oracle, memsql, sqlserver, spanner,
+deephaven, java, core-compiled, core-interpreted.
+
+> **Consequence for us: `EngineStyleH2`'s sibling `EngineStyleDB2` is at parity with upstream by
+> construction.** `TENET_REMEDIATION.md` §C1 flags it as "respells only the dialect-owned function
+> forms the DB2 goldens pin" and calls that curve-fitting to the corpus. That judgment should be
+> revised: golden text is **the entire DB2 surface that exists upstream**. There is no execution
+> semantics to be behind on and no PCT baseline to chase. `EngineStyleDB2` is complete, not a stub.
+
+*One inference, flagged as inference:* a dead `private` method
+`batchInsertRealizedRelationalResultToDB2TempTable(...)` with no callers, plus `SESSION.`-prefixed
+temp tables in the dialect, suggests DB2 **is** executed in a Goldman-internal fork. Nothing like
+it is in the open-source repos.
+
+### 7.2 What to copy, and what our no-Docker choice cost
+
+**Copy tier I for anything with a public image.** This study deliberately ran real engines with
+**no Docker** — embedded Postgres, MariaDB4j, in-process SQLite — which bought fast local runs and
+a genuinely offline harness, and cost a native-toolchain fight (the MariaDB4j `libpcre2` patch:
+build from source, `install_name_tool -change`, re-`codesign`, patch inside the jar in `~/.m2`).
+That trade was right for the four backends here. It stops being right the moment we want Oracle,
+SqlServer, ClickHouse or Trino evidence: upstream's images are public, pinned, and already
+parameterised, and reproducing any of those natively is strictly harder than running the container.
+
+**Copy tier II verbatim for `CLOUD_BACKENDS.md`.** `<skip>true</skip>` plus a credential-gated
+profile is exactly the shape our Databricks Free Edition / Snowflake trial work needs: the tests
+exist and are runnable by whoever has an account, and they never break a build for anyone who
+doesn't.
+
+**Do not aim for tier III.** If a backend can only be verified by comparing SQL text, we have a
+dialect, not a backend — and §6's central finding is that the defects that matter here *execute
+cleanly*. Text comparison cannot see any of them.
+
+---
+
+## 8. Recommended sequencing
 
 **Do first — these are defects today, independent of any new backend:**
 
@@ -257,7 +343,7 @@ rather than parse success.
 
 ---
 
-## 8. What NOT to do
+## 9. What NOT to do
 
 - **Don't generalise H2's *wall*, but don't dismiss H2's *evidence* either** (§2.1). H2 is the only
   backend lacking correlated explosion, so its relations-only shape must not be imposed on the three
@@ -270,6 +356,12 @@ rather than parse success.
 - **Don't add a passthrough for DuckDB functions before closing the one that already exists** (§5.2).
 - **Don't accept a portability sweep that only checks for exceptions** (§6). Every finding that
   matters here executes cleanly.
+- **Don't read a vendor's presence in `DatabaseType` as evidence it is supported** (§7). DB2 is an
+  enum member, a 196-line dialect and ~30 string-comparison tests, with no driver and no execution
+  path anywhere. Sybase, Hive, Presto, SparkSQL, Athena, Aurora, BigQuery and Redshift are the same.
+- **Don't reproduce natively what upstream already runs in a container** (§7.2). The no-Docker
+  choice was right for these four backends and is the wrong default for Oracle, SqlServer,
+  ClickHouse or Trino.
 - **Don't trust documentation on any of this.** Execution refuted docs repeatedly: MariaDB *has*
   `JSON_TABLE`, MariaDB's default `sql_mode` does *not* include `ONLY_FULL_GROUP_BY`, SQLite 3.47
   *does* have FULL OUTER JOIN and math functions, and `sqlite-jdbc` ships 21 functions stock SQLite

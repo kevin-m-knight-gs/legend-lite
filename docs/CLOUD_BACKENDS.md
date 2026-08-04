@@ -411,6 +411,22 @@ probe statements against the real thing." For Snowflake, the real thing is a tri
 
 ## 4. The other backends the same question will be asked about
 
+> **Adopt upstream's gating shape, not a new one.** `BACKEND_PORTABILITY.md` §7 documents how
+> legend-engine handles exactly this problem: Snowflake and Databricks are the only two databases
+> it puts behind credentials, and both use `<skip>true</skip>` in the module pom plus a
+> `pct-cloud-test` profile that re-enables them and reads AWS Secrets Manager. CI activates that
+> profile only on same-repo PRs and pushes, so **fork PRs skip silently and nothing is `@Ignore`d**.
+> Every backend below should land in that shape: runnable by whoever has an account, invisible to
+> everyone else, and never a broken build for a contributor without credentials.
+>
+> That section also records the tier below this one — **no PCT module and no execution testing**:
+> DB2, Sybase, SybaseIQ, Hive, Presto, SparkSQL, Athena, Aurora, BigQuery, Redshift. Be precise
+> about the gradations, because they differ: BigQuery, Athena, Aurora and Redshift *do* have
+> connection drivers under `connection/driver/vendors/`, so they are wired for execution and simply
+> have no PCT suite; DB2 and Sybase have **no driver at all** and cannot execute even in principle.
+> Either way, **upstream has never run a compatibility suite against BigQuery**, so §4.1 below is
+> greenfield rather than a gap we are behind on.
+
 ### 4.1 BigQuery — the best free tier here, with one disqualifying restriction
 
 | Term | Value | Source |
