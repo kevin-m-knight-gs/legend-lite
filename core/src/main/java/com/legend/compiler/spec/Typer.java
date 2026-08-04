@@ -2073,6 +2073,38 @@ final class Typer {
         // uniform function-value story, no new node kind. Only an
         // UNAMBIGUOUS (single-overload) target expands.
         List<TypedFunction> fns = functionCandidates(ref.fullPath());
+        if (fns.size() > 1) {
+            // a MANGLED id names ONE overload — the signature tail's
+            // segment count (params + return) disambiguates (the corpus's
+            // generateUsageFor metadata: groupBy_TabularDataSet_1__…_)
+            java.util.regex.Matcher mm = MANGLED_TAIL.matcher(ref.fullPath());
+            if (mm.find()) {
+                int segs = 0;
+                java.util.regex.Matcher seg = java.util.regex.Pattern
+                        .compile("_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$)")
+                        .matcher(mm.group());
+                while (seg.find()) {
+                    segs++;
+                }
+                int arity = segs - 1;
+                List<TypedFunction> byArity = fns.stream()
+                        .filter(f2 -> f2.parameters().size() == arity)
+                        .toList();
+                if (byArity.size() == 1) {
+                    fns = byArity;
+                } else {
+                    // a mangled id naming an overload we don't carry
+                    // standalone (the legacy TDS groupBy the checker
+                    // desugars at call sites): the REFERENCE is an opaque
+                    // Function<Any> value — metadata like generateUsageFor
+                    // holds it, invocation stays loud at its own site
+                    return new TypedPackageableRef(ref.fullPath(),
+                            ExprType.one(new Type.GenericType(
+                                    "meta::pure::metamodel::function::Function",
+                                    List.of(InferenceKernel.anyType()))));
+                }
+            }
+        }
         if (fns.size() == 1) {
             TypedFunction fn = fns.get(0);
             List<String> params = new ArrayList<>(fn.parameters().size());

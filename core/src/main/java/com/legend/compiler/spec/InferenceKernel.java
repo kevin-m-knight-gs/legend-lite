@@ -133,6 +133,16 @@ public final class InferenceKernel {
             case Type.GenericType g
                     when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
                     && relationRow(actual) != null -> { }
+            // Function<Any> is the universal function bound (real m3:
+            // every function instance is a Function; Any covers all
+            // function types) — a bare FunctionType actual conforms
+            // (generateUsageFor metadata holding eta-expanded refs)
+            case Type.GenericType g
+                    when g.rawFqn().equals(
+                            "meta::pure::metamodel::function::Function")
+                    && g.arguments().size() == 1
+                    && PlatformTypes.isAny(g.arguments().get(0))
+                    && actual instanceof Type.FunctionType -> { }
             case Type.GenericType g -> {
                 if (!(actual instanceof Type.GenericType ag
                         && ag.rawFqn().equals(g.rawFqn())
