@@ -49,4 +49,33 @@ final class SnapshotEnvelope {
                 List.of(new OutputCol("result",
                         PureSql.type(Type.Primitive.STRING), false)));
     }
+
+    /** The null-stripping envelope object (Lowerer.serializeGraph):
+     * one json_object per pair, json_merge_patch-folded — RFC 7386
+     * merge REMOVES null-valued keys (removePropertiesWithNullValues);
+     * removeEmptySets maps an ARRAY child's '[]' aggregate to NULL
+     * first so the merge drops it too. */
+    static SqlExpr mergePatchObject(java.util.List<SqlExpr> pairs,
+            java.util.Set<String> arrayProps, boolean removeEmpty) {
+        java.util.List<SqlExpr> pieces =
+                new java.util.ArrayList<>(pairs.size() / 2);
+        for (int i = 0; i < pairs.size(); i += 2) {
+            SqlExpr k = pairs.get(i);
+            SqlExpr v = pairs.get(i + 1);
+            if (removeEmpty && k instanceof SqlExpr.StringLit sl
+                    && arrayProps.contains(sl.value())) {
+                v = new SqlExpr.Case(java.util.List.of(
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                                        new SqlExpr.Cast(v, com.legend.sql
+                                                .SqlType.Scalar.VARCHAR),
+                                        new SqlExpr.StringLit("[]")),
+                                new SqlExpr.NullLit())), v);
+            }
+            pieces.add(new SqlExpr.JsonObject(java.util.List.of(k, v)));
+        }
+        return pieces.size() == 1 ? pieces.get(0)
+                : new SqlExpr.Call(com.legend.sql.SqlFn.JSON_MERGE_PATCH,
+                        pieces);
+    }
 }

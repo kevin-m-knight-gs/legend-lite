@@ -2855,8 +2855,9 @@ final class GraphEmission {
     /** The supported serialize-config surface: includeType (+ typeKeyName,
      * fullyQualifiedTypePath) emit the type key; every OTHER envelope-
      * changing flag walls loudly — never a silently-ignored config. */
-    record SerializeTypeConfig(String typeKey, boolean fq,
-            boolean includeEnumType) {
+    record SerializeTypeConfig(@com.legend.Nullable String typeKey,
+            boolean fq, boolean includeEnumType, boolean removeNull,
+            boolean removeEmpty) {
     }
 
     static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
@@ -2875,23 +2876,18 @@ final class GraphEmission {
             boolean fq = n >= 6 ? boolArg(a.get(n == 8 ? 6 : 5)) : true;
             boolean ior = n == 5 ? boolArg(a.get(4))
                     : n >= 7 ? boolArg(a.get(n - 1)) : false;
-            // ORDERED walls (deterministic scoreboard message)
-            String[][] flags = {
-                    {"removePropertiesWithNullValues",
-                            boolArg(a.get(rn)) ? "y" : ""},
-                    {"removePropertiesWithEmptySets",
-                            boolArg(a.get(rn + 1)) ? "y" : ""},
-                    {"includeObjectReference", ior ? "y" : ""}};
-            for (String[] flag : flags) {
-                if (!flag[1].isEmpty()) {
-                    throw new NotImplementedException("serialize config"
-                            + " flag '" + flag[0] + "' is not"
-                            + " supported yet");
-                }
+            if (ior) {
+                throw new NotImplementedException("serialize config"
+                        + " flag 'includeObjectReference' is not"
+                        + " supported yet");
             }
-            return includeType || includeEnumType
-                    ? new SerializeTypeConfig(key, includeType && fq,
-                            includeEnumType)
+            boolean removeNull = boolArg(a.get(rn));
+            boolean removeEmpty = boolArg(a.get(rn + 1));
+            return includeType || includeEnumType || removeNull
+                    || removeEmpty
+                    ? new SerializeTypeConfig(includeType ? key : null,
+                            includeType && fq, includeEnumType,
+                            removeNull, removeEmpty)
                     : null;
         }
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
@@ -2933,8 +2929,8 @@ final class GraphEmission {
             }
         }
         return includeType || includeEnumType2
-                ? new SerializeTypeConfig(key, includeType && fq,
-                        includeEnumType2)
+                ? new SerializeTypeConfig(includeType ? key : null,
+                        includeType && fq, includeEnumType2, false, false)
                 : null;
     }
 
@@ -2981,7 +2977,8 @@ final class GraphEmission {
                                                         plusCallee)))
                                         .toList()))
                         .toList(),
-                g.orderKeys(), c.typeKey(), c.fq());
+                g.orderKeys(), c.typeKey(), c.fq(),
+                g.checkedConstraints(), c.removeNull(), c.removeEmpty());
     }
 
     /** The String+String plus overload — the includeEnumType prefix. */

@@ -612,6 +612,7 @@ public final class Lowerer {
         SqlSelect envelope = base;
         ColumnResolver own = scopedResolver(base, g.rowVar());
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
+        java.util.Set<String> arrayProps = new java.util.LinkedHashSet<>();
         for (TypedFuncCol leaf : g.leaves()) {
             kv.add(new SqlExpr.StringLit(leaf.name()));
             kv.add(Fold.jsonDateWrap(
@@ -620,6 +621,9 @@ public final class Lowerer {
         }
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
+            if (child.node().arrayWrap()) {
+                arrayProps.add(child.property());
+            }
             if (child.node().inlineChild()) {
                 // EMBEDDED child: same-row json object, leaves resolve
                 // against the PARENT select — no subquery (task #78 H4b)
@@ -641,8 +645,16 @@ public final class Lowerer {
             baseKv.add(new SqlExpr.StringLit(SnapshotEnvelope.typeName(g.classFqn(), g.fqTypePath())));
             baseKv.addAll(kv);
         }
-        // bareValue: a to-many PRIMITIVE leaf aggregates raw values
-        SqlExpr obj = g.bareValue() ? kv.get(1) : new SqlExpr.JsonObject(baseKv);
+        // bareValue: a to-many PRIMITIVE leaf aggregates raw values.
+        // removeNull/removeEmpty: per-key json_object singletons folded
+        // through json_merge_patch — RFC 7386 merge REMOVES null-valued
+        // keys, which IS the engine's removePropertiesWithNullValues;
+        // removeEmptySets maps a child's '[]' aggregate to NULL first.
+        SqlExpr obj = g.bareValue() ? kv.get(1)
+                : g.removeNullKeys() || g.removeEmptySets()
+                        ? SnapshotEnvelope.mergePatchObject(baseKv,
+                                arrayProps, g.removeEmptySets())
+                        : new SqlExpr.JsonObject(baseKv);
         // ->subType views: DISJOINT members -> ONE CASE over the witnesses;
         // a member's branch serializes base + subtype fields IN FULL (engine
         // keeps "coordinate":null on member rows); non-members fall through
@@ -2462,18 +2474,14 @@ public final class Lowerer {
             // resolves outward through the enclosing resolver.
             case TypedLambda l -> new SqlExpr.Lambda(l.parameters(),
                     scalar(last(l), lambdaResolver(l.parameters(), columns)));
-            // RELATION-level predicates — the true-SQL-EXISTS family. The
-            // collection natives accept a Relation argument (T binds the
-            // relation; the lambda is row-shaped via relation column access);
-            // in SQL these ARE the EXISTS forms, correlated via the enclosing
-            // scope stack:
-            //   exists(rel, p)  -> EXISTS (SELECT * FROM rel WHERE p)
-            //   forAll(rel, p)  -> NOT EXISTS (... WHERE NOT p)   [vacuously true]
-            //   isEmpty(rel)    -> NOT EXISTS (...);  isNotEmpty -> EXISTS (...)
-            //   size(rel)       -> (SELECT COUNT(*) FROM ...)
-            //   A bare VARIABLE with a relation stamp is never a subquery:
-            //   a lambda binder holds a per-element CELL (the encoding's
-            //   stamp rides the element) — it takes the scalar bridge.
+            // RELATION-level predicates — the true-SQL-EXISTS family
+            // (collection natives over a Relation arg, correlated via the
+            // enclosing scope stack): exists -> EXISTS(SELECT * WHERE p);
+            // forAll -> NOT EXISTS(... WHERE NOT p) [vacuously true];
+            // isEmpty/isNotEmpty -> [NOT] EXISTS; size -> COUNT(*).
+            // A bare VARIABLE with a relation stamp is never a subquery:
+            // a lambda binder holds a per-element CELL (stamp rides the
+            // element) — it takes the scalar bridge.
             case TypedNativeCall n when n.args().size() >= 1
                     && n.args().get(0).info().type() instanceof Type.RelationType
                     && !(n.args().get(0) instanceof TypedVariable)
@@ -2553,16 +2561,14 @@ public final class Lowerer {
      * at arm boundaries; each group defaults to the next. */
     private SqlExpr scalarRelationalArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
-            // Real pure equality is TYPE-aware: an enum value equals nothing
-            // of a different enum or a non-string kind — a static FALSE
-            // (never name-coincidence 'X'=='X' across enums, never a DB
-            // conversion error for enum-vs-Integer). Enum-vs-STRING stays
-            // the corpus's deliberate name-comparison convention.
-            // (Class-instance eq is REFERENCE identity in real pure — NOT
-            // recoverable here: value serialization erases identity, and
-            // the PCT harness inlines captured instances BY VALUE, so
-            // eq($x,$x) and eq($x,$y) arrive as identical text. Instances
-            // keep struct comparison; the identity tests are ledgered.)
+            // Real pure equality is TYPE-aware: an enum equals nothing of
+            // a different enum or non-string kind — static FALSE (never
+            // cross-enum name coincidence or a DB conversion error);
+            // enum-vs-STRING keeps the corpus's name-comparison
+            // convention. Class-instance eq is REFERENCE identity in real
+            // pure — unrecoverable here (serialization erases identity;
+            // PCT inlines captured instances by value): instances keep
+            // struct comparison, identity tests ledgered.
             case TypedNativeCall n when (isFamily(n, "equal") || isFamily(n, "eq"))
                     && enumTypeMismatch(n.args()) -> new SqlExpr.BoolLit(false);
 
@@ -3159,15 +3165,12 @@ public final class Lowerer {
         boolean variantSource = c.source().info().type()
                 instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
         if (!variantSource) {
-            // A CONVERTING primitive cast (String->@Integer) must reach SQL —
-            // returning the value bare left VARCHAR in arithmetic (audit:
-            // the cast bucket). A WIDENING cast (Integer->@Number: the target
-            // is the source's lattice supertype) is a type ASSERTION — the
-            // value is already one; converting would corrupt it (42 -> 42.0).
-            // DELIBERATE corpus divergence from real pure: pure's cast never
-            // converts (a non-integral Number->@Integer is a runtime error
-            // there); the corpus contract (engine-lite lineage) is SQL-style
-            // conversion, so a narrowing cast converts here.
+            // A CONVERTING primitive cast (String->@Integer) must reach
+            // SQL (bare return left VARCHAR arithmetic); a WIDENING cast
+            // is a type ASSERTION — converting corrupts (42 -> 42.0).
+            // DELIBERATE divergence: pure's cast never converts; the
+            // corpus contract (engine-lite lineage) is SQL-style
+            // conversion, so a NARROWING cast converts here.
             Type src = c.source().info().type();
             if (CastPolicy.isSqlPrimitive(c.target()) && CastPolicy.isSqlPrimitive(src)
                     && !CastPolicy.isWidening(src, c.target())

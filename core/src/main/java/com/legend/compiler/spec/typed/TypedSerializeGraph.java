@@ -51,8 +51,24 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> orderKeys,
                                   @com.legend.Nullable String typeKeyName,
                                   boolean fqTypePath,
-                                  @com.legend.Nullable List<CheckedConstraint> checkedConstraints)
+                                  @com.legend.Nullable List<CheckedConstraint> checkedConstraints,
+                                  boolean removeNullKeys,
+                                  boolean removeEmptySets)
         implements TypedSpec {
+
+    /** Pre-config compat (removeNull/removeEmpty default off). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches,
+            List<TypedFuncCol> orderKeys,
+            @com.legend.Nullable String typeKeyName,
+            boolean fqTypePath,
+            @com.legend.Nullable List<CheckedConstraint> checkedConstraints) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, orderKeys, typeKeyName,
+                fqTypePath, checkedConstraints, false, false);
+    }
 
     /** This envelope with the array aggregate FORCED — the scalar
      * (snapshot) position needs the whole result as one value; all
@@ -61,7 +77,8 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return arrayWrap ? this : new TypedSerializeGraph(source, rowVar,
                 leaves, nested, true, bareValue, classFqn, info,
                 inlineChild, subTypePatches, orderKeys, typeKeyName,
-                fqTypePath, checkedConstraints);
+                fqTypePath, checkedConstraints, removeNullKeys,
+                removeEmptySets);
     }
 
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
@@ -229,6 +246,6 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         TypedSpec.expectChildren(kids, i, "TypedSerializeGraph");
         return new TypedSerializeGraph(kids.get(0), rowVar, ls, ns, arrayWrap,
                 bareValue, classFqn, info, inlineChild, sps, oks, typeKeyName,
-                fqTypePath, ccs);
+                fqTypePath, ccs, removeNullKeys, removeEmptySets);
     }
 }
