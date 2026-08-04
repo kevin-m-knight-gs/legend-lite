@@ -265,15 +265,28 @@ quarantines them on the way out.
 I first asserted the element shapes differ for principled reasons. That was read off record
 signatures and is **only partly true**. Evidence:
 
-**Accidental — our elements were never modelled on the protocol at all.**
-`ClassDefinition`'s javadoc: *"Mirrors engine's `com.gs.legend.model.def.ClassDefinition` record
-shape verbatim."* That is **`com.gs.legend`** — the vendored predecessor `engine/` module
-(`engine/src/main/java/com/gs/legend/model/def/ClassDefinition.java`, still present), **not**
-`org.finos.legend.engine.protocol`. Six-plus model records carry the same "Mirrors engine's
-`com.gs.legend.model.def.*`" line. So the divergence from the *protocol* is a historical artefact of
-what the rewrite was copied from — not a considered decision against the protocol. It should not be
-defended on principle. `core/README.md:236` even states the opposite intent: *"Parser records =
-engine class names verbatim … Maximizes test portability against the engine corpus."*
+**Neither, in fact: our elements are *independent* — never protocol-derived at any hop.** Traced:
+
+| hop | modelled on |
+|---|---|
+| `engine/src/main/java/com/gs/legend/model/def/ClassDefinition.java` | **the Pure grammar.** Its javadoc is *"Represents a Pure Class definition"* plus syntax examples — **no protocol reference of any kind** |
+| `core/src/main/java/com/legend/model/ClassDefinition.java` | *"Mirrors engine's `com.gs.legend.model.def.ClassDefinition` record shape verbatim"* |
+
+> **Naming trap, worth stating once.** `engine/` here is **legend-lite's own module**
+> (package `com.gs.legend`), the predecessor `core/` is a rewrite of — **not** the FINOS
+> `legend-engine` repo (`org.finos.legend.engine`). Six-plus `core/` model records say
+> *"Mirrors engine's `com.gs.legend.model.def.*`"* and every one of them means the local module.
+
+So the element shapes were designed **from the grammar**, independently, and nobody ever compared
+them to the protocol. They are therefore not "deliberately different from the protocol" — the
+protocol was simply never in the frame. They should be evaluated **field by field on merit**, not
+defended as ours-by-design. `core/README.md:236` states the intent they drifted from: *"Parser
+records = engine class names verbatim … Maximizes test portability against the engine corpus."*
+
+One field *was* a considered upgrade, and shows the difference: `engine/` had
+`superClasses: List<String>`; `core/` changed it to `List<TypeExpression>` to carry generics. That
+is a real improvement over both the predecessor and the protocol's flat `superTypes`, and is worth
+keeping.
 
 **Principled — and it alone justifies the transform.** `PackageableElement.java:14-24` documents the
 single `qualifiedName` as a deliberate omission:
