@@ -2261,6 +2261,47 @@ final class StatementExecutor {
                 execFrames = new java.util.LinkedHashMap<>(allFrames);
                 execFrames.keySet().removeAll(boundVars);
             }
+            // $result.rows->size(): POST-EXECUTE row count. The engine
+            // counts the MATERIALIZED rows in memory; the in-query
+            // single-column count(col) rule (processRowCount, null-
+            // skipping) must not apply to this splice — a nullable
+            // projected column would under-count (inline-embedded
+            // golden: 5 rows, 3 TDSNull). A constant-1 projection makes
+            // the size lowering emit COUNT(1) = the bare row count.
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall szr
+                    && SIZE_FQNS.contains(szr.callee().qualifiedName())
+                    && szr.args().size() == 1
+                    && szr.args().get(0) instanceof
+                            com.legend.compiler.spec.typed.TypedPropertyAccess rp0
+                    && rp0.property().equals("rows")
+                    && rp0.source().info().type() instanceof
+                            com.legend.compiler.element.type.Type.RelationType rrt) {
+                var one1 = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+                var intT = com.legend.compiler.element.type.Type.Primitive.INTEGER;
+                var lam = new com.legend.compiler.spec.typed.TypedLambda(
+                        java.util.List.of("_cntRow"),
+                        java.util.List.of(new com.legend.compiler.spec.typed
+                                .TypedCInteger(1L,
+                                new com.legend.compiler.element.type.ExprType(
+                                        intT, one1))),
+                        new com.legend.compiler.element.type.ExprType(
+                                new com.legend.compiler.element.type.Type.FunctionType(
+                                        java.util.List.of(new com.legend.compiler
+                                                .element.type.Type.Param(rrt, one1)),
+                                        new com.legend.compiler.element.type
+                                                .Type.Param(intT, one1)), one1));
+                var cntRow = new com.legend.compiler.element.type.Type.RelationType(
+                        java.util.List.of(new com.legend.compiler.element.type
+                                .Type.Column("cnt", intT, one1)),
+                        java.util.List.of());
+                TypedSpec proj = new com.legend.compiler.spec.typed.TypedProject(
+                        rp0.source(),
+                        java.util.List.of(new com.legend.compiler.spec.typed
+                                .TypedFuncCol("cnt", lam)),
+                        new com.legend.compiler.element.type.ExprType(cntRow, one1));
+                return new com.legend.compiler.spec.typed.TypedNativeCall(
+                        szr.callee(), java.util.List.of(proj), szr.info());
+            }
             // the Typer's `.rows` MARKER (identity over a relation value):
             // it exists so the arms below can tell a REAL row index
             // ($r.values.rows->at(k)) from the Result envelope
