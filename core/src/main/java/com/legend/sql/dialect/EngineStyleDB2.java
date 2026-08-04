@@ -54,6 +54,14 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     }
 
     @Override
+    protected String infixPad(com.legend.sql.SqlFn fn) {
+        // DB2 dynafunction templates print arithmetic TIGHT
+        // (position(…)-1 — the sqlstring position golden)
+        return fn == com.legend.sql.SqlFn.MINUS
+                || fn == com.legend.sql.SqlFn.PLUS ? "" : " ";
+    }
+
+    @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
@@ -73,6 +81,12 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // native spellings (sqlstring 'common' goldens — the H2
             // parent's regexp/extension forms are H2-specific)
             case CBRT -> "cbrt(" + expr(a.get(0), 0) + ")";
+            case STRPOS -> "position(" + expr(a.get(1), 0) + ", "
+                    + expr(a.get(0), 0) + ")";
+            // DB2 spells the SHORT substr keyword (Composite keeps the
+            // parent's full 'substring')
+            case SUBSTRING -> "substr(" + a.stream().map(x -> expr(x, 0))
+                    .collect(Collectors.joining(", ")) + ")";
             case LTRIM -> "ltrim(" + expr(a.get(0), 0) + ")";
             case RTRIM -> "rtrim(" + expr(a.get(0), 0) + ")";
             case LPAD -> "lpad(" + a.stream().map(x -> expr(x, 0))

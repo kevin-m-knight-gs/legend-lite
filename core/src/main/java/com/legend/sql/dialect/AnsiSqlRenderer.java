@@ -402,9 +402,10 @@ public class AnsiSqlRenderer implements SqlDialect {
             boolean nonCommutative = c.fn() == SqlFn.MINUS;
             boolean nonAssociative = infix.prec() == 4;
             StringBuilder joined = new StringBuilder();
+            String pad = infixPad(c.fn());
             for (int i = 0; i < c.args().size(); i++) {
                 if (i > 0) {
-                    joined.append(" ").append(infix.sql()).append(" ");
+                    joined.append(pad).append(infix.sql()).append(pad);
                 }
                 joined.append(expr(c.args().get(i),
                         (i > 0 && nonCommutative) || nonAssociative
@@ -790,6 +791,12 @@ public class AnsiSqlRenderer implements SqlDialect {
             });
         }
         return out.toString();
+    }
+
+    /** Spacing around an infix operator — dialect texts differ (the
+     * engine's DB2 dynafunction templates print arithmetic TIGHT). */
+    protected String infixPad(com.legend.sql.SqlFn fn) {
+        return " ";
     }
 
     protected String fn(String spelling, List<SqlExpr> args) {

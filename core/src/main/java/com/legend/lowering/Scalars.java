@@ -811,16 +811,14 @@ final class Scalars {
         // (list, prefix, sep, suffix).
         for (String f : Pure.nativeKeysAt("joinStrings")) {
             RULES.put(f, (n, args) -> {
-                // VALUE (map) position over a literal element list — every
-                // element a toOne-conformed read: the engine INTERLEAVES
-                // the separator (a distinct CONCAT_JOIN unit; the TDS
-                // channel keeps the append-form STRING_AGG path below)
+                // VALUE position over a literal element list: the engine
+                // INTERLEAVES the separator (CONCAT_JOIN; the TDS channel
+                // keeps the append-form STRING_AGG below)
                 if (args.size() <= 2
                         && n.args().get(0) instanceof com.legend.compiler
                                 .spec.typed.TypedCollection tcol
                         && !tcol.elements().isEmpty() && args.get(0) instanceof SqlExpr.ArrayLit jal
-                        // subquery elements cannot ride the list literal
-                        // (DuckDB binder limit) — CONCAT_JOIN is lawful
+                        // a subquery element cannot ride the list literal
                         && (tcol.elements().stream().allMatch(el ->
                                 el instanceof TypedNativeCall enc
                                 && enc.callee().qualifiedName().endsWith("::toOne"))
@@ -834,8 +832,8 @@ final class Scalars {
                     }
                     return new SqlExpr.Call(SqlFn.CONCAT_JOIN, parts);
                 }
-                // A TO-ONE source IS the joined string; an EMPTY list joins
-                // to '' (list_aggregate over NULL/[] is NULL — coalesce).
+                // a TO-ONE source IS the joined string; an EMPTY list
+                // joins to '' (list_aggregate over NULL/[] is NULL).
                 SqlExpr joined;
                 if (isToOne(n.args().get(0)) && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
                     joined = args.get(0);
@@ -1221,12 +1219,15 @@ final class Scalars {
                             List.of(args.get(0), new SqlExpr.IntLit(-1))));
         }
         // RELATIONAL substring = VERBATIM SQL substring(start, length)
-        // passthrough (engine golden testFilterUsingParseIntegerFunction
-        // passes args unshifted; diverges from platform pure's 0-based).
+        // passthrough (engine goldens pass args unshifted; diverges from
+        // platform pure's 0-based).
         for (String f : Pure.nativeKeysAt("substring")) {
             RULES.put(f, (n, args) -> {
-                // H2 CLAMPS a sub-1 start (length unchanged); DuckDB
-                // counts empty positions into the window — clamp to H2
+                // engine-TEXT: args VERBATIM; the clamp is execution-only
+                if (com.legend.sql.dialect.TextGoldens.active()) {
+                    return new SqlExpr.Call(SqlFn.SUBSTRING, args);
+                }
+                // H2 CLAMPS a sub-1 start; DuckDB counts empties — clamp
                 List<SqlExpr> a2 = new ArrayList<>(args);
                 SqlExpr st = args.get(1);
                 a2.set(1, st instanceof SqlExpr.IntLit il
@@ -1656,8 +1657,7 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.LIST_CONCAT, wrapped);
             });
         }
-        // tail/init of a TO-ONE value is the EMPTY collection (all-but-first
-        // / all-but-last of a singleton).
+        // tail/init of a TO-ONE value = EMPTY (all-but-first/-last of 1).
         for (String f : Pure.nativeKeysAt("tail")) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
                     || (isToOne(n.args().get(0))

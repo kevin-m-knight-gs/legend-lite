@@ -1235,6 +1235,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // native; the trim family spells regexp; pads ride the
             // legend H2 extension with the pad char EXPLICIT
             case CBRT -> "power(" + expr(a.get(0), 0) + ", 1.0/3)";
+            // engine spells the FULL substring keyword and indexOf as
+            // locate(needle, haystack)
+            case SUBSTRING -> "substring(" + a.stream()
+                    .map(x -> expr(x, 0))
+                    .collect(java.util.stream.Collectors.joining(", "))
+                    + ")";
+            case STRPOS -> "locate(" + expr(a.get(1), 0) + ", "
+                    + expr(a.get(0), 0) + ")";
             case LTRIM -> "regexp_replace(" + expr(a.get(0), 0)
                     + ", '^[ ]+', '')";
             case RTRIM -> "regexp_replace(" + expr(a.get(0), 0)

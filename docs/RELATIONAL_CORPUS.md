@@ -71,7 +71,7 @@ in-process Alloy-shaped path).
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 47 | 41 | 1 | 5 | 0 | 10 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
-| tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 2 |
+| tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation | 93 | 90 | 3 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
@@ -80,11 +80,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 117 | 0 | 6 | 1 | 6 |
 | tests/mapping/union/relation | 15 | 15 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 83 | 74 | 1 | 7 | 1 | 37 |
-| transform/fromPure/tests | 50 | 40 | 2 | 1 | 7 | 0 |
+| tests/query | 83 | 74 | 1 | 7 | 1 | 35 |
+| transform/fromPure/tests | 50 | 41 | 1 | 1 | 7 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2244** | 72 | 98 | 124 | 240 |
+| **total** | 2538 | **2245** | 71 | 98 | 124 | 236 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1152,7 +1152,7 @@ in-process Alloy-shaped path).
 - FAIL testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Allocation(type=Stringname=inFilterClause_namevalue=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name,"Stream")||((collectionSize(name![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name]tempTableName=SESSION.tempTableForIn_nametempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_nameas"session.temptableforin_name_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name![]",""'""'"{"'":"''"}"null")}])))))Allocation(type=Stringname=inFilterClause_name1value=(FreeMarkerConditionalExecutionNode(type=Stringcondition=${(instanceOf(name1,"Stream")||((collectionSize(name1![])?number)>32767))?c}trueBlock=(Sequence(type=String(CreateAndPopulateTempTable(type=VoidinputVarNames=[name1]tempTableName=SESSION.tempTableForIn_name1tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=DatabaseConnection(type="DB2"))Constant(type=Stringvalues=[select"session.temptableforin_name1_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromSESSION.tempTableForIn_name1as"session.temptableforin_name1_0"]))))falseBlock=(Constant(type=Stringvalues=[${renderCollection(name1![]",""'""'"{"'":"''"}"null")}])))))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(${inFilterClause_name})and"root".fullnamein(${inFilterClause_name1})connection=DatabaseConnection(type="DB2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[*],name1:String[*]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where("root".fullnamein(${renderCollection(name![]",""\'""\'"{"\'":"\'\'"}"null")})and"root".fullnamein(${renderCollection(name1![]",""\'""\'"{"\'":"\'\'"}"null")}))connection=DatabaseConnection(type="DB2"))))
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
-- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': property 'table' of 'meta::relational::mapping::TableTDS': expected meta::relational::metamodel::relation::NamedRelation, got meta::relational::metamodel::relation::View (value: Variable[name=vie
+- SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'columns'
 - FAIL testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: assertEquals: expected true, got false
 - FAIL testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: assertEquals: expected true, got false
 - ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
@@ -1313,7 +1313,7 @@ in-process Alloy-shaped path).
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
-- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: unknown enumeration 'GeographicEntityType'
+- SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL testDynaComplexInference2 [tests]: assertEquals: expected VARCHAR(400), got VARCHAR(200)
@@ -1402,7 +1402,6 @@ in-process Alloy-shaped path).
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".LEGALNAME as "legalName", string_agg("persontable_0".FIRSTNAME, '*' ORDER BY "persontable_0".rowid ASC) as "employeesFirstName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "legalName"
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::extension] — wall: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testToSQLStringWithPosition [transform/fromPure/tests]: assertEquals: expected select substring("root".FULLNAME, 0, locate(',', "root".FULLNAME) - 1) as "firstName" from personTable as "root", got select substr("root".FULLNAME, 1, strpos("root".FULLNAME, ',') - 1) as "firstName" from personTable as "root"
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInProjectionForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSqlGenerationForAdjustStrictDateUsageInFiltersForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification

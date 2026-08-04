@@ -19,6 +19,13 @@ public final class EngineStyleComposite extends EngineStyleDB2 {
         if (c.fn() == SqlFn.LENGTH) {
             return "char_length(" + expr(c.args().get(0), 0) + ")";
         }
+        if (c.fn() == SqlFn.SUBSTRING) {
+            // Composite keeps the FULL substring keyword (DB2 shortens)
+            return "substring(" + c.args().stream()
+                    .map(x -> expr(x, 0))
+                    .collect(java.util.stream.Collectors.joining(", "))
+                    + ")";
+        }
         return super.call(c, parentPrec);
     }
 }
