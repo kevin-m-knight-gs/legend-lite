@@ -225,6 +225,45 @@ Non-negotiable; each earned the hard way:
 - **No fallbacks.** An unrecognized shape throws, naming the layer at fault.
 - Built **incrementally, driven by harness failures** — 39 discriminators for M1, 121 eventually.
 
+### 4.1.1 Where Protocol meets legend-lite: plumb the expressions, transform the elements
+
+The two halves of `com.legend.model` are in different positions, so the answer is not uniform.
+
+**Value specifications — one family, plumbed directly.** `com.legend.model.spec.*` was *designed*
+to mirror the protocol. Its own javadoc: *"Record names and field names match the engine's
+**verbatim** … lets downstream layers swap between core's standalone parser output and the engine's
+protocol shapes by **mechanical renaming**."* `CInteger(Number value)` vs protocol
+`CInteger{value, sourceInformation, multiplicity}` — same name, same field, ours lacks only the wire
+extras. Duplicating 22 record types built to match verbatim would be silly.
+
+*Plan:* evolve `com.legend.model.spec.*` into the protocol shape — add `sourceInformation` and the
+missing wire fields, and **override `equals`/`hashCode` to exclude position** so the 111
+`assertEquals(new CInteger(42L), spec)` assertions survive untouched. **The override needs its own
+guard test**, or someone will "fix" it later and silently break those 111.
+
+**Elements — two families plus a transform.** These genuinely differ in structure:
+
+```java
+// ours
+ClassDefinition(qualifiedName, typeParams, superClasses /*TypeExpression*/,
+                properties, derivedProperties, constraints, stereotypes, taggedValues, isNative)
+// protocol
+Class{ _package, name,                      // split, not one qualifiedName
+       superTypes,                          // strings
+       qualifiedProperties,                 // their name for derived
+       originalMilestonedProperties,        // no equivalent in ours
+       properties, constraints, stereotypes, taggedValues }   // and no isNative
+```
+
+Split `package`/`name` vs a single `qualifiedName`, a rename, a field they have that we lack, and one
+we have that they lack. That is a real mapping, not a rename — **and the transform is the quarantine
+boundary** keeping upstream's wire concerns out of `ModelBuilder`, exactly as `ProtocolEmitter`
+quarantines them on the way out.
+
+**Validate this split with data in Phase 0.** It is read from record signatures. If value-spec
+overlap proves thinner than the javadoc claims once positions and multiplicity are in play, value
+specs fall back to two families and a transform, like the elements.
+
 ### 4.2 Parser work, in dependency order
 
 1. **Fix the silent-drop lexer — prerequisite for everything.** `Lexer.java:287-293` raw-skips any
