@@ -1554,9 +1554,9 @@ public final class ElementParser implements TokenStreamCursor {
                 span(startTok, pos - 1), span(typeStartTok, typeEndTok), hasDefaultValue);
     }
 
-    /** A {@link com.legend.protocol.Protocol.SourceInfo} for an inclusive token range. */
-    private com.legend.protocol.Protocol.SourceInfo span(int fromTok, int toTok) {
-        return new com.legend.protocol.Protocol.SourceInfo("",
+    /** A {@link com.legend.model.SourceInfo} for an inclusive token range. */
+    private com.legend.model.SourceInfo span(int fromTok, int toTok) {
+        return new com.legend.model.SourceInfo("",
                 tokens.startLine(fromTok), tokens.startColumn(fromTok),
                 tokens.endLine(toTok), tokens.endColumn(toTok));
     }

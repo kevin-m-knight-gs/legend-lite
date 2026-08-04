@@ -9,7 +9,7 @@ import com.legend.protocol.Protocol.PProperty;
 import com.legend.protocol.Protocol.PSection;
 import com.legend.protocol.Protocol.PSectionIndex;
 import com.legend.protocol.Protocol.PureModelContextData;
-import com.legend.protocol.Protocol.SourceInfo;
+import com.legend.model.SourceInfo;
 
 import java.util.List;
 
@@ -188,7 +188,7 @@ public final class ProtocolEmitter {
 
     /** The wire's {@code genericType}. Only a plain named type is expressible so far. */
     private static void genericType(StringBuilder b, com.legend.model.TypeExpression t,
-                                    Protocol.SourceInfo pos) {
+                                    com.legend.model.SourceInfo pos) {
         if (!(t instanceof com.legend.model.TypeExpression.NameRef n)) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for type expression "

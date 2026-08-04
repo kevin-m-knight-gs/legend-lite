@@ -22,10 +22,15 @@ import java.util.List;
  * </ul>
  *
  * <p>Positions are captured at construction because that is the only point where token offsets are
- * in hand. {@link SourceInfo} follows the engine's convention exactly: 1-based lines, 1-based start
+ * in hand. {@link com.legend.model.SourceInfo} follows the engine's convention exactly: 1-based lines, 1-based start
  * column, and an <em>inclusive</em> end column.
  */
 public final class Protocol {
+
+    /** Re-exported so protocol code reads naturally; the type lives in {@code com.legend.model}
+     * because both the AST and the protocol carry spans and {@code protocol -> model} is the
+     * cycle-free direction (ArchitectureTest invariants 4 and 6j). */
+    
 
     private Protocol() {
     }
@@ -64,7 +69,7 @@ public final class Protocol {
                          List<PStereotype> stereotypes,
                          List<PTaggedValue> taggedValues,
                          boolean isNative,
-                         SourceInfo sourceInformation) implements Element {
+                         com.legend.model.SourceInfo sourceInformation) implements Element {
         public PClass {
             typeParams = List.copyOf(typeParams);
             superTypes = List.copyOf(superTypes);
@@ -90,7 +95,7 @@ public final class Protocol {
 
     /** {@code _type:"importAware"} — the only section kind emitted for {@code ###Pure}. */
     public record PSection(String parserName, List<String> elements, List<String> imports,
-                           SourceInfo sourceInformation) {
+                           com.legend.model.SourceInfo sourceInformation) {
         public PSection {
             elements = List.copyOf(elements);
             imports = List.copyOf(imports);
@@ -112,8 +117,8 @@ public final class Protocol {
                             com.legend.model.Multiplicity multiplicity,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
-                            SourceInfo sourceInformation,
-                            SourceInfo typeSourceInformation,
+                            com.legend.model.SourceInfo sourceInformation,
+                            com.legend.model.SourceInfo typeSourceInformation,
                             boolean hasDefaultValue) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);
@@ -133,8 +138,8 @@ public final class Protocol {
      * {@code sourceInformation} covers the whole {@code a::P.s1}.
      */
     public record PStereotype(String profile, String value,
-                              SourceInfo profileSourceInformation,
-                              SourceInfo sourceInformation) {
+                              com.legend.model.SourceInfo profileSourceInformation,
+                              com.legend.model.SourceInfo sourceInformation) {
     }
 
     /**
@@ -144,12 +149,12 @@ public final class Protocol {
      * assumed.
      */
     public record PTag(String profile, String value,
-                       SourceInfo profileSourceInformation,
-                       SourceInfo sourceInformation) {
+                       com.legend.model.SourceInfo profileSourceInformation,
+                       com.legend.model.SourceInfo sourceInformation) {
     }
 
     /** {@code {"sourceInformation":…,"tag":{…},"value":…}}. */
-    public record PTaggedValue(PTag tag, String value, SourceInfo sourceInformation) {
+    public record PTaggedValue(PTag tag, String value, com.legend.model.SourceInfo sourceInformation) {
     }
 
     /**
@@ -159,24 +164,17 @@ public final class Protocol {
      * reason {@link PProperty} does — the parser stays total and the emitter owns what the wire can
      * express.
      */
-    public record PSuperType(com.legend.model.TypeExpression type, SourceInfo sourceInformation) {
+    public record PSuperType(com.legend.model.TypeExpression type, com.legend.model.SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"packageableType"}. */
-    public record PPackageableType(String fullPath, SourceInfo sourceInformation) {
+    public record PPackageableType(String fullPath, com.legend.model.SourceInfo sourceInformation) {
     }
 
     /** Carries no {@code _type} and no source information. */
     public record PMultiplicity(int lowerBound, @com.legend.Nullable Integer upperBound) {
     }
 
-    /**
-     * Engine convention: 1-based lines; 1-based start column; <b>inclusive</b> end column
-     * ({@code charPositionInLine + text.length()}, deliberately no {@code +1}).
-     */
-    public record SourceInfo(String sourceId, int startLine, int startColumn,
-                             int endLine, int endColumn) {
-    }
 
     /**
      * Splits an FQN into the wire's {@code package} / {@code name} pair.

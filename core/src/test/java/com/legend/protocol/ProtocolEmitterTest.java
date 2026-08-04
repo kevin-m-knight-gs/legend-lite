@@ -5,7 +5,7 @@ import com.legend.protocol.Protocol.PProperty;
 import com.legend.protocol.Protocol.PSection;
 import com.legend.protocol.Protocol.PSectionIndex;
 import com.legend.protocol.Protocol.PureModelContextData;
-import com.legend.protocol.Protocol.SourceInfo;
+import com.legend.model.SourceInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

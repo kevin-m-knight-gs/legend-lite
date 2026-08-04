@@ -11,7 +11,31 @@ import java.util.Objects;
  * shape. {@link com.legend.parser.SpecParser} picks the narrowest of the
  * two that holds the parsed value.
  */
-public record CInteger(Number value) implements ValueSpecification {
+public record CInteger(Number value, @com.legend.Nullable com.legend.model.SourceInfo pos)
+        implements ValueSpecification {
+
+    /** Position-free convenience constructor — keeps hand-built test expectations compiling. */
+    public CInteger(Number value) {
+        this(value, null);
+    }
+
+    /**
+     * <b>Position is excluded from equality on purpose.</b> These records are compared
+     * structurally by the compiler and by 111 hand-built test assertions of the form
+     * {@code assertEquals(new CInteger(...), spec)}; including a span would break every one and
+     * would make two structurally identical expressions unequal for no semantic reason.
+     * {@code ValueSpecEqualityTest} guards this — do not "fix" it.
+     */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof CInteger other && java.util.Objects.equals(value, other.value());
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hashCode(value);
+    }
+
     public CInteger {
         Objects.requireNonNull(value, "value");
     }
