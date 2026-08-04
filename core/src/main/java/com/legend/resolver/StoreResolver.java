@@ -3208,24 +3208,13 @@ public final class StoreResolver {
      * swapped vs {@link #targetEquiKeys}) — the group/join-back keys of
      * the correlated aggregated subselect (#69 parent-copy emission). */
 
-    /** Aggregated-navigation materials: per head, the target join material
-     * with the demands' leaf + computed-mapper nav paths (#69). */
-        /** #69 correlated-aggregate sub SOURCE (fold 2c): uncorrelated heads
-     * group the plain target; a correlated pred re-joins the PARENT extent
-     * (parent-copy), filters by the pred over the joined row, and groups
-     * by the PARENT-side equi keys. */
-            /** #69 EXPLODING parent-copy subselect emission (fold 2b) — the
-     * rerouted correlated head's join material. */
-            /** One projected column {@code name := $rowVar.readCol} of the
-     * exploding subselect (#69). */
-                /** The parent-extent COPY inside a correlated aggregated subselect:
-     * the parent pipeline materialized with the slots and navigate steps
-     * the correlated pred's OUTER reads demand, plus depth-1 SubNavs for
-     * the substitution (deeper hops stay loud). */
-        /** Per-getAll temporal context (M3 propagation): the root fetch's dates
-     * and strategy flow to SAME-STRATEGY targets navigated through temporal
-     * parents (engine: milestoning context does NOT propagate through
-     * non-temporal intermediates). Set at each getAll resolution entry. */
+    /** #69 aggregated-navigation materials: per head, the target join
+     * material + demanded nav paths. Correlated preds re-join the PARENT
+     * extent (parent-copy: pipeline materialized with the outer reads'
+     * slots + depth-1 SubNavs; deeper hops loud), filter by the pred,
+     * group by parent-side equi keys; uncorrelated heads group the plain
+     * target. Temporal context (M3): root dates/strategy flow to
+     * SAME-STRATEGY targets through temporal parents only. */
     static TypedEnumValue leftKind() {
         String fqn = "meta::pure::functions::relation::JoinKind";
         return new TypedEnumValue(fqn, "LEFT",
@@ -3371,7 +3360,8 @@ public final class StoreResolver {
             // callees still ride (objectReferenceIn in a nested predicate)
             return new NestedScope(new Substitution.Registries(Map.of(),
                     Set.of(), Map.of(), Map.of(), Map.of(), isNotEmptyCallee(),
-                    equalCallee(), List.of(), inCallee()), targetPipe, row);
+                    equalCallee(), List.of(), inCallee(), boolCallee("and"),
+                    boolCallee("or")), targetPipe, row);
         }
         return new NestedScope(
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
@@ -3442,10 +3432,15 @@ public final class StoreResolver {
                         aggReads, inQueryReads, isNotEmptyCallee(), equalCallee(),
                         RelationalRootForm.primaryKeyColumns(cs.classFqn(),
                                 m.pipeline(), cs.mappingFqn(), ctx),
-                        inCallee()),
+                        inCallee(), boolCallee("and"), boolCallee("or")),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
                         temporal.headTemporalDates(), temporal.root()),
                 filterPosition, false));
+    }
+
+    private com.legend.compiler.element.TypedFunction boolCallee(String n2) {
+        return ctx.findFunction("meta::pure::functions::boolean::" + n2)
+                .get(0);
     }
 
     /** The 2-arg in overload — the objectReferenceIn pk membership. */

@@ -83,7 +83,9 @@ final class Substitution {
                       @com.legend.Nullable TypedFunction isNotEmptyCallee,
                       @com.legend.Nullable TypedFunction equalCallee,
                       List<String> pkColumns,
-                      @com.legend.Nullable TypedFunction inCallee) {
+                      @com.legend.Nullable TypedFunction inCallee,
+                      @com.legend.Nullable TypedFunction andCallee,
+                      @com.legend.Nullable TypedFunction orCallee) {
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
@@ -92,7 +94,21 @@ final class Substitution {
                    @com.legend.Nullable TypedFunction isNotEmptyCallee,
                    @com.legend.Nullable TypedFunction equalCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
-                    isNotEmptyCallee, equalCallee, List.of(), null);
+                    isNotEmptyCallee, equalCallee, List.of(), null, null,
+                    null);
+        }
+
+        Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
+                   Map<String, ExistsSub> existsSubs,
+                   Map<TypedSpec, AggRead> aggReads,
+                   Map<TypedSpec, InQueryRead> inQueryReads,
+                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.Nullable TypedFunction equalCallee,
+                   List<String> pkColumns,
+                   @com.legend.Nullable TypedFunction inCallee) {
+            this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
+                    isNotEmptyCallee, equalCallee, pkColumns, inCallee,
+                    null, null);
         }
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
@@ -1410,8 +1426,7 @@ final class Substitution {
                     + " a literal reference collection, got "
                     + refsArg.getClass().getSimpleName());
         }
-        List<TypedSpec> pkVals = new java.util.ArrayList<>();
-        String keyedCol = null;
+        List<Map<String, Object>> pkMaps = new java.util.ArrayList<>();
         for (TypedSpec r : refs.elements()) {
             if (!(r instanceof com.legend.compiler.spec.typed
                     .TypedCString rs)) {
@@ -1425,51 +1440,96 @@ final class Substitution {
                     java.nio.charset.StandardCharsets.UTF_8);
             Object pkObj = com.legend.sql.Json.parseOne(
                     dec.substring(dec.lastIndexOf(":{") + 1));
-            if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.size() != 1) {
+            if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.isEmpty()) {
                 throw new NotImplementedException("objectReferenceIn pk"
-                        + " segment did not decode to one entry: " + dec);
+                        + " segment did not decode: " + dec);
             }
-            var entry = pkMap.entrySet().iterator().next();
-            String k = String.valueOf(entry.getKey());
-            // the envelope's own refs spell pk\$_0 (positional over the
-            // set pk); generateObjectReferences refs carry the USER'S
-            // column key verbatim
-            if (!k.startsWith("pk$_")) {
-                if (keyedCol != null && !keyedCol.equalsIgnoreCase(k)) {
-                    throw new NotImplementedException("objectReferenceIn"
-                            + " references mix pk columns: " + keyedCol
-                            + " vs " + k);
-                }
-                keyedCol = k;
-            }
-            Object pkv = entry.getValue();
-            if (pkv instanceof Long pl) {
-                pkVals.add(new com.legend.compiler.spec.typed.TypedCInteger(
-                        pl, new ExprType(Type.Primitive.INTEGER,
-                                Multiplicity.Bounded.ONE)));
-            } else if (pkv instanceof String psv) {
-                pkVals.add(new com.legend.compiler.spec.typed.TypedCString(
-                        psv, new ExprType(Type.Primitive.STRING,
-                                Multiplicity.Bounded.ONE)));
-            } else {
-                throw new NotImplementedException(
-                        "objectReferenceIn reference pk segment did not"
-                                + " decode: " + dec);
-            }
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            pkMap.forEach((k, v) -> m.put(String.valueOf(k), v));
+            pkMaps.add(m);
         }
-        if (pkVals.isEmpty()) {
-            // in([]) — real pure membership over the empty set is FALSE
+        if (pkMaps.isEmpty()) {
+            // membership over the empty set is FALSE (real pure)
             return new com.legend.compiler.spec.typed.TypedCBoolean(false,
                     new ExprType(Type.Primitive.BOOLEAN,
                             Multiplicity.Bounded.ONE));
         }
-        if (keyedCol == null && target.regs().pkColumns().size() != 1) {
-            throw new NotImplementedException("objectReferenceIn needs a"
-                    + " single-pk set — pk columns: "
-                    + target.regs().pkColumns());
+        // SINGLE shared key across refs -> one IN; else OR of per-ref ANDs
+        String soleKey = pkMaps.get(0).size() == 1
+                ? pkMaps.get(0).keySet().iterator().next() : null;
+        boolean uniform = soleKey != null && pkMaps.stream().allMatch(m ->
+                m.size() == 1 && m.keySet().iterator().next()
+                        .equalsIgnoreCase(soleKey));
+        if (uniform && soleKey != null) {
+            List<TypedSpec> pkVals = new java.util.ArrayList<>();
+            for (Map<String, Object> m : pkMaps) {
+                pkVals.add(pkLiteral(m.values().iterator().next()));
+            }
+            Type valT = pkVals.get(0).info().type();
+            return new TypedNativeCall(java.util.Objects.requireNonNull(
+                    target.regs().inCallee()),
+                    List.of(pkColRead(soleKey), new com.legend.compiler.spec
+                            .typed.TypedCollection(pkVals,
+                                    new ExprType(valT,
+                                            Multiplicity.Bounded.ZERO_MANY))),
+                    oc.info());
         }
-        String pkCol = keyedCol != null ? keyedCol
-                : target.regs().pkColumns().get(0);
+        TypedFunction and = target.regs().andCallee();
+        TypedFunction or = target.regs().orCallee();
+        if (and == null || or == null) {
+            throw new NotImplementedException("objectReferenceIn multi-"
+                    + "column references need and/or callees");
+        }
+        var bool1 = new ExprType(Type.Primitive.BOOLEAN,
+                Multiplicity.Bounded.ONE);
+        TypedSpec orAll = null;
+        for (Map<String, Object> m : pkMaps) {
+            TypedSpec conj = null;
+            for (var e : m.entrySet()) {
+                TypedSpec eq = new TypedNativeCall(eqCallee(),
+                        List.of(pkColRead(e.getKey()),
+                                pkLiteral(e.getValue())), bool1);
+                conj = conj == null ? eq
+                        : new TypedNativeCall(and, List.of(conj, eq), bool1);
+            }
+            orAll = orAll == null ? conj : new TypedNativeCall(or,
+                    List.of(orAll, java.util.Objects.requireNonNull(conj)),
+                    bool1);
+        }
+        return java.util.Objects.requireNonNull(orAll);
+    }
+
+    /** A decoded pk value as a typed literal (JSON kind decides). */
+    private static TypedSpec pkLiteral(Object v) {
+        if (v instanceof Long pl) {
+            return new com.legend.compiler.spec.typed.TypedCInteger(pl,
+                    new ExprType(Type.Primitive.INTEGER,
+                            Multiplicity.Bounded.ONE));
+        }
+        if (v instanceof String psv) {
+            return new com.legend.compiler.spec.typed.TypedCString(psv,
+                    new ExprType(Type.Primitive.STRING,
+                            Multiplicity.Bounded.ONE));
+        }
+        throw new NotImplementedException(
+                "objectReferenceIn pk value kind: " + v);
+    }
+
+    /** The row read for a reference pk key: {@code pk\$_0} = positional
+     * over the set's pk columns; anything else matches a ROW COLUMN by
+     * name (case-insensitive, quotes stripped). */
+    private TypedSpec pkColRead(String key) {
+        String pkCol;
+        if (key.startsWith("pk$_")) {
+            if (target.regs().pkColumns().size() != 1) {
+                throw new NotImplementedException("objectReferenceIn needs"
+                        + " a single-pk set — pk columns: "
+                        + target.regs().pkColumns());
+            }
+            pkCol = target.regs().pkColumns().get(0);
+        } else {
+            pkCol = key;
+        }
         Type.RelationType row = target.rowType();
         Type.Column col = row.columns().stream()
                 .filter(c -> c.name().equalsIgnoreCase(pkCol)
@@ -1478,18 +1538,10 @@ final class Substitution {
                 .findFirst().orElseThrow(() -> new NotImplementedException(
                         "objectReferenceIn pk column '" + pkCol
                                 + "' is not on the row"));
-        TypedSpec pkRead = new TypedPropertyAccess(
+        return new TypedPropertyAccess(
                 new TypedVariable(target.freshRowVar(),
                         new ExprType(row, Multiplicity.Bounded.ONE)),
                 col.name(), new ExprType(col.type(), col.multiplicity()));
-        Type valT = pkVals.get(0).info().type();
-        return new TypedNativeCall(
-                java.util.Objects.requireNonNull(target.regs().inCallee()),
-                List.of(pkRead, new com.legend.compiler.spec.typed
-                        .TypedCollection(pkVals,
-                                new ExprType(valT,
-                                        Multiplicity.Bounded.ZERO_MANY))),
-                oc.info());
     }
 
     /** Inner scopes inherit the PARENT'S boolean-machinery callees when
@@ -1497,7 +1549,7 @@ final class Substitution {
      * builds) — pkColumns stay the inner scope's own. */
     private Registries withCallees(Registries r) {
         return r.inCallee() != null && r.equalCallee() != null
-                && r.isNotEmptyCallee() != null ? r
+                && r.isNotEmptyCallee() != null && r.andCallee() != null ? r
                 : new Registries(r.assocs(), r.assocEnds(), r.existsSubs(),
                         r.aggReads(), r.inQueryReads(),
                         r.isNotEmptyCallee() != null ? r.isNotEmptyCallee()
@@ -1506,7 +1558,11 @@ final class Substitution {
                                 : target.regs().equalCallee(),
                         r.pkColumns(),
                         r.inCallee() != null ? r.inCallee()
-                                : target.regs().inCallee());
+                                : target.regs().inCallee(),
+                        r.andCallee() != null ? r.andCallee()
+                                : target.regs().andCallee(),
+                        r.orCallee() != null ? r.orCallee()
+                                : target.regs().orCallee());
     }
 
     private com.legend.compiler.element.TypedFunction eqCallee() {
