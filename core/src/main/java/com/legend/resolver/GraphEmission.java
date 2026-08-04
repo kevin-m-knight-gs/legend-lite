@@ -2859,6 +2859,38 @@ final class GraphEmission {
     }
 
     static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
+        // the alloyConfig ctor family (graphFetch.pure:126-171): decode
+        // the CALL positionally by arity into the same flag surface
+        if (cfg instanceof TypedNativeCall cc
+                && "meta::pure::graphFetch::execution::alloyConfig"
+                        .equals(cc.callee().qualifiedName())) {
+            List<TypedSpec> a = cc.args();
+            int n = a.size();
+            boolean includeType = boolArg(a.get(0));
+            boolean includeEnumType = boolArg(a.get(1));
+            int rn = n == 8 ? 3 : 2;
+            String key = n >= 6 ? strArg(a.get(n == 8 ? 5 : 4), "@type")
+                    : "@type";
+            boolean fq = n >= 6 ? boolArg(a.get(n == 8 ? 6 : 5)) : true;
+            boolean ior = n == 5 ? boolArg(a.get(4))
+                    : n >= 7 ? boolArg(a.get(n - 1)) : false;
+            // ORDERED walls (deterministic scoreboard message)
+            String[][] flags = {
+                    {"includeEnumType", includeEnumType ? "y" : ""},
+                    {"removePropertiesWithNullValues",
+                            boolArg(a.get(rn)) ? "y" : ""},
+                    {"removePropertiesWithEmptySets",
+                            boolArg(a.get(rn + 1)) ? "y" : ""},
+                    {"includeObjectReference", ior ? "y" : ""}};
+            for (String[] flag : flags) {
+                if (!flag[1].isEmpty()) {
+                    throw new NotImplementedException("serialize config"
+                            + " flag '" + flag[0] + "' is not"
+                            + " supported yet");
+                }
+            }
+            return includeType ? new SerializeTypeConfig(key, fq) : null;
+        }
         if (!(cfg instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
                 || !"meta::pure::graphFetch::execution::AlloySerializationConfig"
                         .equals(ni.classFqn())) {
@@ -2894,6 +2926,16 @@ final class GraphEmission {
             }
         }
         return includeType ? new SerializeTypeConfig(key, fq) : null;
+    }
+
+    private static boolean boolArg(TypedSpec v) {
+        return v instanceof com.legend.compiler.spec.typed.TypedCBoolean b
+                && b.value();
+    }
+
+    private static String strArg(TypedSpec v, String dflt) {
+        return v instanceof com.legend.compiler.spec.typed.TypedCString cs
+                ? cs.value() : dflt;
     }
 
     /** Stamp the type-key config on EVERY node of a built envelope
