@@ -33,8 +33,12 @@ final class ConnEquality {
     private ConnEquality() {
     }
 
+    /** THE assert-arm host fold dispatcher: connection equality, then
+     * the M3-reflection predicates ({@link ReflectAsserts}). */
     static @com.legend.Nullable Boolean tryEval(
-            @com.legend.Nullable ValueSpecification v) {
+            @com.legend.Nullable ValueSpecification v,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.model.ImportScope imports) {
         boolean negate = false;
         if (v instanceof AppliedFunction nf
                 && TestBody.simpleName(nf.function()).equals("not")
@@ -46,11 +50,31 @@ final class ConnEquality {
                 && TestBody.simpleName(af.function()).equals(
                         "runRelationalRouterExtensionConnectionEquality")
                 && af.parameters().size() == 2)) {
-            return null;
+            Boolean r = v == null ? null
+                    : ReflectAsserts.tryEval(v, ctx, imports);
+            return r == null ? null : negate ? !r : r;
         }
         boolean eq = structEquals(af.parameters().get(0),
                 af.parameters().get(1));
         return negate ? !eq : eq;
+    }
+
+    /** The LET-arm host folds: JSON-metamodel plumbing defers verbatim
+     * (to the assert), predicate VERDICTS bind as booleans, and
+     * generateObjectReferences builds — one funnel so the TestBody let
+     * arm stays a single call (file at its size cap). */
+    static @com.legend.Nullable ValueSpecification letFold(
+            ValueSpecification rhs, ValueSpecification substituted,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.model.ImportScope imports) {
+        if (JsonAssertCanon.isPlumbing(rhs)) {
+            return rhs;
+        }
+        Boolean hf = tryEval(substituted, ctx, imports);
+        if (hf != null) {
+            return new com.legend.model.spec.CBoolean(hf);
+        }
+        return ObjectRefs.build(rhs, ctx);
     }
 
     /** Deep instance equality over the SUBSTITUTED literals: instances

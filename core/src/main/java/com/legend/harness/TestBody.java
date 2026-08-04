@@ -408,14 +408,12 @@ public final class TestBody {
                 // EAGER (audit 16 F1, engine parity): the statement executor
                 // runs the query AT the let, so a broken pipeline surfaces
                 // even when no assert ever reads the binding.
-                // JSON-metamodel plumbing: defer to the assert
-                if (JsonAssertCanon.isPlumbing(rhs)) {
-                    lets.put(name.value(), rhs);
-                    continue;
-                }
-                ValueSpecification gor = ObjectRefs.build(rhs, ctx);
-                if (gor != null) {
-                    lets.put(name.value(), gor);
+                // let-arm HOST FOLDS (ConnEquality.letFold): JSON plumbing
+                // defers, predicate verdicts bind, objectReferences build
+                ValueSpecification lf0 = ConnEquality.letFold(rhs,
+                        subst(rhs, lets), ctx, imports);
+                if (lf0 != null) {
+                    lets.put(name.value(), lf0);
                     continue;
                 }
                 java.util.function.Function<ValueSpecification, Object>
@@ -1797,7 +1795,7 @@ public final class TestBody {
                     return UNSUPPORTED_MARKER;
                 }
                 // connection-equality contract folds HOST-side (ConnEquality)
-                Object v = ConnEquality.tryEval(subst(args.get(0), lets));
+                Object v = ConnEquality.tryEval(subst(args.get(0), lets), ctx, imports);
                 v = v != null ? v : evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 boolean expect = af.function().equals("assert");
                 return Boolean.valueOf(expect).equals(v) ? null
