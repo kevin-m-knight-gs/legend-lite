@@ -260,8 +260,46 @@ we have that they lack. That is a real mapping, not a rename — **and the trans
 boundary** keeping upstream's wire concerns out of `ModelBuilder`, exactly as `ProtocolEmitter`
 quarantines them on the way out.
 
-**Validate this split with data in Phase 0.** It is read from record signatures. If value-spec
-overlap proves thinner than the javadoc claims once positions and multiplicity are in play, value
+#### Are the element differences *right*, or accidental? — investigated, and the answer is mixed
+
+I first asserted the element shapes differ for principled reasons. That was read off record
+signatures and is **only partly true**. Evidence:
+
+**Accidental — our elements were never modelled on the protocol at all.**
+`ClassDefinition`'s javadoc: *"Mirrors engine's `com.gs.legend.model.def.ClassDefinition` record
+shape verbatim."* That is **`com.gs.legend`** — the vendored predecessor `engine/` module
+(`engine/src/main/java/com/gs/legend/model/def/ClassDefinition.java`, still present), **not**
+`org.finos.legend.engine.protocol`. Six-plus model records carry the same "Mirrors engine's
+`com.gs.legend.model.def.*`" line. So the divergence from the *protocol* is a historical artefact of
+what the rewrite was copied from — not a considered decision against the protocol. It should not be
+defended on principle. `core/README.md:236` even states the opposite intent: *"Parser records =
+engine class names verbatim … Maximizes test portability against the engine corpus."*
+
+**Principled — and it alone justifies the transform.** `PackageableElement.java:14-24` documents the
+single `qualifiedName` as a deliberate omission:
+
+> *"no `simpleName()` or `packagePath()` default methods. Those exist on engine's version and invite
+> an attractive nuisance — a caller writes `modelContext.findClass(element.simpleName())`, the lookup
+> hits the wrong class, and the bug surfaces only when two elements share a simple name across
+> packages. Keys are `qualifiedName()`, full stop."*
+
+That is a direct structural defence against the exact defect in `NAME_RESOLUTION_BUG.md`, where a
+global suffix scan binds an unimported element by simple name. The protocol splits `package` and
+`name`; **legend-lite must not**, and that is worth a transform on its own.
+
+**Therefore:**
+
+- **Keep the transform, for one documented reason** — the FQN discipline. Split `package`/`name` on
+  the way *out* to the wire, never on the way *in* to the compiler.
+- **Do not defend the rest.** `derivedProperties` vs `qualifiedProperties` is an inherited rename;
+  the missing `originalMilestonedProperties` is a gap, not a choice; `ClassDefinition` vs `Class` is
+  most likely a `java.lang.Class` clash. Where the protocol shape is neutral or better, converge.
+- **`isNative` on classes is ours alone** — `DomainParserGrammar.g4` has `nativeFunction` but no
+  native-class production. Verify whether the Legend DSL admits `native Class` at all before
+  carrying the field.
+
+**Validate the value-spec half with data in Phase 0 too.** That split is still read from signatures;
+if overlap proves thinner than the javadoc claims once positions and multiplicity are in play, value
 specs fall back to two families and a transform, like the elements.
 
 ### 4.2 Parser work, in dependency order
