@@ -2178,6 +2178,16 @@ final class Substitution {
                     i.mapChildren(k -> inlineParam(k, param, source));
             case TypedCollection c ->
                     c.mapChildren(k -> inlineParam(k, param, source));
+            // structural relation ops in the mapper body (a filtered/
+            // mapped/sorted collection expression): children inline; the
+            // TypedLambda arm's shadow + capture guards apply to their
+            // inner lambdas exactly as anywhere else
+            case TypedFilter f ->
+                    f.mapChildren(k -> inlineParam(k, param, source));
+            case TypedMap m ->
+                    m.mapChildren(k -> inlineParam(k, param, source));
+            case com.legend.compiler.spec.typed.TypedSortBy sb ->
+                    sb.mapChildren(k -> inlineParam(k, param, source));
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
