@@ -114,6 +114,58 @@ final class JsonAssertCanon {
                 || v instanceof AppliedProperty);
     }
 
+    /** JSON reference-EXTRACTION plumbing over an exec result:
+     * {@code parseJSON()->cast(@JSONArray).values->cast(@JSONObject)
+     * ->map(x|$x->getValue('k')->cast(@JSONString).value)} — evaluated
+     * HOST-side to a literal string collection at the LET (downstream
+     * assert args AND query-lambda substitution both need the values).
+     * {@code parsedEval} evaluates an expression and returns its parsed
+     * JSON (null = not evaluable). Null when not this shape. */
+    static @com.legend.Nullable ValueSpecification extractStrings(
+            ValueSpecification rhs,
+            java.util.function.Function<ValueSpecification,
+                    Object> parsedEval) {
+        if (!(rhs instanceof AppliedFunction mapAf)
+                || !TestBody.simpleName(mapAf.function()).equals("map")
+                || mapAf.parameters().size() != 2
+                || !(mapAf.parameters().get(1)
+                        instanceof LambdaFunction lf)
+                || lf.body().size() != 1
+                || lf.parameters().size() != 1) {
+            return null;
+        }
+        ValueSpecification src = stripWrappers(mapAf.parameters().get(0));
+        if (!(src instanceof AppliedProperty ap)
+                || !ap.property().equals("values")) {
+            return null;
+        }
+        // the lambda: .value over getValue($x, 'key') (wrappers stripped)
+        ValueSpecification b = lf.body().get(0);
+        if (!(b instanceof AppliedProperty vp)
+                || !vp.property().equals("value")) {
+            return null;
+        }
+        ValueSpecification g = stripWrappers(vp.receiver());
+        if (!(g instanceof AppliedFunction gv)
+                || !TestBody.simpleName(gv.function()).equals("getValue")
+                || gv.parameters().size() != 2
+                || !(gv.parameters().get(1) instanceof CString key)) {
+            return null;
+        }
+        Object parsed = parsedEval.apply(stripWrappers(ap.receiver()));
+        if (!(parsed instanceof List<?> l)) {
+            return null;
+        }
+        List<ValueSpecification> out = new ArrayList<>(l.size());
+        for (Object o : l) {
+            if (o instanceof Map<?, ?> mm
+                    && mm.get(key.value()) instanceof String sv) {
+                out.add(new CString(sv));
+            }
+        }
+        return new com.legend.model.spec.PureCollection(out);
+    }
+
     /** Identity wrappers around a JSON value expression: parseJSON /
      * toPrettyJSONString / toOne (1-arg) and cast (value, type). */
     private static ValueSpecification stripWrappers(ValueSpecification v) {

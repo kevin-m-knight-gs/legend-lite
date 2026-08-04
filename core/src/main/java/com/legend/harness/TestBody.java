@@ -32,29 +32,24 @@ import java.util.Map;
  * function body (a STATEMENT SEQUENCE of lets, {@code execute(...)} calls
  * and {@code assert*} calls) through the ordinary compile-to-SQL pipeline.
  *
- * <p><strong>No interpreter.</strong> Tenet #1 applies to tests too:
- * {@code let r = execute(|Q, ...)} binds {@code r} to the query
- * expression itself (a lazy handle) plus its execution context; every
- * downstream read ({@code $r.values.rows->map(...)->sort()}) SPLICES the
- * query into the surrounding chain, compiling and executing as ONE SQL
- * statement; {@code assert*} natives are the orchestration boundary —
- * both sides compile and execute through the pipeline, Java compares the
- * two wire values strictly (one shared wire convention).
+ * <p><strong>No interpreter</strong> (tenet #1): {@code let r =
+ * execute(|Q, ...)} binds a lazy handle + execution context; downstream
+ * reads SPLICE into ONE SQL statement; {@code assert*} natives are the
+ * orchestration boundary — both sides execute through the pipeline, Java
+ * compares wire values strictly (one shared wire convention).
  *
- * <p><strong>The one driver-level form.</strong> {@code execute(...)}'s
- * runtime/extensions arguments are engine-harness plumbing (functions
- * constructing engine-runtime objects legend-lite deliberately does not
- * model). The driver consumes the QUERY (arg 0, fully compiled) and the
- * MAPPING (arg 1, resolved under the caller's imports); trailing config
- * args are accepted un-typed and the CALLER supplies the physical
- * connection + runtime — the boundary the engine's own {@code execute}
+ * <p><strong>The one driver-level form.</strong> execute()'s runtime/
+ * extensions args are engine-harness plumbing (runtime objects
+ * legend-lite deliberately does not model): the driver consumes the
+ * QUERY (arg 0) and the MAPPING (arg 1, caller-import-resolved);
+ * trailing config args are un-typed and the CALLER supplies the physical
+ * connection + runtime — the same boundary the engine's own execute
  * crosses into Java.
  *
- * <p><strong>Failure polarity.</strong> Anything this driver does not
- * recognize is {@link Outcome.Unsupported} (named, loud) &mdash; never a
- * silent skip; a compile error in any chain propagates as an exception.
- * Assertion evaluation STOPS at the first failing assert (real pure
- * {@code assert} raises).
+ * <p><strong>Failure polarity.</strong> Anything unrecognized is
+ * {@link Outcome.Unsupported} (named, loud), never a silent skip; a
+ * compile error propagates; assertion evaluation STOPS at the first
+ * failing assert (real pure {@code assert} raises).
  */
 public final class TestBody {
 
@@ -421,6 +416,21 @@ public final class TestBody {
                 // chains / rebuilt-JSONArray sort): defer to the assert
                 if (JsonAssertCanon.isPlumbing(rhs)) {
                     lets.put(name.value(), rhs);
+                    continue;
+                }
+                ValueSpecification exd = JsonAssertCanon.extractStrings(rhs,
+                        e2 -> {
+                            try {
+                                Object r = jsonValueOf(eval(e2, lets,
+                                        execStmts, execVars, execChains, ctx,
+                                        imports, runtimeFqn, conn));
+                                return r == null ? "" : r;   // non-List = miss
+                            } catch (java.sql.SQLException se) {
+                                throw new IllegalStateException(se);
+                            }
+                        });
+                if (exd != null) {
+                    lets.put(name.value(), exd);
                     continue;
                 }
                 if (containsExecute(rhs) || referencesAny(rhs, execVars)) {
@@ -1940,16 +1950,12 @@ public final class TestBody {
                         conn);
             }
             case "assertJsonStringsEqual" -> {
-                // graph-fetch JSON equality (engine semantics): object keys
-                // order-INSENSITIVE, arrays order-SENSITIVE — exactly deep
-                // equality over the PARSED structures (both sides through
-                // the same parser, so number spelling is symmetric)
+                // engine semantics: object keys order-INSENSITIVE, arrays
+                // order-SENSITIVE — deep equality over PARSED structures
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                // canonicalization WRAPPERS (->parseJSON()->toPrettyJSONString())
-                // are identity here: the comparison below already parses both
-                // sides and deep-compares the structures
+                // canonicalization wrappers are identity here
                 // rebuilt-JSONArray SORT canonicalization: compare the
                 // inner result, sort parsed elements host-side by the key
                 var sc0 = JsonAssertCanon.sortCanon(subst(args.get(0), lets));
@@ -2003,16 +2009,12 @@ public final class TestBody {
         return !fn.contains("::") || fn.startsWith("meta::");
     }
 
-    /**
-     * The WithVariables wrapper idiom: {@code runLegendTest($f, [pair('i',
-     * 2)], expected)} / {@code runTest($f, vars, expectedSql, count)} where
-     * {@code $f} is a PARAMETERIZED query lambda. β-bind the pair values
-     * over the lambda parameters and return the wrapper's assertion
-     * statements in the corpus spellings the harness already evaluates:
-     * runLegendTest asserts the flattened cell values ({@code .rows
-     * .values}), runTest asserts the golden SQL (advisory) and the row
-     * count. Null = not this idiom (the caller keeps its wall).
-     */
+    /** The WithVariables wrapper idiom (runLegendTest($f, pairs,
+     * expected) / runTest($f, vars, sql, count), $f a PARAMETERIZED query
+     * lambda): β-bind pair values over the params and return the
+     * wrapper's assertions in spellings the harness already evaluates
+     * (flattened .rows.values; advisory golden SQL + row count). Null =
+     * not this idiom (the caller keeps its wall). */
     private static @com.legend.Nullable List<ValueSpecification> etaExpandWrapper(
             AppliedFunction wrap, Map<String, ValueSpecification> lets) {
         String fn = simpleName(wrap.function());
@@ -2128,11 +2130,6 @@ public final class TestBody {
         return null;
     }
 
-    /**
-     * {@code distinct(map(src, p|...))} where {@code src} (a let or an
-     * inline collection) is a list of {@code pair(DatabaseType.X, sql)} —
-     * the per-driver golden idiom's pieces; null when the shape differs.
-     */
     /** STATEMENT-position map over a literal collection of VARIABLES
      * with a (possibly multi-statement) lambda — the per-result
      * assert-block idiom ({@code [$r1,$r2]->map(r|let o=$r.values;
