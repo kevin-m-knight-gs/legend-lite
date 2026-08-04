@@ -391,6 +391,57 @@ grammar documents, plus 101 PMCD-shaped `.json`.
 
 ---
 
+### 6.0 Correcting this document: the first sweep missed the best corpus
+
+**"26" was never the number of parser tests.** It is the count of `(grammar.pure, protocol.json)`
+golden *pairs* in one directory. The real inventory of legend-engine's grammar tests:
+
+| | |
+|---|---:|
+| test `.java` files in grammar modules | **215** |
+| **`@Test` methods in them** | **1,246** |
+| round-trip classes (`TestGrammarRoundtrip.TestGrammarRoundtripTestSuite`) | 61 → 359 `@Test` |
+| **negative-parse classes (`TestGrammarParser.TestGrammarParserTestSuite`)** | **42 → 199 `@Test`** |
+| compilation-from-grammar classes (`TestCompilationFromGrammar…`) | **46 → 661 `@Test`** |
+| modules carrying grammar tests | **48** |
+| `.json` under grammar-module test resources | 61 |
+
+**Why the first sweep missed it: the base classes are nested**
+(`TestGrammarParser.TestGrammarParserTestSuite`), and searching for the outer name returns zero.
+That is a search-methodology failure, not an absence of material — and it hid the single most
+valuable corpus in either repository.
+
+#### 410 pinned parser diagnostics — engine-side, with ranges
+
+```java
+test("###Pure\n" +
+     "Class test::tClass\n" +
+     "{\n" +
+     "} randomToken\n", "PARSER error at [4:3-13]: Unexpected token");
+```
+
+**410 occurrences of `"PARSER error at"` across 41 files.** Each is source plus the exact
+`EngineException` diagnostic *including a line:startCol-endCol range* — the very types and
+coordinate convention (§3.2) a drop-in must reproduce. These are **strictly more useful than
+legend-pure's 69**, which use a different exception type and a point rather than a range.
+
+#### 532 compilation-error pins — a second free positive corpus
+
+`"COMPILATION error at"` appears **532** times. As with legend-pure's ~477, these inputs **parsed
+successfully** and failed later, so each carries an implicit "this must parse" assertion.
+
+**Revised ranking of harness material**, across both repos:
+
+| rank | corpus | size | what it proves |
+|---|---|---:|---|
+| 1 | **`PARSER error at` pins (legend-engine)** | **410** | rejects the right inputs, at the right range, with the right type |
+| 2 | inline `###` snippets (legend-engine) | ~3,191 | parses the right inputs |
+| 3 | `COMPILATION error at` + `assertPureException` positives | 532 + ~477 | guaranteed-parseable |
+| 4 | inline snippets (legend-pure) | ~2,800 | parses the right inputs |
+| 5 | round-trip suite | 359 | text→protocol→text fidelity |
+| 6 | regenerated golden pairs | 26 | the only protocol-shape oracle |
+| 7 | `PureParserException` pins (legend-pure) | 69 | rejection, different types |
+
 ### 6.1 legend-pure — a second, complementary corpus
 
 Checked separately; it was not part of the first sweep. legend-pure's parser is **(B)**, producing
