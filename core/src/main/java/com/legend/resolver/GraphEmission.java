@@ -862,6 +862,40 @@ final class GraphEmission {
                 return m2mAssocChild(cs, node, srcCls.fqn(), pa.property(),
                         context, parentRowVar, parentRowType);
             }
+            // M2M MILESTONED-NAV marker ($src.<nav>(d)/<nav>AllVersions
+            // composed as the temporal step over the source-class
+            // marker): the assoc-marker dispatch with the hop's temporal
+            // spec riding the frame (dated head / version sweep)
+            if (inner instanceof com.legend.compiler.spec.typed
+                    .TypedMilestonedAccess ma0
+                    && ma0.source() instanceof TypedVariable mv0
+                    && mv0.name().equals(cs.rowVar())
+                    && mv0.info().type() instanceof Type.ClassType mSrc) {
+                GraphEmission em0 = new GraphEmission(ctx, sources,
+                        assocMaterial,
+                        temporal.withSpecs(java.util.Map.of(ma0.property(),
+                                new TemporalFrame.TemporalSpec(
+                                        temporal.normalizeContextDates(
+                                                ma0.dates()),
+                                        ma0.sweep()))),
+                        dispatch, freshVar);
+                if (ctx.findAssociationOf(mSrc.fqn(), ma0.property())
+                        .isPresent()) {
+                    return em0.m2mAssocChild(cs, node, mSrc.fqn(),
+                            ma0.property(), context, parentRowVar,
+                            parentRowType);
+                }
+                // PLAIN class-typed property of the source: the composed
+                // pipeline's nav step carries the target + join predicate
+                var mNav = Pipelines.outerNavSteps(cs.pipeline())
+                        .get(ma0.property());
+                if (mNav != null) {
+                    return em0.navSlotChild(cs, node, mNav,
+                            b0 instanceof TypedNewInstanceCast nicM
+                                    ? nicM.classFqn() : null,
+                            context, parentRowVar, parentRowType);
+                }
+            }
             // WHOLE-SOURCE marker (trader[trader_set]: $src): the bare
             // composed-row var, source-class-typed — the child is the SAME
             // row seen through the cast's set; inline, no join (XStore

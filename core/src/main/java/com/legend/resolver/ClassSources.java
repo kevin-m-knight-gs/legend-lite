@@ -991,10 +991,15 @@ public final class ClassSources {
             // a MILESTONED property access ($src.product(%d)) is a
             // property step with temporal arguments — source and dates
             // substitute independently, the step survives verbatim
+            // BINDING position passes THROUGH the milestoned step: a
+            // top-level $src.<generatedNav>(…) binding composes as the
+            // source-class MARKER under the temporal step (the graph-
+            // child channel's shape); query-position chains still
+            // arrive with false from the enclosing access arm.
             case com.legend.compiler.spec.typed.TypedMilestonedAccess ma ->
                     new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                             substituteSourceReads(ma.source(), srcVar, inner,
-                                    classFqn, mappingFqn, false),
+                                    classFqn, mappingFqn, bindingPosition),
                             ma.property(),
                             ma.dates().stream().map(d -> substituteSourceReads(
                                     d, srcVar, inner, classFqn, mappingFqn,
