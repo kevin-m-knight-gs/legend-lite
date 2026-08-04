@@ -28,7 +28,7 @@ matters, and an earlier draft of this document got it wrong by scoping to `###Pu
 The surface looks forbidding — **41 `*-grammar` modules, 156 `.g4` files, 14,568 lines of ANTLR,
 165 Java files / 28,157 LOC of tree-walkers**, a 25-extension SPI, a **444-class** protocol target,
 and an **87-file composer** upstream requires to move in lockstep. But **the dispatch is
-per-section, and anything you do not claim falls through to upstream's own parser** (§6.1). So a
+per-section, and anything you do not claim falls through to upstream's own parser** (§7.1). So a
 replacement is **100% complete on day one** and gets faster one section at a time. There is no
 big-bang, and every intermediate state ships.
 
@@ -288,7 +288,52 @@ missing comma** rather than erroring.
 
 ---
 
-## 5. The oracle problem
+## 5. Are we byte-identical today? No — there is no output to compare
+
+Measured on `main`, `core/src/main/java`:
+
+| | count |
+|---|---:|
+| files referencing `PureModelContextData` | **0** |
+| files with any Jackson annotation or import | **0** |
+| files referencing `SourceInformation` | **0** |
+| files with an `ObjectMapper` / `writeValueAsString` | **0** |
+
+**Byte-identity is 0%, and not because the bytes differ — because legend-lite emits no protocol at
+all.** It produces its own `com.legend.model.*` records. The 384/384 element parity in §8 is a
+count of elements, not a comparison of their content; it says the two parsers agree on *what is
+there*, and nothing about any field inside.
+
+**legend-lite has no parity test of any kind.** 515 `@Test` methods across
+`core/src/test/java/com/legend/{parser,lexer}` — every one asserts against legend-lite's own AST
+using inline text blocks. Zero compare against legend-engine, zero golden JSON, zero round-trip.
+
+### 5.1 And upstream's best structured oracle is stale — measured
+
+The 26 `(grammar.pure, protocol.json)` pairs in `…/legend-engine-language-pure-compiler/src/test/
+resources/122390239DF2390/` are the only checked-in `.pure`↔protocol corpus. I ran all 26 through
+**upstream's own current parser** and compared:
+
+| | count |
+|---|---:|
+| byte-identical | **0** — but this is a **confound**: the goldens are pretty-printed, `writeValueAsString` is compact. Not evidence of drift. |
+| tree-equal | **7** |
+| differ **only** in `sourceInformation` | **10** — recoverable by regenerating |
+| differ **structurally** | **9** |
+
+The nine structural ones: `association/{all,profile,properties/profile}`,
+`class/{all,constraints,inheritance,profile}`,
+`valueSpecification/functionApplication/{arrow,precedence}`. In `class/inheritance` the element
+*order* has changed (`SuperClass` and `Light` swapped) on top of a two-line offset shift.
+
+**This is what an unasserted fixture set does over 16 months** — `validate()` is commented out in
+`TemporaryGrammarTest_WIP`, so nothing caught it. The corpus is *recoverable* (the generator still
+exists) but **must not be used as-is**: 19 of 26 would report a false failure against a correct
+parser.
+
+---
+
+## 6. The oracle problem
 
 You cannot land this without a differential test harness, and **upstream does not have one to
 inherit.** What exists, ranked by usefulness:
@@ -310,7 +355,7 @@ grammar documents, plus 101 PMCD-shaped `.json`.
 
 ---
 
-## 6. The risk that outranks every other
+## 7. The risk that outranks every other
 
 **I have not measured whether parsing is a bottleneck in legend-engine's request path.**
 
@@ -324,7 +369,7 @@ replacing a production component.
 `grammarToJson` and a representative compile+execute path, and report parse as a share of wall
 clock. Every other item in §7 is contingent on that number.
 
-### 6.1 The seam — resolved, and it is a jar, not a fork
+### 7.1 The seam — resolved, and it is a jar, not a fork
 
 `PureGrammarParser.visitSection` dispatches with **extensions taking precedence over the built-ins**:
 
@@ -351,7 +396,7 @@ Two caveats: `PureGrammarParserExtensions.indexByKey` throws `IllegalArgumentExc
 `PureGrammarParser.newInstance()` is constructed **per HTTP request**, so any per-instance state a
 replacement holds must be cheap to build or shared statically.
 
-### 6.2 Secondary risks
+### 7.2 Secondary risks
 
 - **Upstream drift.** 156 grammar files under active development, and byte-identity is a stricter
   bar than upstream holds itself to (§3). Without a corpus-scale differential gate running against
@@ -362,7 +407,7 @@ replacement holds must be cheap to build or shared statically.
 
 ---
 
-## 7. If it goes ahead — the staged plan
+## 8. If it goes ahead — the staged plan
 
 Each stage is independently valuable and independently abandonable.
 
@@ -390,13 +435,13 @@ there. Only now is `returnSourceInfo=true` on the table.
 **Stage 4 — coverage.** Close the element gap for the DSLs that matter, and decide, per item on the
 §4.3 drop list, whether to retain it. Delete the XStore silent-swallow.
 
-**Stage 5 — ship as an extension** (§6.1): a jar registering a `SectionParser` for `"Pure"`, which
+**Stage 5 — ship as an extension** (§7.1): a jar registering a `SectionParser` for `"Pure"`, which
 takes precedence over the built-in `DomainParser` with no fork. Keep the differential harness as a
 release gate against every upstream version, and expect to have to move the composer with it.
 
 ---
 
-## 8. The path to 100% — measured section by section
+## 9. The path to 100% — measured section by section
 
 Full corpus, `PureGrammarParser` with 5 grammar extensions loaded (core, relational, diagram,
 data-space, text), restricted to files whose section set is exactly one kind. "elem match" is
@@ -420,7 +465,7 @@ has no concept of.
 parity is 384/384 = 100%**, at 10–35×. That is the strongest single piece of evidence that a
 whole-parser replacement is realistic rather than aspirational.
 
-### 8.1 Read the failures carefully — three different things are happening
+### 9.1 Read the failures carefully — three different things are happening
 
 - **`###Data` — parses, wrong output.** 4/4 both parse, **0/4 element match.** legend-lite has no
   `DataElement` variant. An honest gap, cheaply closed.
@@ -436,7 +481,7 @@ whole-parser replacement is realistic rather than aspirational.
 so legend-lite *can* parse a `Service` element — but the lexer discards `###Service` bodies, which
 is how all 43 real ones are spelled. The parser supports a construct the lexer never delivers.
 
-### 8.2 Harness caveats — do not over-read the zeros
+### 9.2 Harness caveats — do not over-read the zeros
 
 `Service`, `Persistence` and `ExternalFormat` extensions were **not on my classpath**, so
 "engine parses 0" for those is my harness, not a capability statement. Only five extensions
@@ -448,9 +493,9 @@ registered: `CorePureGrammarParser` (Data), `RelationalGrammarParserExtension`
 section, yet the engine failed all 49 files. Cause not established — investigate before relying on
 any Diagram number here.
 
-### 8.3 What "100%" actually costs, in order
+### 9.3 What "100%" actually costs, in order
 
-1. **Fix the silent-drop lexer** (§8.1) — turn unknown sections into a loud, delegable miss. This
+1. **Fix the silent-drop lexer** (§9.1) — turn unknown sections into a loud, delegable miss. This
    is the prerequisite for everything else, because it is what lets upstream fill the gap.
 2. **Fix `###Connection`** (0/3) and **add `DataElement`** (0/4 match). Both small.
 3. **Deliver `###Service`** — the parser already exists; it is the lexer whitelist that blocks it.
@@ -463,7 +508,7 @@ any Diagram number here.
 
 ---
 
-## 9. Two upstream bugs found in passing
+## 10. Two upstream bugs found in passing
 
 Worth reporting regardless of whether this project proceeds, and worth *not* reproducing:
 
@@ -483,11 +528,11 @@ Also: upstream's own `CLAUDE.md` documents `EngineErrorType` as
 
 ---
 
-## 10. What NOT to do
+## 11. What NOT to do
 
 - **Don't treat whole-parser replacement as all-or-nothing.** Per-section dispatch means anything
-  you don't claim falls through to upstream, so you are complete at every step (§8).
-- **Don't let a section you don't own parse "successfully" by dropping it** (§8.1). Silent deletion
+  you don't claim falls through to upstream, so you are complete at every step (§9).
+- **Don't let a section you don't own parse "successfully" by dropping it** (§9.1). Silent deletion
   is the one failure mode that makes delegation impossible.
 - **Don't start with byte-identity.** Start with `returnSourceInfo=false` semantic equality; it is
   upstream's own round-trip contract and it collapses the hardest blocker (§3.1).
