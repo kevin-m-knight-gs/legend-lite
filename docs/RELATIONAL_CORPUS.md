@@ -48,7 +48,7 @@ in-process Alloy-shaped path).
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
 | tds/tests | 266 | 246 | 2 | 9 | 9 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
-| tests | 39 | 25 | 3 | 0 | 11 | 0 |
+| tests | 39 | 30 | 3 | 0 | 6 | 0 |
 | tests/advanced | 68 | 59 | 2 | 5 | 2 | 17 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 37 | 2 | 1 | 10 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 19 | 0 | 4 | 0 | 0 |
-| **total** | 2538 | **2228** | 72 | 103 | 135 | 240 |
+| **total** | 2538 | **2233** | 72 | 103 | 130 | 240 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1322,11 +1322,6 @@ in-process Alloy-shaped path).
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
 - SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::relational::runtime::DataSource' has no property 'host'
-- SHAPE testConnectionEqualityAllSameStatic [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE testConnectionEqualityAllButOnePropertySame [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE testConnectionEqualityTypeDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE testConnectionEqualityTypeSameSpecDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE testConnectionEqualityTypeSpecSameAuthDiff [tests]: no execute(|...) call — wall: in function 'meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality': unknown function 'routerExtensions' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL testDynaComplexInference2 [tests]: assertEquals: expected VARCHAR(400), got VARCHAR(200)

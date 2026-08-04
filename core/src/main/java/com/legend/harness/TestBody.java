@@ -1796,12 +1796,12 @@ public final class TestBody {
                     // enough that blanket-unsupported stays honest
                     return UNSUPPORTED_MARKER;
                 }
-                Object v = evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
-                        runtimeFqn, conn);
+                // connection-equality contract folds HOST-side (ConnEquality)
+                Object v = ConnEquality.tryEval(subst(args.get(0), lets));
+                v = v != null ? v : evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 boolean expect = af.function().equals("assert");
                 return Boolean.valueOf(expect).equals(v) ? null
-                        : "assert" + (expect ? "" : "False") + " did not hold ("
-                                + v + ")";
+                        : "assert" + (expect ? "" : "False") + " did not hold (" + v + ")";
             }
             case "assertEquals", "assertEq", "assertEqualsH2Compatible", "assertNotEquals" -> {
                 if (args.size() < 2) {
