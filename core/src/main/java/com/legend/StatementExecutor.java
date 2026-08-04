@@ -2416,46 +2416,11 @@ final class StatementExecutor {
                             w.callee(), args, w.info());
                 }
             }
-            // $r.activities->filter(instanceOf AggregationAwareActivity)
-            // ->at(0)->cast(@…).rewrittenQuery over an AGGREGATION-AWARE-
-            // routed frame: the ONE recorded activity's routed-query print
-            // (AggAwareActivities; null keeps the honest fallback below)
-            if (n instanceof com.legend.compiler.spec.typed
-                    .TypedPropertyAccess rqa
-                    && rqa.property().equals("rewrittenQuery")) {
-                TypedSpec inner = rqa.source();
-                while (true) {
-                    if (inner instanceof com.legend.compiler.spec.typed
-                            .TypedCast tc) {
-                        inner = tc.source();
-                    } else if (inner instanceof com.legend.compiler.spec.typed
-                            .TypedNativeCall w
-                            && !w.args().isEmpty()
-                            && (AT_FQN.equals(w.callee().qualifiedName())
-                                || FIRST_FQN.equals(w.callee().qualifiedName())
-                                || TO_ONE_FQN.equals(
-                                        w.callee().qualifiedName()))) {
-                        inner = w.args().get(0);
-                    } else {
-                        break;
-                    }
-                }
-                if (inner instanceof com.legend.compiler.spec.typed
-                        .TypedFilter af
-                        && activitiesRead(af.source(), execFrames)
-                        && af.source() instanceof com.legend.compiler.spec
-                                .typed.TypedPropertyAccess ap2
-                        && ap2.source() instanceof com.legend.compiler.spec
-                                .typed.TypedVariable av2) {
-                    ExecFrame afr = execFrames.get(av2.name());
-                    String rq = afr == null ? null
-                            : AggAwareActivities.rewrittenQuery(
-                                    afr.chain(), env.ctx());
-                    if (rq != null) {
-                        return new com.legend.compiler.spec.typed
-                                .TypedCString(rq, n.info());
-                    }
-                }
+            // activity-envelope READS (trace comment, aggregationAware
+            // rewrittenQuery) fold host-side — activityEnvelopeRead
+            TypedSpec act = activityEnvelopeRead(n, execFrames, env);
+            if (act != null) {
+                return act;
             }
             // $r.activities: the engine's execution-activity trail (routing/
             // aggregationAware rewrite records). We record NONE — the read
@@ -2486,6 +2451,62 @@ final class StatementExecutor {
             }
             return n;
         };
+    }
+
+    /** The activity-envelope reads folded HOST-side — the per-execution
+     * trace comment ({@code at(0)->cast(@RelationalActivity).comment} —
+     * the engine stamps '-- "executionTraceID" : "<uuid>"', fresh id
+     * per execution; corpus asserts regex-match the uuid) and the
+     * aggregationAware {@code rewrittenQuery} (the routed print via
+     * {@link AggAwareActivities}). Null when not this shape. */
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
+            activityEnvelopeRead(com.legend.compiler.spec.typed.TypedSpec n,
+            java.util.Map<String, ExecFrame> execFrames, ExecEnv env) {
+        if (!(n instanceof com.legend.compiler.spec.typed
+                .TypedPropertyAccess pa)
+                || !(pa.property().equals("comment")
+                        || pa.property().equals("rewrittenQuery"))) {
+            return null;
+        }
+        com.legend.compiler.spec.typed.TypedSpec inner = pa.source();
+        while (true) {
+            if (inner instanceof com.legend.compiler.spec.typed
+                    .TypedCast tc) {
+                inner = tc.source();
+            } else if (inner instanceof com.legend.compiler.spec.typed
+                    .TypedNativeCall w
+                    && !w.args().isEmpty()
+                    && (AT_FQN.equals(w.callee().qualifiedName())
+                        || FIRST_FQN.equals(w.callee().qualifiedName())
+                        || TO_ONE_FQN.equals(w.callee().qualifiedName()))) {
+                inner = w.args().get(0);
+            } else {
+                break;
+            }
+        }
+        if (pa.property().equals("comment")
+                && activitiesRead(inner, execFrames)) {
+            return new com.legend.compiler.spec.typed.TypedCString(
+                    "-- \"executionTraceID\" : \""
+                    + java.util.UUID.randomUUID() + "\"", n.info());
+        }
+        if (pa.property().equals("rewrittenQuery")
+                && inner instanceof com.legend.compiler.spec.typed
+                        .TypedFilter af
+                && activitiesRead(af.source(), execFrames)
+                && af.source() instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess ap2
+                && ap2.source() instanceof com.legend.compiler.spec.typed
+                        .TypedVariable av2) {
+            ExecFrame afr = execFrames.get(av2.name());
+            String rq = afr == null ? null
+                    : AggAwareActivities.rewrittenQuery(afr.chain(), env.ctx());
+            if (rq != null) {
+                return new com.legend.compiler.spec.typed.TypedCString(
+                        rq, n.info());
+            }
+        }
+        return null;
     }
 
     /** A {@code <frameVar>.activities} read (the Result envelope's
