@@ -31,6 +31,16 @@ public final class Json {
         return v;
     }
 
+    /** The LEADING value only — real pure parseJSON semantics: a complete
+     * root value parses even with trailing text after it (the milestoned
+     * graphFetch goldens carry a stray quote after the array; the engine's
+     * own parse reads the value and ignores the tail). */
+    public static @com.legend.Nullable Object parseOne(String json) {
+        Json p = new Json(json);
+        p.ws();
+        return p.value();
+    }
+
     /** CONCATENATED top-level values ({@code {..}{..}...} — the engine's
      * JsonModelConnection row stream: one object per row). Strict trailing-
      * garbage still throws; a single value returns a one-element list. */

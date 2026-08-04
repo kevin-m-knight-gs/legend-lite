@@ -33,28 +33,22 @@ import java.util.Map;
  * and {@code assert*} calls) through the ordinary compile-to-SQL pipeline.
  *
  * <p><strong>No interpreter.</strong> Tenet #1 applies to tests too:
- * <ul>
- *   <li>{@code let r = execute(|Q, mapping, runtime, ext)} binds {@code r}
- *       to <em>the query expression itself</em> (a lazy handle) plus its
- *       execution context. Nothing runs yet.</li>
- *   <li>Every downstream read ({@code $r.values.rows->map(...)->sort()})
- *       SPLICES the query into the surrounding chain; the whole chain
- *       compiles and executes as ONE SQL statement.</li>
- *   <li>{@code assert*} natives are the orchestration boundary: BOTH sides
- *       compile and execute through the pipeline; Java compares the two
- *       wire values &mdash; strictly, since both sides share one wire
- *       convention.</li>
- * </ul>
+ * {@code let r = execute(|Q, ...)} binds {@code r} to the query
+ * expression itself (a lazy handle) plus its execution context; every
+ * downstream read ({@code $r.values.rows->map(...)->sort()}) SPLICES the
+ * query into the surrounding chain, compiling and executing as ONE SQL
+ * statement; {@code assert*} natives are the orchestration boundary —
+ * both sides compile and execute through the pipeline, Java compares the
+ * two wire values strictly (one shared wire convention).
  *
  * <p><strong>The one driver-level form.</strong> {@code execute(...)}'s
- * runtime/extensions arguments are the engine harness's plumbing
- * ({@code testRuntime()}, {@code relationalExtensions()} &mdash; functions
- * whose bodies construct engine-runtime objects legend-lite deliberately
- * does not model). The driver consumes the QUERY (arg 0, fully compiled)
- * and the MAPPING (arg 1, an element ref resolved under the caller's
- * imports); the trailing config arguments are accepted un-typed and the
- * CALLER supplies the physical connection + runtime. This is the same
- * boundary the engine's own {@code execute} crosses into Java.
+ * runtime/extensions arguments are engine-harness plumbing (functions
+ * constructing engine-runtime objects legend-lite deliberately does not
+ * model). The driver consumes the QUERY (arg 0, fully compiled) and the
+ * MAPPING (arg 1, resolved under the caller's imports); trailing config
+ * args are accepted un-typed and the CALLER supplies the physical
+ * connection + runtime — the boundary the engine's own {@code execute}
+ * crosses into Java.
  *
  * <p><strong>Failure polarity.</strong> Anything this driver does not
  * recognize is {@link Outcome.Unsupported} (named, loud) &mdash; never a
@@ -76,8 +70,7 @@ public final class TestBody {
          * @param verified  row/value-comparing asserts that ran
          * @param advisory  golden-SQL asserts recognized but not compared
          *                  (legend-lite's SQL is its dialect's, by design)
-         * @param executed  statements that ran THROUGH the platform
-         *                  (execute-binding lets + expression statements) —
+         * @param executed  statements that ran THROUGH the platform —
          *                  an assert-free body that executed is an
          *                  engine-parity pass, not a hollow one
          * @param failures  first assert failure (empty = all held)
@@ -424,6 +417,12 @@ public final class TestBody {
                 // EAGER (audit 16 F1, engine parity): the statement executor
                 // runs the query AT the let, so a broken pipeline surfaces
                 // even when no assert ever reads the binding.
+                // JSON-metamodel PLUMBING over an exec result (parseJSON
+                // chains / rebuilt-JSONArray sort): defer to the assert
+                if (JsonAssertCanon.isPlumbing(rhs)) {
+                    lets.put(name.value(), rhs);
+                    continue;
+                }
                 if (containsExecute(rhs) || referencesAny(rhs, execVars)) {
                     execStmts.add(new AppliedFunction("letFunction",
                             List.of(name, rhs)));
@@ -652,7 +651,9 @@ public final class TestBody {
         List<Object> vals = e.values();
         if (vals.size() == 1 && vals.get(0) instanceof String str) {
             try {
-                return com.legend.sql.Json.parse(str);
+                // parseOne: real pure parseJSON reads the LEADING value
+                // (a golden with stray text after the root still compares)
+                return com.legend.sql.Json.parseOne(str);
             } catch (RuntimeException notJson) {
                 return null;
             }
@@ -1949,8 +1950,13 @@ public final class TestBody {
                 // canonicalization WRAPPERS (->parseJSON()->toPrettyJSONString())
                 // are identity here: the comparison below already parses both
                 // sides and deep-compares the structures
-                args = java.util.List.of(stripJsonCanon(args.get(0)),
-                        stripJsonCanon(args.get(1)));
+                // rebuilt-JSONArray SORT canonicalization: compare the
+                // inner result, sort parsed elements host-side by the key
+                var sc0 = JsonAssertCanon.sortCanon(subst(args.get(0), lets));
+                var sc1 = JsonAssertCanon.sortCanon(subst(args.get(1), lets));
+                args = java.util.List.of(
+                        stripJsonCanon(sc0 != null ? sc0.inner() : args.get(0)),
+                        stripJsonCanon(sc1 != null ? sc1.inner() : args.get(1)));
                 Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (emptinessUnverifiable) {
@@ -1962,6 +1968,12 @@ public final class TestBody {
                 Object actual = jsonValueOf(a);
                 if (expected == null || actual == null) {
                     return UNSUPPORTED_MARKER;
+                }
+                if (sc0 != null) {
+                    expected = JsonAssertCanon.sortByKey(expected, sc0.key());
+                }
+                if (sc1 != null) {
+                    actual = JsonAssertCanon.sortByKey(actual, sc1.key());
                 }
                 // pure's [x] ≡ x value semantics at the ROOT: the engine
                 // serializes a one-element result as the bare object; our
@@ -2121,18 +2133,13 @@ public final class TestBody {
      * inline collection) is a list of {@code pair(DatabaseType.X, sql)} —
      * the per-driver golden idiom's pieces; null when the shape differs.
      */
-    /** Per-driver ENUM loop in STATEMENT position:
-     *   {@code [DatabaseType.H2, DatabaseType.DB2]->map(db| let s =
-     *   toSQLString(..., $db, ...); assertEquals(golden, $s);)}
-     * — optionally under the {@code ->distinct() == [true]} wrapper —
-     * HOST-side unroll (sibling of the pair-loop idiom): the loop var
-     * binds each enum literal and the body statements splice back into
-     * the work queue. Null when the statement is not the idiom. */
-    /** STATEMENT-position map over a literal collection of VARIABLES with
-     * a (possibly multi-statement) lambda — the per-result assert-block
-     * idiom ({@code [$r1,$r2]->map(r|let o=$r.values; assertEquals(..);)}):
-     * HOST-side unroll, the sibling of the per-driver enum loop. Variables
-     * only — a map over computed elements is a QUERY and must not unroll. */
+    /** STATEMENT-position map over a literal collection of VARIABLES
+     * with a (possibly multi-statement) lambda — the per-result
+     * assert-block idiom ({@code [$r1,$r2]->map(r|let o=$r.values;
+     * assertEquals(..);)}): HOST-side unroll, sibling of the per-driver
+     * enum loop (enum literals bind the loop var, body statements splice
+     * back into the work queue). Variables only — a map over computed
+     * elements is a QUERY and must not unroll. */
     private static @com.legend.Nullable List<ValueSpecification> resultVarLoop(ValueSpecification stmt) {
         if (!(stmt instanceof AppliedFunction m
                 && harnessVocabName(m.function())
@@ -3036,21 +3043,14 @@ public final class TestBody {
                         : Double.parseDouble(aCell);
                 int dp = e.contains(".")
                         ? e.length() - e.indexOf('.') - 1 : 0;
-                // Two leniencies, BOTH bounded by the same rationale (the
-                // engine prints ~12 significant digits; H2 and DuckDB sum
-                // doubles in different orders and addition is not
-                // associative — the engine's own 12th digit moves,
-                // testPwaValue):
-                //   1. relative 1e-11 accumulation epsilon — always;
-                //   2. half-ulp at the expected's PRINTED precision — ONLY
-                //      when the printed token actually carries >= 10
-                //      significant digits (i.e. it IS a ~12-sig-digit
-                //      truncation artifact; a TRIMMED TRAILING ZERO can
-                //      shave the visible count to 10: 0.05657370518 in
-                //      testPwaValueOnStartYear). A coarse golden like
-                //      '100' (audit 16: dp=0 granted +-0.5) is exact
-                //      decimal output, not a truncation — it gets the
-                //      relative floor only.
+                // Two leniencies, both bounded by "engine prints ~12 sig
+                // digits + non-associative double summation" (testPwaValue):
+                // 1. relative 1e-11 accumulation epsilon — always;
+                // 2. half-ulp at the expected's PRINTED precision — only
+                //    when the token carries >= 10 sig digits (a genuine
+                //    truncation artifact; trimmed zeros can shave to 10).
+                //    A coarse golden like '100' gets the relative floor
+                //    only (audit 16: dp=0 granted +-0.5 — exact output).
                 int sig = 0;
                 boolean seenNonZero = false;
                 for (int ci = 0; ci < e.length(); ci++) {
