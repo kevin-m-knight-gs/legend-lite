@@ -1364,6 +1364,11 @@ final class Substitution {
      * shape); refs fold through take(coll, n) over the literal list. */
     private TypedSpec objectReferenceInRewrite(TypedNativeCall oc) {
         TypedSpec refsArg = oc.args().get(1);
+        while (refsArg instanceof TypedNativeCall w && w.args().size() == 1
+                && (w.callee().qualifiedName().endsWith("::toOne")
+                        || w.callee().qualifiedName().endsWith("::first"))) {
+            refsArg = w.args().get(0);
+        }
         if (refsArg instanceof com.legend.compiler.spec.typed.TypedLimit tk
                 && tk.source() instanceof
                         com.legend.compiler.spec.typed.TypedCollection tc0
@@ -1374,17 +1379,39 @@ final class Substitution {
                             tn.value().intValue(), tc0.elements().size())),
                     tc0.info());
         }
+        // a SINGLE string ref, or a JSON-ARRAY literal of refs (the
+        // generateObjectReferences carrier)
+        if (refsArg instanceof com.legend.compiler.spec.typed
+                .TypedCString one) {
+            List<TypedSpec> els = new java.util.ArrayList<>();
+            var strInfo = new ExprType(Type.Primitive.STRING,
+                    Multiplicity.Bounded.ONE);
+            if (one.value().startsWith("[")) {
+                Object arr = com.legend.sql.Json.parseOne(one.value());
+                if (arr instanceof List<?> al) {
+                    for (Object o : al) {
+                        if (o instanceof String os) {
+                            els.add(new com.legend.compiler.spec.typed
+                                    .TypedCString(os, strInfo));
+                        }
+                    }
+                }
+            } else {
+                els.add(one);
+            }
+            refsArg = new com.legend.compiler.spec.typed.TypedCollection(
+                    els, new ExprType(Type.Primitive.STRING,
+                            Multiplicity.Bounded.ZERO_MANY));
+        }
         if (!(refsArg instanceof
                 com.legend.compiler.spec.typed.TypedCollection refs)
-                || target.regs().pkColumns().size() != 1
                 || target.regs().inCallee() == null) {
             throw new NotImplementedException("objectReferenceIn needs"
-                    + " literal references and a single-pk set — "
-                    + (target.regs().pkColumns().size() != 1
-                            ? "pk columns: " + target.regs().pkColumns()
-                            : "non-literal reference collection"));
+                    + " a literal reference collection, got "
+                    + refsArg.getClass().getSimpleName());
         }
         List<TypedSpec> pkVals = new java.util.ArrayList<>();
+        String keyedCol = null;
         for (TypedSpec r : refs.elements()) {
             if (!(r instanceof com.legend.compiler.spec.typed
                     .TypedCString rs)) {
@@ -1398,21 +1425,56 @@ final class Substitution {
                     java.nio.charset.StandardCharsets.UTF_8);
             Object pkObj = com.legend.sql.Json.parseOne(
                     dec.substring(dec.lastIndexOf(":{") + 1));
-            if (!(pkObj instanceof Map<?, ?> pkMap)
-                    || !(pkMap.get("pk$_0") instanceof Long pkv)) {
+            if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.size() != 1) {
+                throw new NotImplementedException("objectReferenceIn pk"
+                        + " segment did not decode to one entry: " + dec);
+            }
+            var entry = pkMap.entrySet().iterator().next();
+            String k = String.valueOf(entry.getKey());
+            // the envelope's own refs spell pk\$_0 (positional over the
+            // set pk); generateObjectReferences refs carry the USER'S
+            // column key verbatim
+            if (!k.startsWith("pk$_")) {
+                if (keyedCol != null && !keyedCol.equalsIgnoreCase(k)) {
+                    throw new NotImplementedException("objectReferenceIn"
+                            + " references mix pk columns: " + keyedCol
+                            + " vs " + k);
+                }
+                keyedCol = k;
+            }
+            Object pkv = entry.getValue();
+            if (pkv instanceof Long pl) {
+                pkVals.add(new com.legend.compiler.spec.typed.TypedCInteger(
+                        pl, new ExprType(Type.Primitive.INTEGER,
+                                Multiplicity.Bounded.ONE)));
+            } else if (pkv instanceof String psv) {
+                pkVals.add(new com.legend.compiler.spec.typed.TypedCString(
+                        psv, new ExprType(Type.Primitive.STRING,
+                                Multiplicity.Bounded.ONE)));
+            } else {
                 throw new NotImplementedException(
                         "objectReferenceIn reference pk segment did not"
                                 + " decode: " + dec);
             }
-            pkVals.add(new com.legend.compiler.spec.typed.TypedCInteger(
-                    pkv, new ExprType(Type.Primitive.INTEGER,
-                            Multiplicity.Bounded.ONE)));
         }
-        String pkCol = target.regs().pkColumns().get(0);
+        if (pkVals.isEmpty()) {
+            // in([]) — real pure membership over the empty set is FALSE
+            return new com.legend.compiler.spec.typed.TypedCBoolean(false,
+                    new ExprType(Type.Primitive.BOOLEAN,
+                            Multiplicity.Bounded.ONE));
+        }
+        if (keyedCol == null && target.regs().pkColumns().size() != 1) {
+            throw new NotImplementedException("objectReferenceIn needs a"
+                    + " single-pk set — pk columns: "
+                    + target.regs().pkColumns());
+        }
+        String pkCol = keyedCol != null ? keyedCol
+                : target.regs().pkColumns().get(0);
         Type.RelationType row = target.rowType();
         Type.Column col = row.columns().stream()
-                .filter(c -> c.name().equals(pkCol)
-                        || RelationalRootForm.stripQ(c.name()).equals(pkCol))
+                .filter(c -> c.name().equalsIgnoreCase(pkCol)
+                        || RelationalRootForm.stripQ(c.name())
+                                .equalsIgnoreCase(pkCol))
                 .findFirst().orElseThrow(() -> new NotImplementedException(
                         "objectReferenceIn pk column '" + pkCol
                                 + "' is not on the row"));
@@ -1420,13 +1482,31 @@ final class Substitution {
                 new TypedVariable(target.freshRowVar(),
                         new ExprType(row, Multiplicity.Bounded.ONE)),
                 col.name(), new ExprType(col.type(), col.multiplicity()));
+        Type valT = pkVals.get(0).info().type();
         return new TypedNativeCall(
                 java.util.Objects.requireNonNull(target.regs().inCallee()),
                 List.of(pkRead, new com.legend.compiler.spec.typed
                         .TypedCollection(pkVals,
-                                new ExprType(Type.Primitive.INTEGER,
+                                new ExprType(valT,
                                         Multiplicity.Bounded.ZERO_MANY))),
                 oc.info());
+    }
+
+    /** Inner scopes inherit the PARENT'S boolean-machinery callees when
+     * their own registries lack them (Registries.NONE / material-only
+     * builds) — pkColumns stay the inner scope's own. */
+    private Registries withCallees(Registries r) {
+        return r.inCallee() != null && r.equalCallee() != null
+                && r.isNotEmptyCallee() != null ? r
+                : new Registries(r.assocs(), r.assocEnds(), r.existsSubs(),
+                        r.aggReads(), r.inQueryReads(),
+                        r.isNotEmptyCallee() != null ? r.isNotEmptyCallee()
+                                : target.regs().isNotEmptyCallee(),
+                        r.equalCallee() != null ? r.equalCallee()
+                                : target.regs().equalCallee(),
+                        r.pkColumns(),
+                        r.inCallee() != null ? r.inCallee()
+                                : target.regs().inCallee());
     }
 
     private com.legend.compiler.element.TypedFunction eqCallee() {
@@ -2380,7 +2460,7 @@ final class Substitution {
                         ex.targetClassFqn(), target.mappingFqn(),
                         ex.targetRowVar(), ex.targetBindings(), ex.targetRow(),
                         unconvertedT, ex.targetSlotPrefixes(), Map.of()),
-                ex.innerRegs(), TemporalView.NONE, true, true));
+                withCallees(ex.innerRegs()), TemporalView.NONE, true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
@@ -2542,7 +2622,7 @@ final class Substitution {
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlotsOf(ex),
                             ex.targetSlotPrefixes(), Map.of()),
-                    ex.innerRegs(), TemporalView.NONE, true, true));
+                    withCallees(ex.innerRegs()), TemporalView.NONE, true, true));
             TypedLambda cfInner = cfSub.rewriteLambda(cf);
             TypedLambda cfCorr = new TypedLambda(cfInner.parameters(),
                     cfInner.body().stream().map(this::rewrite).toList(),
@@ -2571,7 +2651,7 @@ final class Substitution {
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlots,
                             ex.targetSlotPrefixes(), Map.of()),
-                    ex.innerRegs(), TemporalView.NONE, true, true));
+                    withCallees(ex.innerRegs()), TemporalView.NONE, true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
             // OUTER reads inside the predicate ($s.name == $f.legal): a
             // second pass through THIS substitution turns them into
@@ -2604,7 +2684,7 @@ final class Substitution {
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlots,
                             ex.targetSlotPrefixes(), Map.of()),
-                    ex.innerRegs(), TemporalView.NONE, true, true));
+                    withCallees(ex.innerRegs()), TemporalView.NONE, true, true));
             TypedLambda inner = colSub.rewriteLambda(c.fn());
             cols.add(new TypedFuncCol(c.name(),
                     new TypedLambda(inner.parameters(),

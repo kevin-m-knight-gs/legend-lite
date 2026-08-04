@@ -3368,11 +3368,15 @@ public final class StoreResolver {
         Map<String, Substitution.AssocSub> nestedAssocs = nm.assocs();
         TypedSpec pipe = nm.pipe();
         if (nested.isEmpty() && nestedAssocs.isEmpty()) {
-            return new NestedScope(none, targetPipe, row);
+            // callees still ride (objectReferenceIn in a nested predicate)
+            return new NestedScope(new Substitution.Registries(Map.of(),
+                    Set.of(), Map.of(), Map.of(), Map.of(), isNotEmptyCallee(),
+                    equalCallee(), List.of(), inCallee()), targetPipe, row);
         }
         return new NestedScope(
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
-                        Map.of(), isNotEmptyCallee(), equalCallee()),
+                        Map.of(), Map.of(), isNotEmptyCallee(), equalCallee(),
+                        List.of(), inCallee()),
                 pipe, (Type.RelationType) pipe.info().type());
         } finally {
             temporal = outerT;
@@ -3446,8 +3450,8 @@ public final class StoreResolver {
 
     /** The 2-arg in overload — the objectReferenceIn pk membership. */
     private com.legend.compiler.element.TypedFunction inCallee() {
-        var fns = ctx.findFunction("meta::pure::functions::collection::in");
-        return fns.stream().filter(f -> f.parameters().size() == 2)
+        return ctx.findFunction("meta::pure::functions::collection::in")
+                .stream().filter(f -> f.parameters().size() == 2)
                 .findFirst().orElseThrow(() -> new IllegalStateException(
                         "resolver bug: no in registration"));
     }

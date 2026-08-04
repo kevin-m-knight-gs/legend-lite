@@ -412,10 +412,14 @@ public final class TestBody {
                 // EAGER (audit 16 F1, engine parity): the statement executor
                 // runs the query AT the let, so a broken pipeline surfaces
                 // even when no assert ever reads the binding.
-                // JSON-metamodel PLUMBING over an exec result (parseJSON
-                // chains / rebuilt-JSONArray sort): defer to the assert
+                // JSON-metamodel plumbing: defer to the assert
                 if (JsonAssertCanon.isPlumbing(rhs)) {
                     lets.put(name.value(), rhs);
+                    continue;
+                }
+                ValueSpecification gor = ObjectRefs.build(rhs, ctx);
+                if (gor != null) {
+                    lets.put(name.value(), gor);
                     continue;
                 }
                 ValueSpecification exd = JsonAssertCanon.extractStrings(rhs,
@@ -1955,9 +1959,7 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                // canonicalization wrappers are identity here
-                // rebuilt-JSONArray SORT canonicalization: compare the
-                // inner result, sort parsed elements host-side by the key
+                // canon wrappers = identity; JSONArray sort host-side
                 var sc0 = JsonAssertCanon.sortCanon(subst(args.get(0), lets));
                 var sc1 = JsonAssertCanon.sortCanon(subst(args.get(1), lets));
                 args = java.util.List.of(
