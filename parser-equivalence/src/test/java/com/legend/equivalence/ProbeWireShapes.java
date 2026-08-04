@@ -68,6 +68,46 @@ class ProbeWireShapes {
                   greetN(n: Integer[1]) {$this.first + $n->toString()}: String[1];
                 }
                 """);
+        dump("operator zoo", """
+                Class g::C
+                [
+                  cMinus: $this.n - 1 > 0,
+                  cTimes: $this.n * 2 > 0,
+                  cDiv: $this.n / 2 > 0,
+                  cEq: $this.n == 1,
+                  cNeq: $this.n != 1,
+                  cAnd: ($this.n > 1) && ($this.n < 9),
+                  cOr: ($this.n > 1) || ($this.n < 9),
+                  cNot: !($this.n > 1),
+                  cChain: $this.s + 'a' + 'b' == 'x',
+                  cCall: $this.s->startsWith('a'),
+                  cColl: $this.n->in([1, 2, 3])
+                ]
+                {
+                  n: Integer[1];
+                  s: String[1];
+                }
+                """);
+        dump("operator zoo emittable", """
+                Class h::C
+                [
+                  cMinus: $this.n - 1 > 0,
+                  cTimes: $this.n * 2 > 0,
+                  cDiv: $this.n / 2 > 0,
+                  cEq: $this.n == 1,
+                  cNeq: $this.n != 1,
+                  cAnd: ($this.n > 1) && ($this.n < 9),
+                  cOr: ($this.n > 1) || ($this.n < 9),
+                  cNot: !($this.n > 1),
+                  cChain: $this.s + 'a' + 'b',
+                  cCall: $this.s->startsWith('a'),
+                  cColl: $this.n->in([1, 2, 3])
+                ]
+                {
+                  n: Integer[1];
+                  s: String[1];
+                }
+                """);
         dump("constraint", """
                 Class f::C
                 [

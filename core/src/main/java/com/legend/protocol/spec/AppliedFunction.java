@@ -65,7 +65,8 @@ import java.util.Objects;
 public record AppliedFunction(
         String function,
         List<ValueSpecification> parameters,
-        List<String> candidateFqns) implements ValueSpecification {
+        List<String> candidateFqns,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
@@ -73,6 +74,30 @@ public record AppliedFunction(
         parameters = List.copyOf(parameters);
         candidateFqns = candidateFqns == null ? List.of()
                 : List.copyOf(candidateFqns);
+    }
+
+    /** Position-free form (resolver rewrites, synthesis, tests). The parser's span
+     *  convention VARIES BY OPERATOR FAMILY — verified via ProbeWireShapes:
+     *  infix arithmetic and comparisons span op..RHS-end; {@code equal}/{@code and}/
+     *  {@code or} span the operator token only; named calls span the name token only;
+     *  {@code not}-from-{@code !} spans {@code !}..operand-end. */
+    public AppliedFunction(String function, List<ValueSpecification> parameters,
+            List<String> candidateFqns) {
+        this(function, parameters, candidateFqns, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof AppliedFunction other
+                && function.equals(other.function())
+                && parameters.equals(other.parameters())
+                && candidateFqns.equals(other.candidateFqns());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(function, parameters, candidateFqns);
     }
 
     /**

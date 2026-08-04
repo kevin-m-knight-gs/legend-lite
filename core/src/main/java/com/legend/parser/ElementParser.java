@@ -625,6 +625,7 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     private ConstraintDefinition parseConstraint(int index) {
+        int constraintStart = pos;
         // real m3: an unnamed constraint is named by its POSITION ("0",
         // "1", ...) — the id the checked goldens serialize, and distinct
         // lifted-FQN identity for multiple unnamed constraints
@@ -714,8 +715,9 @@ public final class ElementParser implements TokenStreamCursor {
                 }
             }
             expect(TokenType.PAREN_CLOSE);
+            // Engine convention: the span covers the whole `name ( ... )` block.
             return new ConstraintDefinition(name, realizationOf(List.of(fn)),
-                    message, level);
+                    message, level, span(constraintStart, pos - 1));
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
@@ -744,7 +746,9 @@ public final class ElementParser implements TokenStreamCursor {
         ValueSpecification expression = SpecParser.parse(tokens.slice(bodyStart, pos));
         // Door 4: `[name: some::fn]` binds the constraint to a predicate
         // function; any other expression is the sugar (inline) predicate.
-        return new ConstraintDefinition(name, realizationOf(List.of(expression)));
+        // Engine convention: the span covers `name: expr`, name inclusive.
+        return new ConstraintDefinition(name, realizationOf(List.of(expression)),
+                null, null, span(constraintStart, pos - 1));
     }
 
     /** The bare level name of a parsed ~enforcementLevel value —

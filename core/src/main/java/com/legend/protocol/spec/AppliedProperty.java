@@ -36,10 +36,30 @@ import java.util.Objects;
  */
 public record AppliedProperty(
         ValueSpecification receiver,
-        String property) implements ValueSpecification {
+        String property,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public AppliedProperty {
         Objects.requireNonNull(receiver, "receiver");
         Objects.requireNonNull(property, "property");
+    }
+
+    /** Position-free form for synthesis and tests. The parser sets the span of the
+     *  property-NAME token only (engine convention, verified via ProbeWireShapes). */
+    public AppliedProperty(ValueSpecification receiver, String property) {
+        this(receiver, property, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof AppliedProperty other
+                && receiver.equals(other.receiver())
+                && property.equals(other.property());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(receiver, property);
     }
 }

@@ -18,15 +18,40 @@ import java.util.Objects;
  */
 public record ConstraintDefinition(String name, Realization realization,
         @com.legend.Nullable ValueSpecification message,
-        @com.legend.Nullable String enforcementLevel) {
+        @com.legend.Nullable String enforcementLevel,
+        @com.legend.Nullable SourceInfo pos) {
     public ConstraintDefinition {
         Objects.requireNonNull(name, "Constraint name cannot be null");
         Objects.requireNonNull(realization, "Constraint realization cannot be null");
     }
 
+    /** Position-free form for synthesis and tests. The parser sets the span of the whole
+     *  constraint entry — {@code name: expr} or {@code name ( ... )}, closing paren
+     *  inclusive (engine convention, verified via ProbeWireShapes). */
+    public ConstraintDefinition(String name, Realization realization,
+            @com.legend.Nullable ValueSpecification message,
+            @com.legend.Nullable String enforcementLevel) {
+        this(name, realization, message, enforcementLevel, null);
+    }
+
     /** The common form: no ~message / ~enforcementLevel clauses. */
     public ConstraintDefinition(String name, Realization realization) {
-        this(name, realization, null, null);
+        this(name, realization, null, null, null);
+    }
+
+    /** Position is excluded from equality — same contract as the value-spec records. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ConstraintDefinition other
+                && name.equals(other.name())
+                && realization.equals(other.realization())
+                && Objects.equals(message, other.message())
+                && Objects.equals(enforcementLevel, other.enforcementLevel());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, realization, message, enforcementLevel);
     }
 
     /** Convenience: the sugar (inline-predicate) form. */

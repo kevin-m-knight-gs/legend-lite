@@ -21,10 +21,28 @@ import java.util.Objects;
  * is named the same way for the same reason.
  */
 public record PureCollection(
-        List<ValueSpecification> values) implements ValueSpecification {
+        List<ValueSpecification> values,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public PureCollection {
         Objects.requireNonNull(values, "values");
         values = List.copyOf(values);
+    }
+
+    /** Position-free form for synthesis and tests. For a literal {@code [...]} the parser
+     *  sets the span of the whole bracketed form, brackets inclusive (engine convention). */
+    public PureCollection(List<ValueSpecification> values) {
+        this(values, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof PureCollection other && values.equals(other.values());
+    }
+
+    @Override
+    public int hashCode() {
+        return values.hashCode();
     }
 }

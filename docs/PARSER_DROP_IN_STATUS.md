@@ -121,29 +121,39 @@ where `values`/`error` are themselves JDK-only leaves (6g).
 ### 3.1 Current numbers
 
 ```
-core suite            : 1627 tests, 0 failures
+core suite            : 1631 tests, 0 failures
 
 parser-equivalence:
   corpus sources      : 2289 files
   verdicts            : 6053
-    MATCH (byte-equal): 5733
+    MATCH (byte-equal): 5864
     DIFF  (BUG)       :    0
-    WALL  (no rule)   :  265
+    WALL  (no rule)   :  134
     PARSE_FAIL        :   55
-  coverage            : 5733 of 5733 comparable (100.0%)
+  coverage            : 5864 of 5864 comparable (100.0%)
 ```
 
 Progression: 1,750 → (superTypes) → 5,152 → (annotations) → 5,638 → (generics) → 5,725 →
-(defaults) → **5,733**, DIFF 0 throughout. Remaining walls: constraints 222,
-qualifiedProperties 40, generic multiplicity args 2, PureCollection default 1.
+(defaults) → 5,733 → (constraints) → **5,864**, DIFF 0 throughout. Remaining walls:
+PackageableElementPtr 66, qualifiedProperties 40, EnumValue 17, LambdaFunction 4,
+constraint enforcementLevel 3, generic multiplicity args 2, CFloat 1, unary-minus span 1.
 (Walls report the FIRST failure per element — clearing one wall grows the next's count as
 elements progress deeper.)
 
-**The value-spec emitter has begun**: `ProtocolEmitter.valueSpec` covers the literal nodes
-(boolean / integer / string) with engine-verified spans (a string literal's span INCLUDES its
-quotes); `SpecParser` threads positions at those construction sites. Default values ride it:
-`PProperty.defaultValue : PDefaultValue{value, sourceInformation}` — the parser stays total
-(a default it cannot spec-parse carries `value=null`; the emitter walls on it by name).
+**The value-spec emitter now covers the constraint surface**: literals (boolean/integer/
+string — a string's span INCLUDES its quotes), `var`, property access, calls, collections,
+and the full operator families with their VERIFIED span conventions (ProbeWireShapes):
+infix arithmetic + comparisons span op..RHS-end; `equal`/`and`/`or` span the operator token
+only; `!` spans bang..operand-end; calls span the name token only; `plus`/`minus`/`times`
+are N-ARY (one collection parameter, multiplicity [n..n], span first-op..chain-end, built by
+flattening our climb's left spine); `divide` stays binary; `!=` is `not(equal(...))`, both
+spanning the `!=` token. Constraints emit `functionDefinition`/`messageFunction` lambdas
+with the synthesised span-less `$this` parameter (conform-by-emission).
+
+**A planned wall died on evidence**: `s + 'a' + 'b' == 'x'` — our grammar ALREADY matches
+engine's flat binding (`==` binds into the preceding operand, so the `equal` lands inside
+the `plus` collection on both sides). Byte-pinned in `ConstraintEmissionTest`. Only the
+explicitly PARENTHESISED equal-over-arithmetic form remains walled (bytes unprobed).
 
 ### 3.2 How to run it
 

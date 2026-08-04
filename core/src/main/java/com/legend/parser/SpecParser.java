@@ -453,13 +453,18 @@ public final class SpecParser implements TokenStreamCursor {
             if (t == TokenType.TEST_EQUAL
                     || t == TokenType.TEST_NOT_EQUAL
                     || t == TokenType.NOT_EQUAL) {
+                int opTok = pos;
                 pos++;
                 ValueSpecification right = parseCombinedArithmeticOnly();
                 // != desugars to not(equal(...)) — REAL pure's spelling
                 // (there is no notEqual native; FQN_MIGRATION finding).
-                AppliedFunction eq = new AppliedFunction("equal", List.of(expr, right));
+                // Engine convention: equal (and the not wrapping a !=) span the
+                // OPERATOR TOKEN only — unlike comparisons, which span op..RHS.
+                AppliedFunction eq = new AppliedFunction("equal", List.of(expr, right),
+                        List.of(), spanOf(opTok, opTok));
                 expr = (t == TokenType.TEST_EQUAL) ? eq
-                        : new AppliedFunction("not", List.of(eq));
+                        : new AppliedFunction("not", List.of(eq), List.of(),
+                                spanOf(opTok, opTok));
             }
         }
         return expr;
@@ -476,8 +481,13 @@ public final class SpecParser implements TokenStreamCursor {
         if (!atEnd()) {
             TokenType t = peek();
             if (t == TokenType.NOT) {
+                int notTok = pos;
                 pos++;
-                return new AppliedFunction("not", List.of(parseExpression()));
+                ValueSpecification operand = parseExpression();
+                // Engine convention: `!expr` spans from the bang to the operand's end,
+                // closing paren inclusive when the operand is parenthesised.
+                return new AppliedFunction("not", List.of(operand), List.of(),
+                        spanOf(notTok, pos - 1));
             }
             if (t == TokenType.MINUS) {
                 pos++;
@@ -528,6 +538,7 @@ public final class SpecParser implements TokenStreamCursor {
     private AppliedFunction parseBooleanPart(ValueSpecification left) {
         TokenType t = peek();
         String fn = (t == TokenType.AND) ? "and" : "or";
+        int opTok = pos;
         pos++;
         ValueSpecification right = parseCombinedArithmeticOnly();
         // REAL Pure: && binds tighter than || (engine DomainParseTreeWalker's
@@ -536,7 +547,9 @@ public final class SpecParser implements TokenStreamCursor {
         while (fn.equals("or") && !atEnd() && peek() == TokenType.AND) {
             right = parseBooleanPart(right);
         }
-        return new AppliedFunction(fn, List.of(left, right));
+        // Engine convention: and/or span the OPERATOR TOKEN only.
+        return new AppliedFunction(fn, List.of(left, right), List.of(),
+                spanOf(opTok, opTok));
     }
 
     /**
@@ -571,6 +584,7 @@ public final class SpecParser implements TokenStreamCursor {
                 default -> throw new IllegalStateException(
                         "parseArithmeticClimb on non-arithmetic token: " + op);
             };
+            int opTok = pos;
             pos++;
             ValueSpecification right = parseExpression();
             // Tighter-binding operators on the right claim the operand first.
@@ -578,7 +592,10 @@ public final class SpecParser implements TokenStreamCursor {
                     && precedenceOf(peek()) > prec) {
                 right = parseArithmeticClimb(right, precedenceOf(peek()));
             }
-            left = new AppliedFunction(fn, List.of(left, right));
+            // Engine convention (ProbeWireShapes): an infix arithmetic/comparison span
+            // runs from the operator token to the end of its right operand.
+            left = new AppliedFunction(fn, List.of(left, right), List.of(),
+                    spanOf(opTok, pos - 1));
         }
         return left;
     }
@@ -874,6 +891,7 @@ public final class SpecParser implements TokenStreamCursor {
      * matching how the element parser admits keyword-as-identifier).
      */
     private Variable parseVariable() {
+        int dollarTok = pos;
         pos++; // consume '$'
         if (!isIdentifierToken(peek())) {
             throw error("expected identifier after '$' to form a variable reference");
@@ -884,7 +902,8 @@ public final class SpecParser implements TokenStreamCursor {
                 ? TokenStreamCursor.unquoteAndUnescape(text(), this)
                 : text();
         pos++;
-        return new Variable(name);
+        // Engine convention: a variable's span covers `$name`, dollar inclusive.
+        return new Variable(name, null, null, spanOf(dollarTok, pos - 1));
     }
 
     // -------------------------------------------------------------------
@@ -898,20 +917,21 @@ public final class SpecParser implements TokenStreamCursor {
      * them and C.1 follows suit so corpora remain byte-comparable.
      */
     private PureCollection parseCollection() {
+        int openTok = pos;
         pos++; // consume '['
         boundedDepth++;
         try {
-            return parseCollectionBody();
+            return parseCollectionBody(openTok);
         } finally {
             boundedDepth--;
         }
     }
 
-    private PureCollection parseCollectionBody() {
+    private PureCollection parseCollectionBody(int openTok) {
         List<ValueSpecification> values = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
-            return new PureCollection(values);
+            return new PureCollection(values, spanOf(openTok, pos - 1));
         }
         values.add(parseCombinedExpression());
         while (!atEnd() && peek() == TokenType.COMMA) {
@@ -922,7 +942,8 @@ public final class SpecParser implements TokenStreamCursor {
             values.add(parseCombinedExpression());
         }
         expect(TokenType.BRACKET_CLOSE, "expected ']' to close collection literal");
-        return new PureCollection(values);
+        // Engine convention: a literal collection's span covers `[...]`, brackets inclusive.
+        return new PureCollection(values, spanOf(openTok, pos - 1));
     }
 
     // -------------------------------------------------------------------
@@ -1140,13 +1161,15 @@ public final class SpecParser implements TokenStreamCursor {
         if (atEnd()) {
             throw error("expected property name after '.'");
         }
+        int nameStart = pos;
         String name = readPropertyName();
+        int nameEnd = pos - 1;
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
             List<ValueSpecification> args = parseArgList();
             List<ValueSpecification> params = new ArrayList<>(1 + args.size());
             params.add(receiver);
             params.addAll(args);
-            return new AppliedFunction(name, params);
+            return new AppliedFunction(name, params, List.of(), spanOf(nameStart, nameEnd));
         }
         // Enum-value form: 'MyEnum.VALUE' on a PackageableElementPtr
         // receiver. Engine-lite emits EnumValue rather than
@@ -1158,7 +1181,9 @@ public final class SpecParser implements TokenStreamCursor {
         if (receiver instanceof PackageableElementPtr ptr) {
             return new EnumValue(ptr.fullPath(), name);
         }
-        return new AppliedProperty(receiver, name);
+        // Engine convention: a property access's span covers the property-NAME token only,
+        // not the receiver or the dot (verified via ProbeWireShapes).
+        return new AppliedProperty(receiver, name, spanOf(nameStart, nameEnd));
     }
 
     /**
@@ -1202,7 +1227,9 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private AppliedFunction parseArrowPostfix(ValueSpecification receiver) {
         pos++; // consume '->'
+        int fnStart = pos;
         String fn = parseQualifiedName();
+        int fnEnd = pos - 1;
         if (peek() != TokenType.PAREN_OPEN) {
             throw error("expected '(' after arrow-call function name '" + fn + "'");
         }
@@ -1210,7 +1237,9 @@ public final class SpecParser implements TokenStreamCursor {
         List<ValueSpecification> params = new ArrayList<>(1 + args.size());
         params.add(receiver);
         params.addAll(args);
-        return new AppliedFunction(fn, params);
+        // Engine convention: a call's span covers the function-NAME token only,
+        // not the receiver, arrow, or argument parens (verified via ProbeWireShapes).
+        return new AppliedFunction(fn, params, List.of(), spanOf(fnStart, fnEnd));
     }
 
     // -------------------------------------------------------------------

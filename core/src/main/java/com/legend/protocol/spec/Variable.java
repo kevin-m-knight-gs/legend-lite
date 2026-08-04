@@ -54,14 +54,35 @@ import java.util.Objects;
 public record Variable(
         String name,
         @com.legend.Nullable TypeExpression type,
-        @com.legend.Nullable Multiplicity multiplicity) implements ValueSpecification {
+        @com.legend.Nullable Multiplicity multiplicity,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public Variable {
         Objects.requireNonNull(name, "name");
     }
 
+    /** Position-free form for synthesis and tests. */
+    public Variable(String name, @com.legend.Nullable TypeExpression type,
+            @com.legend.Nullable Multiplicity multiplicity) {
+        this(name, type, multiplicity, null);
+    }
+
     /** Convenience constructor for untyped free references. */
     public Variable(String name) {
-        this(name, null, null);
+        this(name, null, null, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Variable other
+                && name.equals(other.name())
+                && Objects.equals(type, other.type())
+                && Objects.equals(multiplicity, other.multiplicity());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, type, multiplicity);
     }
 }

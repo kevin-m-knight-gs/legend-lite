@@ -76,8 +76,14 @@ public final class ProtocolEmitter {
         // Not yet emitted. Loud rather than silently dropped — AGENTS.md invariant 4.
         require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
         require(c.derivedProperties().isEmpty(), "qualifiedProperties", c.qualifiedName());
-        require(c.constraints().isEmpty(), "constraints", c.qualifiedName());
-        b.append("{\"_type\":\"class\",\"constraints\":[],\"name\":");
+        b.append("{\"_type\":\"class\",\"constraints\":[");
+        for (int i = 0; i < c.constraints().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            constraint(b, c.constraints().get(i));
+        }
+        b.append("],\"name\":");
         str(b, c.name());
         b.append(",\"originalMilestonedProperties\":[],\"package\":");
         str(b, c.pkg());
@@ -253,6 +259,57 @@ public final class ProtocolEmitter {
     }
 
     /**
+     * One class constraint:
+     * {@code {"functionDefinition":…,("messageFunction":…,)?"name":…,"sourceInformation":…}}.
+     *
+     * <p>Verified via {@code ProbeWireShapes}: the engine wraps the predicate in a lambda whose
+     * synthesised {@code $this} parameter carries multiplicity {@code [1..1]} and <b>no</b>
+     * span; the {@code ~message} expression gets the same wrapping under {@code messageFunction};
+     * an absent {@code ~enforcementLevel} simply vanishes ({@code NON_NULL}); the constraint's
+     * span covers the whole entry ({@code name: expr} or {@code name ( … )}).
+     */
+    private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c) {
+        if (!(c.realization() instanceof com.legend.protocol.Realization.Inline inl)) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for a function-ref constraint (at " + c.name()
+                            + ") — add the emit rule, do not drop it.");
+        }
+        require(c.enforcementLevel() == null, "constraint enforcementLevel", c.name());
+        if (c.pos() == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter needs a source position for constraint " + c.name()
+                            + " and the parser did not thread one — fix the parse site.");
+        }
+        b.append("{\"functionDefinition\":");
+        thisLambda(b, inl.body());
+        if (c.message() != null) {
+            b.append(",\"messageFunction\":");
+            thisLambda(b, List.of(c.message()));
+        }
+        b.append(",\"name\":");
+        str(b, c.name());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, c.pos());
+        b.append('}');
+    }
+
+    /** The engine's constraint lambda: body statements plus the synthesised {@code $this}
+     *  parameter — multiplicity {@code [1..1]}, no span. The lambda node itself carries no
+     *  span either. */
+    private static void thisLambda(StringBuilder b,
+                                   List<com.legend.protocol.spec.ValueSpecification> body) {
+        b.append("{\"_type\":\"lambda\",\"body\":[");
+        for (int i = 0; i < body.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, body.get(i));
+        }
+        b.append("],\"parameters\":[{\"_type\":\"var\",\"multiplicity\":{\"lowerBound\":1,"
+                + "\"upperBound\":1},\"name\":\"this\"}]}");
+    }
+
+    /**
      * The wire's value-specification encoding — the seed of the full emitter
      * (PARSER_DROP_IN_STATUS.md §4.1 item 2). Literals only so far; every other node
      * walls by name. The {@code default} arm THROWS — it exists because coverage is
@@ -273,10 +330,142 @@ public final class ProtocolEmitter {
                 str(quoted, c.value());
                 literal(b, "string", quoted.toString(), c.pos());
             }
+            case com.legend.protocol.spec.Variable var -> {
+                require(var.type() == null && var.multiplicity() == null,
+                        "typed variable reference", var.name());
+                b.append("{\"_type\":\"var\",\"name\":");
+                str(b, var.name());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(var.pos(), "var " + var.name()));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.AppliedProperty p -> {
+                b.append("{\"_type\":\"property\",\"parameters\":[");
+                valueSpec(b, p.receiver());
+                b.append("],\"property\":");
+                str(b, p.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(p.pos(), "property " + p.property()));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.PureCollection c -> collection(b, c.values(),
+                    requirePos(c.pos(), "collection literal"));
+            case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f);
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for value specification "
                             + v.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
         }
+    }
+
+    /** Arithmetic natives the engine spells N-ARY: one collection parameter holding the
+     *  flattened operand chain. {@code divide} and the comparisons stay binary. */
+    private static final java.util.Set<String> NARY_ARITHMETIC =
+            java.util.Set.of("plus", "minus", "times");
+
+    /** The operators our grammar can only produce OVER an arithmetic LHS via explicit
+     *  parentheses — a tree shape whose engine bytes are not yet probed (see below). */
+    private static final java.util.Set<String> EQUAL_AND_OR =
+            java.util.Set.of("equal", "and", "or");
+
+    private static final java.util.Set<String> BINARY_ARITHMETIC = java.util.Set.of("divide");
+
+    private static void appliedFunction(StringBuilder b,
+                                        com.legend.protocol.spec.AppliedFunction f) {
+        if (NARY_ARITHMETIC.contains(f.function())) {
+            naryArithmetic(b, f);
+            return;
+        }
+        // equal/and/or over an arithmetic-chain LHS: reachable in our grammar only through
+        // explicit parentheses (unparenthesised, `==` binds into the preceding operand —
+        // matching engine's flat grammar, byte-pinned in ConstraintEmissionTest). The
+        // parenthesised form's engine bytes are unprobed, so it walls rather than guessing.
+        if (EQUAL_AND_OR.contains(f.function())
+                && !f.parameters().isEmpty()
+                && f.parameters().get(0) instanceof com.legend.protocol.spec.AppliedFunction lhs
+                && (NARY_ARITHMETIC.contains(lhs.function())
+                        || BINARY_ARITHMETIC.contains(lhs.function()))) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for " + f.function()
+                            + " over an arithmetic chain (engine flat-grammar associativity)"
+                            + " — probe the wire shape before adding one.");
+        }
+        b.append("{\"_type\":\"func\",\"function\":");
+        str(b, f.function());
+        b.append(",\"parameters\":[");
+        for (int i = 0; i < f.parameters().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, f.parameters().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, requirePos(f.pos(), "func " + f.function()));
+        b.append('}');
+    }
+
+    /**
+     * {@code a + b + c} on the wire is ONE {@code plus} whose single parameter is a collection
+     * of all operands (probe: multiplicity {@code [n..n]}, span from the FIRST operator token
+     * to the end of the chain — which is the innermost climb node's span start and the
+     * outermost's end). Our precedence climb builds a left-nested tree of the same operator;
+     * flatten its left spine.
+     */
+    private static void naryArithmetic(StringBuilder b,
+                                       com.legend.protocol.spec.AppliedFunction f) {
+        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> operands =
+                new java.util.ArrayDeque<>();
+        com.legend.protocol.spec.AppliedFunction node = f;
+        SourceInfo end = requirePos(f.pos(), "func " + f.function());
+        SourceInfo start = end;
+        while (true) {
+            require(node.parameters().size() == 2, "non-infix " + node.function(), "arity "
+                    + node.parameters().size());
+            operands.addFirst(node.parameters().get(1));
+            start = requirePos(node.pos(), "func " + node.function());
+            if (node.parameters().get(0) instanceof com.legend.protocol.spec.AppliedFunction inner
+                    && inner.function().equals(f.function())) {
+                node = inner;
+            } else {
+                operands.addFirst(node.parameters().get(0));
+                break;
+            }
+        }
+        SourceInfo chain = new SourceInfo(start.sourceId(),
+                start.startLine(), start.startColumn(), end.endLine(), end.endColumn());
+        b.append("{\"_type\":\"func\",\"function\":");
+        str(b, f.function());
+        b.append(",\"parameters\":[");
+        collection(b, java.util.List.copyOf(operands), chain);
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, chain);
+        b.append('}');
+    }
+
+    /** {@code {"_type":"collection","multiplicity":{n,n},"sourceInformation":…,"values":[…]}} */
+    private static void collection(StringBuilder b,
+                                   List<com.legend.protocol.spec.ValueSpecification> values,
+                                   SourceInfo pos) {
+        b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
+                .append(values.size()).append(",\"upperBound\":").append(values.size())
+                .append("},\"sourceInformation\":");
+        srcInfo(b, pos);
+        b.append(",\"values\":[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, values.get(i));
+        }
+        b.append("]}");
+    }
+
+    private static SourceInfo requirePos(@com.legend.Nullable SourceInfo pos, String what) {
+        if (pos == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter needs a source position for " + what
+                            + " and the parser did not thread one — fix the parse site.");
+        }
+        return pos;
     }
 
     /** {@code {"_type":…,"sourceInformation":…,"value":…}} — {@code rendered} is emitted verbatim. */
