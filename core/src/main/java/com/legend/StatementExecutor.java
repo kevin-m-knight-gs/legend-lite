@@ -359,10 +359,11 @@ final class StatementExecutor {
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         String db = typedEnumTail(call.args().get(2));
         com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
-            // Composite renders the engine-default text — the goldens pin
-            // it identical to H2's; a divergent golden fails honestly
-            case "H2", "Composite" -> new com.legend.sql.dialect.EngineStyleH2();
+            case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
             case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
+            // Composite = the engine-DEFAULT spellings (native trim/pad/
+            // cbrt, plain char_length); divergent goldens fail honestly
+            case "Composite" -> new com.legend.sql.dialect.EngineStyleComposite();
             default -> throw new com.legend.error.NotImplementedException(
                     "toSQLString for DatabaseType." + db
                     + " — only the H2/DB2 engine-style renderers are built");

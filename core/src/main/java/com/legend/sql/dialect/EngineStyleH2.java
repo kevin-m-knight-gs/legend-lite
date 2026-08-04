@@ -1231,6 +1231,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     + expr(c.args().get(0), 0) + "))";
         }
         return switch (c.fn()) {
+            // engine-H2 spellings (sqlstring goldens): cbrt has no H2
+            // native; the trim family spells regexp; pads ride the
+            // legend H2 extension with the pad char EXPLICIT
+            case CBRT -> "power(" + expr(a.get(0), 0) + ", 1.0/3)";
+            case LTRIM -> "regexp_replace(" + expr(a.get(0), 0)
+                    + ", '^[ ]+', '')";
+            case RTRIM -> "regexp_replace(" + expr(a.get(0), 0)
+                    + ", '[ ]+$', '')";
+            case LPAD -> "legend_h2_extension_lpad(" + expr(a.get(0), 0)
+                    + ", " + expr(a.get(1), 0) + ", "
+                    + (a.size() > 2 ? expr(a.get(2), 0) : "' '") + ")";
+            case RPAD -> "legend_h2_extension_rpad(" + expr(a.get(0), 0)
+                    + ", " + expr(a.get(1), 0) + ", "
+                    + (a.size() > 2 ? expr(a.get(2), 0) : "' '") + ")";
             // n-ary concat: nested CONCAT calls SPLICE (the engine emits
             // one flat concat(a, '_', b), never concat(concat(a,'_'),b))
             case CONCAT -> "concat(" + flattenConcat(a).stream()

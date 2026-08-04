@@ -2073,7 +2073,8 @@ public final class TestBody {
             throws java.sql.SQLException {
             for (AppliedFunction pair : pairs) {
                 String db = enumTail(pair.parameters().get(0));
-                if (!"H2".equals(db) && !"DB2".equals(db)) {
+                if (!"H2".equals(db) && !"DB2".equals(db)
+                        && !"Composite".equals(db)) {
                     return new Outcome.Unsupported(
                             "per-driver golden loop declares"
                             + " DatabaseType." + db

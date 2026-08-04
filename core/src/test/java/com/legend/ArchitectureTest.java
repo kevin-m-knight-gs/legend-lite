@@ -158,10 +158,12 @@ final class ArchitectureTest {
             // may compose internally; the quarantine is against the
             // execution path, not against sibling dialects
             .and().doNotBelongToAnyOf(
-                    com.legend.sql.dialect.EngineStyleDB2.class)
+                    com.legend.sql.dialect.EngineStyleDB2.class,
+                    com.legend.sql.dialect.EngineStyleComposite.class)
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.sql.dialect.EngineStyleH2.class,
-                    com.legend.sql.dialect.EngineStyleDB2.class)
+                    com.legend.sql.dialect.EngineStyleDB2.class,
+                    com.legend.sql.dialect.EngineStyleComposite.class)
             .as("Invariant 4d: engine-style golden-text renderers are root"
                     + " layer only — audit 19")
             .check(CORE_PROD_CLASSES);

@@ -70,6 +70,15 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             case TRIM -> a.size() == 1
                     ? "trim(" + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
+            // native spellings (sqlstring 'common' goldens — the H2
+            // parent's regexp/extension forms are H2-specific)
+            case CBRT -> "cbrt(" + expr(a.get(0), 0) + ")";
+            case LTRIM -> "ltrim(" + expr(a.get(0), 0) + ")";
+            case RTRIM -> "rtrim(" + expr(a.get(0), 0) + ")";
+            case LPAD -> "lpad(" + a.stream().map(x -> expr(x, 0))
+                    .collect(Collectors.joining(", ")) + ")";
+            case RPAD -> "rpad(" + a.stream().map(x -> expr(x, 0))
+                    .collect(Collectors.joining(", ")) + ")";
             case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
             // DB2 spells dayOfYear as the bare function
             // (db2Extension.pure:91 — 'dayofyear(%s)')
