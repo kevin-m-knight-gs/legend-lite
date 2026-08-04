@@ -57,7 +57,8 @@ final class StoreSubstitutionRewrite {
                 r.groupBy().stream().map(g -> op(g, m)).toList(),
                 r.primaryKey().stream().map(g -> op(g, m)).toList(),
                 r.propertyMappings().stream().map(p -> pm(p, m)).toList(),
-                r.sourceUrl(), r.propertyTargetSets());
+                r.sourceUrl(), r.propertyTargetSets(),
+                r.aggregationAwareMain());
     }
 
     private static @com.legend.Nullable String db(

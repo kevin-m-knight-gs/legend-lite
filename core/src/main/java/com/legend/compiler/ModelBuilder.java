@@ -490,7 +490,7 @@ public final class ModelBuilder {
                         /* groupBy */ List.of(),
                         /* primaryKey */ List.of(),
                         /* propertyMappings */ List.of(),
-                        /* sourceUrl */ jmc.url(), java.util.Map.of());
+                        /* sourceUrl */ jmc.url(), java.util.Map.of(), false);
                 List<ClassMapping> updated = new ArrayList<>(md.classMappings());
                 updated.add(synthetic);
                 LegacyMappingDefinition rebuilt = md.withClassMappings(updated);

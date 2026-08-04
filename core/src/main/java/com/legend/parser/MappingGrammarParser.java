@@ -529,7 +529,12 @@ final class MappingGrammarParser {
                 throw p.error("AggregationAware mapping for '" + elementPath
                         + "' has no ~mainMapping");
             }
-            accum.classMappings.add(aggMain);
+            var am = (ClassMapping.Relational) aggMain;
+            accum.classMappings.add(new ClassMapping.Relational(
+                    am.className(), am.setId(), am.extendsSetId(), am.root(),
+                    am.mainTable(), am.filter(), am.distinct(), am.groupBy(),
+                    am.primaryKey(), am.propertyMappings(), am.sourceUrl(),
+                    am.propertyTargetSets(), /* aggregationAwareMain */ true));
             return;
         }
         throw p.error("unsupported class mapping type: '" + p.safeText() + "'");
@@ -860,7 +865,7 @@ final class MappingGrammarParser {
         return new ClassMapping.Relational(
                 className, setId, extendsSetId, root,
                 mainTable, filter, distinct, groupBy, primaryKey, propertyMappings,
-                /* sourceUrl */ null, targetSets);
+                /* sourceUrl */ null, targetSets, false);
     }
 
 

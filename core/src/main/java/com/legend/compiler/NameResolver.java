@@ -849,7 +849,7 @@ public final class NameResolver {
                 yield new ClassMapping.Relational(className, r.setId(), r.extendsSetId(),
                         r.root(), mainTable, filter, r.distinct(),
                         groupBy, primaryKey, props, r.sourceUrl(),
-                        r.propertyTargetSets());
+                        r.propertyTargetSets(), r.aggregationAwareMain());
             }
             case ClassMapping.Union u -> {
                 String className = resolveName(u.className(), scope);

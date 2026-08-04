@@ -764,7 +764,7 @@ public final class MappingNormalizer {
                 !child.primaryKey().isEmpty()
                         ? child.primaryKey() : flatParent.primaryKey(),
                 new ArrayList<>(merged.values()), child.sourceUrl(),
-                child.propertyTargetSets());
+                child.propertyTargetSets(), child.aggregationAwareMain());
     }
 
     // ====================================================================
@@ -1603,7 +1603,7 @@ public final class MappingNormalizer {
                     rcm.extendsSetId(), rcm.root(), inferred, rcm.filter(),
                     rcm.distinct(), rcm.groupBy(), rcm.primaryKey(),
                     rcm.propertyMappings(), rcm.sourceUrl(),
-                    rcm.propertyTargetSets());
+                    rcm.propertyTargetSets(), rcm.aggregationAwareMain());
         }
         var vMain = java.util.Objects.requireNonNull(rcm.mainTable(),
                 "table-backed set without ~mainTable");
@@ -1846,7 +1846,7 @@ public final class MappingNormalizer {
                     rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                     rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
-                    rcm.propertyTargetSets());
+                    rcm.propertyTargetSets(), rcm.aggregationAwareMain());
             return synthTableBackedMapping(md, overView, model,
                     /*backingView*/ null, viewSource);
         }
@@ -1876,7 +1876,7 @@ public final class MappingNormalizer {
                 rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                 new LegacyMappingDefinition.TableReference(mainDb, physicalTable),
                 mergedFilter, mergedDistinct, mergedGroupBy, rcm.primaryKey(),
-                rewrittenPms, null, rcm.propertyTargetSets());
+                rewrittenPms, null, rcm.propertyTargetSets(), rcm.aggregationAwareMain());
         // VIEW-ON-VIEW on the fallback route: the inferred root may itself
         // be a view (OrgViewOnView -> OrgView -> Org) — flatten another
         // layer; the rewritten PMs now speak the inner view's columns
@@ -2132,7 +2132,7 @@ public final class MappingNormalizer {
                     rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                     rcm.mainTable(), null, rcm.distinct(), rcm.groupBy(),
                     rcm.primaryKey(), rcm.propertyMappings(), null,
-                    rcm.propertyTargetSets());
+                    rcm.propertyTargetSets(), rcm.aggregationAwareMain());
             return synthTableBackedParts(md, noFilter, model, backingView, innerSrc);
         }
 

@@ -406,7 +406,8 @@ final class UnionSynthesis {
                 memberSets.set(i, new ClassMapping.Relational(mr.className(),
                         mr.setId(), mr.extendsSetId(), mr.root(), mr.mainTable(),
                         mr.filter(), mr.distinct(), mr.groupBy(), mr.primaryKey(),
-                        pms, mr.sourceUrl(), mr.propertyTargetSets()));
+                        pms, mr.sourceUrl(), mr.propertyTargetSets(),
+                        mr.aggregationAwareMain()));
             }
         }
         return synthMemberUnion(md, u.className(), memberSets, model);
@@ -491,7 +492,8 @@ final class UnionSynthesis {
             out.add(new ClassMapping.Relational(mr.className(), mr.setId(),
                     mr.extendsSetId(), mr.root(), mr.mainTable(), mr.filter(),
                     mr.distinct(), mr.groupBy(), mr.primaryKey(), pms,
-                    mr.sourceUrl(), mr.propertyTargetSets()));
+                    mr.sourceUrl(), mr.propertyTargetSets(),
+                    mr.aggregationAwareMain()));
         }
         return out;
     }
@@ -545,7 +547,7 @@ final class UnionSynthesis {
                 new ClassMapping.Relational(ih.className(), ih.setId(),
                         null, ih.root(), shared, null, false,
                         List.of(), List.of(), hoisted, null,
-                        java.util.Map.of()),
+                        java.util.Map.of(), false),
                 model);
     }
 
@@ -1002,7 +1004,7 @@ final class UnionSynthesis {
                         mr.extendsSetId(), mr.root(), inferred, mr.filter(),
                         mr.distinct(), mr.groupBy(), mr.primaryKey(),
                         mr.propertyMappings(), mr.sourceUrl(),
-                        mr.propertyTargetSets());
+                        mr.propertyTargetSets(), mr.aggregationAwareMain());
             }
             var mrMain = java.util.Objects.requireNonNull(mr.mainTable(),
                     "union member set without ~mainTable");

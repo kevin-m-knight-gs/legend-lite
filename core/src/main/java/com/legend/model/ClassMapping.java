@@ -149,11 +149,16 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             List<RelationalOperation> primaryKey,
             List<PropertyMapping> propertyMappings,
             @com.legend.Nullable String sourceUrl,
-            java.util.Map<String, String> propertyTargetSets) implements ClassMapping {
+            java.util.Map<String, String> propertyTargetSets,
+            boolean aggregationAwareMain) implements ClassMapping {
 
         // NO short overload: a defaulted propertyTargetSets silently dropped
         // prop[setId] routing at rebuild sites (remediation T2.2); every
         // construction names every field.
+        // aggregationAwareMain: this set IS an AggregationAware mapping's
+        // ~mainMapping (the engine's mainSetImplementation, set id
+        // <setId>_Main) — the execution-activity channel reports the
+        // routed rewrite for such classes (AggregationAwareActivity).
 
         public Relational {
             Objects.requireNonNull(className, "Class name cannot be null");
