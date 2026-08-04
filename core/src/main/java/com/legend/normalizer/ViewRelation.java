@@ -46,8 +46,16 @@ final class ViewRelation {
      * tableReference would name an unknown physical table). */
     static ValueSpecification mainSourceRef(LegacyMappingDefinition md,
             String classFqn, ModelBuilder model) {
-        LegacyMappingDefinition.TableReference ref =
-                MappingNormalizer.mainTableDefOf(md, classFqn, model);
+        return sourceRefFor(MappingNormalizer.mainTableDefOf(md, classFqn, model),
+                model, md);
+    }
+
+    /** The relation expression for an already-resolved table reference —
+     * the tail of {@link #mainSourceRef} for callers that anchor a class
+     * on a table other than its own ~mainTable (embedded-owner anchors). */
+    static ValueSpecification sourceRefFor(
+            LegacyMappingDefinition.TableReference ref, ModelBuilder model,
+            LegacyMappingDefinition md) {
         String table = MappingNormalizer.canonicalTable(ref.table());
         DatabaseDefinition.ViewDefinition view =
                 model.findView(ref.database(), table).orElse(null);

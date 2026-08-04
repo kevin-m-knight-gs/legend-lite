@@ -75,9 +75,18 @@ final class AssociationJoins {
             // CURRENT ctor's class, mapped in this mapping
             String stopCls = ni.classFqn();
             if (ctx.findAssociationOf(stopCls,
-                            SyntheticHeads.realHead(path.get(hop))).isEmpty()
-                    || !sources.binds(cs.mappingFqn(), stopCls)) {
+                            SyntheticHeads.realHead(path.get(hop))).isEmpty()) {
                 return null;
+            }
+            if (!sources.binds(cs.mappingFqn(), stopCls)) {
+                // EMBEDDED-ONLY class (the firm block on the owner's row,
+                // no set of its own): re-root as a SYNTHETIC view — the
+                // owner's pipeline/row with the ctor's fields as bindings
+                // (engine: the embedded set implementation shares its
+                // owner's table; the assoc join anchors there).
+                return new PassThrough(new ClassSource(cs.mappingFqn(),
+                        stopCls, null, cs.pipeline(), cs.rowVar(),
+                        ni.properties(), cs.rowType()), hop);
             }
             return new PassThrough(
                     sources.get(cs.mappingFqn(), stopCls), hop);

@@ -413,7 +413,8 @@ final class AssociationSynthesis {
         // (A,B)->Boolean predicate — no binding is emitted, and NAVIGATING
         // the association stays loud at resolve time ("association not
         // mapped in mapping"). Declaring it is not an error.
-        if (!MappingNormalizer.hasMainTable(md, classA, model) || !MappingNormalizer.hasMainTable(md, classB, model)) {
+        if (anchorTableOf(md, classA, model) == null
+                || anchorTableOf(md, classB, model) == null) {
             return null;
         }
 
@@ -436,8 +437,10 @@ final class AssociationSynthesis {
         // re-deriving them from the classes' mappings.
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
                 a, b,
-                ViewRelation.mainSourceRef(md, classA, model),
-                ViewRelation.mainSourceRef(md, classB, model),
+                ViewRelation.sourceRefFor(java.util.Objects.requireNonNull(
+                        anchorTableOf(md, classA, model)), model, md),
+                ViewRelation.sourceRefFor(java.util.Objects.requireNonNull(
+                        anchorTableOf(md, classB, model)), model, md),
                 new LambdaFunction(List.of(srcRow, tgtRow),
                                          List.of(predicateBody))));
 
@@ -475,7 +478,7 @@ final class AssociationSynthesis {
                     "AssociationMapping for '" + associationName
                   + "' has empty join chain; mapping=" + md.qualifiedName());
         }
-        String sourceTable = MappingNormalizer.mainTableOf(md, classA, model);
+        String sourceTable = anchorNameOf(md, classA, model);
         if (join.joins().size() == 1) {
             JoinChainElement hop = join.joins().get(0);
             String hopDb = hop.databaseName() != null ? hop.databaseName() : join.database();
@@ -487,7 +490,7 @@ final class AssociationSynthesis {
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.
-            String classBTable = MappingNormalizer.mainTableOf(md, classB, model);
+            String classBTable = anchorNameOf(md, classB, model);
             RelationalOperation cond2 = MappingNormalizer.resolveViewRefsInJoin(
                     jd.operation(), hopDb, sourceTable, model, md,
                     model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null,
@@ -534,4 +537,59 @@ final class AssociationSynthesis {
               + "Mapping=" + md.qualifiedName());
     }
 
+    /** The predicate ANCHOR table for an association end: the class's own
+     * root/sole set's ~mainTable, or — for a class mapped ONLY as an
+     * EMBEDDED block — the OWNING set's main table (engine: an embedded
+     * set implementation shares its owner's table; Join Firm_Organizations
+     * anchors on PERSON_FIRM_DENORM). Null when neither resolves. */
+    static LegacyMappingDefinition.@com.legend.Nullable TableReference
+            anchorTableOf(LegacyMappingDefinition md, String classFqn,
+            ModelBuilder model) {
+        if (MappingNormalizer.hasMainTable(md, classFqn, model)) {
+            return MappingNormalizer.mainTableDefOf(md, classFqn, model);
+        }
+        List<LegacyMappingDefinition> closure = new ArrayList<>();
+        MappingNormalizer.collectMappingClosure(md, model, closure,
+                new HashSet<>());
+        for (LegacyMappingDefinition m : closure) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (!(cm instanceof ClassMapping.Relational rcm)) {
+                    continue;
+                }
+                for (PropertyMapping pm : rcm.propertyMappings()) {
+                    if (!(pm instanceof PropertyMapping.Embedded
+                            || pm instanceof PropertyMapping
+                                    .OtherwiseEmbedded)) {
+                        continue;
+                    }
+                    ClassDefinition owner =
+                            model.findClass(rcm.className()).orElse(null);
+                    TypeExpression pt = owner == null ? null
+                            : MappingNormalizer.findPropertyTypeDeep(owner,
+                                    pm.propertyName(), model);
+                    if (pt instanceof TypeExpression.NameRef nr
+                            && nr.name().equals(classFqn)) {
+                        LegacyMappingDefinition.TableReference mt =
+                                rcm.mainTable() != null ? rcm.mainTable()
+                                        : MappingNormalizer
+                                                .inferMainTableQuiet(rcm);
+                        if (mt != null) {
+                            return mt;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** {@link #anchorTableOf}'s table NAME — loud when unresolvable (the
+     * synthesis gate already null-checked). */
+    private static String anchorNameOf(LegacyMappingDefinition md,
+            String classFqn, ModelBuilder model) {
+        return java.util.Objects.requireNonNull(
+                anchorTableOf(md, classFqn, model),
+                () -> "no predicate anchor for '" + classFqn + "' in "
+                        + md.qualifiedName()).table();
+    }
 }
