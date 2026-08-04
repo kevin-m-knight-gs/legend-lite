@@ -210,82 +210,105 @@ Non-negotiable, each earned the hard way this session:
 
 ## 3. Deliverable 3 — upgrading legend-lite's parser
 
-### 3.1 The architecture decision: one parser, and the protocol is the output
+### 3.1 The architecture decision: one parser, clean-room protocol, zero dependency
 
-**Context that changes the answer: the parser is stage one of a progressive replacement.** The
-stated end goal is to replace legend-engine incrementally — parser, then compiler, then
-sqlgen/plangen, then execution. That reframes the metamodel question completely.
+**Decision: legend-lite reimplements the protocol. It does not depend on
+`legend-engine-protocol-pure`.** `core` keeps its zero engine dependencies — pom *and* source. The
+equivalence harness carries upstream artifacts at **test scope only**, to generate the reference.
 
-Legend's pipeline is four seams, each with a published type and SPI:
+This supersedes both earlier designs in this document (the two-sink factory, then the adopt-the-
+protocol proposal). One parser, one output shape, and the output is *our* protocol classes emitting
+*their* bytes.
 
-| stage | input → output | seam type | SPI |
-|---|---|---|---|
-| 1 parse | text → **`PureModelContextData`** | PMCD | `PureGrammarParserExtension` / `SectionParser` |
-| 2 compile | PMCD → **`PureModel`** | PureModel | `CompilerExtension` (51 registrations) |
-| 3 plan | PureModel + query → **`ExecutionPlan`** | SingleExecutionPlan | `PlanGeneratorExtension` |
-| 4 execute | plan → **`Result`** | Result | `StoreExecutorBuilder` |
+#### Why clean-room is easier here, not harder
 
-**You cannot replace a stage without speaking its neighbours' language.** Every stage boundary is
-one of upstream's types. So adopting `PureModelContextData` as the parser's output is not a
-concession to the drop-in — **it is the strategy**, and stages 2–4 will each make the same call
-against their own seam type.
+**Hand-rolled serialization is easier to make byte-identical than configuring Jackson to match
+another Jackson.** Taking the dependency would mean reverse-engineering
+`SORT_PROPERTIES_ALPHABETICALLY`, Jackson 2.10's creator-properties-first quirk, global `NON_NULL`,
+four `NON_EMPTY` overrides, and ~20 custom serializers on the PMCD path — and then staying pinned to
+Jackson 2.10 to preserve the ordering. Emitting the bytes ourselves, we write them in the order we
+observe, and the harness tells us immediately when we are wrong.
 
-#### The measurement that makes it affordable
+Secondary wins, all of which the dependency would have cost us:
 
-Held-tree cost for the same 343 files / 2,880,655 chars:
+- legend-lite keeps **sealed hierarchies with javac-enforced exhaustive switches** — its house
+  style, and the property that makes adding a variant a compile error rather than a runtime surprise.
+- Records stay **immutable**; the protocol POJOs are mutable public-field classes.
+- **No Jackson pin, no upstream protocol-version coupling** for our own internals.
+- The `ArchitectureTest` / `NoEagerTypeReferences` guards stay meaningful.
+
+#### The surface, measured — not 444 classes
+
+Emitted `PureModelContextData` JSON across **2,182 files** covering every section kind in
+legend-engine's corpus:
+
+| | count |
+|---|---:|
+| distinct `_type` discriminators emitted | **121** |
+| distinct field names across all nodes | **230** |
+| *(for contrast: protocol classes on disk)* | *444 packageableElement / 628 v1 model / 735 total* |
+
+**121 types and 230 field names is the real target**, and it is heavily skewed — the top five
+discriminators are `string` (122,918), `func` (116,790), `var` (77,594), `packageableType` (61,442),
+`property` (32,483). A handful of value-specification types dominate the hot path; the tail is rare
+and can be added on demand, driven by harness failures rather than by reading 735 files.
+
+Restricted to the `###Pure`-shaped subset (a 35-file sample covering Pure/Mapping/Data/graph-fetch),
+the surface is **39 discriminators / 98 field names** — the size of the first milestone.
+
+#### What we build
+
+1. **`com.legend.protocol`** — a sealed record hierarchy mirroring the emitted shape, 121 types
+   incrementally, driven by the harness.
+2. **A byte-exact emitter.** Not Jackson. It reproduces the observed contract directly: `_type`
+   first, then fields alphabetically; nulls omitted; map keys sorted; arrays in source order;
+   `SectionIndex` appended last. Where upstream's custom serializers deviate (e.g.
+   `EnumValueMappingSourceValue` emitting either an object or a bare string) we encode the deviation
+   explicitly rather than inheriting it accidentally.
+3. **The parser emits these directly**, with `SourceInformation` inline at construction — the only
+   point where token positions are in hand.
+4. **legend-lite's compiler keeps consuming its own sealed records**, via a transform from the
+   protocol tree. That transform is also stage 2's input adapter (§3.1.1), so it is not throwaway.
+
+#### The real risk, and the mitigation
+
+**Drift.** We now own a shape upstream controls. The 38-commit window we just pulled contained three
+grammar/protocol changes, including `CString.multiLine` — a field *excluded from `equals()`* and
+*present in JSON when true*, which object-equality comparison would have missed entirely.
+
+The mitigation is the whole point of Deliverable 2: **the harness compares our bytes against the
+real parser's bytes on every run, and is CI-gated against every upstream release.** Clean-room
+without that harness would be reckless; with it, drift surfaces as a failing diff naming the exact
+JSON path.
+
+#### 3.1.1 Why this generalises to the whole replacement programme
+
+The end goal is progressive replacement — parser, then compiler, then sqlgen/plangen, then
+execution. Legend's pipeline is four seams:
+
+| stage | input → output | seam type |
+|---|---|---|
+| 1 parse | text → **`PureModelContextData`** | PMCD |
+| 2 compile | PMCD → **`PureModel`** | PureModel |
+| 3 plan | PureModel + query → **`ExecutionPlan`** | SingleExecutionPlan |
+| 4 execute | plan → **`Result`** | Result |
+
+Each stage must *speak* its neighbours' types at the boundary. Clean-room reimplementation of the
+boundary type — proven byte-identical by a differential harness — is the pattern, and stage 1
+establishes it. The alternative (depending on upstream's types at every seam) would make each later
+stage progressively harder to detach, which is the opposite of the goal.
+
+#### Held-tree cost, for the record
 
 | output shape | held | per char |
 |---|---:|---:|
-| protocol tree, `returnSourceInfo=true` | 16.3 MB | **5.9 B/char** |
+| protocol tree, `returnSourceInfo=true` | 16.3 MB | 5.9 B/char |
 | protocol tree, `returnSourceInfo=false` | 15.8 MB | 5.8 B/char |
 | legend-lite `ParsedModel` | 10.5 MB | 3.8 B/char |
-| | | **1.6×** |
 
-**`SourceInformation` is 3% of the protocol tree.** The thing I assumed would be the expensive part
-is nearly free; the 1.6× is the protocol's shape (mutable POJOs, more nodes), not its positions. And
-1.6× on a *held tree* is nothing against the 1,287 B/char **allocation** ANTLR does to produce it
-(§0.1).
-
-#### Recommendation
-
-**One parser. Its output is `PureModelContextData`. legend-lite's compiler consumes PMCD through a
-transform into its own sealed records.**
-
-- **One parser, one output shape** — byte-identity by construction, not by parallel maintenance.
-  No factory, no two sinks, no coverage drift. This is what you asked for.
-- **legend-lite keeps its sealed, immutable, exhaustively-switched model** where it earns its keep —
-  inside the compiler. `AGENTS.md` invariant 5, the `NoEagerTypeReferences` guard and the javac
-  exhaustiveness property are all preserved.
-- **The transform is not waste — it is stage 2's input adapter.** When legend-lite's compiler
-  replaces legend-engine's, it must consume PMCD anyway. We are building that boundary now and
-  getting it exercised by legend-lite's entire existing test suite on every build, for free.
-- The 111 `assertEquals(new CInteger(42L), spec)` assertions survive untouched: they test the
-  records, which the transform still produces.
-
-#### The cost, stated plainly
-
-**`core` takes a dependency on `legend-engine-protocol-pure`.** Today that is zero — pom and source
-— and it is a deliberate clean-room property.
-
-**That property was right for a clean-room reimplementation and is wrong for a progressive
-replacement.** You cannot swap into someone's pipeline while refusing to name their types. The
-honest framing is that we are trading *independence* for *interoperability*, deliberately, at the
-moment the goal changed from "reimplement" to "replace".
-
-Three mitigations worth taking:
-1. Keep the protocol dependency to the **parse boundary and the stage-2 adapter**; the compiler,
-   lowering and execution layers keep speaking legend-lite types.
-2. Pin the protocol version explicitly and gate CI on upstream bumps (§5) — the protocol is
-   versioned and upstream-controlled.
-3. Keep an ArchUnit rule that no `com.legend.compiler` / `lowering` / `sql` class imports
-   `org.finos.legend.engine.protocol`.
-
-#### Alternative kept in reserve
-
-If the protocol dependency proves unacceptable: parser emits legend-lite records carrying a position
-component with `equals`/`hashCode` overridden to exclude it, plus a records→PMCD transform. Costs
-are measured — 47 record types, 111 assertions protected by the override, positions on our own hot
-path. It preserves independence and gives up construction-time byte-identity. **Prefer the protocol.**
+**`SourceInformation` is 3% of the protocol tree** — the part assumed expensive is nearly free. Our
+clean-room records should land at or below 5.9 B/char since they can be immutable and lean; either
+way it is negligible against the **1,287 B/char that ANTLR allocates** to produce the same tree.
 
 ### 3.3 The other parser work, in dependency order
 
