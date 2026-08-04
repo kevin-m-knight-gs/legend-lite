@@ -147,23 +147,24 @@ public final class StoreResolver {
     }
 
     /** {@code chainMappings}: ModelChainConnection mapping FQNs from the
-     * DRIVER runtime (the M2M2R plan surface — the execute path threads
-     * them via TypedFrom; plan-text paths pass them here). */
+     * DRIVER runtime (execute threads via TypedFrom; plan-text here). */
     public List<TypedSpec> resolve(List<TypedSpec> body,
             @com.legend.Nullable String driverRuntimeFqn,
             @com.legend.Nullable String explicitMappingFqn,
             List<String> chainMappings) {
-        // LAZY: runtime consulted only when a class fetch needs a
-        // mapping; a pure relation query must not consult it
-        // fail (the corpus's date-literal regression).
+        // LAZY: runtime consulted only when a class fetch needs a mapping
+        // (a pure relation query must not — date-literal regression).
+        // the RUNTIME rides ALONGSIDE an explicit mapping (self-sourced
+        // M2M upstream dispatch needs the candidate set)
         Context context = explicitMappingFqn != null
-                ? new Context(explicitMappingFqn, null, chainMappings)
+                ? new Context(explicitMappingFqn, driverRuntimeFqn,
+                        chainMappings)
                 : driverRuntimeFqn == null ? Context.NONE
                 : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt : body) {
-            // milestoning-date let env (engine inScopeVars, M:648): lets
-            // recorded into the map every TemporalFrame shares by reference
+            // milestoning-date let env (engine inScopeVars, M:648):
+            // shared by reference with every TemporalFrame
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet l) {
                 letBindings.put(l.name(), l.value());
             }
@@ -2611,7 +2612,9 @@ public final class StoreResolver {
                 g.milestoning(), g.versionSweep(), g.classFqn());
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
-                target -> dispatch(fctx, target), contextKey(fctx));
+                (t9, ex9) -> sources.dispatch(fctx.explicitMapping(),
+                        fctx.runtimeFqn(), fctx.chainMappings(), t9, ex9),
+                contextKey(fctx));
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
@@ -3425,7 +3428,10 @@ public final class StoreResolver {
         assocs = context.isNone() ? assocs
                 : CastNav.withWholeSourceCasts(sources, cs, assocs,
                         fqn -> sources.get(dispatch(context, fqn), fqn,
-                                target -> dispatch(context, target),
+                                (t9, ex9) -> sources.dispatch(
+                                        context.explicitMapping(),
+                                        context.runtimeFqn(),
+                                        context.chainMappings(), t9, ex9),
                                 contextKey(context)));
         return new Substitution(new Substitution.Target(
                 new Substitution.RowScope(userLambda.parameters().get(0),
@@ -3461,23 +3467,10 @@ public final class StoreResolver {
         return fns.get(0);
     }
 
-    /** ONE from()-scope entry: the re-scoped Context, with the scope's
-     * JSON source frames (XStore §1 — ${var} url templates substitute
-     * from the let env) seeded into ClassSources' unmapped-class route. */
+    /** ONE from()-scope entry: re-scoped Context + JSON source frames
+     * (XStore §1) seeded into ClassSources' unmapped-class route. */
     private Context fromContext(TypedFrom fr, Context outer) {
-        if (!fr.jsonSources().isEmpty()) {
-            sources.setJsonSources(JsonSourceFrame.substituteUrlParams(
-                    fr.jsonSources(), letBindings));
-        }
-        if (fr.mapping().isPresent()) {
-            return new Context(fr.mapping().get().fullPath(), null,
-                    fr.chainMappings(), fr.jsonSources());
-        }
-        if (fr.runtime().isPresent()) {
-            return new Context(null, fr.runtime().get().fullPath(),
-                    fr.chainMappings(), fr.jsonSources());
-        }
-        return outer;
+        return JsonSourceFrame.fromContext(fr, outer, sources, letBindings);
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins

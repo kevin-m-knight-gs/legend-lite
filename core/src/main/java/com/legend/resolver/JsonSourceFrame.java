@@ -140,4 +140,30 @@ final class JsonSourceFrame {
         return new ClassSource(mappingFqn, classFqn, "json", pipeline,
                 rowVar, bindings, rowType, classFqn);
     }
+
+    /** ONE from()-scope entry (StoreResolver.fromContext): the re-scoped
+     * Context; the runtime rides ALONGSIDE an explicit mapping (a
+     * self-sourced M2M's upstream dispatch needs the candidate set). */
+    static StoreResolver.Context fromContext(
+            com.legend.compiler.spec.typed.TypedFrom fr,
+            StoreResolver.Context outer, ClassSources sources,
+            java.util.Map<String, com.legend.compiler.spec.typed.TypedSpec>
+                    letBindings) {
+        if (!fr.jsonSources().isEmpty()) {
+            sources.setJsonSources(substituteUrlParams(
+                    fr.jsonSources(), letBindings));
+        }
+        if (fr.mapping().isPresent()) {
+            return new StoreResolver.Context(fr.mapping().get().fullPath(),
+                    fr.runtime().map(r -> r.fullPath())
+                            .orElse(outer.runtimeFqn()),
+                    fr.chainMappings(), fr.jsonSources());
+        }
+        if (fr.runtime().isPresent()) {
+            return new StoreResolver.Context(null,
+                    fr.runtime().get().fullPath(),
+                    fr.chainMappings(), fr.jsonSources());
+        }
+        return outer;
+    }
 }

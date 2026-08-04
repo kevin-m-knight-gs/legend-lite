@@ -85,6 +85,13 @@ final class Typer {
     private final ModelContext ctx;
     private final InferenceKernel kernel;
 
+    /** A class name's FQN through the model (identity when unknown) —
+     * TypedFrom's unchecked-body walk canonicalizes refs with it. */
+    String classFqnOf(String name) {
+        return ctx.findClass(name)
+                .map(c -> c.qualifiedName()).orElse(name);
+    }
+
     Typer(ModelContext ctx, InferenceKernel kernel) {
         this.ctx = ctx;
         this.kernel = kernel;

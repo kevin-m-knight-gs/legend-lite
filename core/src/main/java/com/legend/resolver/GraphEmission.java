@@ -984,16 +984,16 @@ final class GraphEmission {
                 node.property()).orElse(null);
         ClassSource child = childClass.equals(rawTarget)
                 ? sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                        setHint, target -> dispatch.apply(context, target), key)
+                        setHint, (target, excl) -> dispatch.apply(context, target), key)
                 : sources.get(cs.mappingFqn(), childClass, setHint,
-                        target -> dispatch.apply(context, target), key);
+                        (target, excl) -> dispatch.apply(context, target), key);
         // The slot predicate's right side reads the RAW TARGET's physical
         // columns — the child's composed pipeline must bottom at that same
         // row or the correlation filters the wrong relation (audit: the
         // m2mAssocChild guard, applied to this sibling too).
         if (!childClass.equals(rawTarget)) {
             ClassSource rawSource = sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                    target -> dispatch.apply(context, target), key);
+                    (target, excl) -> dispatch.apply(context, target), key);
             if (!child.rowVar().equals(rawSource.rowVar())) {
                 throw new NotImplementedException("navigate-slot graph child '"
                         + node.property() + "': the child class '" + childClass
@@ -1069,7 +1069,7 @@ final class GraphEmission {
                 + '\u0000'
                 + (context.runtimeFqn() == null ? "" : context.runtimeFqn());
         ClassSource rawParent = sources.get(dispatch.apply(context, srcClassFqn), srcClassFqn,
-                target -> dispatch.apply(context, target), key);
+                (target, excl) -> dispatch.apply(context, target), key);
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, rawParent, assocProp, context, /*forExists*/ true);
         var prop = ctx.findProperty(cs.classFqn(), node.property()).orElseThrow(
                 () -> new IllegalStateException("resolver bug: graph child '"
@@ -1086,7 +1086,7 @@ final class GraphEmission {
                     + node.property() + "' is not class-typed");
         }
         ClassSource child = sources.get(cs.mappingFqn(), childCls.fqn(),
-                target -> dispatch.apply(context, target), key);
+                (target, excl) -> dispatch.apply(context, target), key);
         if (!child.rowVar().equals(aj.target().rowVar())) {
             throw new NotImplementedException("M2M graph child '" + node.property()
                     + "': the child class '" + childCls.fqn() + "' does not compose"
@@ -1979,7 +1979,7 @@ final class GraphEmission {
                             : context.runtimeFqn());
             String rawTarget = ((TypedGetAll) nav.target()).classFqn();
             target = sources.get(dispatch.apply(context, rawTarget), rawTarget,
-                    t -> dispatch.apply(context, t), key);
+                    (t, excl) -> dispatch.apply(context, t), key);
             Pipelines.Materialized cMat = Pipelines.materialize(
                     target.pipeline(), Set.of(), rawTarget);
             targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
@@ -2506,7 +2506,7 @@ final class GraphEmission {
                                 : context.runtimeFqn());
                 ClassSource subCs = sources.get(cs.mappingFqn(),
                         java.util.Objects.requireNonNull(node.subTypeFqn(), "node.subTypeFqn()"),
-                        target -> dispatch.apply(context, target), skey);
+                        (target, excl) -> dispatch.apply(context, target), skey);
                 patchChildren.add(graphChild(subCs, sub, context,
                         rowVar, rowType,
                         Pipelines.materialize(subCs.pipeline(), Set.of(),

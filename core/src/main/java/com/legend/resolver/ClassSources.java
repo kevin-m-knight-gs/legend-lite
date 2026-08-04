@@ -123,7 +123,7 @@ public final class ClassSources {
      * resolution to this mapping (+ includes).
      */
     public ClassSource get(String mappingFqn, String classFqn,
-            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         return get(mappingFqn, classFqn, null, upstreamMapping, contextKey);
     }
@@ -135,7 +135,7 @@ public final class ClassSources {
      * fallback lands on the union). */
     public ClassSource get(String mappingFqn, String classFqn,
             @com.legend.Nullable String setId,
-            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         // The context key participates in memoization because an M2M
         // composition resolves its UPSTREAM through the runtime dispatch —
@@ -172,7 +172,7 @@ public final class ClassSources {
      * extent is per-member dispatch — not built yet, loud downstream.
      */
     private ClassSource mixedUnionSource(String mappingFqn, String classFqn,
-            List<String> memberSetIds, @com.legend.Nullable UnaryOperator<String> upstreamMapping,
+            List<String> memberSetIds, @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         var cls = ctx.findClass(classFqn).orElseThrow(() ->
                 new IllegalStateException("resolver bug: mixed-union class '"
@@ -587,7 +587,7 @@ public final class ClassSources {
 
     private ClassSource build(String mappingFqn, String classFqn,
             @com.legend.Nullable String setId,
-            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
@@ -830,7 +830,7 @@ public final class ClassSources {
     private ClassSource composeModelToModel(String mappingFqn, String classFqn,
             MappingDefinition.ClassBinding binding, TypedSpec pipeline,
             TypedLambda mapper, TypedNewInstance ctor, Type.ClassType srcType,
-            @com.legend.Nullable UnaryOperator<String> upstreamMapping,
+            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         // Ops between the extent and the constructor: instance-space
         // FILTERS compose (their predicates substitute through the
@@ -851,10 +851,30 @@ public final class ClassSources {
         // The upstream class resolves in THIS mapping when bound here (or
         // via includes); otherwise through the runtime dispatch — corpus
         // runtimes list the relational base and the M2M layers side by side.
-        String srcMapping = binds(mappingFqn, srcType.fqn()) || upstreamMapping == null
-                ? mappingFqn
-                : upstreamMapping.apply(srcType.fqn());
-        ClassSource inner = get(srcMapping, srcType.fqn(), upstreamMapping, contextKey);
+        // SELF-SOURCED M2M (Trade FROM Trade — the self-edge leaf idiom,
+        // walkM2MChain's rule): the source NEVER re-resolves in this
+        // mapping; the dispatch names the upstream layer EXCLUDING self.
+        boolean selfSourced = srcType.fqn().equals(classFqn)
+                || binding.classFqn().equals(srcType.fqn());
+        ClassSource inner;
+        String jsonUrl = selfSourced ? jsonSources.get(srcType.fqn()) : null;
+        if (jsonUrl != null) {
+            // SELF-SOURCED M2M whose upstream is the execution context's
+            // JsonModelConnection (TradeLinkage cross-store golden): the
+            // JSON frame IS the source layer — never this mapping again
+            inner = JsonSourceFrame.classSource(ctx, mappingFqn,
+                    srcType.fqn(), jsonUrl);
+        } else {
+            String srcMapping = !selfSourced
+                    && (binds(mappingFqn, srcType.fqn())
+                            || upstreamMapping == null)
+                    ? mappingFqn
+                    : upstreamMapping == null ? mappingFqn
+                            : upstreamMapping.apply(srcType.fqn(),
+                                    selfSourced ? mappingFqn : null);
+            inner = get(srcMapping, srcType.fqn(), upstreamMapping,
+                    contextKey);
+        }
         String srcVar = mapper.parameters().get(0);
         TypedSpec composedPipeline = inner.pipeline();
         for (int i = filters.size() - 1; i >= 0; i--) {
@@ -1213,6 +1233,16 @@ public final class ClassSources {
     String dispatch(@com.legend.Nullable String explicitMapping,
             @com.legend.Nullable String runtimeFqn,
             java.util.List<String> chainMappings, String classFqn) {
+        return dispatch(explicitMapping, runtimeFqn, chainMappings, classFqn,
+                null);
+    }
+
+    /** {@code exclude} non-null names a mapping the dispatch must NOT
+     * pick — a SELF-SOURCED M2M's upstream layer (composeModelToModel). */
+    String dispatch(@com.legend.Nullable String explicitMapping,
+            @com.legend.Nullable String runtimeFqn,
+            java.util.List<String> chainMappings, String classFqn,
+            @com.legend.Nullable String exclude) {
         if (explicitMapping != null) {
             // MAPPING CHAIN (XStore leg slice 1): a class the explicit
             // mapping does NOT bind resolves through the runtime value's
@@ -1221,10 +1251,11 @@ public final class ClassSources {
             // binder, loud otherwise; no chain = the explicit mapping's
             // own downstream wall stays.
             if (!chainMappings.isEmpty()
-                    && !binds(explicitMapping, classFqn)) {
+                    && (!binds(explicitMapping, classFqn)
+                            || explicitMapping.equals(exclude))) {
                 List<String> chainBinders = chainMappings.stream()
                         .distinct()
-                        .filter(m -> binds(m, classFqn))
+                        .filter(m -> !m.equals(exclude) && binds(m, classFqn))
                         .toList();
                 if (chainBinders.size() == 1) {
                     return chainBinders.get(0);
@@ -1236,14 +1267,24 @@ public final class ClassSources {
                         + chainBinders.size() + " binders — chain dispatch"
                         + " needs exactly one", classFqn);
             }
-            return explicitMapping;
+            if (!explicitMapping.equals(exclude)) {
+                return explicitMapping;
+            }
+            // the EXCLUDED explicit mapping (self-sourced M2M upstream)
+            // with no chain: fall through to the runtime candidates
+            if (runtimeFqn == null) {
+                throw new MappingResolutionException("self-sourced class '"
+                        + classFqn + "' needs an upstream layer, but the"
+                        + " context names only mapping '" + explicitMapping
+                        + "' (no runtime candidate set)", classFqn);
+            }
         }
         com.legend.model.RuntimeDefinition rt = ctx.findRuntime(runtimeFqn).orElseThrow(() ->
                 new MappingResolutionException("unknown runtime '"
                         + runtimeFqn + "'", runtimeFqn));
         List<String> binders = rt.mappings().stream()
                 .distinct()   // a runtime listing a mapping twice is not ambiguity
-                .filter(m -> binds(m, classFqn))
+                .filter(m -> !m.equals(exclude) && binds(m, classFqn))
                 .toList();
         if (binders.size() != 1) {
             // a poisoned class mapping (per-class normalization failure)

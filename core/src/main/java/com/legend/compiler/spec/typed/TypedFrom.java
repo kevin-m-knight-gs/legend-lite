@@ -152,13 +152,32 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
      * in a runtime-valued expression — the JSON SOURCE FRAME feed (XStore
      * leg §1). Non-literal shapes contribute nothing. */
     public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n) {
+        return jsonSourcesIn(n, java.util.function.UnaryOperator.identity());
+    }
+
+    /** {@code canon} resolves a class name to its FQN (helper bodies are
+     * UNCHECKED source — their refs may be import-simple). */
+    public static java.util.Map<String, String> jsonSourcesIn(TypedSpec n,
+            java.util.function.UnaryOperator<String> canon) {
         java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
-        collectJson(n, out);
+        collectJson(n, out, canon);
         return java.util.Map.copyOf(out);
     }
 
     private static void collectJson(TypedSpec n,
-            java.util.Map<String, String> out) {
+            java.util.Map<String, String> out,
+            java.util.function.UnaryOperator<String> canon) {
+        // helper-CONSTRUCTED runtimes (from(m, runtime())): the JSON
+        // frames live in the helper's UNCHECKED body — walk it
+        // (TradeLinkage cross-store golden)
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                && uc.callee().body().isPresent()) {
+            for (com.legend.model.spec.ValueSpecification b
+                    : uc.callee().body().get()) {
+                collectJsonRaw(b, out, canon);
+            }
+            return;
+        }
         if (n instanceof TypedNewInstance ni
                 && "meta::external::store::model::JsonModelConnection"
                         .equals(ni.classFqn())) {
@@ -170,7 +189,49 @@ public record TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
             return;
         }
         for (TypedSpec c : n.children()) {
-            collectJson(c, out);
+            collectJson(c, out, canon);
+        }
+    }
+
+    /** The UNCHECKED-source mirror of {@link #collectJson} for helper
+     * bodies (class refs canonicalized through {@code canon}). */
+    private static void collectJsonRaw(
+            com.legend.model.spec.ValueSpecification v,
+            java.util.Map<String, String> out,
+            java.util.function.UnaryOperator<String> canon) {
+        switch (v) {
+            case com.legend.model.spec.NewInstance ni -> {
+                if (ni.className().endsWith("JsonModelConnection")) {
+                    var cls = ni.properties().get("class");
+                    var url = ni.properties().get("url");
+                    if (cls != null && cls.value() instanceof
+                            com.legend.model.spec.PackageableElementPtr pr
+                            && url != null && url.value() instanceof
+                                    com.legend.model.spec.CString us) {
+                        out.put(canon.apply(pr.fullPath()), us.value());
+                    }
+                    return;
+                }
+                for (var ke : ni.properties().values()) {
+                    collectJsonRaw(ke.value(), out, canon);
+                }
+            }
+            case com.legend.model.spec.AppliedFunction af -> {
+                for (var p2 : af.parameters()) {
+                    collectJsonRaw(p2, out, canon);
+                }
+            }
+            case com.legend.model.spec.LambdaFunction lf -> {
+                for (var b2 : lf.body()) {
+                    collectJsonRaw(b2, out, canon);
+                }
+            }
+            case com.legend.model.spec.PureCollection pc -> {
+                for (var e2 : pc.values()) {
+                    collectJsonRaw(e2, out, canon);
+                }
+            }
+            default -> { }
         }
     }
 

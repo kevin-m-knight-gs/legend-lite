@@ -55,7 +55,8 @@ final class FromChecker {
                     && ct.fqn().equals("meta::core::runtime::Runtime")) {
                 chainMappings.addAll(TypedFrom.chainMappingsIn(
                         a.args().get(i)));
-                jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i)));
+                jsonSources.putAll(TypedFrom.jsonSourcesIn(a.args().get(i),
+                        t::classFqnOf));
                 if (connectionName == null) {
                     connectionName = TypedFrom.connectionNameIn(
                             a.args().get(i));
