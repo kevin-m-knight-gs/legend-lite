@@ -481,9 +481,10 @@ class NativeFunctionTest {
         //     GlobalGraphFetchExecutionNode,
         //     StoreMappingGlobalGraphFetchExecutionNode (all grounded in
         //     engine/legend-pure declarations; see PLAN_SURFACE map).
-        // 199: +GenericType (genericType().rawType reflection) +
+        // 200: +GenericType (genericType().rawType reflection) +
+        // TDSNull (the null-cell TYPE for match arms; value stays sqlNull) +
         //     ElementOverride (M3 Any.elementOverride, folded empty).
-        assertEquals(199, Pure.allNativeClasses().size(),
+        assertEquals(200, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 

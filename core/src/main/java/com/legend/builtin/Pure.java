@@ -169,6 +169,10 @@ public final class Pure {
     /** M3 ElementOverride: the Typer serves {@code Any.elementOverride}
      * reads as this type and folds them EMPTY (never installed here). */
     public static final ClassDefinition ELEMENT_OVERRIDE = nativeClass("native Class meta::pure::metamodel::extension::ElementOverride {}");
+    // the TDS null-cell TYPE (engine tds.pure:127) — the VALUE stays the
+    // one sqlNull() funnel (Typer's TDSNull arms); the class exists so
+    // match arms (n:TDSNull[1] — toCSVString) TYPE against it
+    public static final ClassDefinition TDS_NULL = nativeClass("native Class meta::pure::tds::TDSNull {}");
     public static final ClassDefinition NIL  = nativeClass("native Class meta::pure::metamodel::type::Nil  extends meta::pure::metamodel::type::Any {}");
     // real m3: Type extends PackageableElement extends ... ModelElement — the
     // chain contracts to the link we model (a Class value conforms to
