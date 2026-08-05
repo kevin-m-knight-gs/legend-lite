@@ -662,13 +662,16 @@ public interface TokenStreamCursor {
      *  {@code name : Type [mult]?}. The column name may be a literal
      *  {@code "?"} wildcard (used in the rename DSL). */
     private TypeExpression.Column parseRelationColumn() {
+        int nameTok = pos();
         String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
         expect(TokenType.COLON);
         TypeExpression colType = parseType();
-        Multiplicity mult = (peek() == TokenType.BRACKET_OPEN)
-                ? parseMultiplicity()
-                : Multiplicity.exactly(1);
-        return new TypeExpression.Column(colName, colType, mult);
+        // wire span = name token (quotes included) .. TYPE end, before any multiplicity
+        // (ProbeWireShapes "relation type sigs")
+        com.legend.protocol.SourceInfo span = spanOf(nameTok, pos() - 1);
+        boolean declared = peek() == TokenType.BRACKET_OPEN;
+        Multiplicity mult = declared ? parseMultiplicity() : Multiplicity.exactly(1);
+        return new TypeExpression.Column(colName, colType, mult, declared, span);
     }
 
     /** {@code Type[mult]} &mdash; a typed parameter in a function-type

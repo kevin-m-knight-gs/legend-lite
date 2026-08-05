@@ -1071,27 +1071,116 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
 
         // Optional TEST-SUITE block: `function f(...) { body } { suite... }` (legend-testable).
-        // Consumed into the declaration span (the wire's function span covers it); content
-        // walls at the emitter until the tests wire shape is probed.
-        boolean hasTests = false;
+        // Parsed into PTestSuite records; the wire's function span covers the block.
+        List<com.legend.protocol.Protocol.PTestSuite> suites = List.of();
         if (peek() == TokenType.BRACE_OPEN) {
-            hasTests = true;
-            advance();
-            int d = 1;
-            while (!atEnd() && d > 0) {
-                TokenType t = peek();
-                if (t == TokenType.BRACE_OPEN) d++;
-                else if (t == TokenType.BRACE_CLOSE) d--;
-                advance();
-            }
+            suites = parseFunctionTestBlock(sig);
         }
 
         String[] pn = com.legend.protocol.Protocol.splitFqn(sig.qualifiedName());
         return new com.legend.protocol.Protocol.PFunction(pn[0], pn[1],
                 sig.typeParams(), sig.multParams(), sig.params(),
-                sig.returnType(), sig.returnMult(), body, constraints, hasTests,
+                sig.returnType(), sig.returnMult(), body, constraints, suites,
                 sig.stereotypes(), sig.taggedValues(),
                 span(sig.declStart(), pos - 1));
+    }
+
+    /**
+     * The legend-testable trailing block. Two forms (ProbeWireShapes "fn tests wire",
+     * "fn tests named suite"): named suites {@code { name ( test; ... ) ... }} and the
+     * unnamed brace form {@code { test; ... }} (wire id {@code "default"}, span = the
+     * whole block). Mixing both in one block has no probed wire order — refuse loudly.
+     */
+    private List<com.legend.protocol.Protocol.PTestSuite> parseFunctionTestBlock(
+            FunctionSignature sig) {
+        int blockOpen = pos;
+        expect(TokenType.BRACE_OPEN);
+        List<com.legend.protocol.Protocol.PTestSuite> suites = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PFunctionTest> unnamed = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            if (peek(1) == TokenType.PAREN_OPEN) {
+                int suiteStart = pos;
+                String suiteId = parseIdentifier();
+                expect(TokenType.PAREN_OPEN);
+                List<com.legend.protocol.Protocol.PFunctionTest> tests = new ArrayList<>();
+                while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                    tests.add(parseFunctionTest(sig));
+                }
+                expect(TokenType.PAREN_CLOSE);
+                suites.add(new com.legend.protocol.Protocol.PTestSuite(
+                        suiteId, span(suiteStart, pos - 1), tests));
+            } else {
+                unnamed.add(parseFunctionTest(sig));
+            }
+        }
+        expect(TokenType.BRACE_CLOSE);
+        if (!unnamed.isEmpty()) {
+            if (!suites.isEmpty()) {
+                throw error("a function test block mixing named suites and bare tests"
+                        + " has no probed wire order");
+            }
+            suites.add(new com.legend.protocol.Protocol.PTestSuite(
+                    null, span(blockOpen, pos - 1), unnamed));
+        }
+        return suites;
+    }
+
+    /** {@code id | call(args) => expected;} — the call NAME is not on the wire; each
+     *  argument binds to the signature parameter at its position. */
+    private com.legend.protocol.Protocol.PFunctionTest parseFunctionTest(
+            FunctionSignature sig) {
+        int testStart = pos;
+        String testId = parseIdentifier();
+        expect(TokenType.PIPE);
+        parseQualifiedName();                       // call spelling — not serialized
+        expect(TokenType.PAREN_OPEN);
+        List<com.legend.protocol.Protocol.PTestParam> params = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            if (peek() == TokenType.COMMA) {
+                advance();
+                continue;
+            }
+            int vStart = pos;
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (depth == 0 && (t == TokenType.COMMA || t == TokenType.PAREN_CLOSE)) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN) depth++;
+                else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE) depth--;
+                advance();
+            }
+            int idx = params.size();
+            if (idx >= sig.params().size()) {
+                throw error("function test passes more arguments than the signature"
+                        + " declares parameters");
+            }
+            params.add(new com.legend.protocol.Protocol.PTestParam(
+                    sig.params().get(idx).name(),
+                    SpecParser.parse(tokens.slice(vStart, pos)),
+                    span(vStart, pos - 1)));
+        }
+        expect(TokenType.PAREN_CLOSE);
+        expect(TokenType.EQUAL);
+        expect(TokenType.GREATER_THAN);
+        int eStart = pos;
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (depth == 0 && t == TokenType.SEMI_COLON) {
+                break;
+            }
+            if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN) depth++;
+            else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE) depth--;
+            advance();
+        }
+        com.legend.protocol.spec.ValueSpecification expected =
+                SpecParser.parse(tokens.slice(eStart, pos));
+        com.legend.protocol.SourceInfo expectedSpan = span(eStart, pos - 1);
+        expect(TokenType.SEMI_COLON);
+        return new com.legend.protocol.Protocol.PFunctionTest(testId,
+                span(testStart, pos - 1), params, expected, expectedSpan);
     }
 
     /**

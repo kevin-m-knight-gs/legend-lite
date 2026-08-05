@@ -195,11 +195,33 @@ public sealed interface TypeExpression {
      *  positions used in the rename DSL
      *  ({@code Z=(?:K)\u2286T}); engine stores the literal {@code "?"}
      *  string and we do too. */
-    record Column(String name, TypeExpression type, Multiplicity multiplicity) {
+    record Column(String name, TypeExpression type, Multiplicity multiplicity,
+                  boolean multiplicityDeclared,
+                  @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(multiplicity, "multiplicity");
+        }
+
+        /** Wire-metadata-free convenience constructor (fixtures, synthesized columns). */
+        public Column(String name, TypeExpression type, Multiplicity multiplicity) {
+            this(name, type, multiplicity, false, null);
+        }
+
+        /** Wire metadata (declaredness, position) is excluded from equality, matching
+         *  every other spec record. */
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Column other
+                    && name.equals(other.name())
+                    && type.equals(other.type())
+                    && multiplicity.equals(other.multiplicity());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, type, multiplicity);
         }
     }
 

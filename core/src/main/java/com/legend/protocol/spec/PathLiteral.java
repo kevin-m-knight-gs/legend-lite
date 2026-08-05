@@ -36,13 +36,13 @@ public record PathLiteral(
     }
 
     /** One property segment: the name plus its 0-based inclusive char range inside the
-     *  literal text. A DATED segment ({@code prop(%latest)} / {@code prop(%latest, %latest)})
-     *  records each {@code %latest} argument's own range; any non-latest dated argument
-     *  marks the segment unsupported and the emitter walls. */
+     *  literal text. A DATED segment ({@code prop(%latest)}, {@code prop(%2017-6-10)},
+     *  {@code prop(Enum.VALUE)}) records each argument as a typed {@link PathArg}; an
+     *  argument outside that set marks the segment unsupported and the emitter walls. */
     public record Segment(String name, int innerStart, int innerEnd,
-                          List<ArgRange> latestArgRanges, boolean unsupportedArg) {
+                          List<PathArg> args, boolean unsupportedArg) {
         public Segment {
-            latestArgRanges = List.copyOf(latestArgRanges);
+            args = List.copyOf(args);
         }
 
         public Segment(String name, int innerStart, int innerEnd) {
@@ -50,8 +50,25 @@ public record PathLiteral(
         }
     }
 
-    /** A 0-based inclusive char range inside the literal text. */
-    public record ArgRange(int start, int end) {
+    /**
+     * One dated-segment argument. Latest and DateArg carry their 0-based inclusive char
+     * range inside the literal text (both emit under the {@code a-1} shift rule — the span
+     * starts one char BEFORE the argument); an enum argument is span-less on the wire
+     * (ProbeWireShapes "path dated and enum args").
+     */
+    public sealed interface PathArg {
+        /** {@code %latest} — a {@code latestDate} node. */
+        record Latest(int start, int end) implements PathArg {
+        }
+
+        /** {@code %date} — a {@code dateTime} node; {@code value} is the date text
+         *  WITHOUT the {@code %}, emitted verbatim; the range starts at the {@code %}. */
+        record DateArg(String value, int start, int end) implements PathArg {
+        }
+
+        /** {@code Enum.VALUE} — an {@code enumValue} node with NO sourceInformation. */
+        record EnumArg(String fullPath, String value) implements PathArg {
+        }
     }
 
     @Override

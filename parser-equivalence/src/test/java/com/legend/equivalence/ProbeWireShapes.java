@@ -440,6 +440,54 @@ class ProbeWireShapes {
                   #{I {'x' : f([]), 'y' : g([En.A, En.B]), h([1, 2])}}#;
                 }
                 """);
+        dump("time literal", """
+                function y7::a(): Any[*]
+                {
+                  %10:10:10;
+                  %10:10:10.283;
+                }
+                """);
+        dump("path dated and enum args", """
+                function y8::a(): Any[*]
+                {
+                  #/Order/biTemporalProduct(%2017-6-10, %2017-6-9)/id#;
+                }
+                function y8::b(): Any[*]
+                {
+                  #/Product/synonymsByType(ProductSynonymType.CUSIP)/value!cusip#;
+                }
+                """);
+        dump("relation type sigs", """
+                function y9::a(r: meta::pure::metamodel::relation::Relation<(col:String, col2:Integer)>[1]): Any[*]
+                {
+                  []
+                }
+                function y9::b(): meta::pure::metamodel::relation::Relation<(ID:Integer, 'FIRST NAME':String, SALARY:Float)>[1]
+                {
+                  []->cast(@meta::pure::metamodel::relation::Relation<(ID:Integer, 'FIRST NAME':String, SALARY:Float)>)->toOne()
+                }
+                """);
+        dump("fn tests named suite", """
+                function z1::a(name: String[1]): String[1]
+                {
+                  'x' + $name;
+                }
+                {
+                  suite_1
+                  (
+                    testPass | a('John') => 'xJohn';
+                    testFail | a('Jo') => 'xJo';
+                  )
+                }
+                function z1::b(): String[1]
+                {
+                  'y';
+                }
+                {
+                    t1 | b() => 'y';
+                    t2 | b() => 'yy';
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

@@ -86,7 +86,7 @@ public final class ProtocolEmitter {
         require(f.typeParams().isEmpty() && f.multParams().isEmpty(),
                 "function type/multiplicity parameters", f.qualifiedName());
         require(f.preConstraints().isEmpty(), "function constraints", f.qualifiedName());
-        require(!f.hasTests(), "function test suites (wire shape unprobed)", f.qualifiedName());
+
         b.append("{\"_type\":\"function\",\"body\":[");
         for (int i = 0; i < f.body().size(); i++) {
             if (i > 0) {
@@ -124,7 +124,61 @@ public final class ProtocolEmitter {
         stereotypes(b, f.stereotypes());
         b.append(",\"taggedValues\":");
         taggedValues(b, f.taggedValues());
-        b.append(",\"tests\":[]}");
+        b.append(",\"tests\":[");
+        for (int i = 0; i < f.testSuites().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            testSuite(b, f.testSuites().get(i));
+        }
+        b.append("]}");
+    }
+
+    /**
+     * One {@code functionTestSuite} (probes "fn tests wire", "fn tests named suite"):
+     * unnamed blocks serialize as id {@code "default"}; each test's single assertion is an
+     * {@code equalTo} with id {@code "default"} spanning the expected value; the
+     * {@code parameters} key appears only when the test call passes arguments.
+     */
+    private static void testSuite(StringBuilder b, Protocol.PTestSuite s) {
+        b.append("{\"_type\":\"functionTestSuite\",\"id\":");
+        str(b, s.id() != null ? s.id() : "default");
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, s.sourceInformation());
+        b.append(",\"testData\":[],\"tests\":[");
+        for (int i = 0; i < s.tests().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PFunctionTest t = s.tests().get(i);
+            b.append("{\"_type\":\"functionTest\",\"assertions\":[{\"_type\":\"equalTo\",\"expected\":");
+            valueSpec(b, t.expected());
+            b.append(",\"id\":\"default\",\"sourceInformation\":");
+            srcInfo(b, t.expectedSpan());
+            b.append("}],\"id\":");
+            str(b, t.id());
+            if (!t.parameters().isEmpty()) {
+                b.append(",\"parameters\":[");
+                for (int k = 0; k < t.parameters().size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PTestParam pa = t.parameters().get(k);
+                    b.append("{\"name\":");
+                    str(b, pa.name());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, pa.sourceInformation());
+                    b.append(",\"value\":");
+                    valueSpec(b, pa.value());
+                    b.append('}');
+                }
+                b.append(']');
+            }
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, t.sourceInformation());
+            b.append('}');
+        }
+        b.append("]}");
     }
 
     /** {@code _type:"association"} — ends emit as ordinary wire properties; qualified
@@ -384,6 +438,30 @@ public final class ProtocolEmitter {
                     genericTypeOf(b, n.name(), java.util.List.of(), java.util.List.of(), n.pos());
             case com.legend.protocol.TypeExpression.Generic g ->
                     genericTypeOf(b, g.name(), g.arguments(), g.multiplicityArguments(), g.pos());
+            // (col:Type, ...): relationType rawType; neither the wrapper genericType nor
+            // the relationType carries a span; undeclared column multiplicity is 0..1 ON
+            // THE WIRE; column span = name (quotes included) .. type end (ProbeWireShapes
+            // "relation type sigs")
+            case com.legend.protocol.TypeExpression.RelationType rt -> {
+                b.append("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
+                for (int i = 0; i < rt.columns().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    com.legend.protocol.TypeExpression.Column col = rt.columns().get(i);
+                    require(!col.multiplicityDeclared(),
+                            "relation column with a declared multiplicity (wire shape unprobed)",
+                            col.name());
+                    b.append("{\"genericType\":");
+                    genericType(b, col.type());
+                    b.append(",\"multiplicity\":{\"lowerBound\":0,\"upperBound\":1},\"name\":");
+                    str(b, col.name());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, requirePos(col.pos(), "relation column " + col.name()));
+                    b.append('}');
+                }
+                b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]}");
+            }
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for type expression "
                             + t.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
@@ -638,6 +716,9 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs);
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
+            // %10:10:10 -> strictTime, value VERBATIM without the '%' (probe "time literal")
+            case com.legend.protocol.spec.CTime t -> literal(b, "strictTime",
+                    quotedWritten(t.written(), "time literal"), t.pos());
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf);
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
@@ -1112,18 +1193,38 @@ public final class ProtocolEmitter {
             require(!seg.unsupportedArg(),
                     "dated path segment with a non-%latest argument", seg.name());
             b.append("{\"_type\":\"propertyPath\",\"parameters\":[");
-            for (int a = 0; a < seg.latestArgRanges().size(); a++) {
+            for (int a = 0; a < seg.args().size(); a++) {
                 if (a > 0) {
                     b.append(',');
                 }
-                // the dated ARGUMENT shifts by one LESS than the property chunk —
-                // a-1 rather than a-2 (ProbeWireShapes "alias dated tref2 gft2" b)
-                com.legend.protocol.spec.PathLiteral.ArgRange r = seg.latestArgRanges().get(a);
-                b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
-                srcInfo(b, new SourceInfo(lit.sourceId(),
-                        line, s + len + r.start() - 1,
-                        line, s + len + r.end() - 1));
-                b.append('}');
+                // dated ARGUMENTS shift by one LESS than the property chunk — a-1
+                // rather than a-2 (ProbeWireShapes "alias dated tref2 gft2" b,
+                // "path dated and enum args"); enum args carry no span at all
+                switch (seg.args().get(a)) {
+                    case com.legend.protocol.spec.PathLiteral.PathArg.Latest r -> {
+                        b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
+                        srcInfo(b, new SourceInfo(lit.sourceId(),
+                                line, s + len + r.start() - 1,
+                                line, s + len + r.end() - 1));
+                        b.append('}');
+                    }
+                    case com.legend.protocol.spec.PathLiteral.PathArg.DateArg r -> {
+                        b.append("{\"_type\":\"dateTime\",\"sourceInformation\":");
+                        srcInfo(b, new SourceInfo(lit.sourceId(),
+                                line, s + len + r.start() - 1,
+                                line, s + len + r.end() - 1));
+                        b.append(",\"value\":");
+                        str(b, r.value());
+                        b.append('}');
+                    }
+                    case com.legend.protocol.spec.PathLiteral.PathArg.EnumArg e -> {
+                        b.append("{\"_type\":\"enumValue\",\"fullPath\":");
+                        str(b, e.fullPath());
+                        b.append(",\"value\":");
+                        str(b, e.value());
+                        b.append('}');
+                    }
+                }
             }
             b.append("],\"property\":");
             str(b, seg.name());
@@ -1253,6 +1354,18 @@ public final class ProtocolEmitter {
                     "ProtocolEmitter has no rule for graph-fetch argument "
                             + p.getClass().getSimpleName() + " — probe, do not guess.");
         }
+    }
+
+    /** Quote a literal's REQUIRED written form for the wire. */
+    private static String quotedWritten(@com.legend.Nullable String written, String what) {
+        if (written == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter requires the source-written form for " + what
+                            + " — synthesized nodes are not emittable.");
+        }
+        StringBuilder q = new StringBuilder();
+        str(q, written);
+        return q.toString();
     }
 
     /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */

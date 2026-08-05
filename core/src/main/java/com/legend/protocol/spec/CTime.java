@@ -14,8 +14,26 @@ import java.util.Objects;
  * pattern-match on {@link PureTimeLiteral} variants instead of
  * re-parsing the string.
  */
-public record CTime(PureTimeLiteral value) implements ValueSpecification {
+public record CTime(PureTimeLiteral value, @com.legend.Nullable String written,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        implements ValueSpecification {
     public CTime {
         Objects.requireNonNull(value, "value");
+    }
+
+    /** Position-free convenience constructor. */
+    public CTime(PureTimeLiteral value) {
+        this(value, null, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof CTime other && value.equals(other.value());
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
     }
 }

@@ -43,6 +43,40 @@ public final class Protocol {
     }
 
     /**
+     * One {@code functionTestSuite} (legend-testable trailing block). A {@code null} id is
+     * the UNNAMED brace form — the wire spells it {@code "default"} and its span covers
+     * the whole block; a named suite ({@code name ( ... )}) spans name..close-paren
+     * (ProbeWireShapes "fn tests wire", "fn tests named suite").
+     */
+    public record PTestSuite(@com.legend.Nullable String id,
+                             com.legend.protocol.SourceInfo sourceInformation,
+                             List<PFunctionTest> tests) {
+        public PTestSuite {
+            tests = List.copyOf(tests);
+        }
+    }
+
+    /** One {@code functionTest}: {@code id | call(args) => expected;} — span includes the
+     *  semicolon; the single assertion is an {@code equalTo} with id {@code "default"}
+     *  spanning the expected value. */
+    public record PFunctionTest(String id,
+                                com.legend.protocol.SourceInfo sourceInformation,
+                                List<PTestParam> parameters,
+                                com.legend.protocol.spec.ValueSpecification expected,
+                                com.legend.protocol.SourceInfo expectedSpan) {
+        public PFunctionTest {
+            parameters = List.copyOf(parameters);
+        }
+    }
+
+    /** One test-call argument, keyed by the SIGNATURE parameter name at its position;
+     *  both the parameter and its value span the argument text. */
+    public record PTestParam(String name,
+                             com.legend.protocol.spec.ValueSpecification value,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /**
      * {@code _type:"function"} — the wire NAME is SIGNATURE-MANGLED
      * ({@code f_Integer_1__String_MANY__Integer_1_}, verified via ProbeWireShapes
      * "function mangling"): simple type names (packages stripped, generic arguments
@@ -56,7 +90,7 @@ public final class Protocol {
                             com.legend.protocol.Multiplicity returnMultiplicity,
                             List<com.legend.protocol.spec.ValueSpecification> body,
                             List<com.legend.protocol.ConstraintDefinition> preConstraints,
-                            boolean hasTests,
+                            List<PTestSuite> testSuites,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation) implements Element {
@@ -66,6 +100,7 @@ public final class Protocol {
             parameters = List.copyOf(parameters);
             body = List.copyOf(body);
             preConstraints = List.copyOf(preConstraints);
+            testSuites = List.copyOf(testSuites);
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);
         }

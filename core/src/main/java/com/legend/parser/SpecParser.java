@@ -890,7 +890,8 @@ public final class SpecParser implements TokenStreamCursor {
         pos++;
         String value = raw.substring(1);
         try {
-            return new CTime(PureTimeLiteral.parse(value));
+            return new CTime(PureTimeLiteral.parse(value), value,
+                    spanOf(timePos, timePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, timePos,
                     "invalid time literal '%" + value + "': " + e.getMessage());
@@ -2360,26 +2361,38 @@ public final class SpecParser implements TokenStreamCursor {
                             ? lf.body().get(0)
                             : new Variable(arg.strip()));
                 }
-                // wire pieces for the DATED segment: each %latest argument's own range;
-                // any other dated argument marks the segment unsupported (emitter walls)
-                List<com.legend.protocol.spec.PathLiteral.ArgRange> latestRanges =
+                // wire pieces for the DATED segment: %latest / %date carry their char
+                // range, Enum.VALUE is span-less; anything else walls at the emitter
+                List<com.legend.protocol.spec.PathLiteral.PathArg> wireArgs =
                         new ArrayList<>();
                 boolean unsupported = false;
                 int scan = 0;
                 for (String arg : dated.group(2).split(",")) {
                     String trimmed = arg.strip();
+                    int at = trimmed.isEmpty() ? -1 : rawSeg.indexOf(trimmed, scan);
+                    if (at >= 0) {
+                        scan = at + trimmed.length();
+                    }
                     if (trimmed.equals("%latest")) {
-                        int at = rawSeg.indexOf("%latest", scan);
-                        latestRanges.add(new com.legend.protocol.spec.PathLiteral.ArgRange(
+                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.Latest(
                                 cursor + lead + at, cursor + lead + at + 6));
-                        scan = at + 7;
+                    } else if (trimmed.startsWith("%")
+                            && trimmed.substring(1).matches("[0-9T:.Z+\\-]+")) {
+                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.DateArg(
+                                trimmed.substring(1),
+                                cursor + lead + at,
+                                cursor + lead + at + trimmed.length() - 1));
+                    } else if (trimmed.matches("[\\w:]+\\.\\w+")) {
+                        int dot = trimmed.lastIndexOf('.');
+                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
+                                trimmed.substring(0, dot), trimmed.substring(dot + 1)));
                     } else {
                         unsupported = true;
                     }
                 }
                 pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
                         dated.group(1), cursor + lead, cursor + lead + seg.length() - 1,
-                        latestRanges, unsupported));
+                        wireArgs, unsupported));
                 body = new AppliedFunction(dated.group(1), args);
                 continue;
             }
