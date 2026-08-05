@@ -1,5 +1,7 @@
 # Burn-down index — every cause group, by family (2026-08-05)
 
+> **New here? Start with [`CORPUS_BURNDOWN_HANDOFF.md`](CORPUS_BURNDOWN_HANDOFF.md).**
+
 Companion to [`CORPUS_STUDY_2026_08_ALL.md`](CORPUS_STUDY_2026_08_ALL.md) (synthesis) and
 [`ARCHITECTURE_AUDIT_2026_08.md`](ARCHITECTURE_AUDIT_2026_08.md) (design).
 

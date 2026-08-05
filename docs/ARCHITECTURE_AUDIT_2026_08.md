@@ -2,6 +2,8 @@
 
 Companion to [`CORPUS_STUDY_2026_08_ALL.md`](CORPUS_STUDY_2026_08_ALL.md).
 
+> **New here? Start with [`CORPUS_BURNDOWN_HANDOFF.md`](CORPUS_BURNDOWN_HANDOFF.md).**
+
 **The question asked:** for the features that *pass*, did we build the right design — or
 did we fix point tests with point solutions?
 

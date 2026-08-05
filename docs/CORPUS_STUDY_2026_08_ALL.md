@@ -1,5 +1,7 @@
 # Corpus study — ALL 484 non-passing rows (2026-08-05)
 
+> **New here? Start with [`CORPUS_BURNDOWN_HANDOFF.md`](CORPUS_BURNDOWN_HANDOFF.md).**
+>
 > **Supersedes** [`CORPUS_STUDY_2026_08.md`](CORPUS_STUDY_2026_08.md) (356 rows, partial denominator)
 > and, as a cause taxonomy, [`CORPUS_TAXONOMY.md`](CORPUS_TAXONOMY.md).
 >
