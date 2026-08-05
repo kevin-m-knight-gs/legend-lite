@@ -1007,17 +1007,19 @@ public final class ElementParser implements TokenStreamCursor {
      * {@code <T,V|m,n>}, parameters, {@code :R[m]}.
      */
     private record FunctionSignature(
+            int declStart,
             String qualifiedName,
             List<String> typeParams,
             List<String> multParams,
-            List<FunctionDefinition.ParameterDefinition> params,
+            List<com.legend.protocol.ParameterDefinition> params,
             TypeExpression returnType,
             Multiplicity returnMult,
-            List<StereotypeApplication> stereotypes,
-            List<TaggedValue> taggedValues) {
+            List<com.legend.protocol.Protocol.PStereotype> stereotypes,
+            List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {
     }
 
     private FunctionSignature parseFunctionSignature() {
+        int declStart = pos;
         expect(TokenType.FUNCTION);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
         List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
@@ -1026,7 +1028,7 @@ public final class ElementParser implements TokenStreamCursor {
         List<String> multParams = new ArrayList<>();
         parseTypeAndMultiplicityParameters(typeParams, multParams);
         expect(TokenType.PAREN_OPEN);
-        List<FunctionDefinition.ParameterDefinition> params = new ArrayList<>();
+        List<com.legend.protocol.ParameterDefinition> params = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
             params.add(parseFunctionParameter());
             while (match(TokenType.COMMA)) {
@@ -1037,22 +1039,24 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.COLON);
         TypeExpression returnType = parseType();
         Multiplicity returnMult = parseMultiplicity();
-        // Functions have no emitter yet, so the signature keeps the model's annotation shape.
-        // It converts back when function emission lands.
-        return new FunctionSignature(qualifiedName, List.copyOf(typeParams),
+        return new FunctionSignature(declStart, qualifiedName, List.copyOf(typeParams),
                 List.copyOf(multParams), params, returnType, returnMult,
-                com.legend.model.FromProtocol.stereotypes(stereotypes),
-                com.legend.model.FromProtocol.taggedValues(taggedValues));
+                stereotypes, taggedValues);
     }
 
     private FunctionDefinition parseFunctionDefinition() {
+        return com.legend.model.FromProtocol.toFunctionDefinition(parseFunctionProtocol());
+    }
+
+    /** Parses one {@code function} declaration at the cursor into its protocol record —
+     *  the per-element protocol entry point (see {@link #at}). Constraint blocks are
+     *  CAPTURED (the wire carries pre/postConstraints; the emitter walls until probed). */
+    public com.legend.protocol.Protocol.PFunction parseFunctionProtocol() {
         FunctionSignature sig = parseFunctionSignature();
 
-        // Optional constraints block — engine accepts then discards.
-        // We accept and discard for parity; future work may attach these.
-        if (peek() == TokenType.BRACKET_OPEN) {
-            parseConstraints();
-        }
+        List<ConstraintDefinition> constraints = peek() == TokenType.BRACKET_OPEN
+                ? parseConstraints()
+                : List.of();
 
         expect(TokenType.BRACE_OPEN);
         int bodyStart = pos;
@@ -1066,10 +1070,12 @@ public final class ElementParser implements TokenStreamCursor {
         List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
         expect(TokenType.BRACE_CLOSE);
 
-        return new FunctionDefinition(
-                sig.qualifiedName(), sig.typeParams(), sig.multParams(),
-                sig.params(), sig.returnType(), sig.returnMult(),
-                body, sig.stereotypes(), sig.taggedValues());
+        String[] pn = com.legend.protocol.Protocol.splitFqn(sig.qualifiedName());
+        return new com.legend.protocol.Protocol.PFunction(pn[0], pn[1],
+                sig.typeParams(), sig.multParams(), sig.params(),
+                sig.returnType(), sig.returnMult(), body, constraints,
+                sig.stereotypes(), sig.taggedValues(),
+                span(sig.declStart(), pos - 1));
     }
 
     /**
@@ -1090,16 +1096,21 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.SEMI_COLON);
         return new NativeFunctionDefinition(
                 sig.qualifiedName(), sig.typeParams(), sig.multParams(),
-                sig.params(), sig.returnType(), sig.returnMult(),
-                sig.stereotypes(), sig.taggedValues());
+                com.legend.model.FromProtocol.toFunctionParams(sig.params()),
+                sig.returnType(), sig.returnMult(),
+                com.legend.model.FromProtocol.stereotypes(sig.stereotypes()),
+                com.legend.model.FromProtocol.taggedValues(sig.taggedValues()));
     }
 
-    private FunctionDefinition.ParameterDefinition parseFunctionParameter() {
+    private com.legend.protocol.ParameterDefinition parseFunctionParameter() {
+        int pStart = pos;
         String name = parseIdentifier();
         expect(TokenType.COLON);
         TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
-        return new FunctionDefinition.ParameterDefinition(name, type, mult);
+        // Engine convention: a parameter's span covers its whole `name: Type[mult]` decl.
+        return new com.legend.protocol.ParameterDefinition(name, type, mult,
+                span(pStart, pos - 1));
     }
 
     /**
@@ -1797,10 +1808,9 @@ public final class ElementParser implements TokenStreamCursor {
         int tagEnd = pos - 1;
         expect(TokenType.EQUAL);
         String rawValue = consume(TokenType.STRING);
-        String value = rawValue;
-        if (value.startsWith("'") && value.endsWith("'") && value.length() >= 2) {
-            value = value.substring(1, value.length() - 1);
-        }
+        // Unquote AND unescape: the wire carries the LOGICAL string ("it's", not "it\\'s") —
+        // quote-stripping alone left escapes behind (harness DIFF on dateExtension.pure).
+        String value = TokenStreamCursor.unquoteAndUnescape(rawValue, this);
         // NOTE the asymmetry, verified against legend-engine: a TAG's sourceInformation covers only
         // the tag name, while a STEREOTYPE's covers the whole profile.name.
         return new com.legend.protocol.Protocol.PTaggedValue(

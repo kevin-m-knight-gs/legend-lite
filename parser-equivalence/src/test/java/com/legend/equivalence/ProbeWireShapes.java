@@ -24,11 +24,16 @@ class ProbeWireShapes {
         System.out.println("======== " + label + " ========");
         System.out.println(code);
         System.out.println("--------");
-        PureModelContextData pmcd = parser.parseModel(code);
-        for (PackageableElement e : pmcd.getElements()) {
-            if (!"SectionIndex".equals(e.name)) {
-                System.out.println(mapper.writeValueAsString(e));
+        try {
+            PureModelContextData pmcd = parser.parseModel(code);
+            for (PackageableElement e : pmcd.getElements()) {
+                if (!"SectionIndex".equals(e.name)) {
+                    System.out.println(mapper.writeValueAsString(e));
+                }
             }
+        } catch (Exception e) {
+            // a rejected probe input is itself data — record it and keep dumping
+            System.out.println("ENGINE-REJECTED: " + String.valueOf(e.getMessage()).replaceAll("\\s+", " "));
         }
         System.out.println();
     }
@@ -212,6 +217,20 @@ class ProbeWireShapes {
                 """);
         dump("native function", """
                 native function k::n(a: Integer[1]): Integer[1];
+                """);
+        dump("function mangling", """
+                function k::g(a: Integer[0..1], b: String[1..*], c: k::X[2], d: Date[*]): String[0..1]
+                {
+                  'x';
+                }
+                function k::h(): Boolean[1]
+                {
+                  true;
+                }
+                function k::i(xs: k::List<k::X>[1]): Integer[1]
+                {
+                  1;
+                }
                 """);
         dump("measure", """
                 Measure k::M

@@ -69,10 +69,61 @@ public final class ProtocolEmitter {
         switch (e) {
             case PClass c -> pclass(b, c);
             case Protocol.PAssociation a -> association(b, a);
+            case Protocol.PFunction fn -> function(b, fn);
             case Protocol.PEnumeration en -> enumeration(b, en);
             case Protocol.PProfile pr -> profile(b, pr);
             case PSectionIndex s -> sectionIndex(b, s);
         }
+    }
+
+    /**
+     * {@code _type:"function"} — the wire name is SIGNATURE-MANGLED
+     * ({@link Protocol.PFunction#mangledName()}); parameters are typed vars; the body is the
+     * bare statement list. Type/multiplicity parameters and constraint blocks wall until
+     * their wire shapes are probed.
+     */
+    private static void function(StringBuilder b, Protocol.PFunction f) {
+        require(f.typeParams().isEmpty() && f.multParams().isEmpty(),
+                "function type/multiplicity parameters", f.qualifiedName());
+        require(f.preConstraints().isEmpty(), "function constraints", f.qualifiedName());
+        b.append("{\"_type\":\"function\",\"body\":[");
+        for (int i = 0; i < f.body().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, f.body().get(i));
+        }
+        b.append("],\"name\":");
+        str(b, f.mangledName());
+        b.append(",\"package\":");
+        str(b, f.pkg());
+        b.append(",\"parameters\":[");
+        for (int i = 0; i < f.parameters().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.ParameterDefinition p = f.parameters().get(i);
+            b.append("{\"_type\":\"var\",\"genericType\":");
+            genericType(b, p.type());
+            b.append(",\"multiplicity\":");
+            multiplicity(b, p.multiplicity());
+            b.append(",\"name\":");
+            str(b, p.name());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, requirePos(p.pos(), "function parameter " + p.name()));
+            b.append('}');
+        }
+        b.append("],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":");
+        genericType(b, f.returnType());
+        b.append(",\"returnMultiplicity\":");
+        multiplicity(b, f.returnMultiplicity());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, f.sourceInformation());
+        b.append(",\"stereotypes\":");
+        stereotypes(b, f.stereotypes());
+        b.append(",\"taggedValues\":");
+        taggedValues(b, f.taggedValues());
+        b.append(",\"tests\":[]}");
     }
 
     /** {@code _type:"association"} — ends emit as ordinary wire properties; qualified

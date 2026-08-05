@@ -50,6 +50,24 @@ public final class FromProtocol {
         return out;
     }
 
+    /** Protocol function parameters to the model's nested shape. */
+    public static java.util.List<FunctionDefinition.ParameterDefinition> toFunctionParams(
+            java.util.List<com.legend.protocol.ParameterDefinition> ps) {
+        java.util.List<FunctionDefinition.ParameterDefinition> out = new ArrayList<>(ps.size());
+        for (com.legend.protocol.ParameterDefinition p : ps) {
+            out.add(new FunctionDefinition.ParameterDefinition(p.name(), p.type(), p.multiplicity()));
+        }
+        return out;
+    }
+
+    /** Protocol function to the model's — UNmangled FQN; the wire name is the emitter's. */
+    public static FunctionDefinition toFunctionDefinition(Protocol.PFunction f) {
+        return new FunctionDefinition(
+                f.qualifiedName(), f.typeParams(), f.multParams(),
+                toFunctionParams(f.parameters()), f.returnType(), f.returnMultiplicity(),
+                f.body(), stereotypes(f.stereotypes()), taggedValues(f.taggedValues()));
+    }
+
     /** Protocol association to the model's — two ends plus qualified properties. */
     public static AssociationDefinition toAssociationDefinition(Protocol.PAssociation a) {
         java.util.List<AssociationDefinition.AssociationEndDefinition> ends =

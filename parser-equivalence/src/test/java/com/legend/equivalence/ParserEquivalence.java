@@ -101,6 +101,12 @@ public final class ParserEquivalence {
         for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.ASSOCIATION)) {
             sites.add(new int[]{i, 3});
         }
+        // FUNCTION enrollment PENDING: emission is pinned green on probed shapes
+        // (ConstraintEmissionTest), but corpus-wide enrollment surfaced 47 span DIFFs in
+        // deep multi-statement bodies (statement-context rules like the let rule, not yet
+        // probed). Enrolling with known DIFFs would break the zero-DIFF gate; enrolling
+        // with silent exclusions would be worse. Re-enable with: sites.add(new int[]{i, 4})
+        // over topLevelIndexes(ts, TokenType.FUNCTION) once the statement-span rules land.
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -117,10 +123,16 @@ public final class ParserEquivalence {
                     Protocol.PProfile pr = ElementParser.at(ts, site[0]).parseProfileDefinition();
                     el = pr;
                     fqn = pr.qualifiedName();
-                } else {
+                } else if (site[1] == 3) {
                     Protocol.PAssociation a = ElementParser.at(ts, site[0]).parseAssociationDefinition();
                     el = a;
                     fqn = a.qualifiedName();
+                } else {
+                    Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
+                    el = fn;
+                    // the reference keys functions by their MANGLED path
+                    fqn = fn.pkg().isEmpty() ? fn.mangledName()
+                            : fn.pkg() + "::" + fn.mangledName();
                 }
             } catch (Throwable t) {
                 out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));

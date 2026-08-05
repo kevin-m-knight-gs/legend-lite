@@ -38,8 +38,84 @@ public final class Protocol {
     }
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
-    public sealed interface Element permits PClass, PAssociation, PEnumeration, PProfile,
-            PSectionIndex {
+    public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
+            PProfile, PSectionIndex {
+    }
+
+    /**
+     * {@code _type:"function"} — the wire NAME is SIGNATURE-MANGLED
+     * ({@code f_Integer_1__String_MANY__Integer_1_}, verified via ProbeWireShapes
+     * "function mangling"): simple type names (packages stripped, generic arguments
+     * dropped), multiplicities as {@code 1}/{@code MANY}/{@code $0_1$}/{@code $1_MANY$},
+     * parameters joined by {@code __}, return appended with a trailing underscore.
+     */
+    public record PFunction(String pkg, String name,
+                            List<String> typeParams, List<String> multParams,
+                            List<com.legend.protocol.ParameterDefinition> parameters,
+                            com.legend.protocol.TypeExpression returnType,
+                            com.legend.protocol.Multiplicity returnMultiplicity,
+                            List<com.legend.protocol.spec.ValueSpecification> body,
+                            List<com.legend.protocol.ConstraintDefinition> preConstraints,
+                            List<PStereotype> stereotypes,
+                            List<PTaggedValue> taggedValues,
+                            com.legend.protocol.SourceInfo sourceInformation) implements Element {
+        public PFunction {
+            typeParams = List.copyOf(typeParams);
+            multParams = List.copyOf(multParams);
+            parameters = List.copyOf(parameters);
+            body = List.copyOf(body);
+            preConstraints = List.copyOf(preConstraints);
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
+
+        /** The UNmangled FQN — legend-lite's key. */
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+
+        /** The wire name. Throws (loudly) on shapes the mangle rules do not cover yet.
+         *  The return segment joins with {@code __} after parameters, {@code _} when there
+         *  are none: {@code f_Integer_1__String_MANY__Integer_1_}, {@code h__Boolean_1_}. */
+        public String mangledName() {
+            StringBuilder m = new StringBuilder(name).append('_');
+            for (int i = 0; i < parameters.size(); i++) {
+                if (i > 0) {
+                    m.append("__");
+                }
+                com.legend.protocol.ParameterDefinition pd = parameters.get(i);
+                m.append(mangleType(pd.type())).append('_').append(mangleMult(pd.multiplicity()));
+            }
+            m.append(parameters.isEmpty() ? "_" : "__")
+                    .append(mangleType(returnType)).append('_')
+                    .append(mangleMult(returnMultiplicity)).append('_');
+            return m.toString();
+        }
+
+        private static String mangleType(com.legend.protocol.TypeExpression t) {
+            String full = switch (t) {
+                case com.legend.protocol.TypeExpression.NameRef n -> n.name();
+                case com.legend.protocol.TypeExpression.Generic g -> g.name();
+                default -> throw new UnsupportedOperationException(
+                        "no mangle rule for parameter type " + t.getClass().getSimpleName());
+            };
+            int i = full.lastIndexOf("::");
+            return i < 0 ? full : full.substring(i + 2);
+        }
+
+        private static String mangleMult(com.legend.protocol.Multiplicity mult) {
+            if (!(mult instanceof com.legend.protocol.Multiplicity.Concrete c)) {
+                throw new UnsupportedOperationException("no mangle rule for a multiplicity parameter");
+            }
+            String lo = String.valueOf(c.lowerBound());
+            if (c.upperBound() == null) {
+                return c.lowerBound() == 0 ? "MANY" : "$" + lo + "_MANY$";
+            }
+            if (c.upperBound().intValue() == c.lowerBound()) {
+                return lo;
+            }
+            return "$" + lo + "_" + c.upperBound() + "$";
+        }
     }
 
     /** {@code _type:"association"} — ends are ordinary wire properties; qualified properties

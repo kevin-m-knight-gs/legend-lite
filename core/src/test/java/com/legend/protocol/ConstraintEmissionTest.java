@@ -289,4 +289,42 @@ class ConstraintEmissionTest {
         assertEquals(EXPECTED_ASSOCIATION,
                 ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseAssociationDefinition()));
     }
+
+    private static final String EXPECTED_FN_MANGLE_G =
+            "{\"_type\":\"function\",\"body\":[{\"_type\":\"string\",\"sourceInformation\":{\"endColumn\":5,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":3},\"value\":\"x\"}],\"name\":\"g_Integer_$0_1$__String_$1_MANY$__X_2__Date_MANY__String_$0_1$_\",\"package\":\"k\",\"parameters\":[{\"_type\":\"var\",\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Integer\",\"sourceInformation\":{\"endColumn\":24,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":18,\"startLine\":1}},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":0,\"upperBound\":1},\"name\":\"a\",\"sourceInformation\":{\"endColumn\":30,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":15,\"startLine\":1}},{\"_type\":\"var\",\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"String\",\"sourceInformation\":{\"endColumn\":41,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":36,\"startLine\":1}},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":1},\"name\":\"b\",\"sourceInformation\":{\"endColumn\":47,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":33,\"startLine\":1}},{\"_type\":\"var\",\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"k::X\",\"sourceInformation\":{\"endColumn\":56,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":53,\"startLine\":1}},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":2,\"upperBound\":2},\"name\":\"c\",\"sourceInformation\":{\"endColumn\":59,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":50,\"startLine\":1}},{\"_type\":\"var\",\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Date\",\"sourceInformation\":{\"endColumn\":68,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":65,\"startLine\":1}},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":0},\"name\":\"d\",\"sourceInformation\":{\"endColumn\":71,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":62,\"startLine\":1}}],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"String\",\"sourceInformation\":{\"endColumn\":80,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":75,\"startLine\":1}},\"typeArguments\":[],\"typeVariableValues\":[]},\"returnMultiplicity\":{\"lowerBound\":0,\"upperBound\":1},\"sourceInformation\":{\"endColumn\":1,\"endLine\":4,\"sourceId\":\"\",\"startColumn\":1,\"startLine\":1},\"stereotypes\":[],\"taggedValues\":[],\"tests\":[]}";
+
+    private static final String EXPECTED_FN_MANGLE_H =
+            "{\"_type\":\"function\",\"body\":[{\"_type\":\"boolean\",\"sourceInformation\":{\"endColumn\":6,\"endLine\":7,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":7},\"value\":true}],\"name\":\"h__Boolean_1_\",\"package\":\"k\",\"parameters\":[],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Boolean\",\"sourceInformation\":{\"endColumn\":24,\"endLine\":5,\"sourceId\":\"\",\"startColumn\":18,\"startLine\":5}},\"typeArguments\":[],\"typeVariableValues\":[]},\"returnMultiplicity\":{\"lowerBound\":1,\"upperBound\":1},\"sourceInformation\":{\"endColumn\":1,\"endLine\":8,\"sourceId\":\"\",\"startColumn\":1,\"startLine\":5},\"stereotypes\":[],\"taggedValues\":[],\"tests\":[]}";
+
+    private static final String EXPECTED_FN_MANGLE_I =
+            "{\"_type\":\"function\",\"body\":[{\"_type\":\"integer\",\"sourceInformation\":{\"endColumn\":3,\"endLine\":11,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":11},\"value\":1}],\"name\":\"i_List_1__Integer_1_\",\"package\":\"k\",\"parameters\":[{\"_type\":\"var\",\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"k::List\",\"sourceInformation\":{\"endColumn\":31,\"endLine\":9,\"sourceId\":\"\",\"startColumn\":19,\"startLine\":9}},\"typeArguments\":[{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"k::X\",\"sourceInformation\":{\"endColumn\":30,\"endLine\":9,\"sourceId\":\"\",\"startColumn\":27,\"startLine\":9}},\"typeArguments\":[],\"typeVariableValues\":[]}],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":1,\"upperBound\":1},\"name\":\"xs\",\"sourceInformation\":{\"endColumn\":34,\"endLine\":9,\"sourceId\":\"\",\"startColumn\":15,\"startLine\":9}}],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Integer\",\"sourceInformation\":{\"endColumn\":44,\"endLine\":9,\"sourceId\":\"\",\"startColumn\":38,\"startLine\":9}},\"typeArguments\":[],\"typeVariableValues\":[]},\"returnMultiplicity\":{\"lowerBound\":1,\"upperBound\":1},\"sourceInformation\":{\"endColumn\":1,\"endLine\":12,\"sourceId\":\"\",\"startColumn\":1,\"startLine\":9},\"stereotypes\":[],\"taggedValues\":[],\"tests\":[]}";
+
+    /** Function wire names are SIGNATURE-MANGLED: simple type names (packages stripped,
+     *  generic args dropped), multiplicities as 1/MANY/$0_1$/$1_MANY$/n, params joined by
+     *  double underscore, return appended with a trailing underscore; zero params collapse
+     *  to name__Return. */
+    @Test
+    void functionMangligAndEmissionAreByteIdentical() {
+        com.legend.lexer.TokenStream ts = com.legend.lexer.Lexer.tokenize("""
+                function k::g(a: Integer[0..1], b: String[1..*], c: k::X[2], d: Date[*]): String[0..1]
+                {
+                  'x';
+                }
+                function k::h(): Boolean[1]
+                {
+                  true;
+                }
+                function k::i(xs: k::List<k::X>[1]): Integer[1]
+                {
+                  1;
+                }
+                """);
+        java.util.List<Integer> idx = ElementParser.topLevelIndexes(ts, TokenType.FUNCTION);
+        assertEquals(EXPECTED_FN_MANGLE_G,
+                ProtocolEmitter.emitElement(ElementParser.at(ts, idx.get(0)).parseFunctionProtocol()));
+        assertEquals(EXPECTED_FN_MANGLE_H,
+                ProtocolEmitter.emitElement(ElementParser.at(ts, idx.get(1)).parseFunctionProtocol()));
+        assertEquals(EXPECTED_FN_MANGLE_I,
+                ProtocolEmitter.emitElement(ElementParser.at(ts, idx.get(2)).parseFunctionProtocol()));
+    }
 }
