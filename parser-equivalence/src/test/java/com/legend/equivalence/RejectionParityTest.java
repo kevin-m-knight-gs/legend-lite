@@ -30,8 +30,11 @@ class RejectionParityTest {
     private record Pin(String id, String input, int line, int col) {
     }
 
-    private static final Pattern ERROR_PIN =
-            Pattern.compile("^PARSER error at \\[(\\d+):(\\d+)(?:-[0-9:]+)?\\]");
+    /** Engine spelling {@code PARSER error at [l:c]} and legend-pure spelling
+     *  {@code Parser error at (resource:... line:l column:c)}. */
+    private static final Pattern ERROR_PIN = Pattern.compile(
+            "^PARSER error at \\[(\\d+):(\\d+)(?:-[0-9:]+)?\\]"
+                    + "|^Parser error at \\(resource:\\S+ line:(\\d+) column:(\\d+)\\)");
 
     /** Sections the Pure-only filter admits — mirrors ParserEquivalence.compare. */
     private static final Pattern SECTION = Pattern.compile("(?m)^###(\\w+)");
@@ -113,7 +116,7 @@ class RejectionParityTest {
     }
 
     /** Bumped deliberately as extraction improves. Lowering it requires saying why. */
-    private static final int MIN_PINS = 30;
+    private static final int MIN_PINS = 39;
 
     private List<Pin> extractPins() {
         List<Pin> pins = new ArrayList<>();
@@ -142,8 +145,10 @@ class RejectionParityTest {
                     if (!pureOnly) {
                         continue;
                     }
+                    String lineGroup = m.group(1) != null ? m.group(1) : m.group(3);
+                    String colGroup = m.group(2) != null ? m.group(2) : m.group(4);
                     pins.add(new Pin(fr.id() + "#" + i, input,
-                            Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))));
+                            Integer.parseInt(lineGroup), Integer.parseInt(colGroup)));
                 }
             }
         }
