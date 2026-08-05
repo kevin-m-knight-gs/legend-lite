@@ -27,9 +27,24 @@ public final class Corpus {
     /** The wire dialect for raw corpus SQL — ONE implementation (core DuckDb). */
     static final com.legend.sql.dialect.DuckDb DIALECT = new com.legend.sql.dialect.DuckDb();
 
-    /** Root of the local legend-engine checkout (the corpus is read in place). */
+    /**
+     * Root of the local legend-engine checkout (the corpus is read in place).
+     *
+     * <p>Defaults under {@code user.home}, matching
+     * {@code parser-equivalence}'s {@code Corpus.engineRoot()}. It previously
+     * hard-coded another account's home, which exists and is readable on the
+     * build machine — so the plain {@code mvn test} invocation silently read a
+     * DIFFERENT checkout than the one the committed scoreboard was generated
+     * against, and the sweep (which rewrites docs/RELATIONAL_CORPUS.md in
+     * place) reported ~29 phantom missing tests. The runner's own regression
+     * gate caught it, but only after the rewrite.
+     *
+     * <p>Override with {@code -Dlegend.engine.root=...} to point at a
+     * different checkout. If the resolved path has no corpus, the sweep skips
+     * via {@link #available()} rather than half-running.
+     */
     public static final Path ENGINE_ROOT = Path.of(System.getProperty(
-            "legend.engine.root", "/Users/neema/legend/legend-engine"));
+            "legend.engine.root", System.getProperty("user.home") + "/legend/legend-engine"));
 
     public static final Path RELATIONAL = ENGINE_ROOT.resolve(
             "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"

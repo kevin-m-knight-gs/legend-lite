@@ -1487,7 +1487,14 @@ public final class NameResolver {
                 changed = true;
             }
         }
-        return changed ? Map.copyOf(out) : props;
+        // NOT Map.copyOf: its iteration order is randomized by a per-JVM-run
+        // salt (java.util.ImmutableCollections.SALT, seeded from nanoTime), so
+        // copying here THREW AWAY the LinkedHashMap order built two lines up.
+        // ^Class(...) property checks report the FIRST failing property, so the
+        // wall text for an ill-typed instantiation changed between runs and the
+        // corpus scoreboard was not byte-reproducible. NewInstance's own compact
+        // constructor documents this exact hazard; the damage was done before it.
+        return changed ? java.util.Collections.unmodifiableMap(out) : props;
     }
 
     private static TypeAnnotation.RelationShape.Column resolveRelationShapeColumn(

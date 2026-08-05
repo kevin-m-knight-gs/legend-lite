@@ -112,8 +112,15 @@ public class RelationalCorpusRunner {
         // BeforePackage setups live NEXT TO the tests (functions/tests,
         // query, mapping families) — scan every covered file plus the
         // functions/tests dir (meta::relational::tests::query::setUp et al)
+        // .sorted(): filesystem order is not a contract (STATE_AUDIT S4.4).
+        // addBeforePackages feeds putIfAbsent chains that decide WHICH body a
+        // helper call expands to, so an unsorted walk makes the scoreboard's
+        // wall TEXT flap between runs — demonstrated on testViewToTDS and
+        // testResultToJsonStream, which reported different first-failures on
+        // consecutive sweeps at identical HEAD and corpus root.
         try (Stream<Path> s = Files.walk(Corpus.RELATIONAL.resolve("functions/tests"))) {
             s.filter(f -> f.toString().endsWith(".pure"))
+                    .sorted()
                     .forEach(f -> {
                         try {
                             runner.addBeforePackages(Files.readString(f));
@@ -130,7 +137,9 @@ public class RelationalCorpusRunner {
         for (String family : allFamilies()) {
             Path p = Corpus.RELATIONAL.resolve(family);
             try (Stream<Path> s = Files.list(p)) {
-                for (Path f : s.filter(x -> x.toString().endsWith(".pure")).toList()) {
+                // .sorted(): see the note on the functions/tests walk above
+                for (Path f : s.filter(x -> x.toString().endsWith(".pure"))
+                        .sorted().toList()) {
                     runner.addBeforePackages(Files.readString(f), family);
                 }
             }
@@ -164,13 +173,43 @@ public class RelationalCorpusRunner {
             }
         }
 
+        // THE DENOMINATOR, stated by the discovery path itself — no external
+        // grep, no arithmetic, nothing to argue with. Every core_relational
+        // test is either runnable or excluded-with-a-named-reason.
+        Map<String, Long> byReason = Runner.CENSUS_EXCLUDED.values().stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        r -> r == null ? "unknown" : r,
+                        java.util.TreeMap::new,
+                        java.util.stream.Collectors.counting()));
+        int runnable = Runner.CENSUS_RUNNABLE.size();
+        int excluded = Runner.CENSUS_EXCLUDED.size();
+        String census = "\n## Census (core_relational)\n\n"
+                + "| | count |\n|---|---:|\n"
+                + "| **total `<<test.Test>>` functions** | **" + (runnable + excluded) + "** |\n"
+                + "| runnable (this scoreboard) | " + runnable + " |\n"
+                + "| excluded by stereotype | " + excluded + " |\n"
+                + byReason.entrySet().stream()
+                        .map(e -> "| …`<<test." + e.getKey() + ">>` | " + e.getValue() + " |\n")
+                        .collect(java.util.stream.Collectors.joining())
+                + "\nCounted by the discovery path (`Runner.discoverTests`), keyed by test FQN so a\n"
+                + "shared source registered by several families cannot double-count. Run with\n"
+                + "`-Drcorpus.includeExcluded` to run the excluded ones too.\n";
+        System.out.println("[rcorpus] census: " + (runnable + excluded)
+                + " total, " + runnable + " runnable, " + excluded
+                + " excluded " + byReason
+                + (Runner.INCLUDE_EXCLUDED ? "  (INCLUDED THIS RUN)" : ""));
+
         String header = "# Relational corpus scoreboard (real legend-engine core_relational)\n\n"
                 + "RUN-as-data over the local legend-engine checkout; row equality is the\n"
                 + "contract, golden SQL is advisory. SHAPE = test body/assert form the\n"
                 + "runner does not yet recognize (accounted, not skipped silently).\n"
                 + "Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness\n"
                 + "parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the\n"
-                + "in-process Alloy-shaped path).\n";
+                + "in-process Alloy-shaped path)"
+                + (Runner.INCLUDE_EXCLUDED
+                        ? " — BUT THIS RUN INCLUDED THEM\n(-Drcorpus.includeExcluded).\n"
+                        : ".\n")
+                + census;
         List<String> seedFails = runner.seedFailures();
         if (!seedFails.isEmpty()) {
             StringBuilder sf = new StringBuilder("\n## Failed seed statements ("
@@ -181,6 +220,25 @@ public class RelationalCorpusRunner {
         // the COMMITTED baseline reads BEFORE the sweep rewrites it
         Map<String, Integer> baseline =
                 readBaseline(Path.of("../docs/RELATIONAL_CORPUS.md"));
+        // GATE BEFORE WRITE. The scoreboard is a COMMITTED artifact, and this
+        // sweep used to rewrite it in place and only then assert — so a
+        // regression (or, worse, a run against the wrong corpus root) left a
+        // corrupted file in the working tree and relied on the operator
+        // reading the failure text before committing. The gate's own message
+        // said "do not commit the rewritten scoreboard", which is advice, not
+        // a mechanism. Compute the verdict here; write only when clean.
+        List<String> regressions = new ArrayList<>();
+        if (System.getProperty("rcorpus.test", "").trim().isEmpty()
+                && !Runner.INCLUDE_EXCLUDED) {
+            byFamily.forEach((f, outs) -> {
+                long p = outs.stream()
+                        .filter(o -> o.status() == Runner.Status.PASS).count();
+                Integer b = baseline.get(f);
+                if (b != null && p < b) {
+                    regressions.add(f + " " + p + " < baseline " + b);
+                }
+            });
+        }
         if (Runner.H2_BACKEND) {
             // the PORTABILITY SWEEP is a different execution target: its
             // ledger never clobbers the DuckDB scoreboard and the DuckDB
@@ -236,9 +294,26 @@ public class RelationalCorpusRunner {
                     + " ms");
             return;
         }
-        if (onlyFilters.isEmpty()) {
+        if (onlyFilters.isEmpty() && Runner.INCLUDE_EXCLUDED) {
+            // the 100% ledger is a DIFFERENT denominator (it runs the
+            // upstream-skipped tests), so it gets its own file and never
+            // touches the DuckDB baseline — same rule as the H2 sweep.
+            // Promoting it would make every later normal run look like a
+            // mass regression.
+            Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS_ALL.md"), byFamily,
+                    runner.walls(), header);
+            System.out.println("[rcorpus] 100% ledger written to"
+                    + " docs/RELATIONAL_CORPUS_ALL.md (baseline untouched)");
+        } else if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);
+        } else if (onlyFilters.isEmpty()) {
+            System.out.println("[rcorpus] REGRESSION — scoreboard NOT written;"
+                    + " the committed docs/RELATIONAL_CORPUS.md is intact");
+            byFamily.forEach((f, outs) -> outs.stream()
+                    .filter(o -> o.status() != Runner.Status.PASS)
+                    .forEach(o -> System.out.println("[rcorpus]   " + o.status()
+                            + " " + o.test() + ": " + o.detail())));
         } else {
             System.out.println("[rcorpus] SCOPED run (" + only
                     + ") — scoreboard NOT written");
@@ -333,7 +408,7 @@ public class RelationalCorpusRunner {
             runner.walls().forEach(w ->
                     System.out.println("[rcorpus] WALL " + w));
         }
-        if (onlyFilters.isEmpty()) {
+        if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
         }
         // MECHANICAL REGRESSION GATE (audit: this runner carried NO
@@ -343,21 +418,14 @@ public class RelationalCorpusRunner {
         // scoreboard, regressions FAIL the build. Viable only since the
         // flapper elimination (deterministic runner — consecutive sweeps
         // identical). -Drcorpus.test runs skip: partial family counts.
-        if (System.getProperty("rcorpus.test", "").trim().isEmpty()) {
-            List<String> regressions = new ArrayList<>();
-            byFamily.forEach((f, outs) -> {
-                long p = outs.stream()
-                        .filter(o -> o.status() == Runner.Status.PASS).count();
-                Integer b = baseline.get(f);
-                if (b != null && p < b) {
-                    regressions.add(f + " " + p + " < baseline " + b);
-                }
-            });
-            org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
-                    "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
-                    + regressions
-                    + " — fix or revert; do not commit the rewritten scoreboard");
-        }
+        // computed above, BEFORE the write — see the gate-before-write note
+        org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
+                "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
+                + regressions
+                + " — the scoreboard was NOT rewritten and the committed file is"
+                + " intact, so there is nothing to revert. Fix the regression, or"
+                + " check that -Dlegend.engine.root points at the checkout the"
+                + " baseline was generated against.");
     }
 
     /** The committed scoreboard's per-family PASS counts, parsed BY

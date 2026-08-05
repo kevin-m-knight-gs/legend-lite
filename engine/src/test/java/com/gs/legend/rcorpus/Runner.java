@@ -463,6 +463,48 @@ public final class Runner {
         return false;
     }
 
+    /**
+     * AUTHORITATIVE CENSUS — keyed by test FQN so the repeated registration of
+     * a shared source file cannot double-count. External greps over the corpus
+     * kept disagreeing with the runner's own discovery (by 4 to 29 depending on
+     * the method), which made the denominator perpetually arguable. These sets
+     * ARE the denominator: they are populated by the discovery path itself.
+     */
+    public static final java.util.Set<String> CENSUS_RUNNABLE =
+            new java.util.LinkedHashSet<>();
+
+    /** Test FQN -> the stereotype that excluded it ({@code ToFix} etc.). */
+    public static final Map<String, String> CENSUS_EXCLUDED =
+            new LinkedHashMap<>();
+
+    /**
+     * Run the upstream-skipped tests too ({@code -Drcorpus.includeExcluded}).
+     * They are excluded by default for engine-harness parity — but a corpus you
+     * only ever measure at 94% cannot tell you what is left. In this mode every
+     * test in core_relational runs and lands in the scoreboard, so each row ends
+     * up either passing or explicitly classified.
+     */
+    public static final boolean INCLUDE_EXCLUDED =
+            Boolean.getBoolean("rcorpus.includeExcluded");
+
+    /** Which {@code test} stereotype excludes {@code f}, or null. */
+    static String excludeReasonOf(com.legend.model.FunctionDefinition f) {
+        for (com.legend.model.StereotypeApplication st : f.stereotypes()) {
+            String profile = st.profileName();
+            if (!(profile.equals("test")
+                    || profile.equals("meta::pure::profiles::test"))) {
+                continue;
+            }
+            switch (st.stereotypeName()) {
+                case "ToFix", "Ignore", "ExcludeAlloy" -> {
+                    return st.stereotypeName();
+                }
+                default -> { }
+            }
+        }
+        return null;
+    }
+
     public static List<ParsedTest> discoverTests(String source) {
         List<ParsedTest> out = new ArrayList<>();
         com.legend.model.ParsedModel unit;
@@ -475,9 +517,17 @@ public final class Runner {
             if (!(el instanceof com.legend.model.FunctionDefinition f)) {
                 continue;
             }
-            if (testKindOf(f) == TestKind.TEST) {
+            TestKind kind = testKindOf(f);
+            if (kind == TestKind.TEST) {
+                CENSUS_RUNNABLE.add(f.qualifiedName());
                 out.add(new ParsedTest(f.qualifiedName(), f,
                         unit.elementImports().get(f.qualifiedName())));
+            } else if (kind == TestKind.EXCLUDED) {
+                CENSUS_EXCLUDED.putIfAbsent(f.qualifiedName(), excludeReasonOf(f));
+                if (INCLUDE_EXCLUDED) {
+                    out.add(new ParsedTest(f.qualifiedName(), f,
+                            unit.elementImports().get(f.qualifiedName())));
+                }
             }
         }
         return out;
