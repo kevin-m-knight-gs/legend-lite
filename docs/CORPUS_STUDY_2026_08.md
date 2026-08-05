@@ -1,5 +1,19 @@
 # The relational corpus, test by test — a root-cause study of all 356 non-passing rows
 
+> # ⚠ SUPERSEDED (2026-08-05)
+> **Superseded by [`CORPUS_STUDY_2026_08_ALL.md`](CORPUS_STUDY_2026_08_ALL.md)**, which studies
+> all **484** non-passing rows against the 100% ledger (`RELATIONAL_CORPUS_ALL.md`, 2793 tests)
+> rather than the 356 visible in the stereotype-filtered sweep this document used.
+>
+> This document's per-test analysis remains valid for the rows it covers. What changed:
+> - the denominator (356 → 484; 130+ rows here were never run)
+> - the classification — the newer study separates goldens-that-are-wrong (31 disproven),
+>   harness defects, backend artifacts, and by-design gaps from genuine engine defects
+> - several causes named here are corrected there; see its §9
+>
+> Companion: [`ARCHITECTURE_AUDIT_2026_08.md`](ARCHITECTURE_AUDIT_2026_08.md) — 12 feature-area
+> audits of the code behind the *passing* tests.
+
 > **Status.** Complete. Every non-passing row in `docs/RELATIONAL_CORPUS.md` (sweep of 2026-08-03)
 > was studied individually — source located, body read in full, mapping/database/model dependencies
 > followed, assert quoted, root cause traced to a legend-lite `file:line`, and classified.
