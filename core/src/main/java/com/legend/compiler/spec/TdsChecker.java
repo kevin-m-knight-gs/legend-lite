@@ -57,7 +57,7 @@ final class TdsChecker {
             int colon = c.indexOf(':');
             String name = colon > 0 ? c.substring(0, colon).strip() : c;
             if (names.contains(name)) {
-                throw new TypeInferenceException("duplicate column '" + name + "' in TDS header");
+                throw new SchemaInvariantException("duplicate column '" + name + "' in TDS header");
             }
             names.add(name);
             // a real-pure header may carry a multiplicity suffix

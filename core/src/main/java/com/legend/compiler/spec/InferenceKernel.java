@@ -709,7 +709,7 @@ public final class InferenceKernel {
                         // Real legend-pure errors on a name collision (extend/rename/join/
                         // groupBy adding a column that already exists) — never silent.
                         if (lr.columns().stream().anyMatch(e -> sameColumn(e.name(), c.name()))) {
-                            throw new TypeInferenceException("the column '" + c.name()
+                            throw new SchemaInvariantException("the column '" + c.name()
                                     + "' already exists in the relation " + lr.typeName());
                         }
                         cols.add(c);

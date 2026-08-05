@@ -949,7 +949,7 @@ final class Typer {
                     pn = pnf.value();
                 }
                 if (po == null) {
-                    throw new TypeInferenceException("renameColumns expects"
+                    throw new SchemaInvariantException("renameColumns expects"
                             + " literal pair('old','new') /"
                             + " ^Pair(first=,second=) mappings");
                 }
@@ -1437,8 +1437,36 @@ final class Typer {
             }
         }
 
-        TypedFunction chosen = selectByPresentArgs(af.function(), arity, typed, raw);
+        // REAL Pure searches with rollback (FunctionExpressionProcessor):
+        // when the best-scored candidate dies typing a DEFERRED slot
+        // (lambda/colspec), the next candidate gets its turn — selection
+        // previously COMMITTED on non-lambda args and a deferred-slot
+        // mismatch was a hard failure even with a fitting overload next
+        // in line (study #14; program meaning depended on source order).
+        List<TypedFunction> ranked =
+                selectRankedByPresentArgs(af.function(), arity, typed, raw);
+        TypeInferenceException firstFailure = null;
+        for (TypedFunction cand : ranked) {
+            try {
+                return bindDeferredAndBuild(cand, raw, typed.clone(), env);
+            } catch (SchemaInvariantException invariant) {
+                throw invariant;   // the program's defect, never a
+                                   // candidate mismatch — no retry
+            } catch (TypeInferenceException e) {
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+            }
+        }
+        throw java.util.Objects.requireNonNull(firstFailure);
+    }
 
+    /** The post-selection phase: unify present args, type deferred slots
+     *  against the candidate, resolve the output. Throws
+     *  {@link TypeInferenceException} when the candidate cannot host the
+     *  deferred arguments — the caller's retry loop moves on. */
+    private Application bindDeferredAndBuild(TypedFunction chosen,
+            List<ValueSpecification> raw, TypedSpec[] typed, Env env) {
         Bindings b = new Bindings();
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] != null) {
@@ -1622,6 +1650,42 @@ final class Typer {
     private TypedFunction selectByPresentArgs(String name, List<TypedFunction> arity, TypedSpec[] typed) {
         return selectByPresentArgs(name, arity, typed, null);
 
+    }
+
+    /** Candidates best-score-first (stable — declaration order breaks
+     *  ties, preserving first-max semantics for the winner); arity
+     *  misfits filtered; empty = the same loud no-overload error. */
+    private List<TypedFunction> selectRankedByPresentArgs(String name,
+            List<TypedFunction> arity, TypedSpec[] typed,
+            @com.legend.Nullable List<ValueSpecification> raw) {
+        List<ExprType> argTypes = new ArrayList<>(typed.length);
+        for (TypedSpec t : typed) {
+            argTypes.add(t == null ? null : t.info());
+        }
+        record Scored(TypedFunction fn, long score, int declIdx) {
+        }
+        List<Scored> scored = new ArrayList<>();
+        String arityRejection = null;
+        for (int i = 0; i < arity.size(); i++) {
+            TypedFunction c = arity.get(i);
+            if (raw != null && !lambdaAritiesFit(c, raw, typed)) {
+                if (arityRejection == null) {
+                    arityRejection = lambdaArityMismatch(c, raw, typed);
+                }
+                continue;
+            }
+            scored.add(new Scored(c, kernel.scoreNonLambda(c, argTypes), i));
+        }
+        if (scored.isEmpty()) {
+            throw new TypeInferenceException(
+                    "no overload of '" + name + "' matches the argument types"
+                            + (arityRejection != null
+                                    ? " (" + arityRejection + ")" : ""));
+        }
+        scored.sort(java.util.Comparator
+                .comparingLong(Scored::score).reversed()
+                .thenComparingInt(Scored::declIdx));
+        return scored.stream().map(Scored::fn).toList();
     }
 
     /** With {@code raw} supplied, a candidate whose function-typed
@@ -1903,7 +1967,7 @@ final class Typer {
                         "~" + cs.name() + " needs a mapping expression (alias:x|…) here");
             }
             if (schema.stream().anyMatch(c -> c.name().equals(cs.name()))) {
-                throw new TypeInferenceException("duplicate column '" + cs.name() + "' in ~[…]");
+                throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             TypedLambda lam = (TypedLambda) typeLambda(cs.function1(), f, b, env);
             Type.Param result = ((Type.FunctionType) lam.info().type()).result();
@@ -1949,7 +2013,7 @@ final class Typer {
                         + " needs a map and a reduce expression (alias:x|…:y|…) here");
             }
             if (schema.stream().anyMatch(c -> c.name().equals(cs.name()))) {
-                throw new TypeInferenceException("duplicate column '" + cs.name() + "' in ~[…]");
+                throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             Bindings local = b.copy();   // K/V are per-column (see javadoc)
             TypedLambda map = (TypedLambda) typeLambda(cs.function1(), mapF, local, env);
@@ -2715,7 +2779,7 @@ final class Typer {
                         + ": mapped/aggregate column specifications need an enclosing call to type against");
             }
             if (names.contains(cs.name())) {
-                throw new TypeInferenceException("duplicate column '" + cs.name() + "' in ~[…]");
+                throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             names.add(cs.name());
             cols.add(unknownColumn(cs.name()));
