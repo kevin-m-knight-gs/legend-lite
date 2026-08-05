@@ -637,6 +637,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.NewInstance ni -> newInstance(b, ni, null);
             case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs);
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
+            case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
                 // The value is the SOURCE SPELLING, verbatim. DAY precision emits strictDate;
@@ -852,6 +853,14 @@ public final class ProtocolEmitter {
             newInstance(b, ni, topSpanOverride);
             return;
         }
+        if ("pathWithAlias".equals(f.function())
+                && !f.parameters().isEmpty()
+                && f.parameters().get(0) instanceof com.legend.protocol.spec.PathLiteral pathLit) {
+            // the alias carrier is legend-lite-internal; the wire's whole shape (including
+            // the alias as the path's "name") comes from the PathLiteral itself
+            pathLiteral(b, pathLit);
+            return;
+        }
         if ("tableReference".equals(f.function())) {
             // #>{db.tbl}# on the wire: classInstance of type ">" whose value is
             // {path:[db, table], sourceInformation} — outer and inner spans identical,
@@ -870,8 +879,12 @@ public final class ProtocolEmitter {
             srcInfo(b, span);
             b.append(",\"type\":\">\",\"value\":{\"path\":[");
             str(b, db.fullPath());
-            b.append(',');
-            str(b, tbl.value());
+            // schema-qualified names split into separate path entries:
+            // #>{db.schema.TBL}# -> ["db","schema","TBL"] (ProbeWireShapes c)
+            for (String part : tbl.value().split("\\.")) {
+                b.append(',');
+                str(b, part);
+            }
             b.append("],\"sourceInformation\":");
             srcInfo(b, span);
             b.append("}}");
@@ -1051,6 +1064,66 @@ public final class ProtocolEmitter {
             srcInfo(b, span);
         }
         b.append('}');
+    }
+
+    /**
+     * {@code #/Root/prop#} on the wire: a {@code classInstance} of type {@code path} whose
+     * spans are SHIFTED RIGHT by the literal's length — an engine island-reparse artifact
+     * reproduced faithfully (ProbeWireShapes "path offsets", two-sample regression): for a
+     * literal at column {@code s}, length {@code len}: outer = {@code [s+len, s+2*len+2]},
+     * segment chars {@code [a,b]} (0-based inclusive) = {@code [s+len+a-2, s+len+b-1]}.
+     */
+    private static void pathLiteral(StringBuilder b, com.legend.protocol.spec.PathLiteral pl) {
+        SourceInfo lit = requirePos(pl.pos(), "path literal");
+        require(lit.startLine() == lit.endLine(), "multi-line path literal", pl.startType());
+        int s = lit.startColumn();
+        int len = pl.literalLength();
+        int line = lit.startLine();
+        SourceInfo outer = new SourceInfo(lit.sourceId(), line, s + len, line, s + 2 * len + 2);
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, outer);
+        b.append(",\"type\":\"path\",\"value\":{");
+        if (pl.alias() != null) {
+            // the !alias becomes the path's NAME, alphabetically first in the value
+            b.append("\"name\":");
+            str(b, pl.alias());
+            b.append(',');
+        }
+        b.append("\"path\":[");
+        for (int i = 0; i < pl.segments().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.spec.PathLiteral.Segment seg = pl.segments().get(i);
+            require(!seg.unsupportedArg(),
+                    "dated path segment with a non-%latest argument", seg.name());
+            b.append("{\"_type\":\"propertyPath\",\"parameters\":[");
+            for (int a = 0; a < seg.latestArgRanges().size(); a++) {
+                if (a > 0) {
+                    b.append(',');
+                }
+                // the dated ARGUMENT shifts by one LESS than the property chunk —
+                // a-1 rather than a-2 (ProbeWireShapes "alias dated tref2 gft2" b)
+                com.legend.protocol.spec.PathLiteral.ArgRange r = seg.latestArgRanges().get(a);
+                b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
+                srcInfo(b, new SourceInfo(lit.sourceId(),
+                        line, s + len + r.start() - 1,
+                        line, s + len + r.end() - 1));
+                b.append('}');
+            }
+            b.append("],\"property\":");
+            str(b, seg.name());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, new SourceInfo(lit.sourceId(),
+                    line, s + len + seg.innerStart() - 2,
+                    line, s + len + seg.innerEnd() - 1));
+            b.append('}');
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, outer);
+        b.append(",\"startType\":");
+        str(b, pl.startType());
+        b.append("}}");
     }
 
     /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */

@@ -62,6 +62,7 @@ import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.NewInstance;
 import com.legend.protocol.spec.NewInstanceCast;
 import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PathLiteral;
 import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
@@ -1327,6 +1328,9 @@ public final class NameResolver {
             @com.legend.Nullable ValueSpecification vs, Scope scope) {
         if (vs == null) return null;
         return switch (vs) {
+            // A path literal dissolves into its desugared lambda at resolution — nothing
+            // downstream of the resolver ever sees the wire-facing node.
+            case PathLiteral pl -> resolveVs(pl.desugared(), scope);
             case PackageableElementPtr ptr -> {
                 String r = resolveName(ptr.fullPath(), scope);
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);

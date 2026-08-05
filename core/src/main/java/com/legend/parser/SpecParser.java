@@ -2319,16 +2319,25 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parsePathLiteral() {
         String text = text();
+        int litTok = pos;
         pos++;
         String inner = text.substring(2, text.length() - 1);   // strip '#/' and '#'
         String[] segs = inner.split("/");
         if (segs.length < 2) {
             throw error("navigation path needs at least one property segment: " + text);
         }
+        // Track each PLAIN segment's 0-based char range inside the literal text — the
+        // emitter's shifted-span rule needs them (PathLiteral javadoc).
+        List<com.legend.protocol.spec.PathLiteral.Segment> pieces = new ArrayList<>();
+        boolean hasDated = false;
+        int cursor = 2;   // index of the current segment's first char within `text`
         ValueSpecification body = new Variable("_path");
         String alias = null;
         for (int i = 1; i < segs.length; i++) {
-            String seg = segs[i].strip();
+            cursor += segs[i - 1].length() + 1;   // previous segment + '/'
+            String rawSeg = segs[i];
+            String seg = rawSeg.strip();
+            int lead = rawSeg.indexOf(seg.isEmpty() ? "" : seg.substring(0, 1));
             // real pure: the LAST segment may carry '!alias' — the Path's
             // NAME (buildColumnNameOutOfPath uses it for the column)
             if (i == segs.length - 1 && seg.matches("\\w+!\\w+")) {
@@ -2342,6 +2351,7 @@ public final class SpecParser implements TokenStreamCursor {
             var dated = java.util.regex.Pattern
                     .compile("(\\w+)\\(([^)]*)\\)").matcher(seg);
             if (dated.matches()) {
+                hasDated = true;
                 List<ValueSpecification> args = new ArrayList<>();
                 args.add(body);
                 for (String arg : dated.group(2).split(",")) {
@@ -2350,6 +2360,26 @@ public final class SpecParser implements TokenStreamCursor {
                             ? lf.body().get(0)
                             : new Variable(arg.strip()));
                 }
+                // wire pieces for the DATED segment: each %latest argument's own range;
+                // any other dated argument marks the segment unsupported (emitter walls)
+                List<com.legend.protocol.spec.PathLiteral.ArgRange> latestRanges =
+                        new ArrayList<>();
+                boolean unsupported = false;
+                int scan = 0;
+                for (String arg : dated.group(2).split(",")) {
+                    String trimmed = arg.strip();
+                    if (trimmed.equals("%latest")) {
+                        int at = rawSeg.indexOf("%latest", scan);
+                        latestRanges.add(new com.legend.protocol.spec.PathLiteral.ArgRange(
+                                cursor + lead + at, cursor + lead + at + 6));
+                        scan = at + 7;
+                    } else {
+                        unsupported = true;
+                    }
+                }
+                pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
+                        dated.group(1), cursor + lead, cursor + lead + seg.length() - 1,
+                        latestRanges, unsupported));
                 body = new AppliedFunction(dated.group(1), args);
                 continue;
             }
@@ -2358,6 +2388,8 @@ public final class SpecParser implements TokenStreamCursor {
                         + "' uses an unsupported path feature (only plain"
                         + " property segments desugar): " + text);
             }
+            pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
+                    seg, cursor + lead, cursor + lead + seg.length() - 1));
             body = new AppliedProperty(body, seg);
         }
         // the path's ROOT segment IS the param's type (real pure's Path
@@ -2366,12 +2398,15 @@ public final class SpecParser implements TokenStreamCursor {
         LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path",
                 new com.legend.protocol.TypeExpression.NameRef(segs[0].strip()),
                 null)), List.of(body));
+        com.legend.protocol.spec.PathLiteral lit = new com.legend.protocol.spec.PathLiteral(
+                segs[0].strip(), pieces, fn, alias, hasDated,
+                spanOf(litTok, litTok), text.length());
         if (alias == null) {
-            return fn;
+            return lit;
         }
         // carrier for the alias: consumed by ProjectChecker's legacy-form
         // normalization; any other position fails LOUD (unknown function)
-        return new AppliedFunction("pathWithAlias", List.of(fn, new CString(alias)));
+        return new AppliedFunction("pathWithAlias", List.of(lit, new CString(alias)));
     }
 
     /**

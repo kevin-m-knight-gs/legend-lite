@@ -43,6 +43,7 @@ import com.legend.protocol.spec.CTime;
 import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.PathLiteral;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.ColSpecArray;
@@ -123,6 +124,9 @@ final class Typer {
     /** Synthesis (inference) mode: produce the node and its intrinsic type. */
     TypedSpec synth(ValueSpecification vs, Env env) {
         return switch (vs) {
+            // Path literals normally dissolve at resolution; an unresolved one types as
+            // its desugared lambda.
+            case PathLiteral pl -> synth(pl.desugared(), env);
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));

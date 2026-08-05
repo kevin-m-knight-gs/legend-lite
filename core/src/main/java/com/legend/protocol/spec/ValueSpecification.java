@@ -51,6 +51,7 @@ public sealed interface ValueSpecification permits
         CFloat,
         CInteger,
         CLatestDate,
+        PathLiteral,
         CString,
         CTime,
         ColumnInstance,
@@ -77,6 +78,7 @@ public sealed interface ValueSpecification permits
      */
     default java.util.List<ValueSpecification> children() {
         return switch (this) {
+            case PathLiteral pl -> java.util.List.of(pl.desugared());
             case CBoolean ignored -> java.util.List.of();
             case CDate ignored -> java.util.List.of();
             case CDecimal ignored -> java.util.List.of();
@@ -121,6 +123,9 @@ public sealed interface ValueSpecification permits
     default ValueSpecification withChildren(
             java.util.List<ValueSpecification> cs) {
         return switch (this) {
+            case PathLiteral pl -> new PathLiteral(pl.startType(), pl.segments(),
+                    (LambdaFunction) cs.get(0), pl.alias(), pl.hasDatedSegment(),
+                    pl.pos(), pl.literalLength());
             case CBoolean ignored -> this;
             case CDate ignored -> this;
             case CDecimal ignored -> this;

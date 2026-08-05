@@ -351,6 +351,24 @@ class ProbeWireShapes {
                   ^meta::pure::tds::BasicColumnSpecification<meta::pure::tds::TDSRow>(func = {r|1}, name = 'n');
                 }
                 """);
+        dump("alias dated tref2 gft2", """
+                function x1::a(): Any[*]
+                {
+                  #/x1::X/prop!nick#;
+                }
+                function x1::b(): Any[*]
+                {
+                  #/x1::X/prop(%latest)#;
+                }
+                function x1::c(): Any[*]
+                {
+                  #>{x1::db.schema1.TBL}#->select();
+                }
+                function x1::d(): Any[*]
+                {
+                  #{x1::X {a, k {b}}}#;
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {
