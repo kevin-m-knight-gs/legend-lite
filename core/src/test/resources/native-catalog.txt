@@ -327,6 +327,7 @@ meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::
 meta::pure::executionPlan::featureFlag::withFeatureFlags<T>(object:T[*], e:meta::pure::metamodel::type::Any[*]):T[*]
 meta::relational::extension::relationalExtensions():meta::pure::metamodel::type::Any[*]
 meta::alloy::service::execution::setUpDataSQLsV2(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[1], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*]
+meta::alloy::service::execution::setUpDataSQLs(records:meta::pure::functions::collection::List<meta::pure::metamodel::type::String>[*], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*]
 meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*]
 meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*]
 meta::pure::executionPlan::executionPlan(func:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1]

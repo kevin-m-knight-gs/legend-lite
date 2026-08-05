@@ -1453,6 +1453,9 @@ public final class Pure {
     // loadCsvDataToDbTable bodies this platform doesn't model, and its
     // DatabaseType wrapper cannot type against createDbConfig's Any.
     // Same CsvSeed K-arm as V2.
+    // the RECORDS overload (helperFunctions.pure:193 — parsed CSV lines
+    // as List<String> cells); the K-arm renders the same statement list
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(records:meta::pure::functions::collection::List<meta::pure::metamodel::type::String>[*], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
     public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY = signature("native function meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[*];");
     public static final NativeFunctionDefinition SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLs(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[*], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
 
