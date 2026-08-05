@@ -140,12 +140,11 @@ final class StatementExecutor {
                     // wrapper (a user call). A later READ of the binding has
                     // no frame — wall it up front, never an unbound-variable
                     // surprise.
-                    for (int j = i + 1; j < stmts.size(); j++) {
-                        if (referencesVar(stmts.get(j), let.name())) {
-                            throw new IllegalStateException("reading an"
-                                    + " executeInDb result binding ('"
-                                    + let.name() + "') is not supported");
-                        }
+                    if (!ConnectionLets.onlyConnectionReads(stmts, i + 1,
+                            let.name())) {
+                        throw new IllegalStateException("reading an"
+                                + " executeInDb result binding ('"
+                                + let.name() + "') is not supported");
                     }
                     if (rhs instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
                         executeCallStatement(uc, letPrefix, specs, env, frames);

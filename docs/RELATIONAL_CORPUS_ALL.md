@@ -22,7 +22,7 @@ Counted by the discovery path (`Runner.discoverTests`), keyed by test FQN so a
 shared source registered by several families cannot double-count. Run with
 `-Drcorpus.includeExcluded` to run the excluded ones too.
 
-## Failed seed statements (7)
+## Failed seed statements (6)
 
 - `Create Table personExtensionTable("ID" INTEGER, "PERSON_ID" INTEGER, "EXTRAINFO" VARCHAR(200), "NUMBER" INTEGER, "AGE" INTEGER) => Catalog Error: Table with name "personExtensionTable" already exists!`
 - `Create Table firmPersonBridgeTable("FIRM_ID" INTEGER, "PERSON_ID" INTEGER) => Catalog Error: Table with name "firmPersonBridgeTable" already exists!`
@@ -30,7 +30,6 @@ shared source registered by several families cannot double-count. Run with
 - `Create Table TypeTableA("ID" INTEGER, "TypePropertyA" VARCHAR(200)) => Catalog Error: Table with name "TypeTableA" already exists!`
 - `Create Table TypeTableB("ID" INTEGER, "TypePropertyB" VARCHAR(200), "IN_Z" TIMESTAMP, "OUT_Z" TIMESTAMP) => Catalog Error: Table with name "TypeTableB" already exists!`
 - `Create Table MiddleTable("ID" INTEGER, "LINKID" INTEGER) => Catalog Error: Table with name "MiddleTable" already exists!`
-- `setup meta::relational::tests::milestoning::inheritance::union::createTablesAndFillDb() => reading an executeInDb result binding ('runtime') is not supported`
 
 | family | tests | pass | fail | error | shape | sqldiff-pass |
 |---|---|---|---|---|---|---|
@@ -48,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
 | lineage/scanRelations | 49 | 40 | 0 | 0 | 9 | 0 |
-| milestoning/tests | 260 | 219 | 19 | 18 | 4 | 40 |
+| milestoning/tests | 260 | 223 | 17 | 16 | 4 | 40 |
 | modelJoins | 9 | 4 | 0 | 0 | 5 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 12 | 6 | 1 | 0 | 5 | 0 |
@@ -89,7 +88,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/modelJoin | 52 | 42 | 3 | 7 | 0 | 10 |
 | tests/mapping/multigrain | 6 | 5 | 0 | 1 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 |
-| tests/mapping/relation | 109 | 103 | 3 | 0 | 3 | 0 |
+| tests/mapping/relation | 109 | 103 | 5 | 0 | 1 | 0 |
 | tests/mapping/relation/aggregation | 11 | 10 | 0 | 1 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 75 | 72 | 0 | 2 | 1 | 1 |
@@ -101,7 +100,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2793 | **2356** | 149 | 167 | 121 | 261 |
+| **total** | 2793 | **2360** | 149 | 165 | 119 | 261 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1125,7 +1124,6 @@ shared source registered by several families cannot double-count. Run with
 - 2x Conversion Error: Malformed JSON at byte 0 of input: unexpected character.  Input: "John" |  | LINE 3: WHERE list_contains(['John'], to_json(t0.FIRSTNAME)) |                              ^
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- 2x Binder Error: Values list "t1" does not have a column named "type" |  | LINE 9:   LEFT OUTER JOIN ProductClassificationTable AS t2 ON t1.type = t2.type AND t2.from_z <= DATE '2018-05-09' AND... |                                                               ^
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::model::simple::Firm, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bound…
 - 2x unknown function 'SimpleDateTimeFormat' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -1141,6 +1139,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 1x aggregate reducer argument of kind TypedMap is not supported (literals only)
 - 1x class-typed property '$t.otherOrgEntity' used as a whole value is graph output (Phase H4)
+- 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 
 ### per-test outcomes (non-passing)
 
@@ -1326,11 +1325,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testMilestoneDatePropogationFromTypeQueryThroughNoArgMilestonedQpInMapWhereSubsequentProjectOverrides [milestoning/tests]: assertEquals: expected STOCK DESC-V3,LNSE, got [STOCK DESC-V3,LNSE, STOCK DESC-V3,LNSE, TDSNull,TDSNull]
 - FAIL testMilestoneDatePropogationFromTypeQueryToNoArgMilestonedQpInMapFollowedByProjectOnDataTypeProperty [milestoning/tests]: assertEquals: expected STOCK, got [STOCK, TDSNull]
 - FAIL testMilestoningQueryOnATypeWithManyRelationalPropertyMappingChildrenFollowedByMap [milestoning/tests]: assertEquals: expected 1, got 2
-- FAIL testIsolationOfSubselectWithChildNodesUsingCorrelatedSubQueryStrategy [milestoning/tests]: assertEquals: expected [1,TDSNull, 2,2], got [1,TDSNull, 2,TDSNull, 3,TDSNull, 4,TDSNull]
 - ERROR testLinkageBetweenUnionWithIsolatedMultiJoinSelectLHS [milestoning/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedMilestonedAccess[source=TypedMilestonedAccess[source=TypedVariable[name=o, info=ExprType[type=ClassType[fqn=meta::relational::tests::milestoning::Order], multiplicity=Bounded[lower=1, upper=1]]
-- ERROR testRootUnionQueryWithRelationalJoinsForDataTypes [milestoning/tests]: Binder Error: Values list "t1" does not have a column named "type" |  | LINE 9:   LEFT OUTER JOIN ProductClassificationTable AS t2 ON t1.type = t2.type AND t2.from_z <= DATE '2018-05-09' AND... |                                                               ^
-- ERROR testRootUnionQueryWithRelationalPropertyJoin [milestoning/tests]: Binder Error: Values list "t1" does not have a column named "type" |  | LINE 9:   LEFT OUTER JOIN ProductClassificationTable AS t2 ON t1.type = t2.type AND t2.from_z <= DATE '2018-05-09' AND... |                                                               ^
-- FAIL testSubSelectsWithDifferentColumnsMerge [milestoning/tests]: assertEquals: expected [1,TDSNull,TDSNull, 2,2,ProductName2], got [1,TDSNull,TDSNull, 2,TDSNull,TDSNull, 3,TDSNull,TDSNull, 4,TDSNull,TDSNull]
 - FAIL testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type" from ProductTableNoMilestoning as "root", got select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", TIMESTAMP'9999-12-31 00:00:00.0000' as "k_businessDate", TIMESTAMP'9999-12-31 00:00:00.0000' as "k_processingDate" from ProductTableNoMilestoning as "root"
 - FAIL testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".type as "type" from ProductTableNoMilestoning as "root", got select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".type as "type", TIMESTAMP'9999-12-31 00:00:00.0000' as "k_businessDate" from ProductTableNoMilestoning as "root"
 - FAIL testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", "productdescriptiontable_0".description as "stockProductName", "productclassificationtable_0".type as "classificationType", '2015-10-15' as "k_businessDate" from ProductTable as "root" left outer join StockProductTable as "stockproducttable_0" on ("root".id = "stockproducttable_0".id and "stockproducttable_0".from_z <= DATE'2015-10-15' and "stockproducttable_0".thru_z > DATE'2015-10-15') left outer join ProductDescriptionTable as "productdescriptiontable_0" on ("stockproducttable_0".id = "productdescriptiontable_0".id) left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".from_z <= DATE'2015-10-15' and "productclassificationtable_0".thru_z > DATE'2015-10-15') left outer join ProductClassificationTable as "productclassificationtable_1" on ("root".type = "productclassificationtable_1".type and "productclassificationtable_1".from_z <= DATE'2015-10-16' and "productclassificationtable_1".thru_z > DATE'2015-10-16') left outer join ProductExchangeTable as "productexchangetable_0" on ("root".exchange = "productexchangetable_0".name and "productexchangetable_0".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000') where "productclassificationtable_1".type = 'STOCK' and "productexchangetable_0".name = 'LNSE' and "root".from_z <= DATE'2015-10-15' and "root".thru_z > DATE'2015-10-15', got select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", "productdescriptiontable_0".description as "stockProductName", "productclassificationtable_1".type as "classificationType", '2015-10-15' as "k_businessDate" from ProductTable as "root" left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".from_z <= DATE'2015-10-16' and "productclassificationtable_0".thru_z > DATE'2015-10-16') left outer join ProductExchangeTable as "productexchangetable_0" on ("root".exchange = "productexchangetable_0".name and "productexchangetable_0".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000') left outer join StockProductTable as "stockproducttable_0" on ("root".id = "stockproducttable_0".id and "stockproducttable_0".from_z <= DATE'2015-10-15' and "stockproducttable_0".thru_z > DATE'2015-10-15') left outer join ProductDescriptionTable as "productdescriptiontable_0" on ("stockproducttable_0".id = "productdescriptiontable_0".id) left outer join ProductClassificationTable as "productclassificationtable_1" on ("root".type = "productclassificationtable_1".type and "productclassificationtable_1".from_z <= DATE'2015-10-15' and "productclassificationtable_1".thru_z > DATE'2015-10-15') where "productclassificationtable_0".type = 'STOCK' and "productexchangetable_0".name = 'LNSE' and "root".from_z <= DATE'2015-10-15' and "root".thru_z > DATE'2015-10-15'
@@ -1524,8 +1519,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.fullName has no c
 - FAIL testNullableSalaryMapping [tests/mapping/modelJoin]: assertEquals: expected #TDS\n   'First Name',Salary\n   Alice,1000.5\n   Bob,24.87\n   Charlie,2500.75\n#, got [Alice, 1000.5, Bob, 24.87, Charlie, 2500.75]
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
-- SHAPE testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assert form 'assertTdsEquivalent/4' is not supported yet
-- SHAPE testDateTimeRetrieveWithTimeZone [tests/mapping/relation]: assert form 'assertTdsEquivalent/4' is not supported yet
+- FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
+- FAIL testDateTimeRetrieveWithTimeZone [tests/mapping/relation]: assertTdsEquivalent: cell 1 expected 2016-02-05, got 2016-02-05 21:00:00.123456789
 - FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
 - FAIL testMixedMappingWithFilterInProject [tests/mapping/relation]: assertEquals: expected [David, null, Fabrice, null, John, John, Oliver, Fabrice, Oliver, Oliver], got [David, null, Fabrice, Oliver, John, John, Oliver, Oliver]
 - SHAPE testRelationStoreAccessorOnView [tests/mapping/relation]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown table 'personView' in database 'meta::relational::tests::mapping::relation::testDB'
@@ -1544,8 +1539,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
-- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
-- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
+- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
+- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: no overload of 'execute' matches the argument types
