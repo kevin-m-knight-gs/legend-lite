@@ -30,11 +30,20 @@ public record GraphFetchLiteral(
         subTrees = List.copyOf(subTrees);
     }
 
-    /** One property node: name, its token span, nested subtrees. */
+    /**
+     * One property node: name, its token span, call arguments, optional alias
+     * ({@code 'nick' : prop}), optional subtype view ({@code prop->subType(@X)}), nested
+     * subtrees. Arguments are protocol value specs whose spans the island scan bakes in
+     * (var = name only, no {@code $}; string/date/enum = full literal).
+     */
     public record Node(String property,
                        @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+                       List<ValueSpecification> parameters,
+                       @com.legend.Nullable String alias,
+                       @com.legend.Nullable String subType,
                        List<Node> subTrees) {
         public Node {
+            parameters = List.copyOf(parameters);
             subTrees = List.copyOf(subTrees);
         }
     }

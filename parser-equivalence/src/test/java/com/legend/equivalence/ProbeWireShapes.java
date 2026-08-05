@@ -385,6 +385,61 @@ class ProbeWireShapes {
                   let t = #{I {s, f}}#;
                 }
                 """);
+        dump("gft rich forms", """
+                function y3::a(): Any[*]
+                {
+                  #{I {s, byName('x'){t}, pair(1,2), dated(%2015-10-16){u}, byVars($a, $b), noArg()}}#;
+                }
+                function y3::b(): Any[*]
+                {
+                  #{I {s, shapes->subType(@Circle){radius}}}#;
+                }
+                function y3::c(): Any[*]
+                {
+                  #{I {'nick' : s, 'other' : byName('x'){t}}}#;
+                }
+                """);
+        dump("gft enum param", """
+                function y4::a(): Any[*]
+                {
+                  #{I {s, id(BookIdentifierType.ISBN_10)}}#;
+                }
+                """);
+        dump("gft bare date param", """
+                function y4::b(): Any[*]
+                {
+                  #{I {product(2015-10-16){name}}}#;
+                }
+                """);
+        dump("gft bare datetime param", """
+                function y4::c(): Any[*]
+                {
+                  #{I {dt(2015-10-16T10:20:30){name}}}#;
+                }
+                """);
+        dump("gft pct date param", """
+                function y4::d(): Any[*]
+                {
+                  #{I {product(%2015-10-16T10:20:30){name}}}#;
+                }
+                """);
+        dump("gft bool arg and comment", """
+                function y5::a(): Any[*]
+                {
+                  #{I {
+                     s,
+                     // skipped,
+                     f(false),
+                     g(true)
+                  }}#;
+                }
+                """);
+        dump("gft collection args", """
+                function y6::a(): Any[*]
+                {
+                  #{I {'x' : f([]), 'y' : g([En.A, En.B]), h([1, 2])}}#;
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

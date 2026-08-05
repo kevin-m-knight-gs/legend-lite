@@ -2684,6 +2684,41 @@ public final class SpecParser implements TokenStreamCursor {
                 i++;
                 continue;
             }
+            if (c == '/' && i + 1 < limit && src.charAt(i + 1) == '/') {
+                while (i < limit && src.charAt(i) != '\n') {
+                    i++;
+                }
+                continue;
+            }
+            String alias = null;
+            if (c == '\'') {
+                // 'nick' : prop — the alias rides the node's "alias" field
+                int qs = i + 1;
+                int qe = src.indexOf('\'', qs);
+                if (qe < 0 || qe >= limit) {
+                    unsupported[0] = true;
+                    i = limit;
+                    break;
+                }
+                alias = src.substring(qs, qe);
+                i = qe + 1;
+                while (i < limit && Character.isWhitespace(src.charAt(i))) {
+                    i++;
+                }
+                if (i >= limit || src.charAt(i) != ':') {
+                    unsupported[0] = true;
+                    continue;
+                }
+                i++;
+                while (i < limit && Character.isWhitespace(src.charAt(i))) {
+                    i++;
+                }
+                if (i >= limit || !isGraphIdentChar(src.charAt(i))) {
+                    unsupported[0] = true;
+                    continue;
+                }
+                c = src.charAt(i);
+            }
             if (isGraphIdentChar(c)) {
                 int s = i;
                 while (i < limit && isGraphIdentChar(src.charAt(i))) {
@@ -2695,35 +2730,194 @@ public final class SpecParser implements TokenStreamCursor {
                 while (j < limit && Character.isWhitespace(src.charAt(j))) {
                     j++;
                 }
+                List<ValueSpecification> params = List.of();
+                if (j < limit && src.charAt(j) == '(') {
+                    cursor[0] = j;
+                    params = scanGraphArgs(src, cursor, limit, unsupported);
+                    i = cursor[0];
+                    j = i;
+                    while (j < limit && Character.isWhitespace(src.charAt(j))) {
+                        j++;
+                    }
+                }
+                String subType = null;
+                if (j + 1 < limit && src.charAt(j) == '-' && src.charAt(j + 1) == '>') {
+                    // prop->subType(@X) — the view rides the node's "subType" field;
+                    // any other arrow form is unprobed
+                    int k = j + 2;
+                    int ws = k;
+                    while (k < limit && isGraphIdentChar(src.charAt(k))) {
+                        k++;
+                    }
+                    if (src.substring(ws, k).equals("subType")
+                            && k + 1 < limit && src.charAt(k) == '(' && src.charAt(k + 1) == '@') {
+                        int ts = k + 2;
+                        int te = src.indexOf(')', ts);
+                        if (te >= 0 && te < limit) {
+                            subType = src.substring(ts, te);
+                            i = te + 1;
+                            j = i;
+                            while (j < limit && Character.isWhitespace(src.charAt(j))) {
+                                j++;
+                            }
+                        } else {
+                            unsupported[0] = true;
+                        }
+                    } else {
+                        unsupported[0] = true;
+                    }
+                }
                 List<com.legend.protocol.spec.GraphFetchLiteral.Node> sub = List.of();
                 if (j < limit && src.charAt(j) == '{') {
                     cursor[0] = j;
                     sub = scanGraphNodes(src, cursor, limit, unsupported);
                     i = cursor[0];
-                } else if (j < limit && src.charAt(j) == '(') {
-                    // property parameters — wire shape unprobed
-                    unsupported[0] = true;
-                    i = j;
-                    int d = 0;
-                    do {
-                        char cc = src.charAt(i);
-                        if (cc == '(') {
-                            d++;
-                        } else if (cc == ')') {
-                            d--;
-                        }
-                        i++;
-                    } while (i < limit && d > 0);
                 }
-                nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(prop, pos, sub));
+                nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(
+                        prop, pos, params, alias, subType, sub));
                 continue;
             }
-            // aliases ('x':p), ->subType(@X), quoted names — wire shapes unprobed
+            // root-level ->subType, quoted names in other positions — wire shapes unprobed
             unsupported[0] = true;
             i++;
         }
         cursor[0] = i;
         return nodes;
+    }
+
+    /**
+     * Property call arguments inside a graph-fetch island: string (span includes quotes),
+     * integer, {@code $var} (span = NAME only, no dollar), {@code %date} (written keeps the
+     * {@code %} — the wire emits it verbatim as {@code dateTime}), {@code Enum.VALUE}
+     * (whole dotted span). Anything else marks the literal unsupported.
+     */
+    private List<ValueSpecification> scanGraphArgs(
+            String src, int[] cursor, int limit, boolean[] unsupported) {
+        return scanGraphArgs(src, cursor, limit, unsupported, ')');
+    }
+
+    private List<ValueSpecification> scanGraphArgs(
+            String src, int[] cursor, int limit, boolean[] unsupported, char closer) {
+        List<ValueSpecification> out = new ArrayList<>();
+        int i = cursor[0] + 1;                      // past '(' or '['
+        while (i < limit) {
+            char c = src.charAt(i);
+            if (c == closer) {
+                i++;
+                break;
+            }
+            if (c == '[') {
+                // collection argument — elements share the scalar-arg grammar
+                cursor[0] = i;
+                out.add(new PureCollection(
+                        scanGraphArgs(src, cursor, limit, unsupported, ']'), null));
+                i = cursor[0];
+                continue;
+            }
+            if (Character.isWhitespace(c) || c == ',') {
+                i++;
+                continue;
+            }
+            if (c == '/' && i + 1 < limit && src.charAt(i + 1) == '/') {
+                while (i < limit && src.charAt(i) != '\n') {
+                    i++;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                int qe = src.indexOf('\'', i + 1);
+                if (qe < 0 || qe >= limit) {
+                    unsupported[0] = true;
+                    i = limit;
+                    break;
+                }
+                out.add(new CString(src.substring(i + 1, qe), charSpan(i, qe)));
+                i = qe + 1;
+                continue;
+            }
+            if (c == '$') {
+                int s = i + 1;
+                int k = s;
+                while (k < limit && isGraphIdentChar(src.charAt(k))) {
+                    k++;
+                }
+                if (k == s) {
+                    unsupported[0] = true;
+                    i++;
+                    continue;
+                }
+                out.add(new Variable(src.substring(s, k), null, null, charSpan(s, k - 1)));
+                i = k;
+                continue;
+            }
+            if (c == '%') {
+                int s = i;
+                int k = i + 1;
+                while (k < limit && (Character.isDigit(src.charAt(k))
+                        || "-T:.Z+".indexOf(src.charAt(k)) >= 0)) {
+                    k++;
+                }
+                if (k == i + 1) {
+                    unsupported[0] = true;          // %latest and friends — unprobed here
+                    i++;
+                    continue;
+                }
+                try {
+                    out.add(new CDate(
+                            com.legend.values.PureDateLiteral.parse(src.substring(s + 1, k)),
+                            src.substring(s, k), charSpan(s, k - 1)));
+                } catch (IllegalArgumentException e) {
+                    unsupported[0] = true;
+                }
+                i = k;
+                continue;
+            }
+            if (Character.isDigit(c)) {
+                int s = i;
+                while (i < limit && Character.isDigit(src.charAt(i))) {
+                    i++;
+                }
+                if (i < limit && (src.charAt(i) == '.' || isGraphIdentChar(src.charAt(i)))) {
+                    unsupported[0] = true;          // floats/decimals — unprobed
+                    continue;
+                }
+                out.add(new CInteger(Long.parseLong(src.substring(s, i)), charSpan(s, i - 1)));
+                continue;
+            }
+            if (Character.isLetter(c) || c == '_') {
+                int s = i;
+                int k = i;
+                while (k < limit && (isGraphIdentChar(src.charAt(k)) || src.charAt(k) == ':')) {
+                    k++;
+                }
+                String word = src.substring(s, k);
+                if (word.equals("true") || word.equals("false")) {
+                    out.add(new CBoolean(word.equals("true"), charSpan(s, k - 1)));
+                    i = k;
+                    continue;
+                }
+                if (k < limit && src.charAt(k) == '.') {
+                    int vs = k + 1;
+                    int ve = vs;
+                    while (ve < limit && isGraphIdentChar(src.charAt(ve))) {
+                        ve++;
+                    }
+                    if (ve > vs) {
+                        out.add(new EnumValue(src.substring(s, k), src.substring(vs, ve),
+                                null, charSpan(s, ve - 1)));
+                        i = ve;
+                        continue;
+                    }
+                }
+                unsupported[0] = true;
+                i = k;
+                continue;
+            }
+            unsupported[0] = true;
+            i++;
+        }
+        cursor[0] = i;
+        return out;
     }
 
     private ValueSpecification parseGraphFetchTree(String content) {

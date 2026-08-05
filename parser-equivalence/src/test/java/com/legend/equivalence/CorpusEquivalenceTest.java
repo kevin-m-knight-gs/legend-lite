@@ -36,7 +36,7 @@ class CorpusEquivalenceTest {
 
     /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit. */
     private static final int MIN_ELEMENTS_COMPARED = 10375;
-    private static final int MIN_MATCHES = 10055;
+    private static final int MIN_MATCHES = 10087;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
@@ -68,6 +68,15 @@ class CorpusEquivalenceTest {
         int compared = counts.get(Kind.MATCH) + counts.get(Kind.DIFF);
         String report = report(sources.size(), all.size(), counts, compared, walls, diffs);
         Files.writeString(Path.of("target", "equivalence-report.txt"), report);
+        // per-wall detail — the burn-down worklist, one line per walled element
+        StringBuilder wd = new StringBuilder();
+        for (Verdict v : all) {
+            if (v.kind() == Kind.WALL) {
+                wd.append(ParserEquivalence.rule(v.detail())).append('\t')
+                        .append(v.sourceId()).append('\t').append(v.element()).append('\n');
+            }
+        }
+        Files.writeString(Path.of("target", "walls-detail.txt"), wd.toString());
         System.out.println(report);
 
         // (1) the run must have done work — an empty run is a failure, never a pass

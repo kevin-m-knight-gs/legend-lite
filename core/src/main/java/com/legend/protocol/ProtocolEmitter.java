@@ -1177,13 +1177,81 @@ public final class ProtocolEmitter {
                 b.append(',');
             }
             com.legend.protocol.spec.GraphFetchLiteral.Node n = nodes.get(i);
-            b.append("{\"_type\":\"propertyGraphFetchTree\",\"_type\":\"propertyGraphFetchTree\",\"parameters\":[],\"property\":");
+            b.append("{\"_type\":\"propertyGraphFetchTree\",\"_type\":\"propertyGraphFetchTree\",");
+            if (n.alias() != null) {
+                b.append("\"alias\":");
+                str(b, n.alias());
+                b.append(',');
+            }
+            b.append("\"parameters\":[");
+            for (int k = 0; k < n.parameters().size(); k++) {
+                if (k > 0) {
+                    b.append(',');
+                }
+                gftParam(b, n.parameters().get(k));
+            }
+            b.append("],\"property\":");
             str(b, n.property());
             b.append(",\"sourceInformation\":");
             srcInfo(b, requirePos(n.pos(), "graph-fetch property " + n.property()));
             b.append(",\"subTrees\":[");
             graphNodes(b, n.subTrees());
-            b.append("],\"subTypeTrees\":[]}");
+            b.append(']');
+            if (n.subType() != null) {
+                b.append(",\"subType\":");
+                str(b, n.subType());
+            }
+            b.append(",\"subTypeTrees\":[]}");
+        }
+    }
+
+    /**
+     * A graph-fetch property argument. String/integer/var reuse the ordinary literal
+     * shapes; dates diverge from expression position — ALWAYS {@code dateTime} and the
+     * value keeps the leading {@code %} (probe "gft pct date param") — and a dotted enum
+     * is a REAL {@code enumValue} node spanning the whole dotted path (probe "gft enum
+     * param"), unlike the property-on-ptr spelling expression position uses.
+     */
+    private static void gftParam(StringBuilder b, com.legend.protocol.spec.ValueSpecification p) {
+        switch (p) {
+            case com.legend.protocol.spec.CDate d -> {
+                b.append("{\"_type\":\"dateTime\",\"sourceInformation\":");
+                srcInfo(b, requirePos(d.pos(), "graph-fetch date argument"));
+                b.append(",\"value\":");
+                str(b, java.util.Objects.requireNonNull(d.written(),
+                        "graph-fetch date argument written form"));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.EnumValue e -> {
+                b.append("{\"_type\":\"enumValue\",\"fullPath\":");
+                str(b, e.fullPath());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(e.pos(), "graph-fetch enum argument"));
+                b.append(",\"value\":");
+                str(b, e.value());
+                b.append('}');
+            }
+            case com.legend.protocol.spec.PureCollection col -> {
+                // graph-fetch collection args carry NO sourceInformation
+                // (probe "gft collection args"), unlike expression position
+                b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
+                        .append(col.values().size()).append(",\"upperBound\":")
+                        .append(col.values().size()).append("},\"values\":[");
+                for (int k = 0; k < col.values().size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    gftParam(b, col.values().get(k));
+                }
+                b.append("]}");
+            }
+            case com.legend.protocol.spec.CString s -> valueSpec(b, s);
+            case com.legend.protocol.spec.CInteger c -> valueSpec(b, c);
+            case com.legend.protocol.spec.CBoolean bo -> valueSpec(b, bo);
+            case com.legend.protocol.spec.Variable v -> valueSpec(b, v);
+            default -> throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for graph-fetch argument "
+                            + p.getClass().getSimpleName() + " — probe, do not guess.");
         }
     }
 

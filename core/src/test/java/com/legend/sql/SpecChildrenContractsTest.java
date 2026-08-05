@@ -285,7 +285,7 @@ class SpecChildrenContractsTest {
         // would recurse forever; pin a leaf
         if (type == com.legend.protocol.spec.GraphFetchLiteral.Node.class) {
             return new com.legend.protocol.spec.GraphFetchLiteral.Node(
-                    "p", null, List.of());
+                    "p", null, List.of(), null, null, List.of());
         }
         if (type.isRecord()) {
             return build(type);
