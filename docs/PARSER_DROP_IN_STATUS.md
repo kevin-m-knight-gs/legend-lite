@@ -256,6 +256,33 @@ Late-arc wire rules, all probed via `ProbeWireShapes` and encoded in `ProtocolEm
 The harness now writes `target/walls-detail.txt` and `target/parsefails-detail.txt` — per-element
 worklists — on every run.
 
+### 4.1b Corpus expansion + burn-down — **ABSOLUTE ZERO (2026-08-05, 9168a5a9)**
+
+The corpus widened twice past §4.1: the WHOLE engine+pure checkouts (3,450 files) and the
+C4/C5 **inline snippets** (`InlineSnippets.java`: ~2,000 Java test files → 3,719 candidate
+snippets, reference-parser-adjudicated). Final state: **19,258 verdicts / 19,258 MATCH /
+0 DIFF / 0 WALL / 0 PARSE_FAIL** — every comparable element anywhere in both checkouts is
+byte-identical. Ratchets `19,258/19,258`. Late rules worth knowing: the engine's flat
+boolean/comparison chain reproduces at EMISSION (`rotateFlatBoolean` — the parse stays
+semantic; a parse-side attempt broke 11 engine-suite tests and was reverted); caret
+specials match exact simple/FQN spellings (+`^TdsOlapRank`); bare `Result` defaults
+`<Any|1>`; function constraint blocks and colspec-annotation drops are engine data-loss
+reproduced; test suites serialize fully (equalToJson/equalToRelation, testData islands:
+modelStore / relationalCSVData / relation blocks with wart-for-wart span shifts);
+declaration names unquote, references keep raw quoted spellings.
+
+### 4.1c Rejection parity — **live (RejectionParityTest)**
+
+The NEGATIVE corpus: `PARSER error at [l:c]` (engine) and
+`Parser error at (resource:... line:l column:c)` (legend-pure) pins pair by adjacency
+with their input snippets. **39/39 Pure-only pins REJECTED, 0 misses**, `MIN_PINS 39`;
+error-line agreement 19/39 (informational — positions, never messages). It forced:
+`true`/`false` are not FQN segments; test call names must match the enclosing function;
+type/multiplicity parameters reject on the ENGINE-STRICT surface
+(`ElementParser.legendStrict`, set by `at()`/`parseStrict`) while legend-lite's own
+dialect keeps them. The plan's larger 410/69 counts include non-Pure sections and
+non-adjacent call shapes — a visible extension point.
+
 ### 4.2 Then, in order
 
 Other sections. Section frequency across legend-engine (2,002 occurrences): Pure 904 (**done**),
