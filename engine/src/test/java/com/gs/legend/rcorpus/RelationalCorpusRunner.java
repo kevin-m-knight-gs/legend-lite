@@ -531,24 +531,53 @@ public class RelationalCorpusRunner {
         // inside it — the engine's per-package shared-server semantics
         runner.beginFamilySession();
         try {
+            // Phase C: discovery through the REAL parser — stereotyped
+            // functions off the parsed unit, body as AST.
+            // ENGINE EXECUTION ORDER (PureTestBuilder.buildSuite):
+            // sibling package suites sort by name and run BEFORE a
+            // package's own tests, which sort by name — NOT source
+            // declaration order (a declaration-first polluting INSERT
+            // test poisoned 12 downstream tests; study §5.1, proven by
+            // exact arithmetic, per-test sessions, and a name filter).
+            List<Map.Entry<Path, Runner.ParsedTest>> ordered = new ArrayList<>();
             for (Map.Entry<Path, String> e : testSources.entrySet()) {
-                runner.selectFile(e.getKey().toString());
-                // Phase C: discovery through the REAL parser — stereotyped
-                // functions off the parsed unit, body as AST
-                // -Drcorpus.test=<name-substring> narrows a scoped run to
-                // matching TEST functions (fast single-test iteration; the
-                // family model still assembles in full)
                 for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
                     if (!onlyTest.isEmpty() && !t.fqn().contains(onlyTest)) {
                         continue;
                     }
-                    outcomes.add(runner.run(t));
+                    ordered.add(Map.entry(e.getKey(), t));
                 }
+            }
+            ordered.sort((a, b) -> engineSuiteOrder(a.getValue().fqn(),
+                    b.getValue().fqn()));
+            for (Map.Entry<Path, Runner.ParsedTest> e : ordered) {
+                runner.selectFile(e.getKey().toString());
+                outcomes.add(runner.run(e.getValue()));
             }
         } finally {
             runner.endFamilySession();
         }
         return outcomes;
+    }
+
+    /** PureTestBuilder.buildSuite's traversal as a comparator: compare
+     *  package segments; at the first divergence sort alphabetically;
+     *  an ANCESTOR package's own tests run AFTER its sub-suites (deeper
+     *  fqn first); same package sorts by test name. */
+    static int engineSuiteOrder(String fqnA, String fqnB) {
+        String[] a = fqnA.split("::");
+        String[] b = fqnB.split("::");
+        int i = 0;
+        while (i < a.length - 1 && i < b.length - 1 && a[i].equals(b[i])) {
+            i++;
+        }
+        if (i < a.length - 1 && i < b.length - 1) {
+            return a[i].compareTo(b[i]);
+        }
+        if (a.length == b.length) {
+            return a[a.length - 1].compareTo(b[b.length - 1]);
+        }
+        return a.length < b.length ? 1 : -1;
     }
 
     /** REGISTRATION phase: assemble the family's source set (setups,
