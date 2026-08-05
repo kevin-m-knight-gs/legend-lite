@@ -26,7 +26,7 @@ final class GetAllChecker {
             throw new TypeInferenceException("getAll expects a class reference");
         }
         return new TypedGetAll(ref.fullPath(),
-                a.args().subList(1, a.args().size()), false, a.out());
+                a.args().subList(1, a.args().size()), false, false, a.out());
     }
 
     /** {@code Class.allVersions()} / {@code allVersionsInRange(s, e)}: the
@@ -38,6 +38,22 @@ final class GetAllChecker {
             throw new TypeInferenceException(af.function() + " expects a class reference");
         }
         return new TypedGetAll(ref.fullPath(),
-                a.args().subList(1, a.args().size()), true, a.out());
+                a.args().subList(1, a.args().size()), true, false, a.out());
+    }
+
+    /** {@code Class->getAllForEachDate(dates)}: the per-date extent —
+     * the DATES argument is a full store query whose result column
+     * becomes the FROM root; the class table joins onto it with the
+     * milestoning window correlated per date (engine
+     * getMilestoningContextForAllForEachDate; golden shape pinned in
+     * testGetAllForEachDate.pure:85). */
+    static TypedSpec checkForEachDate(Typer t, AppliedFunction af, Env env) {
+        Application a = t.checkGeneric(af, env);
+        if (a.args().isEmpty() || !(a.args().get(0) instanceof TypedPackageableRef ref)) {
+            throw new TypeInferenceException(
+                    "getAllForEachDate expects a class reference");
+        }
+        return new TypedGetAll(ref.fullPath(),
+                a.args().subList(1, a.args().size()), false, true, a.out());
     }
 }

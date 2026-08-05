@@ -23,7 +23,8 @@ import java.util.List;
  * @param info         {@code ClassType[*]}
  */
 public record TypedGetAll(String classFqn, List<TypedSpec> milestoning,
-                          boolean versionSweep, ExprType info) implements TypedSpec {
+                          boolean versionSweep, boolean forEachDate,
+                          ExprType info) implements TypedSpec {
     public TypedGetAll {
         milestoning = List.copyOf(milestoning);
     }
@@ -38,6 +39,6 @@ public record TypedGetAll(String classFqn, List<TypedSpec> milestoning,
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        return new TypedGetAll(classFqn, kids, versionSweep, info);
+        return new TypedGetAll(classFqn, kids, versionSweep, forEachDate, info);
     }
 }

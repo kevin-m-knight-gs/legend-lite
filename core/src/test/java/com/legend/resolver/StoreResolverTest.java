@@ -97,7 +97,7 @@ class StoreResolverTest {
                 new com.legend.compiler.element.type.Type.ClassType("test::C"),
                 com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY);
         var escapee = new com.legend.compiler.spec.typed.TypedGetAll(
-                "test::C", List.of(), false, info);
+                "test::C", List.of(), false, false, info);
         var e = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> StoreResolver.assertNoStoreOnlyEscapees(escapee));
         assertTrue(String.valueOf(e.getMessage()).contains("test::C"), e.getMessage());

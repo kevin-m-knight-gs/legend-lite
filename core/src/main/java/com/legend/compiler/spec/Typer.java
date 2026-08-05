@@ -1069,6 +1069,8 @@ final class Typer {
             case SORT_BY -> SortChecker.sortBy(this, af, env, true);
             case SORT_BY_REVERSED -> SortChecker.sortBy(this, af, env, false);
             case GET_ALL -> GetAllChecker.check(this, af, env);
+            case GET_ALL_FOR_EACH_DATE ->
+                    GetAllChecker.checkForEachDate(this, af, env);
             case GET_ALL_VERSIONS, GET_ALL_VERSIONS_IN_RANGE ->
                     GetAllChecker.checkVersions(this, af, env);
             case FROM -> FromChecker.check(this, af, env);

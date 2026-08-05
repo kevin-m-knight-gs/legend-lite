@@ -105,6 +105,8 @@ public enum CoreFn {
     /** {@code Class.all()} &mdash; the object-graph source anchor ({@code getAll<T>(Class<T>):T[*]}). */
     GET_ALL("getAll"),
     /** {@code Class.allVersions()} — the milestoned VERSION-sweep extent. */
+    GET_ALL_FOR_EACH_DATE("getAllForEachDate"),
+
     GET_ALL_VERSIONS("getAllVersions"),
     /** {@code Class.allVersionsInRange(start, end)} — versions overlapping the range. */
     GET_ALL_VERSIONS_IN_RANGE("getAllVersionsInRange"),
