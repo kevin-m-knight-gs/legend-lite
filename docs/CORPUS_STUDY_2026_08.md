@@ -73,7 +73,7 @@ classifications stand. What has moved is the *per-test verdict roster* — some 
 some changed bucket, and 29 newly-visible tests were never studied. Re-partitioning against the
 current 314 would be a re-run of § 0's method, not a re-derivation of § 2–§ 7.
 
-**The scoreboard is not byte-reproducible — open.** I first saw a differing wall message on the
+**The scoreboard is not byte-reproducible — FIXED, see below.** I first saw a differing wall message on the
 wrong-corpus run and wrote it off as an artifact of the wrong tree. That was wrong, and worth
 recording as such: three consecutive **green** sweeps at identical `HEAD`, identical corpus root and
 identical everything else produce **three distinct checksums**.
@@ -94,16 +94,43 @@ Both are *which failure is reported first*, not a change in outcome. **Every cou
 (2567 / 2253 / 104 / 97 / 113 across all runs), so the regression gate — which compares per-family
 pass counts — is unaffected. The cost is two lines of scoreboard churn on every green sweep.
 
-`STATE_AUDIT.md` **S4.4** predicted this from unsorted `Files.walk`/`Files.list` feeding
-`putIfAbsent` chains. `.sorted()` was added to the two `addBeforePackages` feeds it named
-(`RelationalCorpusRunner.java:115`, `:132`) — **necessary but not sufficient**; the flap survives.
-The remaining source is unidentified. `FunctionCompiler.java:90`'s `static
-ConcurrentHashMap.newKeySet()` "suppress once" guard is JVM-global and order-sensitive, which makes
-it a candidate, but this was not chased to a conclusion.
+`STATE_AUDIT.md` **S4.4** predicted this from unsorted `Files.walk`/`Files.list`. `.sorted()` on the
+two `addBeforePackages` feeds it named (`RelationalCorpusRunner.java:115`, `:132`) was necessary but
+**not sufficient** — the flap survived.
 
-The gate-before-write change (§ 0a above) means this can no longer corrupt a *committed* artifact —
-a red run writes nothing at all. It remains a hazard for anyone building a byte-level ratchet on the
-scoreboard, and it should be closed before anyone does.
+**The actual cause: `Map.copyOf` in `NameResolver.resolveKeyExpressionMap`.**
+
+```java
+Map<String, KeyExpression> out = new LinkedHashMap<>(props.size());   // order preserved…
+for (…) { … }
+return changed ? Map.copyOf(out) : props;                             // …then discarded
+```
+
+`Map.copyOf` returns an immutable map whose iteration order is randomized **per JVM run** by
+`java.util.ImmutableCollections.SALT`, seeded from `System.nanoTime()`. `^Class(...)` validation
+reports the *first* failing property, so an ill-typed instantiation's wall text changed between runs.
+The conditional matters too — order was only destroyed when name resolution actually rewrote a
+property, which is why a handful of rows flapped rather than the whole corpus.
+
+Proven with a standalone probe on the exact `^TableTDS(...)` property names:
+
+```
+LinkedHashMap : store,table,columns
+Map.copyOf    : columns,store,table
+Map.copyOf    : table,store,columns      ← "property 'table' … expected NamedRelation"
+Map.copyOf    : columns,store,table
+Map.copyOf    : store,table,columns      ← "class 'TableTDS' has no property 'store'"
+```
+
+Both observed messages, from five JVM starts. Fixed by returning
+`Collections.unmodifiableMap(out)` — immutability without discarding order, exactly what
+`NewInstance`'s own compact constructor already does and documents.
+
+**Verified:** three consecutive full sweeps now produce a byte-identical scoreboard
+(`md5 0e6b1773…`), with counts unchanged. Two rows changed once and stayed put: they now report
+their *true* first failure, which the randomization had been masking —
+`testResultToJsonStream` turns out to fail on `TDSColumn has no property 'type'`, a message neither
+earlier run had shown.
 
 ---
 

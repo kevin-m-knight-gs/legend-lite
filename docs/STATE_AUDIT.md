@@ -399,15 +399,25 @@ first-wins). **The list is not.** `RelationalCorpusRunner` sorts every walk exce
 chains including `fnIndex:227`, which decides **which body a helper call expands to**. Stable on APFS
 while the tree is untouched; silently changes when the checkout is modified. **Add `.sorted()`.**
 
-> **PARTIALLY RESOLVED 2026-08-05.** The engine-root half is **fixed** (commit `9f9c0240`):
-> `Corpus.ENGINE_ROOT` now defaults under `user.home`, matching `parser-equivalence`'s
-> `Corpus.engineRoot()`. Verified — the no-override invocation is green and regenerates a scoreboard
-> byte-identical to the committed baseline. The **ordering** half is *not* fixed. `.sorted()` was
-> added to the two `addBeforePackages` feeds named below, which was necessary but **not sufficient**:
-> three consecutive green sweeps at identical `HEAD` and corpus root still produce three distinct
-> scoreboard checksums. Exactly two rows flap — `testViewToTDS` and `testResultToJsonStream` — and
-> only in their *wall message text*; every count is stable, so the regression gate is unaffected. The
-> remaining source is unidentified. See `CORPUS_STUDY_2026_08.md` § 0a.
+> **RESOLVED 2026-08-05** — both halves, in three commits.
+>
+> **Engine root** (`9f9c0240`): `Corpus.ENGINE_ROOT` now defaults under `user.home`, matching
+> `parser-equivalence`'s `Corpus.engineRoot()`.
+>
+> **Ordering** (`42277dfa`, `<this commit>`): `.sorted()` on the two `addBeforePackages` feeds named
+> below was necessary but **not** sufficient — three green sweeps still gave three checksums. The
+> actual culprit was `NameResolver.resolveKeyExpressionMap` returning **`Map.copyOf(out)`**, which
+> discards the `LinkedHashMap` order built two lines above it. `Map.copyOf`'s iteration order is
+> randomized per JVM run by `java.util.ImmutableCollections.SALT` (seeded from `nanoTime`), and
+> `^Class(...)` validation reports the *first* failing property — so an ill-typed instantiation's
+> wall text changed between runs. Proven with a standalone probe on the exact `^TableTDS(...)`
+> property names (`store,table,columns` → a different order on nearly every JVM start), then fixed
+> by returning `Collections.unmodifiableMap(out)`.
+>
+> **Verified:** three consecutive full sweeps now produce a byte-identical scoreboard
+> (`md5 0e6b1773…`), counts unchanged at 2567 / 2253 / 104 / 97 / 113. Two rows changed once and
+> stayed: they now report their *true* first failure, which the randomization had been masking.
+> See `CORPUS_STUDY_2026_08.md` § 0a.
 
 **And `Corpus.java:32` defaults `legend.engine.root` to `/Users/neema/legend/legend-engine` — another
 user account's home directory** — with no pom, script, or doc setting the property. Both checkouts
