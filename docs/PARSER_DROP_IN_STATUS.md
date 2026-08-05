@@ -219,32 +219,47 @@ Compares **emitted bytes**, per element, against the live upstream parser.
 
 ## 4. The worklist
 
-### 4.1 Immediate
+### 4.1 ###Pure — **100% COMPLETE (2026-08-05, commit 5342f934)**
 
-1. ~~**The §2.3 refactor.**~~ **DONE 2026-08-04** — protocol standalone, ArchUnit invariant 7
-   enforces it (7a lexer=JDK-only, 7b protocol=values+JDK, 7c parser surface pinned).
-2. **The ValueSpecification emitter** — 270 of the 359 remaining walls, and the foundation for
-   everything after `Class`. Wire shapes already captured:
-   - `lambda` `{"_type":"lambda","body":[…],"parameters":[…]}` — no `sourceInformation` on the lambda itself
-   - `func` `{"_type":"func","function":…,"parameters":[…],"sourceInformation":…}`
-   - `property` `{"_type":"property","parameters":[…],"property":…,"sourceInformation":…}`
-   - `var` `{"_type":"var","name":…,"sourceInformation":…}` — but in lambda `parameters`,
-     `{"_type":"var","multiplicity":{…},"name":…}` with **no** sourceInformation
-   - `integer` `{"_type":"integer","sourceInformation":…,"value":1}`
-3. ~~`Generic` type expressions~~ **DONE 2026-08-04** — `TypeExpression.NameRef`/`Generic` carry
-   `@Nullable pos` (excluded from equality, guarded by `TypeExpressionEqualityTest`); `parseType`
-   threads spans; the emitter recurses (`GenericTypeEmissionTest` pins engine bytes end-to-end;
-   generic SUPERTYPES emit base path only — engine drops the args from the wire, verified).
-   The harness reflection is gone too: `ElementParser.at(ts, i)` + `topLevelIndexes` +
-   public `parseClassDefinition` are the per-element protocol entry points.
-   **Remaining `Class` walls**: constraints 222, qualifiedProperties 40, defaultValue 9,
-   generic multiplicity arguments 2 (`<T|m>` — wall until the wire shape is probed).
+**10,106 verdicts / 10,106 MATCH / 0 DIFF / 0 WALL / 0 PARSE_FAIL / 0 REFERENCE_REJECTED**
+over ~2,289 corpus files. Every ###Pure element the engine parses — Class, Enumeration, Profile,
+Association, Function (including legend-testable test-suite blocks) — emits byte-identically.
+Ratchets: `MIN_ELEMENTS_COMPARED = MIN_MATCHES = 10106` (lowered from 10,375 with cause: 269
+phantom sites — decl keywords appearing as identifiers — produced PARSE_FAIL verdicts matching no
+real engine element; the site finder now uses a POSITIVE predecessor rule: a declaration keyword
+counts only at stream start, after `}`, or after `;`).
+
+Late-arc wire rules, all probed via `ProbeWireShapes` and encoded in `ProtocolEmitter`:
+
+- **Graph fetch** (`GraphFetchLiteral` carrier, charwise island scan): classInstance
+  rootGraphFetchTree with the `_type` key **doubled** on root + property nodes (engine Jackson
+  quirk); spans absolute (class-name / name-token); the let rule overrides the OUTER span only.
+  Args: string/integer/boolean/var reuse expression shapes (var span = name only, no `$`);
+  `%dates` are always `dateTime` and **keep** the `%`; dotted enums are real `enumValue` nodes;
+  collections carry `multiplicity` size/size and **no** sourceInformation. `'alias':prop` rides an
+  `alias` field; `p->subType(@X)` rides `subType` after `subTrees`; `//` island comments skip.
+- **Path-literal args** (typed `PathArg`): `%date` → `dateTime` **without** the `%`, same `a-1`
+  shift rule as `%latest`; `Enum.VALUE` → span-less `enumValue`.
+- **CTime** → `strictTime`, written form verbatim (record now carries `written` + `pos`).
+- **RelationType in signatures**: span-less wrapper genericType + rawType; column span =
+  name (quotes included)..type-end; undeclared column multiplicity is `0..1` **on the wire**
+  (declared multiplicity walls — unprobed).
+- **Function test suites** (`PTestSuite`/`PFunctionTest`/`PTestParam`): unnamed block → id
+  `"default"` spanning the braces; named → name..close-paren; test span includes the semicolon;
+  single `equalTo` assertion, id `"default"`, spanning the expected; `parameters` key only when
+  the call has args, bound to signature parameter names by position; `tests` is the last key.
+- **Type-variable values** (`Varchar(200)`, `Numeric(10,2)`): `Generic.typeVariableValues`;
+  rawType span covers the whole application.
+- **Aggregation kinds** `(shared|composite|none)`: `aggregation` key, UPPERCASE, first.
+- **Lexer**: bare-fraction floats (`.5`) route into the numeric scanner's fractional branch.
+
+The harness now writes `target/walls-detail.txt` and `target/parsefails-detail.txt` — per-element
+worklists — on every run.
 
 ### 4.2 Then, in order
 
-Finish `Class` → the rest of `###Pure` (Enum, Association, Profile, Function, Measure) → other
-sections. Section frequency across legend-engine (2,002 occurrences): Pure 904, Mapping 533,
-Relational 245, Runtime 78, Diagram 60, Connection 49, Service 43, then a tail.
+Other sections. Section frequency across legend-engine (2,002 occurrences): Pure 904 (**done**),
+Mapping 533, Relational 245, Runtime 78, Diagram 60, Connection 49, Service 43, then a tail.
 
 **Before other sections, fix the silent-drop lexer.** `Lexer.java:287-293` raw-skips any section
 outside `{Pure, Mapping, Relational, Connection, Runtime}` and returns **success**. You cannot
