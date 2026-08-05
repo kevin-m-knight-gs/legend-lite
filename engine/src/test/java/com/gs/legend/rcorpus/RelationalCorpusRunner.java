@@ -71,6 +71,45 @@ public class RelationalCorpusRunner {
                 {
                   $set->filter(v | $v != TDSNull)->first();
                 }
+                """,
+                // engine-core geo distances (VERBATIM from
+                // core/pure/corefunctions/mathExtension.pure:15-48 —
+                // the olap rank fail-stubs are not carried)
+                """
+                function meta::pure::functions::math::earthRadius():Float[1]
+                {
+                   6371.0;
+                }
+
+                function meta::pure::functions::math::distanceHaversineDegrees(lat1Degrees:Number[1],lon1Degrees:Number[1],lat2Degrees:Number[1],lon2Degrees:Number[1]):Number[1]
+                {
+                   distanceHaversineRadians(toRadians($lat1Degrees),toRadians($lon1Degrees),toRadians($lat2Degrees),toRadians($lon2Degrees));
+                }
+
+                function meta::pure::functions::math::distanceHaversineRadians(lat1Radians:Number[1],lon1Radians:Number[1],lat2Radians:Number[1],lon2Radians:Number[1]):Number[1]
+                {
+                   earthRadius() * angularDistanceInRadians(squareOfHalfTheChord($lat1Radians, $lon1Radians, $lat2Radians, $lon2Radians));
+                }
+
+                function <<access.private>> meta::pure::functions::math::squareOfHalfTheChord(lat1Radians:Number[1],lon1Radians:Number[1],lat2Radians:Number[1],lon2Radians:Number[1]):Number[1]
+                {
+                   pow((sin(($lat2Radians - $lat1Radians) / 2)), 2) + (cos($lat1Radians) * cos($lat2Radians) * pow(sin(($lon2Radians - $lon1Radians) / 2), 2));
+                }
+
+                function <<access.private>> meta::pure::functions::math::angularDistanceInRadians(a:Number[1]):Float[1]
+                {
+                   2.0 * atan2(sqrt($a), sqrt(1 - $a));
+                }
+
+                function meta::pure::functions::math::distanceSphericalLawOfCosinesDegrees(lat1Degrees:Number[1],lon1Degrees:Number[1],lat2Degrees:Number[1],lon2Degrees:Number[1]):Number[1]
+                {
+                   distanceSphericalLawOfCosinesRadians(toRadians($lat1Degrees), toRadians($lon1Degrees), toRadians($lat2Degrees), toRadians($lon2Degrees));
+                }
+
+                function meta::pure::functions::math::distanceSphericalLawOfCosinesRadians(lat1Radians:Number[1],lon1Radians:Number[1],lat2Radians:Number[1],lon2Radians:Number[1]):Number[1]
+                {
+                   earthRadius() * acos((sin($lat1Radians) * sin($lat2Radians)) + (cos($lat1Radians) * cos($lat2Radians) * cos($lon2Radians - $lon1Radians)));
+                }
                 """);
         Runner runner = new Runner(shared, shared);
         // the platform m2m TEST LIBRARY (Corpus.M2M_TESTS): elements only

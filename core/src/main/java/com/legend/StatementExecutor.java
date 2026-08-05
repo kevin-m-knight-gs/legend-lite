@@ -3135,14 +3135,7 @@ final class StatementExecutor {
                         .equals(gen.callee().qualifiedName())
                     || com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS
                         .equals(gen.callee().qualifiedName()))) {
-            String csv = evalStringArg(body, gen.args().get(0), env);
-            String dbFqn = gen.args().get(1)
-                    instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
-                    ? pr.fullPath() : null;
-            java.util.List<Object> sqls = new java.util.ArrayList<>(
-                    com.legend.exec.CsvSeed.sqls(csv, dbFqn, ctx));
-            return new ExecutionResult.Collection(sqls,
-                    com.legend.compiler.element.type.Type.Primitive.STRING);
+            return SeedSqlForms.assertForm(body, gen, env);
         }
         // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
         // the source collection evaluates through the pipeline; each
@@ -3153,7 +3146,9 @@ final class StatementExecutor {
             java.util.List<TypedSpec> src = new java.util.ArrayList<>(
                     body.subList(0, body.size() - 1));
             src.add(tm.source());
-            ExecutionResult values = executeTyped(src, env);
+            ExecutionResult seedForm = SeedSqlForms.mappedExecutionForm(body, tm, env);
+            ExecutionResult values = seedForm != null ? seedForm
+                    : executeTyped(src, env);
             java.util.List<Object> vals = switch (values) {
                 case ExecutionResult.Collection c -> c.values();
                 case ExecutionResult.Scalar sc2 -> sc2.value() == null

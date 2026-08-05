@@ -103,6 +103,158 @@ public final class Ddl {
         return sb.append(");").toString();
     }
 
+    /** The ENGINE's setUpDataSQLs TEXT (toDDL.pure:186-195 +
+     * loadCsvDataToDbTable): schema drop/create pairs, every table's
+     * drop/create text, then one {@code insert} per CSV row. Faithful
+     * quirks: cells are NOT trimmed; a cell whose FIRST char is a quote
+     * unquotes, leading-space-then-quote keeps the cell verbatim; block
+     * separators are lines of dashes (the CsvSeed corpus form). */
+    public static java.util.List<String> setUpDataSqlsText(String data,
+            DatabaseDefinition db) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (var sc : db.schemas()) {
+            out.add("Drop schema if exists " + sc.name() + " cascade;");
+            out.add("Create Schema if not exists " + sc.name() + ";");
+        }
+        out.add("Drop schema if exists default cascade;");
+        out.add("Create Schema if not exists default;");
+        for (var sc : db.schemas()) {
+            for (var t : sc.tables()) {
+                out.add(dropTableStatementText(sc.name(), t.name()));
+                out.add(createTableStatementText(t, sc.name()));
+            }
+        }
+        // the parser FLATTENS named-schema tables into the top-level list
+        // too — the DDL surface lists each table once, under its schema
+        java.util.Set<String> inSchemas = new java.util.HashSet<>();
+        for (var sc : db.schemas()) {
+            for (var t : sc.tables()) {
+                inSchemas.add(t.name());
+            }
+        }
+        for (var t : db.tables()) {
+            if (!inSchemas.contains(t.name())) {
+                out.add(dropTableStatementText("default", t.name()));
+                out.add(createTableStatementText(t, "default"));
+            }
+        }
+        String[] lines = data.split("\n", -1);
+        int i = 0;
+        while (i < lines.length) {
+            while (i < lines.length && (lines[i].isBlank()
+                    || lines[i].strip().matches("-+"))) {
+                i++;
+            }
+            if (i + 2 >= lines.length) {
+                break;
+            }
+            String schema = lines[i].strip();
+            String table = lines[i + 1].strip();
+            java.util.List<String> header = csvCells(lines[i + 2]);
+            DatabaseDefinition.TableDefinition def =
+                    findTable(db, schema, table);
+            i += 3;
+            while (i < lines.length && !lines[i].isBlank()
+                    && !lines[i].strip().matches("-+")) {
+                out.add(insertText(schema, table, def, header,
+                        csvCells(lines[i])));
+                i++;
+            }
+        }
+        return out;
+    }
+
+    private static DatabaseDefinition.@com.legend.Nullable TableDefinition
+            findTable(DatabaseDefinition db, String schema, String table) {
+        if (!"default".equals(schema)) {
+            for (var sc : db.schemas()) {
+                if (sc.name().equals(schema)) {
+                    for (var t : sc.tables()) {
+                        if (t.name().equalsIgnoreCase(table)) {
+                            return t;
+                        }
+                    }
+                }
+            }
+        }
+        for (var t : db.tables()) {
+            if (t.name().equalsIgnoreCase(table)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /** Quote-aware split; a cell whose FIRST character is the quote
+     *  unquotes (CSV semantics), leading whitespace before the quote
+     *  keeps the cell verbatim, quotes and all (engine parseCSV parity). */
+    private static java.util.List<String> csvCells(String line) {
+        java.util.List<String> cells = new java.util.ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean inQuotes = false;
+        for (int k = 0; k < line.length(); k++) {
+            char ch = line.charAt(k);
+            if (ch == '"') {
+                inQuotes = !inQuotes;
+                cur.append(ch);
+            } else if (ch == ',' && !inQuotes) {
+                cells.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(ch);
+            }
+        }
+        cells.add(cur.toString());
+        for (int k = 0; k < cells.size(); k++) {
+            String c = cells.get(k);
+            if (c.length() >= 2 && c.charAt(0) == '"' && c.endsWith("\"")) {
+                cells.set(k, c.substring(1, c.length() - 1));
+            }
+        }
+        return cells;
+    }
+
+    private static String insertText(String schema, String table,
+            DatabaseDefinition.@com.legend.Nullable TableDefinition def,
+            java.util.List<String> header, java.util.List<String> cells) {
+        java.util.List<String> colNames = new java.util.ArrayList<>();
+        java.util.List<String> values = new java.util.ArrayList<>();
+        for (int c = 0; c < header.size() && c < cells.size(); c++) {
+            String h = header.get(c).strip();
+            DatabaseDefinition.ColumnDefinition col = null;
+            if (def != null) {
+                for (var cd : def.columns()) {
+                    if (cd.name().equalsIgnoreCase(h)) {
+                        col = cd;
+                        break;
+                    }
+                }
+            }
+            colNames.add(col != null ? col.name() : h);
+            String cell = cells.get(c);
+            boolean numeric = col != null && isNumericType(col.dataType());
+            values.add(numeric ? cell.strip()
+                    : "'" + cell.replace("'", "''") + "'");
+        }
+        String qualified = "default".equals(schema) ? table
+                : schema + "." + table;
+        return "insert into " + qualified + " ("
+                + String.join(",", colNames) + ") values ("
+                + String.join(",", values) + ");";
+    }
+
+    private static boolean isNumericType(RelationalDataType t) {
+        return t instanceof RelationalDataType.Integer_
+                || t instanceof RelationalDataType.BigInt
+                || t instanceof RelationalDataType.SmallInt
+                || t instanceof RelationalDataType.TinyInt
+                || t instanceof RelationalDataType.Float_
+                || t instanceof RelationalDataType.Double_
+                || t instanceof RelationalDataType.Real
+                || t instanceof RelationalDataType.Decimal
+                || t instanceof RelationalDataType.Numeric;
+    }
+
     /** The ENGINE's dropTableStatement TEXT (translateDropTable-
      * StatementDefault): {@code Drop table if exists <schema.>table;}. */
     public static String dropTableStatementText(String schema, String table) {
