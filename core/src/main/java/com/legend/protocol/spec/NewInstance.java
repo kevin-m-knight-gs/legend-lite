@@ -80,13 +80,22 @@ import java.util.Objects;
 public record NewInstance(
         String className,
         List<TypeExpression> typeArguments,
+        List<String> typeMultiplicityArguments,
         Map<String, KeyExpression> properties) implements ValueSpecification {
+
+    /** The common form: no multiplicity arguments on the constructed type. */
+    public NewInstance(String className, List<TypeExpression> typeArguments,
+            Map<String, KeyExpression> properties) {
+        this(className, typeArguments, List.of(), properties);
+    }
 
     public NewInstance {
         Objects.requireNonNull(className, "className");
         Objects.requireNonNull(typeArguments, "typeArguments");
         Objects.requireNonNull(properties, "properties");
         typeArguments = List.copyOf(typeArguments);
+        typeMultiplicityArguments = typeMultiplicityArguments == null ? List.of()
+                : List.copyOf(typeMultiplicityArguments);
         // Preserve insertion order; Map.copyOf returns an unordered
         // copy so we explicitly wrap a LinkedHashMap with
         // unmodifiableMap to keep both immutability AND source order.

@@ -301,6 +301,56 @@ class ProbeWireShapes {
                   #>{r::db.tbl}#->select();
                 }
                 """);
+        dump("path offsets", """
+                function s::p1(): Any[*]
+                {
+                  #/s::X/prop#;
+                      #/s::LongerName/ab/cd#;
+                  [1]->map(x|#/s::X/prop#);
+                }
+                """);
+        dump("typed new and gft", """
+                function s::tn(): Any[*]
+                {
+                  ^s::Res<Integer>(v=1);
+                }
+                function s::gft(): Any[*]
+                {
+                  #{s::X {a, b}}#;
+                }
+                """);
+        dump("colspec fn spans", """
+                function s::cf(): Any[*]
+                {
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~b: y|$y.a);
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~[longName: yy|$yy.a + 1]);
+                }
+                """);
+        dump("fn tests wire", """
+                function s::t1(): String[1]
+                {
+                  'x';
+                }
+                {
+                  testPass | t1() => 'x';
+                }
+                """);
+        dump("colspec lambda span variants", """
+                function u::v(): Any[*]
+                {
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~b: y|$y.a);
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~c: y | $y.a);
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~[d: z|$z.a]);
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~[e: z | $z.a]);
+                }
+                """);
+        dump("caret specials", """
+                function w::a(): Any[*]
+                {
+                  ^meta::pure::functions::collection::Pair<String, String>(first = 'a', second = 'b');
+                  ^meta::pure::tds::BasicColumnSpecification<meta::pure::tds::TDSRow>(func = {r|1}, name = 'n');
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

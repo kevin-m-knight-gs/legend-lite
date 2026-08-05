@@ -148,6 +148,7 @@ public sealed interface ValueSpecification permits
                             e.getValue().isAdd(), e.getValue().isLocal()));
                 }
                 yield new NewInstance(ni.className(), ni.typeArguments(),
+                        ni.typeMultiplicityArguments(),
                         java.util.Collections.unmodifiableMap(props));
             }
             case NewInstanceCast nc -> new NewInstanceCast(nc.className(),

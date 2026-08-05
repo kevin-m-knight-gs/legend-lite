@@ -961,16 +961,50 @@ public final class ProtocolEmitter {
      */
     private static void newInstance(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
                                      @com.legend.Nullable SourceInfo span) {
-        require(ni.typeArguments().isEmpty(), "new-instance type arguments", ni.className());
         require(!ni.className().isEmpty(), "new-instance on a variable receiver", "^$x(...)");
+        // ENGINE SPECIAL-CASES two classes, matching by SIMPLE name (ProbeWireShapes
+        // "caret specials"): ^Pair(first=,second=) emits the pair() FUNCTION and
+        // ^BasicColumnSpecification(func=,name=) emits col() — canonical key order,
+        // no envelope span, values keeping their own spans.
+        String simple = ni.className().contains("::")
+                ? ni.className().substring(ni.className().lastIndexOf("::") + 2)
+                : ni.className();
+        if ("Pair".equals(simple)) {
+            caretSpecial(b, ni, "meta::pure::functions::collection::pair",
+                    new String[]{"first", "second"}, span);
+            return;
+        }
+        if ("BasicColumnSpecification".equals(simple)) {
+            caretSpecial(b, ni, "meta::pure::tds::col",
+                    new String[]{"func", "name"}, span);
+            return;
+        }
         b.append("{\"_type\":\"func\",\"function\":\"new\",\"parameters\":["
                 + "{\"_type\":\"genericTypeInstance\",\"genericType\":{"
                 + "\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","
                 + "\"fullPath\":\"meta::pure::metamodel::type::Class\"},\"typeArguments\":["
-                + "{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","
+                + "{\"multiplicityArguments\":[");
+        for (int i = 0; i < ni.typeMultiplicityArguments().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            // ^Result<Any|*>(...): the multiplicity arguments ride on the constructed
+            // type's own genericType (harness DIFF on executionPlan_execution).
+            multiplicity(b, parseMultArg(ni.typeMultiplicityArguments().get(i), ni.className()));
+        }
+        b.append("],\"rawType\":{\"_type\":\"packageableType\","
                 + "\"fullPath\":");
         str(b, ni.className());
-        b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}],"
+        b.append("},\"typeArguments\":[");
+        for (int i = 0; i < ni.typeArguments().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            // ^X<T>(...): the type arguments ride INSIDE Class<X>'s inner genericType,
+            // keeping their real source spans (ProbeWireShapes "typed new and gft").
+            genericType(b, ni.typeArguments().get(i));
+        }
+        b.append("],\"typeVariableValues\":[]}],"
                 + "\"typeVariableValues\":[]}},{\"_type\":\"string\",\"value\":\"\"},"
                 + "{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
                 .append(ni.properties().size()).append(",\"upperBound\":")
@@ -1019,20 +1053,66 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    /** {@code ~name} on the wire: a {@code classInstance} of type {@code colSpec} spanning
-     *  the NAME token, tilde excluded (ProbeWireShapes "path and cols"). */
+    /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */
+    private static void caretSpecial(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
+                                     String function, String[] keys,
+                                     @com.legend.Nullable SourceInfo span) {
+        b.append("{\"_type\":\"func\",\"function\":");
+        str(b, function);
+        b.append(",\"parameters\":[");
+        for (int i = 0; i < keys.length; i++) {
+            com.legend.protocol.spec.KeyExpression ke = ni.properties().get(keys[i]);
+            if (ke == null) {
+                throw new UnsupportedOperationException(
+                        "ProtocolEmitter has no rule for a caret special missing key '"
+                                + keys[i] + "' (at " + ni.className() + ").");
+            }
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, ke.value());
+        }
+        b.append(']');
+        if (span != null) {
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, span);
+        }
+        b.append('}');
+    }
+
+    /** {@code ~name} on the wire: a {@code classInstance} of type {@code colSpec}. Bare
+     *  specs span the NAME token (tilde excluded); function-bearing ones span tilde..end;
+     *  outer and value spans are identical (ProbeWireShapes "path and cols" + "colspec
+     *  fn spans"). */
     private static void colSpec(StringBuilder b, com.legend.protocol.spec.ColSpec cs) {
-        require(cs.function1() == null && cs.function2() == null && cs.alias() == null
-                        && cs.args().isEmpty() && !cs.qualified(),
-                "colSpec with functions/alias/args", cs.name());
+        require(cs.alias() == null && cs.args().isEmpty() && !cs.qualified(),
+                "colSpec with alias/args", cs.name());
         SourceInfo pos = requirePos(cs.pos(), "colSpec " + cs.name());
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, pos);
-        b.append(",\"type\":\"colSpec\",\"value\":{\"name\":");
+        b.append(",\"type\":\"colSpec\",\"value\":");
+        colSpecValue(b, cs, pos);
+        b.append('}');
+    }
+
+    private static void colSpecValue(StringBuilder b, com.legend.protocol.spec.ColSpec cs,
+                                     SourceInfo pos) {
+        b.append('{');
+        if (cs.function1() != null) {
+            b.append("\"function1\":");
+            lambda(b, cs.function1());
+            b.append(',');
+        }
+        if (cs.function2() != null) {
+            b.append("\"function2\":");
+            lambda(b, cs.function2());
+            b.append(',');
+        }
+        b.append("\"name\":");
         str(b, cs.name());
         b.append(",\"sourceInformation\":");
         srcInfo(b, pos);
-        b.append("}}");
+        b.append('}');
     }
 
     /** {@code ~[a, b]}: a {@code classInstance} of type {@code colSpecArray} spanning the
@@ -1046,13 +1126,7 @@ public final class ProtocolEmitter {
                 b.append(',');
             }
             com.legend.protocol.spec.ColSpec cs = ca.colSpecs().get(i);
-            require(cs.function1() == null && cs.function2() == null,
-                    "colSpec with functions inside array", cs.name());
-            b.append("{\"name\":");
-            str(b, cs.name());
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, requirePos(cs.pos(), "colSpec " + cs.name()));
-            b.append('}');
+            colSpecValue(b, cs, requirePos(cs.pos(), "colSpec " + cs.name()));
         }
         b.append("]}}");
     }

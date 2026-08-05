@@ -1402,6 +1402,7 @@ public final class SpecParser implements TokenStreamCursor {
         ValueSpecification receiver;
         String className;
         List<TypeExpression> typeArgs = List.of();
+        List<String> typeMultArgs = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.DOLLAR) {
             pos++; // consume '$'
             if (!isFqnSegmentToken(peek())) {
@@ -1416,7 +1417,7 @@ public final class SpecParser implements TokenStreamCursor {
             className = parseQualifiedName();
             int cnEnd = pos - 1;
             if (!atEnd() && peek() == TokenType.LESS_THAN) {
-                typeArgs = parseTypeArguments();
+                typeArgs = parseTypeArguments(typeMultArgs);
             }
             receiver = new PackageableElementPtr(className, spanOf(cnStart, cnEnd));
         }
@@ -1427,7 +1428,7 @@ public final class SpecParser implements TokenStreamCursor {
         Map<String, KeyExpression> properties = new LinkedHashMap<>();
         if (!atEnd() && peek() == TokenType.PAREN_CLOSE) {
             pos++;
-            return wrapNewInstance(receiver, className, typeArgs, properties);
+            return wrapNewInstance(receiver, className, typeArgs, typeMultArgs, properties);
         }
         // Disambiguate explicit-bindings vs positional-cast form.
         // Positional cast: ^Class($srcExpr) — the body is a single
@@ -1463,7 +1464,7 @@ public final class SpecParser implements TokenStreamCursor {
             parseAndPutKeyExpression(properties);
         }
         expect(TokenType.PAREN_CLOSE, "expected ')' to close ^NewInstance");
-        return wrapNewInstance(receiver, className, typeArgs, properties);
+        return wrapNewInstance(receiver, className, typeArgs, typeMultArgs, properties);
     }
 
     /**
@@ -1476,12 +1477,13 @@ public final class SpecParser implements TokenStreamCursor {
             ValueSpecification receiver,
             String className,
             List<TypeExpression> typeArgs,
+            List<String> typeMultArgs,
             Map<String, KeyExpression> properties) {
         return new AppliedFunction(
                 "new",
                 List.of(
                         receiver,
-                        new NewInstance(className, typeArgs, properties)));
+                        new NewInstance(className, typeArgs, typeMultArgs, properties)));
     }
 
     /**
@@ -1911,14 +1913,19 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private ColumnInstance parseColumnBuilders() {
+        int tildeTok = pos;
         pos++; // consume '~'
         if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
             return parseColSpecArray();
         }
-        return parseOneColSpec();
+        return parseOneColSpec(tildeTok);
     }
 
     private ColSpec parseOneColSpec() {
+        return parseOneColSpec(-1);
+    }
+
+    private ColSpec parseOneColSpec(int tildeTok) {
         // Column names can be either bare identifiers or single-quoted
         // strings (for names with whitespace / punctuation, e.g.
         // {@code ~'My Column'}). Engine grammar admits both forms
@@ -1958,10 +1965,13 @@ public final class SpecParser implements TokenStreamCursor {
                 function2 = parseColumnLambda();
             }
         }
-        // Engine convention (ProbeWireShapes "path and cols"): a colSpec spans its NAME
-        // token only — the tilde is excluded.
-        return new ColSpec(name, function1, function2, null, List.of(), false,
-                spanOf(nameTokIdx, nameTokIdx));
+        // Engine convention (exact columns, twice mis-eyeballed): a colSpec ALWAYS
+        // anchors at its NAME token — bare specs span the name alone, function-bearing
+        // ones span name..body-end. The tilde is never included.
+        com.legend.protocol.SourceInfo span = function1 == null
+                ? spanOf(nameTokIdx, nameTokIdx)
+                : spanOf(nameTokIdx, pos - 1);
+        return new ColSpec(name, function1, function2, null, List.of(), false, span);
     }
 
     private ColSpecArray parseColSpecArray() {
@@ -1995,6 +2005,13 @@ public final class SpecParser implements TokenStreamCursor {
      * would silently accept (and then mis-emit) non-lambda values.
      */
     private LambdaFunction parseColumnLambda() {
+        // ColSpec lambdas use the ORDINARY inline-lambda span rule (pipe..body-end) —
+        // verified against exact columns after an eyeballed "off-by-one" turned out to be
+        // arithmetic error, not an engine quirk. The raw parse already sets it.
+        return parseColumnLambdaRaw();
+    }
+
+    private LambdaFunction parseColumnLambdaRaw() {
         if (atEnd()) {
             throw error("expected lambda after ':' in column spec");
         }
