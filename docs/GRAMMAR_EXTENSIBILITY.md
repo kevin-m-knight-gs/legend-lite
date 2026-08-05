@@ -6,6 +6,27 @@ legend-lite is ever to sit under that deployment, those internal grammars must b
 to plug in without forking legend-lite. This note records the architecture answer,
 grounded in the SPI seam proof (`SpiSeamProofTest`).
 
+## Reproducing the seam proof
+
+The proof is committed code, not a one-off: `LegendLiteSectionParser` (the bridge)
+and `SpiSeamProofTest` live in `parser-equivalence/src/test/java/com/legend/equivalence/`
+and run as part of gate 8 (`tools/allgates.sh`, docs/GATES.md). Standalone:
+
+```sh
+mvn -pl core install -DskipTests          # the bridge parses with the installed core
+mvn -pl parser-equivalence test -Dtest=SpiSeamProofTest \
+    -Dsurefire.failIfNoSpecifiedTests=false \
+    -Dlegend.engine.root=<finos/legend-engine checkout> \
+    -Dlegend.pure.root=<finos/legend-pure checkout>
+```
+
+Prerequisites: local checkouts of the two upstream repos (they ARE the corpus; no
+checkouts → the test skips via `Assumptions`, which is not a pass). Output:
+`parser-equivalence/target/spi-seam-report.txt`. Expected shape (ratcheted in the
+test): ≥ 4,002 files byte-identical, 0 DIFF, 0 SPI-REJECTS, ≤ 8 engine
+JSON-asymmetries, ≤ 182 leniency-census accepts — exact counts drift as upstream
+corpora move; the ratchet directions are the invariant.
+
 ## How the engine does it (the model to mirror)
 
 The engine's parser is a **section dispatcher**, not a grammar. `###Name` splits the
