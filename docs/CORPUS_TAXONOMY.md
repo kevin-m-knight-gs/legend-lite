@@ -1,5 +1,33 @@
 # Corpus burndown — root-cause taxonomy
 
+> # ⚠ SUPERSEDED (2026-08-05)
+>
+> **As a cause taxonomy this document is superseded by
+> [`CORPUS_STUDY_2026_08.md`](CORPUS_STUDY_2026_08.md).**
+>
+> That study examined **every one of the 356 non-passing rows individually** — source located, body
+> read in full, mapping/database/model dependencies followed, assert quoted, root cause traced to a
+> legend-lite `file:line`, and classified. No sampling. This document's causes were derived from six
+> slices over a dataset that is now three sweeps old (it was written at 2132 pass; the sweep it was
+> re-stamped against read 2182; `main` now reads **2253 pass / 314 non-passing**).
+>
+> **Do not take unlock counts from this document.** They are stale in both directions, and the newer
+> study shows why the arithmetic is unreliable in principle: fixing a shallow cause frequently moves
+> a test to a *different* failure rather than to PASS (masking chains — `CORPUS_STUDY_2026_08.md`
+> § 8.1). The 08-05 re-sweep confirmed this at corpus scale: ERROR and SHAPE fell by 70 while FAIL
+> **rose** by 28.
+>
+> **What is still worth reading here:**
+> - **§ 4 (diagnostic defects X2–X5)** — the newer study confirms these are still live and widens
+>   them; see its § 1 on verdict-label integrity.
+> - **§ 7 "Do NOT do these"** — each entry was specifically considered and rejected with reasons.
+>   The 08-05 study did **not** re-litigate this list; it remains the authority on those decisions.
+> - **§ 2 and § 9** — the method (cause taxonomy over symptom census; normalising data out of error
+>   messages; `WALL_DEPTH.txt` as an unlock-estimation instrument) still holds.
+>
+> Everything else — the ranked causes in § 5, the counts in § 1 and § 3, the sequencing in § 8 —
+> should be read as historical.
+
 > **Staleness note (2026-07-31, main @ 2177 pass).** Imported from docs/audits; the dataset is
 > a2ee66f0 (2132 pass). Already burned since: **R1** (c28-29, validation 12->19), the
 > **k_businessDate carrier** tail item (c33), **enum decode in filters** (c31, + trio documented
