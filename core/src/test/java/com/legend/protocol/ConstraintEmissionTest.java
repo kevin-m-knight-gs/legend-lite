@@ -232,4 +232,24 @@ class ConstraintEmissionTest {
                 }
                 """));
     }
+
+    private static final String EXPECTED_ENUMERATION =
+            "{\"_type\":\"Enumeration\",\"name\":\"E\",\"package\":\"k\",\"sourceInformation\":{\"endColumn\":1,\"endLine\":5,\"sourceId\":\"\",\"startColumn\":1,\"startLine\":1},\"stereotypes\":[{\"profile\":\"k::P\",\"profileSourceInformation\":{\"endColumn\":11,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":8,\"startLine\":1},\"sourceInformation\":{\"endColumn\":14,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":8,\"startLine\":1},\"value\":\"s1\"}],\"taggedValues\":[{\"sourceInformation\":{\"endColumn\":38,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":19,\"startLine\":1},\"tag\":{\"profile\":\"k::P\",\"profileSourceInformation\":{\"endColumn\":22,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":19,\"startLine\":1},\"sourceInformation\":{\"endColumn\":26,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":24,\"startLine\":1},\"value\":\"doc\"},\"value\":\"an enum\"}],\"values\":[{\"sourceInformation\":{\"endColumn\":34,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":3},\"stereotypes\":[{\"profile\":\"k::P\",\"profileSourceInformation\":{\"endColumn\":8,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":5,\"startLine\":3},\"sourceInformation\":{\"endColumn\":11,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":5,\"startLine\":3},\"value\":\"s1\"}],\"taggedValues\":[{\"sourceInformation\":{\"endColumn\":30,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":16,\"startLine\":3},\"tag\":{\"profile\":\"k::P\",\"profileSourceInformation\":{\"endColumn\":19,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":16,\"startLine\":3},\"sourceInformation\":{\"endColumn\":23,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":21,\"startLine\":3},\"value\":\"doc\"},\"value\":\"up\"}],\"value\":\"UP\"},{\"sourceInformation\":{\"endColumn\":6,\"endLine\":4,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":4},\"stereotypes\":[],\"taggedValues\":[],\"value\":\"DOWN\"}]}";
+
+    /** {@code _type} is "Enumeration" — CAPITALIZED, unlike every other ###Pure element
+     *  (an engine quirk, reproduced not questioned); per-value annotations ride each entry,
+     *  whose span covers annotations..value name, comma excluded. */
+    @Test
+    void enumerationIsByteIdentical() {
+        com.legend.lexer.TokenStream ts = com.legend.lexer.Lexer.tokenize("""
+                Enum <<k::P.s1>> {k::P.doc = 'an enum'} k::E
+                {
+                  <<k::P.s1>> {k::P.doc = 'up'} UP,
+                  DOWN
+                }
+                """);
+        int idx = ElementParser.topLevelIndexes(ts, TokenType.ENUM).get(0);
+        assertEquals(EXPECTED_ENUMERATION,
+                ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseEnumDefinition()));
+    }
 }

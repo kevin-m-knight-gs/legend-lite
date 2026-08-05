@@ -68,8 +68,44 @@ public final class ProtocolEmitter {
     private static void element(StringBuilder b, Element e) {
         switch (e) {
             case PClass c -> pclass(b, c);
+            case Protocol.PEnumeration en -> enumeration(b, en);
             case PSectionIndex s -> sectionIndex(b, s);
         }
+    }
+
+    /**
+     * {@code _type:"Enumeration"} — CAPITALIZED, an engine quirk (class/profile/association
+     * are lowercase; verified via ProbeWireShapes). Fields alphabetical; each value entry
+     * carries its own annotations and a span covering annotations..value name.
+     */
+    private static void enumeration(StringBuilder b, Protocol.PEnumeration e) {
+        b.append("{\"_type\":\"Enumeration\",\"name\":");
+        str(b, e.name());
+        b.append(",\"package\":");
+        str(b, e.pkg());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, e.sourceInformation());
+        b.append(",\"stereotypes\":");
+        stereotypes(b, e.stereotypes());
+        b.append(",\"taggedValues\":");
+        taggedValues(b, e.taggedValues());
+        b.append(",\"values\":[");
+        for (int i = 0; i < e.values().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PEnumValue v = e.values().get(i);
+            b.append("{\"sourceInformation\":");
+            srcInfo(b, v.sourceInformation());
+            b.append(",\"stereotypes\":");
+            stereotypes(b, v.stereotypes());
+            b.append(",\"taggedValues\":");
+            taggedValues(b, v.taggedValues());
+            b.append(",\"value\":");
+            str(b, v.value());
+            b.append('}');
+        }
+        b.append("]}");
     }
 
     private static void pclass(StringBuilder b, PClass c) {

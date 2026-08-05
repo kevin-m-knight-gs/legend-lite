@@ -88,15 +88,30 @@ public final class ParserEquivalence {
         // at each top-level `Class` token. Parsing isolated chunks restarts line numbers at 1 —
         // a harness artefact that presents as a parser bug.
         com.legend.lexer.TokenStream ts = Lexer.tokenize(src.text());
+        java.util.List<int[]> sites = new ArrayList<>();
         for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.CLASS)) {
-            Protocol.PClass cls;
+            sites.add(new int[]{i, 0});
+        }
+        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.ENUM)) {
+            sites.add(new int[]{i, 1});
+        }
+        for (int[] site : sites) {
+            Protocol.Element el;
+            String fqn;
             try {
-                cls = ElementParser.at(ts, i).parseClassDefinition(false);
+                if (site[1] == 0) {
+                    Protocol.PClass cls = ElementParser.at(ts, site[0]).parseClassDefinition(false);
+                    el = cls;
+                    fqn = cls.qualifiedName();
+                } else {
+                    Protocol.PEnumeration en = ElementParser.at(ts, site[0]).parseEnumDefinition();
+                    el = en;
+                    fqn = en.qualifiedName();
+                }
             } catch (Throwable t) {
                 out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 continue;
             }
-            String fqn = cls.qualifiedName();
             String expected = referenceBytes.get(fqn);
             if (expected == null) {
                 out.add(new Verdict(Kind.REFERENCE_REJECTED, src.id(), fqn, "no reference element"));
@@ -104,7 +119,7 @@ public final class ParserEquivalence {
             }
             String actual;
             try {
-                actual = ProtocolEmitter.emitElement(cls);
+                actual = ProtocolEmitter.emitElement(el);
             } catch (Throwable t) {
                 out.add(new Verdict(Kind.WALL, src.id(), fqn, root(t)));
                 continue;

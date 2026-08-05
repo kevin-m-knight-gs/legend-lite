@@ -50,6 +50,16 @@ public final class FromProtocol {
         return out;
     }
 
+    /** Protocol enumeration to the model's — value NAMES only; the compiler does not
+     *  consume enum annotations. */
+    public static EnumDefinition toEnumDefinition(Protocol.PEnumeration e) {
+        java.util.List<String> names = new ArrayList<>(e.values().size());
+        for (Protocol.PEnumValue v : e.values()) {
+            names.add(v.value());
+        }
+        return new EnumDefinition(e.qualifiedName(), names);
+    }
+
     public static ClassDefinition toClassDefinition(PClass c) {
         List<ClassDefinition.PropertyDefinition> props = new ArrayList<>(c.properties().size());
         for (PProperty p : c.properties()) {

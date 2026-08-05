@@ -363,7 +363,7 @@ public final class ElementParser implements TokenStreamCursor {
                 };
             }
             case ASSOCIATION -> parseAssociation();
-            case ENUM -> parseEnumDefinition();
+            case ENUM -> com.legend.model.FromProtocol.toEnumDefinition(parseEnumDefinition());
             case PROFILE -> parseProfile();
             case FUNCTION -> parseFunctionDefinition();
             case SERVICE -> parseServiceDefinition();
@@ -873,22 +873,22 @@ public final class ElementParser implements TokenStreamCursor {
     // ============================================================
 
     /** {@code Enum <<stereos>> {tags} qualifiedName { VAL (, VAL)* }} */
-    private EnumDefinition parseEnumDefinition() {
+    /** Parses one {@code Enum} declaration at the cursor into its protocol record —
+     *  the per-element protocol entry point (see {@link #at}). Annotations are CAPTURED:
+     *  the wire carries declaration- and value-level stereotypes/taggedValues. */
+    public com.legend.protocol.Protocol.PEnumeration parseEnumDefinition() {
+        int declStart = pos;
         expect(TokenType.ENUM);
-        parseStereotypes();   // parity: engine consumes and drops
-        parseTaggedValues();  // parity: engine consumes and drops
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
 
-        List<String> values = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PEnumValue> values = new ArrayList<>();
         if (peek() != TokenType.BRACE_CLOSE) {
-            parseStereotypes();   // per-value, dropped
-            parseTaggedValues();  // per-value, dropped
-            values.add(parseIdentifier());
+            values.add(parseEnumValue());
             while (match(TokenType.COMMA)) {
-                parseStereotypes();
-                parseTaggedValues();
-                values.add(parseIdentifier());
+                values.add(parseEnumValue());
             }
         }
         expect(TokenType.BRACE_CLOSE);
@@ -896,7 +896,19 @@ public final class ElementParser implements TokenStreamCursor {
         if (values.isEmpty()) {
             throw error("Enum '" + qualifiedName + "' must have at least one value");
         }
-        return new EnumDefinition(qualifiedName, values);
+        String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
+        return new com.legend.protocol.Protocol.PEnumeration(pn[0], pn[1], values,
+                stereotypes, taggedValues, span(declStart, pos - 1));
+    }
+
+    private com.legend.protocol.Protocol.PEnumValue parseEnumValue() {
+        int entryStart = pos;
+        List<com.legend.protocol.Protocol.PStereotype> ss = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> ts = parseTaggedValues();
+        String value = parseIdentifier();
+        // Engine convention: the entry span runs annotations..value name, comma excluded.
+        return new com.legend.protocol.Protocol.PEnumValue(value, ss, ts,
+                span(entryStart, pos - 1));
     }
 
     // ============================================================

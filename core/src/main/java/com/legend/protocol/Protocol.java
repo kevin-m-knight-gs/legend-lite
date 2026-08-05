@@ -38,7 +38,38 @@ public final class Protocol {
     }
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
-    public sealed interface Element permits PClass, PSectionIndex {
+    public sealed interface Element permits PClass, PEnumeration, PSectionIndex {
+    }
+
+    /**
+     * {@code _type:"Enumeration"} — CAPITALIZED on the wire, unlike class/profile/association
+     * (verified via ProbeWireShapes; an engine quirk, reproduced not questioned).
+     */
+    public record PEnumeration(String pkg, String name,
+                               List<PEnumValue> values,
+                               List<PStereotype> stereotypes,
+                               List<PTaggedValue> taggedValues,
+                               com.legend.protocol.SourceInfo sourceInformation) implements Element {
+        public PEnumeration {
+            values = List.copyOf(values);
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One enum value: annotations plus the entry's span (annotations..name, comma excluded). */
+    public record PEnumValue(String value,
+                             List<PStereotype> stereotypes,
+                             List<PTaggedValue> taggedValues,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+        public PEnumValue {
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
     }
 
     /**
