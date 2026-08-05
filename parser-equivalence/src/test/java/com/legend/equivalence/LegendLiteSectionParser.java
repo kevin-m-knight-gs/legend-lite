@@ -94,6 +94,17 @@ final class LegendLiteSectionParser {
                     "Unsupported syntax: native declarations are not supported in Legend"
                             + " (token " + i + ")");
         }
+        // ENGINE 4.133.0 PARITY: the pinned vanilla jar predates the
+        // ''' documentation sugar (#5008) — accepting these files would
+        // silently DROP the doc block (the site scan skips junk); reject
+        // as a unit until the sugar is implemented against updated jars
+        for (int i = 0; i < ts.count(); i++) {
+            if (ts.type(i) == TokenType.DOC_STRING) {
+                throw new RuntimeException("Unsupported syntax:"
+                        + " documentation literal (''' ... ''') — doc.doc"
+                        + " sugar pending (token " + i + ")");
+            }
+        }
 
         // element sites in SOURCE order — the engine emits interleaved kinds as written
         record Site(int tok, TokenType kind) {

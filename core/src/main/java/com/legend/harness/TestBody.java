@@ -1583,7 +1583,8 @@ public final class TestBody {
                         if (System.getenv("LL_TMP_DEBUG") != null) {
                             System.err.println("[tdg-plan-wall] " + e);
                         }
-                        return UNSUPPORTED_MARKER;
+                        return unsupported(String.valueOf(
+                                e.getMessage()).split("\\n")[0]);
                     }
                     if (text == null) {
                         return UNSUPPORTED_MARKER;
@@ -1803,11 +1804,7 @@ public final class TestBody {
                 // CONTAIN sql text but the compare is the LITERAL plan
                 // string through the K-native (toSQLString doctrine):
                 // skip the golden-SQL advisory routing entirely
-                ValueSpecification lastSub =
-                        substitute(args.get(args.size() - 1), lets);
-                if (PlanAsserts.containsPlanToString(subst(args.get(0), lets))
-                        || PlanAsserts.containsPlanToString(lastSub)
-                        || PlanAsserts.containsPlanWalk(lastSub)) {
+                if (PlanAsserts.wantsPlanText(args, lets)) {
                     return PlanAsserts.planTextAssert(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
                 } else {
@@ -1942,6 +1939,14 @@ public final class TestBody {
                         execChains, ctx, imports, runtimeFqn, conn);
             }
             case "assertSameSQL" -> {
+                // same pre-check assertEquals has: a planToString/planWalk
+                // operand is a LITERAL plan-text compare, not golden-SQL
+                // advisory routing
+                if (!args.isEmpty() && PlanAsserts.wantsPlanText(args, lets)) {
+                    return PlanAsserts.planTextAssert(args, lets,
+                            execStmts, execVars, execChains, ctx,
+                            imports, runtimeFqn, conn);
+                }
                 return sqlTextVerify(af.parameters(), lets, execStmts,
                         execVars, execChains, ctx, imports, runtimeFqn,
                         conn);

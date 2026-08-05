@@ -654,7 +654,8 @@ public final class Pure {
             Enum meta::pure::executionPlan::features::Feature
             {
                 PUSH_DOWN_ENUM_TRANSFORM,
-                VARIANT_TYPE_AS_INPUT
+                VARIANT_TYPE_AS_INPUT,
+                LEGACY_SQL_NULL_UNSAFE_EQUALS
             }""");
 
     public static final EnumDefinition DURATION_UNIT = nativeEnum("""
@@ -1473,6 +1474,7 @@ public final class Pure {
     public static final NativeFunctionDefinition EXECUTION_PLAN__5_P2 = signature("native function meta::pure::executionPlan::executionPlan(func:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1],meta::pure::metamodel::type::Any[1]->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], exeCtx:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
     public static final NativeFunctionDefinition EXECUTION_PLAN__2 = signature("native function meta::pure::executionPlan::executionPlan(func:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
     public static final NativeFunctionDefinition EXECUTION_PLAN__2_P1 = signature("native function meta::pure::executionPlan::executionPlan(func:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1]->meta::pure::metamodel::type::Any[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
+    public static final NativeFunctionDefinition EXECUTION_PLAN__2_P2 = signature("native function meta::pure::executionPlan::executionPlan(func:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Any[1],meta::pure::metamodel::type::Any[1]->meta::pure::metamodel::type::Any[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
     public static final NativeFunctionDefinition EXECUTION_PLAN__3 = signature("native function meta::pure::executionPlan::executionPlan(func:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], context:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionPlan[1];");
 
     // createDbConfig: the corpus's own definitions return the DbConfig
@@ -1750,6 +1752,9 @@ public final class Pure {
     // assertion vocabulary.
     public static final NativeFunctionDefinition ASSERT__BOOLEAN_1 = signature("native function meta::pure::functions::asserts::assert(condition:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT__BOOLEAN_1__STRING_1 = signature("native function meta::pure::functions::asserts::assert(condition:meta::pure::metamodel::type::Boolean[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    // real essential/tests/assert.pure:17 — the message-LAMBDA form (135
+    // corpus call sites)
+    public static final NativeFunctionDefinition ASSERT__BOOLEAN_1__FN_1 = signature("native function meta::pure::functions::asserts::assert(condition:meta::pure::metamodel::type::Boolean[1], messageFunction:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::String[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     // Real essential/tests/fail.pure:17/:22 — always-throwing asserts;
     // host evaluation stays loud-unknown, SQL lowering walls (a fail in
     // a reachable branch is typed at the branch value's type — bottom

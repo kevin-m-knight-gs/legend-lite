@@ -116,7 +116,7 @@ class RejectionParityTest {
     }
 
     /** Bumped deliberately as extraction improves. Lowering it requires saying why. */
-    private static final int MIN_PINS = 39;
+    private static final int MIN_PINS = 43;
 
     private List<Pin> extractPins() {
         List<Pin> pins = new ArrayList<>();

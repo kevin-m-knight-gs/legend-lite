@@ -308,6 +308,26 @@ public final class Lexer {
 
     private void scanStringLiteral() {
         int start = pos;
+        // ''' opens a multi-line documentation literal (engine #5008
+        // doc.doc sugar) — one token to the closing ''' so parsers can
+        // reject (or later support) it as a UNIT, never as a silent pair
+        // of adjacent strings
+        if (pos + 2 < length && source.charAt(pos + 1) == '\''
+                && source.charAt(pos + 2) == '\'') {
+            pos += 3;
+            while (pos < length) {
+                if (source.charAt(pos) == '\'' && pos + 2 < length
+                        && source.charAt(pos + 1) == '\''
+                        && source.charAt(pos + 2) == '\'') {
+                    pos += 3;
+                    emit(TokenType.DOC_STRING, start, pos);
+                    return;
+                }
+                pos++;
+            }
+            emit(TokenType.DOC_STRING, start, pos);
+            return;
+        }
         pos++;
         while (pos < length) {
             char c = source.charAt(pos);

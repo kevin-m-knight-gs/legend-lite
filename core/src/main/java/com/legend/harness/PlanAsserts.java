@@ -57,6 +57,17 @@ final class PlanAsserts {
         return false;
     }
 
+    /** A planToString/planWalk operand routes to the LITERAL plan-text
+     * compare (shared by TestBody's assertEquals and assertSameSQL arms). */
+    static boolean wantsPlanText(
+            java.util.List<com.legend.protocol.spec.ValueSpecification> args,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets) {
+        var lastSub = TestBody.substitute(args.get(args.size() - 1), lets);
+        return containsPlanToString(TestBody.subst(args.get(0), lets))
+                || containsPlanToString(lastSub)
+                || containsPlanWalk(lastSub);
+    }
+
     static boolean containsPlanToString(@com.legend.Nullable ValueSpecification v) {
         if (v instanceof AppliedFunction af) {
             if (TestBody.simpleName(af.function()).equals("planToString")

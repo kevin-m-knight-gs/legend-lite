@@ -48,13 +48,28 @@ public final class SqlPostProcessors {
 
     private static void collectConnections(TypedSpec n,
             Map<String, String> out) {
-        if (n instanceof TypedNewInstance ni
-                && ni.properties().containsKey(
-                        "sqlQueryPostProcessorsConnectionAware")) {
-            TypedSpec pp = ni.properties().get(
+        if (n instanceof TypedNewInstance ni) {
+            TypedSpec aware = ni.properties().get(
                     "sqlQueryPostProcessorsConnectionAware");
-            for (TypedSpec hook : elements(pp)) {
-                readHook(hook, out);
+            if (aware != null) {
+                for (TypedSpec hook : elements(aware)) {
+                    readHook(hook, out);
+                }
+            }
+            // the PLAIN slot carries the same replaceTables shape (hook
+            // takes (SQLQuery) instead of (SQLQuery, DatabaseConnection));
+            // its OTHER hook kinds (e.g. CTE extraction) are SQL-shape
+            // rewrites that preserve rows — skipping them keeps the
+            // row-verified state, with sql-text staying advisory
+            TypedSpec plain = ni.properties().get("sqlQueryPostProcessors");
+            if (plain != null) {
+                for (TypedSpec hook : elements(plain)) {
+                    try {
+                        readHook(hook, out);
+                    } catch (NotImplementedException rowPreserving) {
+                        // not a replaceTables hook — leave unapplied
+                    }
+                }
             }
         }
         for (TypedSpec c : n.children()) {
@@ -88,9 +103,23 @@ public final class SqlPostProcessors {
                 throw new NotImplementedException("replaceTables pair"
                         + " argument is not a literal pair(): " + pair);
             }
-            out.put(tableName(pc.args().get(0)),
+            composeRename(out, tableName(pc.args().get(0)),
                     tableName(pc.args().get(1)));
         }
+    }
+
+    /** Hooks apply SEQUENTIALLY (engine semantics): a later
+     *  {@code from -> to} first rewrites the RESULTS of earlier renames
+     *  (so A->B then B->A nets to identity), then registers itself for
+     *  tables the earlier hooks left untouched. */
+    private static void composeRename(Map<String, String> out, String from,
+            String to) {
+        for (var e : out.entrySet()) {
+            if (e.getValue().equals(from)) {
+                e.setValue(to);
+            }
+        }
+        out.putIfAbsent(from, to);
     }
 
     /** {@code db->schema('X')->toOne()->table('Y')->toOne()} spelled as

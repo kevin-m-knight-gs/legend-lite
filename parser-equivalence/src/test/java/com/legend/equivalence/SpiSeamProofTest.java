@@ -132,7 +132,7 @@ class SpiSeamProofTest {
     }
 
     /** Bumped deliberately as coverage grows. */
-    private static final int MIN_FILES_MATCHED = 4002;
+    private static final int MIN_FILES_MATCHED = 4011;
 
     /** The attributed SPI-ACCEPTS census — files VANILLA rejects that we parse. Every
      *  one is (a) m3-only dialect the engine grammar never supported ('Primitive',
@@ -142,7 +142,7 @@ class SpiSeamProofTest {
      *  'Unknown embedded data type') that a production engine classpath accepts. None
      *  can be stored through a vanilla engine, so accepting them cannot change drop-in
      *  behavior. Ratcheted DOWN only. */
-    private static final int MAX_LENIENT_ACCEPTS = 182;
+    private static final int MAX_LENIENT_ACCEPTS = 170;
 
     /** Files where the delta is the engine's OWN serialize-only field (proven: the
      *  engine's readTree -> protocol -> serialize round-trip of ITS OWN output equals

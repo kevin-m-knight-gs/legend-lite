@@ -20,6 +20,7 @@ public enum TokenType {
     STRICTTIME,         // %10:30:45
     LATEST_DATE,        // %latest
     QUOTED_STRING,      // "text" (relational identifiers)
+    DOC_STRING,         // '''multi-line documentation literal''' (doc.doc sugar)
 
     // ==================== Punctuation ====================
     AND,                // &&

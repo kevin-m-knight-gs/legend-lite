@@ -37,9 +37,9 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
 | executionPlan/tests | 108 | 48 | 30 | 7 | 23 | 0 |
-| functions/tests | 259 | 234 | 8 | 11 | 6 | 68 |
+| functions/tests | 259 | 234 | 8 | 11 | 6 | 69 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 135 | 6 | 11 | 3 | 1 |
+| functions/tests/projection | 155 | 136 | 7 | 11 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 143 | 136 | 3 | 2 | 2 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
@@ -63,7 +63,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 246 | 4 | 9 | 7 | 6 |
 | testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
 | tests | 39 | 30 | 3 | 0 | 6 | 0 |
-| tests/advanced | 68 | 59 | 2 | 5 | 2 | 17 |
+| tests/advanced | 68 | 60 | 3 | 5 | 0 | 21 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
@@ -91,14 +91,14 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 1 |
 | tests/mapping/tree | 12 | 10 | 2 | 0 | 0 | 2 |
-| tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 6 |
+| tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 75 | 3 | 6 | 3 | 36 |
+| tests/query | 87 | 77 | 4 | 6 | 0 | 36 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2253** | 106 | 96 | 115 | 238 |
+| **total** | 2570 | **2257** | 109 | 96 | 108 | 245 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1123,7 +1123,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 1x No value present
-- 1x no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
+- 1x plan walk: executionPlan argument shapes pending
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |                       ^
 - 1x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -1188,7 +1188,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: assertEquals: expected RelationalBlockExecutionNode(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Allocation(type=Stringname=tempVarForIn_4value=(Constant(type=Stringvalues=[John,Peter,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50])))CreateAndPopulateTempTable(type=VoidinputVarNames=[name,tempVarForIn_4]tempTableName=tempTableForIn_4tempTableColumns=[(ColumnForStoringInCollection,VARCHAR(1024))]connection=TestDatabaseConnection(type="H2"))Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein(select"temptableforin_4_0".ColumnForStoringInCollectionasColumnForStoringInCollectionfromtempTableForIn_4as"temptableforin_4_0")connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(fullName,String,VARCHAR(1000),"")](FunctionParametersValidationNode(functionParameters=[name:String[1]])Relational(type=TDS[(fullName,String,VARCHAR(1000),"")]resultColumns=[("fullName",VARCHAR(1000))]sql=select"root".fullnameas"fullName"fromPersonas"root"where"root".fullnamein('${name?replace("'","''")}','John','Peter','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49','50')connection=TestDatabaseConnection(type="H2"))))
 - SHAPE relationalTDSTypeForColumnsAndQuoting [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
 - SHAPE testViewToTDS [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'store'
-- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches the argument types (lambda has 2 parameter(s) but the function type expects 0)
+- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: plan walk: executionPlan argument shapes pending
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::relational::mapping::SQLExecutionNode has no property 'sqlComment'
 - ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: graphFetch expects (classCollection, #{Class{…}}#)
 - FAIL testQuoteIdentifiersFlagWithGraphFetch [executionPlan/tests]: assertEquals: expected PureExp(type=Stringexpression=->serialize(#{meta::relational::tests::model::simple::Product{name}}#)(StoreMappingGlobalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],propertiesWithParameters=[name]]resultSizeRange=*store=meta::relational::tests::dblocalGraphFetchExecutionNode=RelationalGraphFetch(type=PartialClass[impls=[(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)],propertiesWithParameters=[name]]nodeIndex=0relationalNode=SQL(type=meta::pure::metamodel::type::AnyresultColumns=[("pk_0",INT),("name",VARCHAR(200))]sql=select"root"."ID"as"pk_0","root"."NAME"as"name"from"productSchema"."productTable"as"root"connection=TestDatabaseConnection(type="H2"))children=[])children=[]localTreeIndices=[0,1]dependencyIndices=[]))), got Relational(type=Class[impls=(meta::relational::tests::model::simple::Product|simpleRelationalMapping.meta_relational_tests_model_simple_Product)]asmeta::relational::tests::model::simple::ProductresultSizeRange=1resultColumns=[("pk_0",INT),("name",VARCHAR(200))]sql=select"root"."ID"as"pk_0","root"."NAME"as"name"from"productSchema"."productTable"as"root"connection=TestDatabaseConnection(type="H2"))
@@ -1234,8 +1234,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as date)), got select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when 1 - date_part('isodow', cast(now() as date)) > 0 then 1 - date_part('isodow', cast(now() as date)) - 7 else 1 - date_part('isodow', cast(now() as date)) end, cast(now() as date))
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
-- SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: assertEquals: expected Relational(type=TDS[(name,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),""),(employeeName,meta::relational::tests::model::simple::ExtendedString,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2")), got Relational(type=TDS[(name,String,VARCHAR(200),""),(employeeName,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200)),("employeeName",VARCHAR(200))]sql=select"root".LEGALNAMEas"name","persontable_0".FIRSTNAMEas"employeeName"fromfirmTableas"root"leftouterjoinpersonTableas"persontable_0"on("root".ID="persontable_0".FIRMID)where"root".LEGALNAME='foo'connection=TestDatabaseConnection(type="H2"))
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
@@ -1346,9 +1345,9 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testUnionViewOnView [testDataGeneration/tests]: assertSize(sqls): expected 14, got 12
 - FAIL testViewEmbeddedInChainedJoin [testDataGeneration/tests]: assertSize(sqls): expected 5, got 4
 - SHAPE testTableToTdsWithJoinAndUnion [testDataGeneration/tests]: scanRelations: tableToTDS join side is not a single table source
-- SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet — testDataGen plan: no row identifiers for root 'Person'
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
-- SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet
+- SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: assert form 'assertEquals/2' is not supported yet — testDataGen: view-backed relation 'AltID_View' — view slice pending
 - SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::pure::tds::TDSColumn' has no property 'type'
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
@@ -1363,8 +1362,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR isolationTest [tests/advanced]: multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[product, group]; head binding=TypedPropertyAccess]
 - ERROR testQualifierWithIsolation [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
-- SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testForcedIsolationFilterOnTop [tests/advanced]: sql-text: expected select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) left outer join locationTable as "locationtable_0" on ("persontable_0".ID = "locationtable_0".PERSONID) where "locationtable_0".PLACE = 'lala', got select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select t1.*, "locationtable_0".PLACE as "locations_PLACE" from personTable as "root" left outer join locationTable as "locationtable_0" on ("root".ID = "locationtable_0".PERSONID)) as "persontable_0" on ("root".ID = "persontable_0".FIRMID) where "persontable_0"."locations_PLACE" = 'lala'
 - ERROR relationalResultSourcingOfDateList [tests/advanced]: object-space expression node TypedLimit is not substitutable yet (H2 vocabulary): TypedLimit[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::distinct, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=s, type=TypeVar[name=T], 
 - ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
 - FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
@@ -1433,12 +1431,10 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - FAIL testUnionTwoRelationMappings_ManyColumnProject [tests/mapping/union/relation]: assertEquals: expected [Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null], got [Anand, , Anand, , Anand, , Anand, , Anand, , Anand, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Scott, , Scott, , Scott, , Scott, , Scott, , Scott, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Wright, , Wright, , Wright, , Wright, , Wright, , Wright, ]
 - FAIL testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion [tests/mapping/union/relation]: assertEquals: expected [Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Anand, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Roberts, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Scott, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Taylor, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null, Wright, null], got [Anand, , Anand, , Anand, , Anand, , Anand, , Anand, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Roberts, , Scott, , Scott, , Scott, , Scott, , Scott, , Scott, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Taylor, , Wright, , Wright, , Wright, , Wright, , Wright, , Wright, ]
-- SHAPE testLegacyFlagProjectionEmitsPlainEquals [tests/query]: assert form 'assert/2' is not supported yet — plan wall: enumeration meta::pure::executionPlan::features::Feature has no value 'LEGACY_SQL_NULL_UNSAFE_EQUALS'
 - FAIL testDefaultProjectionIsNullSafe [tests/query]: assert did not hold (false)
-- SHAPE testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert form 'assert/2' is not supported yet — plan wall: enumeration meta::pure::executionPlan::features::Feature has no value 'LEGACY_SQL_NULL_UNSAFE_EQUALS'
 - FAIL testDefaultOptionalParamIsNullSafe [tests/query]: assert did not hold (false)
 - ERROR testWithParameterToClassNestedSelect [tests/query]: store resolution left getAll(meta::relational::tests::model::simple::Product) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedFilter]
-- SHAPE testViewSimpleExists [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testViewSimpleExists [tests/query]: sql-text: expected select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".orderDate as "date", "root".settlementDateTime as "settlementDateTime" from orderTable as "root" left outer join (select distinct "salespersontable_1".ACCOUNT_ID from (select "salespersontable_1".ACCOUNT_ID as ACCOUNT_ID, "personfirmview_0".firm_name as firm_name from salesPersonTable as "salespersontable_1" inner join (select "root".ID as PERSON_ID, "root".LASTNAME as lastName, "firmtable_0".LEGALNAME as firm_name from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)) as "personfirmview_0" on ("salespersontable_1".PERSON_ID = "personfirmview_0".PERSON_ID) where "personfirmview_0".firm_name = 'Johnson') as "salespersontable_1" where "salespersontable_1".firm_name = 'Johnson') as "salespersontable_0" on ("root".accountID = "salespersontable_0".ACCOUNT_ID) where "salespersontable_0".ACCOUNT_ID is not null, got select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".orderDate as "date", "root".settlementDateTime as "settlementDateTime" from orderTable as "root" left outer join (select distinct "salespersontable_0".ACCOUNT_ID from personTable as "persontable_1" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "persontable_1".FIRMID) left outer join salesPersonTable as "salespersontable_0" on ("salespersontable_0".PERSON_ID = "persontable_1".ID) where "firmtable_0".LEGALNAME = 'Johnson') as "persontable_0" on ("root".accountID = "persontable_0".ACCOUNT_ID) where "persontable_0".ACCOUNT_ID is not null
 - ERROR testPushDownProjectWithParameter [tests/query]: unknown function 'meta::json::parseJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1

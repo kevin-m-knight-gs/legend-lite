@@ -130,8 +130,17 @@ final class ExecCallFinder {
                 ps.add(term.parameters().get(1));
                 ps.add(new com.legend.protocol.spec.EnumValue(
                         "meta::relational::runtime::DatabaseType", "H2"));
-                for (int i = 3; i < term.parameters().size(); i++) {
-                    ps.add(term.parameters().get(i));
+                // toSQLString has only the 4-arg form (func, mapping,
+                // dbType, extensions) — a 5-arg execute carries an exeCtx
+                // in position 3 that must NOT ride along; extensions is
+                // always the trailing argument
+                if (term.parameters().size() > 4) {
+                    ps.add(term.parameters()
+                            .get(term.parameters().size() - 1));
+                } else {
+                    for (int i = 3; i < term.parameters().size(); i++) {
+                        ps.add(term.parameters().get(i));
+                    }
                 }
                 call = new AppliedFunction("meta::relational::functions"
                         + "::sqlstring::toSQLString", ps);

@@ -89,5 +89,5 @@ class SectionParseSentinelTest {
 
     /** Baseline at introduction (2026-08-05). Bump when coverage grows; a drop is the
      *  pull-drift signal this test exists for. */
-    private static final int MIN_FILES_PARSED = 856;
+    private static final int MIN_FILES_PARSED = 857;
 }
