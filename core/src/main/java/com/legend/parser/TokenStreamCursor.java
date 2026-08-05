@@ -358,6 +358,22 @@ public interface TokenStreamCursor {
         advance();
         while (peek() == TokenType.PATH_SEPARATOR) {
             advance();
+            // a DIGIT-LEADING segment (my::pkg::2_0_0::A) lexes as INTEGER + adjacent
+            // identifier pieces — glue them back (engine's VALID_STRING admits digits
+            // first; ours cannot without colliding with number literals)
+            if (peek() == TokenType.INTEGER) {
+                sb.append("::");
+                sb.append(text());
+                advance();
+                TokenStream ts = tokens();
+                while (!atEnd()
+                        && (peek() == TokenType.VALID_STRING || peek() == TokenType.INTEGER)
+                        && ts.end(pos() - 1) == ts.start(pos())) {
+                    sb.append(text());
+                    advance();
+                }
+                continue;
+            }
             if (!isFqnSegmentToken(peek())) {
                 throw error("expected identifier after '::' in qualified name");
             }
@@ -689,11 +705,12 @@ public interface TokenStreamCursor {
         String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
         expect(TokenType.COLON);
         TypeExpression colType = parseType();
-        // wire span = name token (quotes included) .. TYPE end, before any multiplicity
-        // (ProbeWireShapes "relation type sigs")
-        com.legend.protocol.SourceInfo span = spanOf(nameTok, pos() - 1);
+        // wire span = name token (quotes included) .. TYPE end, extended through a
+        // DECLARED multiplicity (ProbeWireShapes "relation type sigs", "declared col
+        // mult and relation shape")
         boolean declared = peek() == TokenType.BRACKET_OPEN;
         Multiplicity mult = declared ? parseMultiplicity() : Multiplicity.exactly(1);
+        com.legend.protocol.SourceInfo span = spanOf(nameTok, pos() - 1);
         return new TypeExpression.Column(colName, colType, mult, declared, span);
     }
 

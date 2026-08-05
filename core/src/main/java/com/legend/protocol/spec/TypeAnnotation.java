@@ -128,10 +128,29 @@ public sealed interface TypeAnnotation
      * @param columns the columns in source order; immutable, never
      *                {@code null}, may be empty
      */
-    record RelationShape(List<Column> columns) implements TypeAnnotation {
+    record RelationShape(List<Column> columns,
+                         @com.legend.Nullable com.legend.protocol.SourceInfo typeSpan,
+                         @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+            implements TypeAnnotation {
         public RelationShape {
             Objects.requireNonNull(columns, "columns");
             columns = List.copyOf(columns);
+        }
+
+        /** Span-free convenience constructor (tests, synthesis). */
+        public RelationShape(List<Column> columns) {
+            this(columns, null, null);
+        }
+
+        /** Spans are excluded from equality, matching every other spec record. */
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof RelationShape other && columns.equals(other.columns());
+        }
+
+        @Override
+        public int hashCode() {
+            return columns.hashCode();
         }
 
         /**
@@ -163,9 +182,30 @@ public sealed interface TypeAnnotation
         public record Column(
                 @com.legend.Nullable String name,
                 TypeAnnotation type,
-                @com.legend.Nullable Multiplicity multiplicity) {
+                @com.legend.Nullable Multiplicity multiplicity,
+                @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
             public Column {
                 Objects.requireNonNull(type, "type");
+            }
+
+            /** Span-free convenience constructor. */
+            public Column(@com.legend.Nullable String name, TypeAnnotation type,
+                          @com.legend.Nullable Multiplicity multiplicity) {
+                this(name, type, multiplicity, null);
+            }
+
+            /** Position is excluded from equality. */
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof Column other
+                        && Objects.equals(name, other.name())
+                        && type.equals(other.type())
+                        && Objects.equals(multiplicity, other.multiplicity());
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(name, type, multiplicity);
             }
         }
     }

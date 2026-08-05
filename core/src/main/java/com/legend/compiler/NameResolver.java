@@ -1494,7 +1494,8 @@ public final class NameResolver {
             TypeAnnotation.RelationShape.Column c, Scope scope) {
         TypeAnnotation inner = resolveTypeAnnotation(c.type(), scope);
         return inner == c.type() ? c
-                : new TypeAnnotation.RelationShape.Column(c.name(), inner, c.multiplicity());
+                : new TypeAnnotation.RelationShape.Column(c.name(), inner, c.multiplicity(),
+                        c.pos());
     }
 
     private static ColSpec resolveColSpec(ColSpec cs, Scope scope) {

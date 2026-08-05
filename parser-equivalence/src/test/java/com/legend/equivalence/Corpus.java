@@ -80,9 +80,9 @@ public final class Corpus {
      */
     public static List<Source> all() {
         List<Source> out = new ArrayList<>();
-        add(out, engineRoot().resolve("legend-engine-core"), "C3/C10 engine-core", t -> true);
-        add(out, engineRoot().resolve("legend-engine-xts-relationalStore"), "C10 engine-relational", t -> true);
-        add(out, engineRoot().resolve("legend-engine-config"), "C3 emit", t -> true);
+        // the WHOLE engine checkout — every module's .pure, not a curated subset
+        // (the three-root cut left 1,161 files in other xts modules invisible)
+        add(out, engineRoot(), "C3/C10 engine", t -> true);
         add(out, pureRoot(), "C10 pure", t -> true);
         out.removeIf(s -> s.id().toLowerCase(Locale.ROOT).endsWith("grammar/m3.pure"));
         return out;

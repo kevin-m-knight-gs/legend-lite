@@ -2100,9 +2100,36 @@ public final class SpecParser implements TokenStreamCursor {
             pos++; // consume '<'
             TypeAnnotation.RelationShape shape = parseRelationShape();
             expect(TokenType.GREATER_THAN, "expected '>' to close @Relation type annotation");
-            return shape;
+            // wire spans (ProbeWireShapes "simple relation cast"): rawType covers
+            // Relation<(...)>, the annotation node covers @..>
+            return new TypeAnnotation.RelationShape(shape.columns(),
+                    spanOf(nameStart, pos - 1), spanOf(atTok, pos - 1));
         }
 
+        // Precise primitives with TYPE-VARIABLE VALUES — @Varchar(200) — mirror
+        // parseType's handling (probe "agg kind and varchar"; rawType span covers the
+        // whole application)
+        if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
+            pos++;
+            List<ValueSpecification> tvv = new ArrayList<>();
+            while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                if (peek() == TokenType.COMMA) {
+                    pos++;
+                    continue;
+                }
+                if (peek() != TokenType.INTEGER) {
+                    throw error("type variable values support integer literals only, got "
+                            + peek());
+                }
+                tvv.add(new CInteger(Long.parseLong(text()), spanOf(pos, pos)));
+                pos++;
+            }
+            expect(TokenType.PAREN_CLOSE, "expected ')' to close type variable values");
+            return new TypeAnnotation.Named(
+                    new TypeExpression.Generic(name, List.of(), List.of(), tvv,
+                            spanOf(nameStart, pos - 1)),
+                    spanOf(atTok, pos - 1));
+        }
         // Generic type arguments — parse structurally via the shared
         // helper. Nested '<...>' (e.g. Map<K, List<V>>) is handled by
         // recursive descent inside the helper.
@@ -2161,6 +2188,7 @@ public final class SpecParser implements TokenStreamCursor {
             throw error("expected column name or '?' inside @Relation");
         }
         TokenType nameTok = peek();
+        int nameTokIdx = pos;
         String name;
         if (nameTok == TokenType.QUESTION) {
             name = null;
@@ -2197,7 +2225,9 @@ public final class SpecParser implements TokenStreamCursor {
         if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
             multiplicity = parseMultiplicity();
         }
-        return new TypeAnnotation.RelationShape.Column(name, type, multiplicity);
+        // wire span = name .. type end, extended through a DECLARED multiplicity
+        return new TypeAnnotation.RelationShape.Column(name, type, multiplicity,
+                spanOf(nameTokIdx, pos - 1));
     }
 
     // -------------------------------------------------------------------

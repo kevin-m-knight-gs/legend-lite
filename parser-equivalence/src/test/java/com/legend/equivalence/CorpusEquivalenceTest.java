@@ -35,8 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CorpusEquivalenceTest {
 
     /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit. */
-    private static final int MIN_ELEMENTS_COMPARED = 10106;
-    private static final int MIN_MATCHES = 10106;
+    private static final int MIN_ELEMENTS_COMPARED = 15269;
+    private static final int MIN_MATCHES = 15269;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

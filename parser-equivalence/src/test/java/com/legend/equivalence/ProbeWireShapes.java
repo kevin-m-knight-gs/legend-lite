@@ -504,6 +504,35 @@ class ProbeWireShapes {
                   'x';
                 }
                 """);
+        dump("unit type refs", """
+                function z3::a(): Any[*]
+                {
+                  newUnit(Mass~Kilogram, 5.5)->unitType();
+                }
+                """);
+        dump("unary plus chain", """
+                function z4::a(): Any[*]
+                {
+                  let s = +'a\\n'+'b\\n'+'c';
+                  let n = +5;
+                }
+                """);
+        dump("declared col mult and relation shape", """
+                function z5::a(): Any[*]
+                {
+                  []->cast(@meta::pure::metamodel::relation::Relation<(ID:String[1], H:String[0..1])>);
+                }
+                function z5::b(): Any[*]
+                {
+                  []->cast(@meta::pure::metamodel::relation::Relation<(A:Integer[1])>)->extend(~n:x: (A:Integer[1])[1]|$x.A);
+                }
+                """);
+        dump("simple relation cast", """
+                function z6::a(): Any[*]
+                {
+                  []->cast(@Relation<(ID:String[1], H:String[0..1], K:Integer)>);
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

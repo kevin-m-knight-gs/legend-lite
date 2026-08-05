@@ -458,12 +458,17 @@ public final class ProtocolEmitter {
                         b.append(',');
                     }
                     com.legend.protocol.TypeExpression.Column col = rt.columns().get(i);
-                    require(!col.multiplicityDeclared(),
-                            "relation column with a declared multiplicity (wire shape unprobed)",
-                            col.name());
                     b.append("{\"genericType\":");
                     genericType(b, col.type());
-                    b.append(",\"multiplicity\":{\"lowerBound\":0,\"upperBound\":1},\"name\":");
+                    b.append(",\"multiplicity\":");
+                    if (col.multiplicityDeclared()) {
+                        // declared -> emitted as declared, column span extends through
+                        // the ']' (probe "declared col mult and relation shape")
+                        multiplicity(b, col.multiplicity());
+                    } else {
+                        b.append("{\"lowerBound\":0,\"upperBound\":1}");
+                    }
+                    b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");
                     srcInfo(b, requirePos(col.pos(), "relation column " + col.name()));
@@ -686,7 +691,11 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CFloat c ->
                     literal(b, "float", String.valueOf(c.value()), c.pos());
             case com.legend.protocol.spec.PackageableElementPtr ptr -> {
-                b.append("{\"_type\":\"packageableElementPtr\",\"fullPath\":");
+                // a TILDE name (Mass~Kilogram) is a UNIT reference — same shape,
+                // _type "unitType" (probe "unit type refs"); '~' is only legal there
+                b.append(ptr.fullPath().indexOf('~') >= 0
+                        ? "{\"_type\":\"unitType\",\"fullPath\":"
+                        : "{\"_type\":\"packageableElementPtr\",\"fullPath\":");
                 str(b, ptr.fullPath());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, requirePos(ptr.pos(), "packageableElementPtr " + ptr.fullPath()));
@@ -727,6 +736,44 @@ public final class ProtocolEmitter {
                 genericType(b, named.type());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, requirePos(named.pos(), "@-type annotation"));
+                b.append('}');
+            }
+            // simple-name @Relation<(...)>: genericTypeInstance whose rawType is the
+            // literal "Relation" with span over the whole application; columns as in
+            // signature position (probe "simple relation cast")
+            case com.legend.protocol.spec.TypeAnnotation.RelationShape rs -> {
+                b.append("{\"_type\":\"genericTypeInstance\",\"genericType\":{\"multiplicityArguments\":[],"
+                        + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Relation\",\"sourceInformation\":");
+                srcInfo(b, requirePos(rs.typeSpan(), "@Relation<(...)> type"));
+                b.append("},\"typeArguments\":[{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
+                for (int i = 0; i < rs.columns().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    com.legend.protocol.spec.TypeAnnotation.RelationShape.Column col =
+                            rs.columns().get(i);
+                    if (!(col.type() instanceof com.legend.protocol.spec.TypeAnnotation.Named nt)
+                            || col.name() == null) {
+                        throw new UnsupportedOperationException(
+                                "ProtocolEmitter has no rule for wildcard @Relation columns"
+                                        + " (wire shape unprobed) — probe, do not guess.");
+                    }
+                    b.append("{\"genericType\":");
+                    genericType(b, nt.type());
+                    b.append(",\"multiplicity\":");
+                    if (col.multiplicity() != null) {
+                        multiplicity(b, col.multiplicity());
+                    } else {
+                        b.append("{\"lowerBound\":0,\"upperBound\":1}");
+                    }
+                    b.append(",\"name\":");
+                    str(b, col.name());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, requirePos(col.pos(), "@Relation column " + col.name()));
+                    b.append('}');
+                }
+                b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]}],\"typeVariableValues\":[]},\"sourceInformation\":");
+                srcInfo(b, requirePos(rs.pos(), "@Relation annotation"));
                 b.append('}');
             }
             case com.legend.protocol.spec.NewInstance ni -> newInstance(b, ni, null);
@@ -1049,6 +1096,9 @@ public final class ProtocolEmitter {
             operands.addFirst(node.parameters().get(1));
             if (node.parameters().get(0) instanceof com.legend.protocol.spec.AppliedFunction inner
                     && inner.function().equals(f.function())
+                    // a UNARY head (+'a' + 'b') is an OPERAND of the run, not spine
+                    // (probe "unary plus chain")
+                    && inner.parameters().size() == 2
                     && !inner.grouped()) {
                 node = inner;
             } else {
@@ -1617,7 +1667,8 @@ public final class ProtocolEmitter {
                 case '\f' -> b.append("\\f");
                 default -> {
                     if (c < 0x20) {
-                        b.append(String.format("\\u%04x", (int) c));
+                        // Jackson writes control escapes with UPPERCASE hex ()
+                        b.append(String.format("\\u%04X", (int) c));
                     } else {
                         b.append(c);
                     }
