@@ -73,14 +73,37 @@ classifications stand. What has moved is the *per-test verdict roster* — some 
 some changed bucket, and 29 newly-visible tests were never studied. Re-partitioning against the
 current 314 would be a re-run of § 0's method, not a re-derivation of § 2–§ 7.
 
-**A scare that resolved.** The wrong-corpus run also reported a *different wall message* for one row
-(`testViewToTDS [executionPlan/tests]`) — `class 'meta::relational::mapping::TableTDS' has no
-property 'store'` versus the baseline's `property 'table' … expected NamedRelation, got View`. The
-two come from different loops in `compiler/spec/NewChecker.java` (the copy path at `:40` and the
-construction path at `:70`), which briefly looked like scoreboard nondeterminism. It was not: with
-the corpus root corrected, the regenerated scoreboard is byte-identical to the baseline. The
-divergence was another symptom of reading the wrong tree, whose different model assembly reaches a
-different checker first.
+**The scoreboard is not byte-reproducible — open.** I first saw a differing wall message on the
+wrong-corpus run and wrote it off as an artifact of the wrong tree. That was wrong, and worth
+recording as such: three consecutive **green** sweeps at identical `HEAD`, identical corpus root and
+identical everything else produce **three distinct checksums**.
+
+Exactly two rows flap, and only in their message text:
+
+```
+testViewToTDS [executionPlan/tests]
+  ⇄  property 'table' of 'TableTDS': expected NamedRelation, got View     (construction path)
+  ⇄  class 'meta::relational::mapping::TableTDS' has no property 'store'  (copy path)
+
+testResultToJsonStream [tests]
+  ⇄  class 'meta::relational::runtime::DataSource' has no property 'host'
+  ⇄  unknown enumeration 'GeographicEntityType'
+```
+
+Both are *which failure is reported first*, not a change in outcome. **Every count is stable**
+(2567 / 2253 / 104 / 97 / 113 across all runs), so the regression gate — which compares per-family
+pass counts — is unaffected. The cost is two lines of scoreboard churn on every green sweep.
+
+`STATE_AUDIT.md` **S4.4** predicted this from unsorted `Files.walk`/`Files.list` feeding
+`putIfAbsent` chains. `.sorted()` was added to the two `addBeforePackages` feeds it named
+(`RelationalCorpusRunner.java:115`, `:132`) — **necessary but not sufficient**; the flap survives.
+The remaining source is unidentified. `FunctionCompiler.java:90`'s `static
+ConcurrentHashMap.newKeySet()` "suppress once" guard is JVM-global and order-sensitive, which makes
+it a candidate, but this was not chased to a conclusion.
+
+The gate-before-write change (§ 0a above) means this can no longer corrupt a *committed* artifact —
+a red run writes nothing at all. It remains a hazard for anyone building a byte-level ratchet on the
+scoreboard, and it should be closed before anyone does.
 
 ---
 

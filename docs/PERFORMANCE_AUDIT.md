@@ -179,6 +179,15 @@ identity-preserving; exactly one fixpoint loop in the entire codebase.
   `-Dlegend.engine.root` silently reads a tree that a different session is actively modifying.
   Make it fail loudly instead of defaulting.
 
+  > **RESOLVED 2026-08-05** (commits `9f9c0240`, `1e4b93d9`). Two changes, both verified:
+  > (1) the default now resolves under `user.home`, matching `parser-equivalence`'s
+  > `Corpus.engineRoot()` — the no-override invocation is green and byte-reproduces the committed
+  > baseline; (2) the sweep no longer rewrites `docs/RELATIONAL_CORPUS.md` before asserting. The
+  > regression gate is now computed **before** the write and the scoreboard is written only when
+  > clean, so the failure mode described immediately below — a corrupted committed artifact left in
+  > the working tree — can no longer occur. Proven both directions: a deliberate wrong-root run fails
+  > the build with the scoreboard byte-identical and the tree clean; a correct run writes as before.
+
   **This is not theoretical — it was demonstrated accidentally during this audit.** The sweep
   **rewrites `docs/RELATIONAL_CORPUS.md` in place** as a side effect. Running it with
   `-Dlegend.engine.root=/Users/neemsandv/legend/legend-engine` (this account's checkout, at
