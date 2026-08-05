@@ -499,13 +499,13 @@ public final class SpecParser implements TokenStreamCursor {
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
                 return new AppliedFunction("minus", List.of(parseExpression()),
-                        List.of(), spanOf(opTok, opTok));
+                        List.of(), spanOf(opTok, opTok)).asInfix();
             }
             if (t == TokenType.PLUS) {
                 int opTok = pos;
                 pos++;
                 return new AppliedFunction("plus", List.of(parseExpression()),
-                        List.of(), spanOf(opTok, opTok));
+                        List.of(), spanOf(opTok, opTok)).asInfix();
             }
         }
         return parsePrimary();
@@ -520,8 +520,13 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseCombinedArithmeticOnly() {
         ValueSpecification expr = parseExpression();
-        while (!atEnd() && isArithmeticOp(peek())) {
-            expr = parseArithmeticPart(expr);
+        // TIGHT arithmetic only (+,-,*,/): comparisons fold LEFT at the combined level,
+        // over the accumulated boolean — $this.id > 0 && $this.id < 30 is
+        // lessThan(and(greaterThan(id,0), id), 30) (probe "mixed bool arith"; the
+        // engine's expressionPart chain is flat left-associative across && and
+        // comparisons alike)
+        while (!atEnd() && isArithmeticOp(peek()) && precedenceOf(peek()) >= 2) {
+            expr = parseArithmeticClimb(expr, 2);
         }
         return expr;
     }
@@ -615,7 +620,7 @@ public final class SpecParser implements TokenStreamCursor {
                 right = parseArithmeticClimb(right, precedenceOf(peek()));
             }
             left = new AppliedFunction(fn, List.of(left, right), List.of(),
-                    spanOf(runStartOp, rhsEnd));
+                    spanOf(runStartOp, rhsEnd)).asInfix();
         }
         return left;
     }
@@ -2102,7 +2107,7 @@ public final class SpecParser implements TokenStreamCursor {
             expect(TokenType.GREATER_THAN, "expected '>' to close @Relation type annotation");
             // wire spans (ProbeWireShapes "simple relation cast"): rawType covers
             // Relation<(...)>, the annotation node covers @..>
-            return new TypeAnnotation.RelationShape(shape.columns(),
+            return new TypeAnnotation.RelationShape(shape.columns(), name,
                     spanOf(nameStart, pos - 1), spanOf(atTok, pos - 1));
         }
 

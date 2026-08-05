@@ -671,9 +671,8 @@ public final class ElementParser implements TokenStreamCursor {
             while (kw.equals("owner") || kw.equals("externalId")) {
                 expect(TokenType.COLON);
                 if (kw.equals("externalId") && peek() == TokenType.STRING) {
-                    String raw = text();
-                    externalId = raw.length() >= 2 && raw.startsWith("'") && raw.endsWith("'")
-                            ? raw.substring(1, raw.length() - 1) : raw;
+                    // escapes resolve — 'Bee\'s' carries a real apostrophe on the wire
+                    externalId = TokenStreamCursor.unquoteAndUnescape(text(), this);
                 } else if (kw.equals("owner")) {
                     // single identifier (engine REJECTS a bracketed list — probed); the
                     // wire carries it as the string field "owner"

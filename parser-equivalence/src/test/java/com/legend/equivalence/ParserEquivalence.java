@@ -79,7 +79,7 @@ public final class ParserEquivalence {
             return out;                          // other sections have no emitter yet — not a wall, just out of scope
         }
 
-        Map<String, String> referenceBytes = referenceElements(src);
+        Map<String, List<String>> referenceBytes = referenceElements(src);
         if (referenceBytes == null) {
             return out;                          // reference could not read it either; §see REFERENCE_REJECTED below
         }
@@ -135,7 +135,8 @@ public final class ParserEquivalence {
                 out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 continue;
             }
-            String expected = referenceBytes.get(fqn);
+            List<String> queue = referenceBytes.get(fqn);
+            String expected = queue == null || queue.isEmpty() ? null : queue.remove(0);
             if (expected == null) {
                 out.add(new Verdict(Kind.REFERENCE_REJECTED, src.id(), fqn, "no reference element"));
                 continue;
@@ -154,13 +155,16 @@ public final class ParserEquivalence {
         return out;
     }
 
-    /** The reference parser's elements, serialised individually and keyed by FQN. */
-    private Map<String, String> referenceElements(Corpus.Source src) {
+    /** The reference parser's elements, serialised individually and keyed by FQN. The value
+     *  is a LIST: a source may declare the same FQN twice (the SameElementInSameNamespace
+     *  test family) and sites pair with reference elements in source order. */
+    private Map<String, List<String>> referenceElements(Corpus.Source src) {
         try {
             PureModelContextData pmcd = reference.parseModel(src.text());
-            Map<String, String> byFqn = new LinkedHashMap<>();
+            Map<String, List<String>> byFqn = new LinkedHashMap<>();
             for (PackageableElement e : pmcd.getElements()) {
-                byFqn.put(e.getPath(), mapper.writeValueAsString(e));
+                byFqn.computeIfAbsent(e.getPath(), k -> new ArrayList<>())
+                        .add(mapper.writeValueAsString(e));
             }
             return byFqn;
         } catch (Throwable t) {

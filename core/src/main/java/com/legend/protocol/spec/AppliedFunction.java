@@ -68,7 +68,8 @@ public record AppliedFunction(
         List<String> candidateFqns,
         @com.legend.Nullable com.legend.protocol.SourceInfo pos,
         boolean propertyCall,
-        boolean grouped) implements ValueSpecification {
+        boolean grouped,
+        boolean infix) implements ValueSpecification {
 
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
@@ -76,6 +77,22 @@ public record AppliedFunction(
         parameters = List.copyOf(parameters);
         candidateFqns = candidateFqns == null ? List.of()
                 : List.copyOf(candidateFqns);
+    }
+
+    /** Six-component compatibility constructor (non-infix). */
+    public AppliedFunction(String function, List<ValueSpecification> parameters,
+            List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+            boolean propertyCall, boolean grouped) {
+        this(function, parameters, candidateFqns, pos, propertyCall, grouped, false);
+    }
+
+    /** A copy marked OPERATOR-SPELLED: only infix chains take the n-ary collection wire
+     *  form — an arrow-spelled {@code (10)->times(2)} stays a plain two-parameter call
+     *  (inline-snippet corpus TestM3AntlrParser). Wire-marker only, excluded from
+     *  equality like {@code grouped}. */
+    public AppliedFunction asInfix() {
+        return new AppliedFunction(function, parameters, candidateFqns, pos,
+                propertyCall, grouped, true);
     }
 
     /** Position-free form (resolver rewrites, synthesis, tests). The parser's span
@@ -105,7 +122,8 @@ public record AppliedFunction(
      *  one 3-operand collection but keeps `(a - b) - 7` as two nested 2-operand calls
      *  (harness DIFF on mostRecentDayOfWeek). Excluded from equality like pos. */
     public AppliedFunction asGrouped() {
-        return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall, true);
+        return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall,
+                true, infix);
     }
 
     /** Position and the dot-call spelling marker are excluded from equality — see

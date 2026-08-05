@@ -84,6 +84,10 @@ public final class Corpus {
         // (the three-root cut left 1,161 files in other xts modules invisible)
         add(out, engineRoot(), "C3/C10 engine", t -> true);
         add(out, pureRoot(), "C10 pure", t -> true);
+        // C4/C5 — Pure snippets embedded in upstream Java TEST sources; the reference
+        // parser adjudicates every candidate, so extraction is tolerant by design
+        out.addAll(InlineSnippets.extract(engineRoot(), "C4 engine-inline"));
+        out.addAll(InlineSnippets.extract(pureRoot(), "C5 pure-inline"));
         out.removeIf(s -> s.id().toLowerCase(Locale.ROOT).endsWith("grammar/m3.pure"));
         return out;
     }

@@ -129,6 +129,7 @@ public sealed interface TypeAnnotation
      *                {@code null}, may be empty
      */
     record RelationShape(List<Column> columns,
+                         @com.legend.Nullable String spelledName,
                          @com.legend.Nullable com.legend.protocol.SourceInfo typeSpan,
                          @com.legend.Nullable com.legend.protocol.SourceInfo pos)
             implements TypeAnnotation {
@@ -139,10 +140,10 @@ public sealed interface TypeAnnotation
 
         /** Span-free convenience constructor (tests, synthesis). */
         public RelationShape(List<Column> columns) {
-            this(columns, null, null);
+            this(columns, null, null, null);
         }
 
-        /** Spans are excluded from equality, matching every other spec record. */
+        /** Wire metadata (spelled name, spans) is excluded from equality. */
         @Override
         public boolean equals(Object o) {
             return o instanceof RelationShape other && columns.equals(other.columns());

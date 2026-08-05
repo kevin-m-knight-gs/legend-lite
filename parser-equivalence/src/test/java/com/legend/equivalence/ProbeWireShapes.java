@@ -533,6 +533,53 @@ class ProbeWireShapes {
                   []->cast(@Relation<(ID:String[1], H:String[0..1], K:Integer)>);
                 }
                 """);
+        dump("unit sig and root package", """
+                Measure z7::Mass
+                {
+                  *Gram: x -> $x;
+                  Pound: x -> 453 * $x;
+                }
+                function z7::a(m: z7::Mass~Gram[1]): z7::Mass~Pound[1]
+                {
+                  $m->convert(z7::Mass~Pound)->toOne()
+                }
+                function z7::b(): Any[*]
+                {
+                  [1, 2]->fold({a, b|$a + $b}, ::);
+                }
+                """);
+        dump("mixed bool arith", """
+                Class z8::C
+                [
+                  $this.id > 0 && $this.id < 30
+                ]
+                {
+                  id: Integer[1];
+                }
+                """);
+        dump("unit literal", """
+                Measure pkg::Mass
+                {
+                  *Gram: x -> $x;
+                  Pound: x -> 453 * $x;
+                }
+                function testFunc():Mass~Pound[0..1]
+                {
+                   1 Mass~Pound;
+                }
+                """);
+        dump("sig multarg", """
+                function z9::b(res: Result<meta::pure::metamodel::type::Any|1..*>[1]): Any[1]
+                {
+                  1
+                }
+                """);
+        dump("bare result type", """
+                function z10::a(res: Result[1], other: List[1]): Any[1]
+                {
+                  1
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

@@ -492,6 +492,21 @@ public final class ProtocolEmitter {
                     "ProtocolEmitter needs a source position for type " + path
                             + " and the parser did not thread one — fix the parse site, do not default it.");
         }
+        // engine backward-compat (DomainParseTreeWalker.processType; probe "bare result
+        // type"): a bare 'Result' defaults to <meta::pure::metamodel::type::Any|1> — the
+        // synthesized Any carries NO span, the multiplicity no upper bound
+        if (path.equals("Result") && args.isEmpty() && multArgs.isEmpty()) {
+            b.append("{\"multiplicityArguments\":[{\"lowerBound\":1}],"
+                    + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Result\","
+                    + "\"sourceInformation\":");
+            srcInfo(b, pos);
+            b.append("},\"typeArguments\":[{\"multiplicityArguments\":[],"
+                    + "\"rawType\":{\"_type\":\"packageableType\","
+                    + "\"fullPath\":\"meta::pure::metamodel::type::Any\"},"
+                    + "\"typeArguments\":[],\"typeVariableValues\":[]}],"
+                    + "\"typeVariableValues\":[]}");
+            return;
+        }
         b.append("{\"multiplicityArguments\":[");
         for (int i = 0; i < multArgs.size(); i++) {
             if (i > 0) {
@@ -691,6 +706,13 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CFloat c ->
                     literal(b, "float", String.valueOf(c.value()), c.pos());
             case com.legend.protocol.spec.PackageableElementPtr ptr -> {
+                // the ROOT PACKAGE spelled '::' (fold(..., ::)) reaches the engine's
+                // serializer as a Java null — the wire carries LITERAL null (probe
+                // "unit sig and root package" b). Reproduced, not questioned.
+                if (ptr.fullPath().equals("::")) {
+                    b.append("null");
+                    break;
+                }
                 // a TILDE name (Mass~Kilogram) is a UNIT reference — same shape,
                 // _type "unitType" (probe "unit type refs"); '~' is only legal there
                 b.append(ptr.fullPath().indexOf('~') >= 0
@@ -733,9 +755,21 @@ public final class ProtocolEmitter {
                 // @Type on the wire: {"_type":"genericTypeInstance","genericType":…,
                 // "sourceInformation":span-of-@..type} (ProbeWireShapes "burn zoo" casts).
                 b.append("{\"_type\":\"genericTypeInstance\",\"genericType\":");
-                genericType(b, named.type());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(named.pos(), "@-type annotation"));
+                // a UNIT type here (cast(@Mass~Pound)) loses its rawType span — engine
+                // wart, unlike signature position (inline corpus AbstractTestMeasure)
+                if (named.type() instanceof com.legend.protocol.TypeExpression.NameRef un
+                        && un.name().indexOf('~') >= 0) {
+                    b.append("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
+                    str(b, un.name());
+                    // the OUTER span also excludes the '@' here — it is the NAME span
+                    b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}");
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, requirePos(un.pos(), "unit type annotation " + un.name()));
+                } else {
+                    genericType(b, named.type());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, requirePos(named.pos(), "@-type annotation"));
+                }
                 b.append('}');
             }
             // simple-name @Relation<(...)>: genericTypeInstance whose rawType is the
@@ -743,7 +777,11 @@ public final class ProtocolEmitter {
             // signature position (probe "simple relation cast")
             case com.legend.protocol.spec.TypeAnnotation.RelationShape rs -> {
                 b.append("{\"_type\":\"genericTypeInstance\",\"genericType\":{\"multiplicityArguments\":[],"
-                        + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"Relation\",\"sourceInformation\":");
+                        + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
+                // fullPath is the name AS SPELLED — simple or FQN (inline-snippet corpus)
+                str(b, java.util.Objects.requireNonNull(rs.spelledName(),
+                        "@Relation<(...)> spelled name"));
+                b.append(",\"sourceInformation\":");
                 srcInfo(b, requirePos(rs.typeSpan(), "@Relation<(...)> type"));
                 b.append("},\"typeArguments\":[{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
                 for (int i = 0; i < rs.columns().size(); i++) {
@@ -984,7 +1022,9 @@ public final class ProtocolEmitter {
             b.append('}');
             return;
         }
-        if (NARY_ARITHMETIC.contains(f.function())) {
+        // n-ary flatten applies to OPERATOR-SPELLED chains only: an arrow-spelled
+        // (10)->times(2) is a plain two-parameter call (inline corpus TestM3AntlrParser)
+        if (NARY_ARITHMETIC.contains(f.function()) && f.infix()) {
             naryArithmetic(b, f, topSpanOverride);
             return;
         }
@@ -1033,7 +1073,9 @@ public final class ProtocolEmitter {
             b.append("}}");
             return;
         }
-        if (NARY_ARITHMETIC.contains(f.function())) {
+        // n-ary flatten applies to OPERATOR-SPELLED chains only: an arrow-spelled
+        // (10)->times(2) is a plain two-parameter call (inline corpus TestM3AntlrParser)
+        if (NARY_ARITHMETIC.contains(f.function()) && f.infix()) {
             naryArithmetic(b, f, topSpanOverride);
             return;
         }
@@ -1137,21 +1179,29 @@ public final class ProtocolEmitter {
     private static void newInstance(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
                                      @com.legend.Nullable SourceInfo span) {
         require(!ni.className().isEmpty(), "new-instance on a variable receiver", "^$x(...)");
-        // ENGINE SPECIAL-CASES two classes, matching by SIMPLE name (ProbeWireShapes
-        // "caret specials"): ^Pair(first=,second=) emits the pair() FUNCTION and
-        // ^BasicColumnSpecification(func=,name=) emits col() — canonical key order,
-        // no envelope span, values keeping their own spans.
-        String simple = ni.className().contains("::")
-                ? ni.className().substring(ni.className().lastIndexOf("::") + 2)
-                : ni.className();
-        if ("Pair".equals(simple)) {
+        // ENGINE SPECIAL-CASES three classes, matching the spelled name EXACTLY against
+        // the simple or canonical-FQN spelling (DomainParseTreeWalker; ProbeWireShapes
+        // "caret specials"): ^Pair -> pair(), ^BasicColumnSpecification -> col() (with
+        // documentation as an optional third key, engine's select-nonNull), and
+        // ^TdsOlapRank -> meta::pure::tds::func() — canonical key order, no envelope
+        // span, values keeping their own spans.
+        String spelled = ni.className();
+        if ("Pair".equals(spelled)
+                || "meta::pure::functions::collection::Pair".equals(spelled)) {
             caretSpecial(b, ni, "meta::pure::functions::collection::pair",
-                    new String[]{"first", "second"}, span);
+                    new String[]{"first", "second"}, false, span);
             return;
         }
-        if ("BasicColumnSpecification".equals(simple)) {
+        if ("BasicColumnSpecification".equals(spelled)
+                || "meta::pure::tds::BasicColumnSpecification".equals(spelled)) {
             caretSpecial(b, ni, "meta::pure::tds::col",
-                    new String[]{"func", "name"}, span);
+                    new String[]{"func", "name", "documentation"}, true, span);
+            return;
+        }
+        if ("TdsOlapRank".equals(spelled)
+                || "meta::pure::tds::TdsOlapRank".equals(spelled)) {
+            caretSpecial(b, ni, "meta::pure::tds::func",
+                    new String[]{"func"}, false, span);
             return;
         }
         b.append("{\"_type\":\"func\",\"function\":\"new\",\"parameters\":["
@@ -1217,7 +1267,10 @@ public final class ProtocolEmitter {
             }
             valueSpec(b, kv);
             b.append(",\"key\":{\"_type\":\"string\",\"value\":");
-            str(b, e.getKey());
+            // the KEY keeps only its first atom too — propToA.prop = ... emits "propToA"
+            // (same engine truncation family; inline-snippet corpus TestNewInstance)
+            int dot = e.getKey().indexOf('.');
+            str(b, dot < 0 ? e.getKey() : e.getKey().substring(0, dot));
             b.append("}}");
         }
         b.append("]}]");
@@ -1437,19 +1490,23 @@ public final class ProtocolEmitter {
 
     /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */
     private static void caretSpecial(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
-                                     String function, String[] keys,
+                                     String function, String[] keys, boolean dropMissing,
                                      @com.legend.Nullable SourceInfo span) {
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, function);
         b.append(",\"parameters\":[");
+        int emitted = 0;
         for (int i = 0; i < keys.length; i++) {
             com.legend.protocol.spec.KeyExpression ke = ni.properties().get(keys[i]);
+            if (ke == null && dropMissing) {
+                continue;              // engine's select(nonNull) — col's documentation
+            }
             if (ke == null) {
                 throw new UnsupportedOperationException(
                         "ProtocolEmitter has no rule for a caret special missing key '"
                                 + keys[i] + "' (at " + ni.className() + ").");
             }
-            if (i > 0) {
+            if (emitted++ > 0) {
                 b.append(',');
             }
             valueSpec(b, ke.value());
