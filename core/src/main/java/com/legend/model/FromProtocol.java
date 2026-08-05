@@ -50,6 +50,19 @@ public final class FromProtocol {
         return out;
     }
 
+    /** Protocol profile to the model's — bare names; spans stay protocol-side. */
+    public static ProfileDefinition toProfileDefinition(Protocol.PProfile p) {
+        java.util.List<String> ss = new ArrayList<>(p.stereotypes().size());
+        for (Protocol.PProfileEntry e : p.stereotypes()) {
+            ss.add(e.value());
+        }
+        java.util.List<String> ts = new ArrayList<>(p.tags().size());
+        for (Protocol.PProfileEntry e : p.tags()) {
+            ts.add(e.value());
+        }
+        return new ProfileDefinition(p.qualifiedName(), ss, ts);
+    }
+
     /** Protocol enumeration to the model's — value NAMES only; the compiler does not
      *  consume enum annotations. */
     public static EnumDefinition toEnumDefinition(Protocol.PEnumeration e) {

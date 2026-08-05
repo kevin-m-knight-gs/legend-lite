@@ -38,7 +38,27 @@ public final class Protocol {
     }
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
-    public sealed interface Element permits PClass, PEnumeration, PSectionIndex {
+    public sealed interface Element permits PClass, PEnumeration, PProfile, PSectionIndex {
+    }
+
+    /** {@code _type:"profile"} — stereotype/tag declarations as bare name+span entries. */
+    public record PProfile(String pkg, String name,
+                           List<PProfileEntry> stereotypes,
+                           List<PProfileEntry> tags,
+                           com.legend.protocol.SourceInfo sourceInformation) implements Element {
+        public PProfile {
+            stereotypes = List.copyOf(stereotypes);
+            tags = List.copyOf(tags);
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One declared stereotype or tag: {@code {"sourceInformation":…,"value":…}} — the span
+     *  covers the name token only. */
+    public record PProfileEntry(String value, com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /**

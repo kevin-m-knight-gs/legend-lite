@@ -69,8 +69,40 @@ public final class ProtocolEmitter {
         switch (e) {
             case PClass c -> pclass(b, c);
             case Protocol.PEnumeration en -> enumeration(b, en);
+            case Protocol.PProfile pr -> profile(b, pr);
             case PSectionIndex s -> sectionIndex(b, s);
         }
+    }
+
+    /** {@code _type:"profile"} — declared stereotypes/tags as bare {@code {sourceInformation,
+     *  value}} entries spanning the name token (ProbeWireShapes "profile"). */
+    private static void profile(StringBuilder b, Protocol.PProfile p) {
+        b.append("{\"_type\":\"profile\",\"name\":");
+        str(b, p.name());
+        b.append(",\"package\":");
+        str(b, p.pkg());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, p.sourceInformation());
+        b.append(",\"stereotypes\":");
+        profileEntries(b, p.stereotypes());
+        b.append(",\"tags\":");
+        profileEntries(b, p.tags());
+        b.append('}');
+    }
+
+    private static void profileEntries(StringBuilder b, List<Protocol.PProfileEntry> es) {
+        b.append('[');
+        for (int i = 0; i < es.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"sourceInformation\":");
+            srcInfo(b, es.get(i).sourceInformation());
+            b.append(",\"value\":");
+            str(b, es.get(i).value());
+            b.append('}');
+        }
+        b.append(']');
     }
 
     /**

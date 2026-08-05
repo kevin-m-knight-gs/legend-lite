@@ -364,7 +364,8 @@ public final class ElementParser implements TokenStreamCursor {
             }
             case ASSOCIATION -> parseAssociation();
             case ENUM -> com.legend.model.FromProtocol.toEnumDefinition(parseEnumDefinition());
-            case PROFILE -> parseProfile();
+            case PROFILE -> com.legend.model.FromProtocol.toProfileDefinition(
+                    parseProfileDefinition());
             case FUNCTION -> parseFunctionDefinition();
             case SERVICE -> parseServiceDefinition();
             case RUNTIME -> parseRuntime();
@@ -918,47 +919,51 @@ public final class ElementParser implements TokenStreamCursor {
     /**
      * {@code Profile qualifiedName { (stereotypes: [...]; | tags: [...];)* }}
      */
-    private ProfileDefinition parseProfile() {
+    /** Parses one {@code Profile} declaration at the cursor into its protocol record —
+     *  the per-element protocol entry point (see {@link #at}). Entry spans cover the
+     *  declared name token only (engine convention, ProbeWireShapes "profile"). */
+    public com.legend.protocol.Protocol.PProfile parseProfileDefinition() {
+        int declStart = pos;
         expect(TokenType.PROFILE);
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
 
-        List<String> stereotypes = new ArrayList<>();
-        List<String> tags = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PProfileEntry> stereotypes = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PProfileEntry> tags = new ArrayList<>();
 
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+            List<com.legend.protocol.Protocol.PProfileEntry> target;
             if (peek() == TokenType.STEREOTYPES) {
-                advance();
-                expect(TokenType.COLON);
-                expect(TokenType.BRACKET_OPEN);
-                if (peek() != TokenType.BRACKET_CLOSE) {
-                    stereotypes.add(parseIdentifier());
-                    while (match(TokenType.COMMA)) {
-                        stereotypes.add(parseIdentifier());
-                    }
-                }
-                expect(TokenType.BRACKET_CLOSE);
-                expect(TokenType.SEMI_COLON);
+                target = stereotypes;
             } else if (peek() == TokenType.TAGS) {
-                advance();
-                expect(TokenType.COLON);
-                expect(TokenType.BRACKET_OPEN);
-                if (peek() != TokenType.BRACKET_CLOSE) {
-                    tags.add(parseIdentifier());
-                    while (match(TokenType.COMMA)) {
-                        tags.add(parseIdentifier());
-                    }
-                }
-                expect(TokenType.BRACKET_CLOSE);
-                expect(TokenType.SEMI_COLON);
+                target = tags;
             } else {
                 throw error("expected 'stereotypes' or 'tags' inside Profile, found " + peek()
                         + " ('" + safeText() + "')");
             }
+            advance();
+            expect(TokenType.COLON);
+            expect(TokenType.BRACKET_OPEN);
+            if (peek() != TokenType.BRACKET_CLOSE) {
+                target.add(parseProfileEntry());
+                while (match(TokenType.COMMA)) {
+                    target.add(parseProfileEntry());
+                }
+            }
+            expect(TokenType.BRACKET_CLOSE);
+            expect(TokenType.SEMI_COLON);
         }
 
         expect(TokenType.BRACE_CLOSE);
-        return new ProfileDefinition(qualifiedName, stereotypes, tags);
+        String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
+        return new com.legend.protocol.Protocol.PProfile(pn[0], pn[1], stereotypes, tags,
+                span(declStart, pos - 1));
+    }
+
+    private com.legend.protocol.Protocol.PProfileEntry parseProfileEntry() {
+        int nameTok = pos;
+        String value = parseIdentifier();
+        return new com.legend.protocol.Protocol.PProfileEntry(value, span(nameTok, pos - 1));
     }
 
     // ============================================================

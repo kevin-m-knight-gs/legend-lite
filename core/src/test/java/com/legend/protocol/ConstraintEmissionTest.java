@@ -252,4 +252,23 @@ class ConstraintEmissionTest {
         assertEquals(EXPECTED_ENUMERATION,
                 ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseEnumDefinition()));
     }
+
+    private static final String EXPECTED_PROFILE =
+            "{\"_type\":\"profile\",\"name\":\"P\",\"package\":\"k\",\"sourceInformation\":{\"endColumn\":1,\"endLine\":5,\"sourceId\":\"\",\"startColumn\":1,\"startLine\":1},\"stereotypes\":[{\"sourceInformation\":{\"endColumn\":18,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":17,\"startLine\":3},\"value\":\"s1\"},{\"sourceInformation\":{\"endColumn\":22,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":21,\"startLine\":3},\"value\":\"s2\"}],\"tags\":[{\"sourceInformation\":{\"endColumn\":12,\"endLine\":4,\"sourceId\":\"\",\"startColumn\":10,\"startLine\":4},\"value\":\"doc\"},{\"sourceInformation\":{\"endColumn\":18,\"endLine\":4,\"sourceId\":\"\",\"startColumn\":15,\"startLine\":4},\"value\":\"todo\"}]}";
+
+    /** Profiles carry their declared stereotypes/tags as bare {@code {sourceInformation,value}}
+     *  entries — name-token spans, no profile pointer (they ARE the profile). */
+    @Test
+    void profileIsByteIdentical() {
+        com.legend.lexer.TokenStream ts = com.legend.lexer.Lexer.tokenize("""
+                Profile k::P
+                {
+                  stereotypes: [s1, s2];
+                  tags: [doc, todo];
+                }
+                """);
+        int idx = ElementParser.topLevelIndexes(ts, TokenType.PROFILE).get(0);
+        assertEquals(EXPECTED_PROFILE,
+                ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseProfileDefinition()));
+    }
 }
