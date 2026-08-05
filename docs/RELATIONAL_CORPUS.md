@@ -86,7 +86,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/modelJoin | 48 | 41 | 2 | 5 | 0 | 10 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 |
-| tests/mapping/relation | 109 | 103 | 3 | 0 | 3 | 0 |
+| tests/mapping/relation | 109 | 103 | 5 | 0 | 1 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 1 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2266** | 103 | 99 | 102 | 243 |
+| **total** | 2570 | **2266** | 105 | 99 | 100 | 243 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1398,8 +1398,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.fullName has no c
 - FAIL testNullableSalaryMapping [tests/mapping/modelJoin]: assertEquals: expected #TDS\n   'First Name',Salary\n   Alice,1000.5\n   Bob,24.87\n   Charlie,2500.75\n#, got [Alice, 1000.5, Bob, 24.87, Charlie, 2500.75]
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
-- SHAPE testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assert form 'assertTdsEquivalent/4' is not supported yet
-- SHAPE testDateTimeRetrieveWithTimeZone [tests/mapping/relation]: assert form 'assertTdsEquivalent/4' is not supported yet
+- FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
+- FAIL testDateTimeRetrieveWithTimeZone [tests/mapping/relation]: assertTdsEquivalent: cell 1 expected 2016-02-05, got 2016-02-05 21:00:00.123456789
 - FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
 - FAIL testMixedMappingWithFilterInProject [tests/mapping/relation]: assertEquals: expected [David, null, Fabrice, null, John, John, Oliver, Fabrice, Oliver, Oliver], got [David, null, Fabrice, Oliver, John, John, Oliver, Oliver]
 - SHAPE testRelationStoreAccessorOnView [tests/mapping/relation]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown table 'personView' in database 'meta::relational::tests::mapping::relation::testDB'

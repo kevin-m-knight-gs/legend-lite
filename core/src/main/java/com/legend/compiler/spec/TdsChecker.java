@@ -60,7 +60,11 @@ final class TdsChecker {
                 throw new TypeInferenceException("duplicate column '" + name + "' in TDS header");
             }
             names.add(name);
-            types.add(colon > 0 ? annotatedType(c.substring(colon + 1).strip()) : null);
+            // a real-pure header may carry a multiplicity suffix
+            // (grp:Integer[1] — tdsEquivalent.pure spellings); the TDS
+            // cell type is the bare name
+            types.add(colon > 0 ? annotatedType(c.substring(colon + 1)
+                    .strip().replaceAll("\\[[^]]*\\]$", "")) : null);
         }
 
         // Data rows (raw cells; carried for lowering).

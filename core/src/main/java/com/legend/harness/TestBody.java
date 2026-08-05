@@ -734,12 +734,9 @@ public final class TestBody {
 
     static final String UNSUPPORTED_MARKER = new String("unsupported");
 
-    /** C0.3 (CORRECTNESS_REMEDIATION): the marker is an IDENTITY sentinel,
-     * so the actual wall reason is lost by construction — 43 plan-renderer
-     * walls scored as generic 'assert form not supported' and the SHAPE
-     * bucket went unexamined. Wall sites that KNOW their reason set it
-     * here (via {@link #unsupported}); the two marker consumers read and
-     * CLEAR it. Best-effort: an unset reason keeps the generic message. */
+    /** C0.3: the marker is an IDENTITY sentinel — the wall reason is lost
+     * by construction. Sites that KNOW their reason set it via
+     * {@link #unsupported}; the two marker consumers read and CLEAR it. */
     static final ThreadLocal<String> UNSUPPORTED_REASON = new ThreadLocal<>();
 
     static @com.legend.Nullable String unsupported(String reason) {
@@ -1938,10 +1935,15 @@ public final class TestBody {
                 return instanceOfAssert(args, lets, execStmts, execVars,
                         execChains, ctx, imports, runtimeFqn, conn);
             }
+            case "assertTdsEquivalent" -> {
+                return args.size() == 3 || args.size() == 4
+                        ? TdsEquivalence.assertArm(args, lets, execStmts, execVars,
+                                execChains, ctx, imports, runtimeFqn, conn)
+                        : UNSUPPORTED_MARKER;
+            }
             case "assertSameSQL" -> {
-                // same pre-check assertEquals has: a planToString/planWalk
-                // operand is a LITERAL plan-text compare, not golden-SQL
-                // advisory routing
+                // planToString/planWalk operands are LITERAL plan-text
+                // compares (same pre-check as assertEquals)
                 if (!args.isEmpty() && PlanAsserts.wantsPlanText(args, lets)) {
                     return PlanAsserts.planTextAssert(args, lets,
                             execStmts, execVars, execChains, ctx,
