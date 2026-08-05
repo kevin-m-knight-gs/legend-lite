@@ -604,7 +604,7 @@ public final class ElementParser implements TokenStreamCursor {
      */
     static Realization realizationOf(List<ValueSpecification> body) {
         if (body.size() == 1 && body.get(0) instanceof PackageableElementPtr ptr) {
-            return new Realization.Ref(ptr.fullPath());
+            return new Realization.Ref(ptr.fullPath(), ptr);
         }
         return new Realization.Inline(body);
     }

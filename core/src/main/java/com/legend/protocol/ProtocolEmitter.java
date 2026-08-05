@@ -85,7 +85,10 @@ public final class ProtocolEmitter {
     private static void function(StringBuilder b, Protocol.PFunction f) {
         require(f.typeParams().isEmpty() && f.multParams().isEmpty(),
                 "function type/multiplicity parameters", f.qualifiedName());
-        require(f.preConstraints().isEmpty(), "function constraints", f.qualifiedName());
+        // FUNCTION constraint blocks are parsed upstream but NEVER serialized — the
+        // engine emits empty pre/postConstraints regardless (verified on the
+        // AbstractTestConstraints corpus). We keep the parse product for our own
+        // compiler and match the drop on the wire.
 
         b.append("{\"_type\":\"function\",\"body\":[");
         for (int i = 0; i < f.body().size(); i++) {
@@ -548,11 +551,8 @@ public final class ProtocolEmitter {
      * span covers the whole entry ({@code name: expr} or {@code name ( … )}).
      */
     private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c) {
-        if (!(c.realization() instanceof com.legend.protocol.Realization.Inline inl)) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter has no rule for a function-ref constraint (at " + c.name()
-                            + ") — add the emit rule, do not drop it.");
-        }
+        List<com.legend.protocol.spec.ValueSpecification> cbody = realizationBody(
+                c.realization(), "constraint " + c.name());
         if (c.pos() == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter needs a source position for constraint " + c.name()
@@ -571,7 +571,7 @@ public final class ProtocolEmitter {
             b.append(',');
         }
         b.append("\"functionDefinition\":");
-        thisLambda(b, inl.body());
+        thisLambda(b, cbody);
         if (c.message() != null) {
             b.append(",\"messageFunction\":");
             thisLambda(b, List.of(c.message()));
@@ -602,17 +602,16 @@ public final class ProtocolEmitter {
      */
     private static void qualifiedProperty(StringBuilder b,
                                           com.legend.protocol.DerivedPropertyDefinition d) {
-        if (!(d.realization() instanceof com.legend.protocol.Realization.Inline inl)) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter has no rule for a function-ref qualified property (at "
-                            + d.name() + ") — add the emit rule, do not drop it.");
-        }
+        // a bare-reference body ({ok}) classifies as Ref for the MODEL layer; the wire
+        // serializes it as the plain expression (inline-snippet corpus)
+        List<com.legend.protocol.spec.ValueSpecification> qbody = realizationBody(
+                d.realization(), "qualified property " + d.name());
         b.append("{\"body\":[");
-        for (int i = 0; i < inl.body().size(); i++) {
+        for (int i = 0; i < qbody.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            valueSpec(b, inl.body().get(i));
+            valueSpec(b, qbody.get(i));
         }
         b.append("],\"name\":");
         str(b, d.name());
@@ -948,6 +947,23 @@ public final class ProtocolEmitter {
                     "ProtocolEmitter has no let-value span rule for "
                             + v.getClass().getSimpleName() + " — probe, do not guess.");
         }
+    }
+
+    /** A realization's WIRE body: inline statements, or the kept reference NODE for the
+     *  bare-name form ({@code Ref.source}); a Ref without a node cannot emit. */
+    private static List<com.legend.protocol.spec.ValueSpecification> realizationBody(
+            com.legend.protocol.Realization r, String what) {
+        return switch (r) {
+            case com.legend.protocol.Realization.Inline inl -> inl.body();
+            case com.legend.protocol.Realization.Ref ref -> {
+                if (ref.source() == null) {
+                    throw new UnsupportedOperationException(
+                            "ProtocolEmitter needs the parsed reference node for " + what
+                                    + " and the parser did not keep one — fix the parse site.");
+                }
+                yield List.of(ref.source());
+            }
+        };
     }
 
     /** The comparison family that participates in the engine's flat left-fold —

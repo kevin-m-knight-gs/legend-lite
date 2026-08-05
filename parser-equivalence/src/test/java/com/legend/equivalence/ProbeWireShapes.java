@@ -580,6 +580,16 @@ class ProbeWireShapes {
                   1
                 }
                 """);
+        dump("fn constraints", """
+                function z11::a(x: Integer[1]): Integer[1]
+                [
+                  pre1: $x > 0,
+                  pre2: $x < 100
+                ]
+                {
+                  $x + 1;
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

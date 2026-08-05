@@ -24,10 +24,28 @@ import java.util.Objects;
  */
 public sealed interface Realization permits Realization.Ref, Realization.Inline {
 
-    /** A realizing function named by FQN. */
-    record Ref(String functionFqn) implements Realization {
+    /** A realizing function named by FQN. The optional {@code source} keeps the parsed
+     *  reference NODE (with its span) — the wire serializes hats/constraints as the plain
+     *  expression, so emission needs the original node, not just the name. Excluded from
+     *  equality like every span carrier. */
+    record Ref(String functionFqn,
+               @com.legend.Nullable ValueSpecification source) implements Realization {
         public Ref {
             Objects.requireNonNull(functionFqn, "functionFqn");
+        }
+
+        public Ref(String functionFqn) {
+            this(functionFqn, null);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Ref other && functionFqn.equals(other.functionFqn());
+        }
+
+        @Override
+        public int hashCode() {
+            return functionFqn.hashCode();
         }
     }
 
