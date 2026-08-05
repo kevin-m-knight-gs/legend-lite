@@ -163,16 +163,10 @@ final class Scalars {
         // (testConsistencyWithNulls, task #62). See notEqualNullArms.
         for (String f : Pure.nativeKeysAt("not")) {
             RULES.put(f, (n, args) -> {
-                if (args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL) {
-                    return NullSemantics.notEqualNullArms(c.args());
-                }
-                if (args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.IN) {
-                    // engine processNotIn: L NOT IN (...) OR L IS NULL —
-                    // unconditional (dbExtension.pure)
-                    return new SqlExpr.Call(SqlFn.OR, List.of(
-                            new SqlExpr.Call(SqlFn.NOT,
-                                    List.of(args.get(0))),
-                            SqlExpr.Call.of(SqlFn.IS_NULL, c.args().get(0))));
+                SqlExpr negated = NullSemantics.negate(args.get(0),
+                        NullSemantics.enumInvolved(n.args().get(0)));
+                if (negated != null) {
+                    return negated;
                 }
                 // everything else is BARE not (engine processNot default):
                 // null tolerance for optional operands lives at the

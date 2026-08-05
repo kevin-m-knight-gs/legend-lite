@@ -60,9 +60,11 @@ final class NullSemantics {
                 && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
     }
 
-    /** Engine processNotEqual arms (dbExtension.pure), keyed on operand
-     * LITERAL-ness: two literals bare; a column side gains OR IS NULL;
-     * col-vs-col adds both single-null arms (both-null compares EQUAL). */
+    /** Engine processNotEqual (dbExtension.pure:970-976): two LITERAL
+     * operands stay a bare {@code <>}; every other {@code not(equal)}
+     * redirects to the SEMANTIC {@code nullSafeNotEqual} node, which the
+     * DIALECT spells ({@code is distinct from} on H2/DuckDB, the
+     * OR-expansion on defaults-derived dialects). */
     static SqlExpr notEqualNullArms(java.util.List<SqlExpr> ops) {
         SqlExpr left = ops.get(0);
         SqlExpr right = ops.get(1);
@@ -76,24 +78,10 @@ final class NullSemantics {
                     ? new SqlExpr.BoolLit(false)
                     : SqlExpr.Call.of(SqlFn.IS_NOT_NULL, other);
         }
-        SqlExpr ne = new SqlExpr.Call(SqlFn.NOT_EQUAL, ops);
-        boolean litL = isSqlLiteral(left);
-        boolean litR = isSqlLiteral(right);
-        if (litL && litR) {
-            return ne;
+        if (isSqlLiteral(left) && isSqlLiteral(right)) {
+            return new SqlExpr.Call(SqlFn.NOT_EQUAL, ops);
         }
-        if (litL != litR) {
-            SqlExpr col = litL ? right : left;
-            return new SqlExpr.Call(SqlFn.OR, List.of(ne,
-                    SqlExpr.Call.of(SqlFn.IS_NULL, col)));
-        }
-        return new SqlExpr.Call(SqlFn.OR, List.of(ne,
-                new SqlExpr.Call(SqlFn.AND, List.of(
-                        SqlExpr.Call.of(SqlFn.IS_NULL, left),
-                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL, right))),
-                new SqlExpr.Call(SqlFn.AND, List.of(
-                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL, left),
-                        SqlExpr.Call.of(SqlFn.IS_NULL, right)))));
+        return new SqlExpr.Call(SqlFn.NULL_SAFE_NOT_EQUAL, ops);
     }
 
     /** Engine isEqualsFromFilter (dbExtension.pure:926-930): equality
@@ -132,13 +120,80 @@ final class NullSemantics {
                 && ops.get(1) instanceof SqlExpr.Column
                 && isOptional(n.args().get(0).info().multiplicity())
                 && isOptional(n.args().get(1).info().multiplicity())) {
-            return new SqlExpr.Call(SqlFn.OR, List.of(
-                    new SqlExpr.Call(SqlFn.EQUAL, ops),
-                    new SqlExpr.Group(new SqlExpr.Call(SqlFn.AND, List.of(
-                            SqlExpr.Call.of(SqlFn.IS_NULL, ops.get(0)),
-                            SqlExpr.Call.of(SqlFn.IS_NULL, ops.get(1)))))));
+            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
         return new SqlExpr.Call(SqlFn.EQUAL, ops);
+    }
+
+    /** Engine pureToSQLQuery: an enum-referencing comparison routes the
+     *  ENUM machinery (processEqualsForEnum / equalEnumOpSelector) and
+     *  NEVER becomes nullSafeEqual — the hasReferenceToEnum branch runs
+     *  BEFORE nullSafeEqualsOperation. */
+    static boolean enumInvolved(
+            com.legend.compiler.spec.typed.TypedSpec inner) {
+        if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c) {
+            for (var a : c.args()) {
+                if (a.info().type()
+                        instanceof com.legend.compiler.element.type.Type.EnumType) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The PRE-node OR-expansion, kept ONLY for enum-referencing
+     *  comparisons: the engine's enum machinery
+     *  (equalEnumOperationSelector) recognizes exactly this shape —
+     *  {@code <>} plus explicit null arms — and the plan-text templates
+     *  fold it; a semantic null-safe node would break the selector. */
+    private static SqlExpr notEqualExpandedArms(java.util.List<SqlExpr> ops) {
+        SqlExpr left = ops.get(0);
+        SqlExpr right = ops.get(1);
+        SqlExpr ne = new SqlExpr.Call(SqlFn.NOT_EQUAL, ops);
+        boolean litL = isSqlLiteral(left);
+        boolean litR = isSqlLiteral(right);
+        if (litL && litR) {
+            return ne;
+        }
+        if (litL != litR) {
+            SqlExpr col = litL ? right : left;
+            return new SqlExpr.Call(SqlFn.OR, List.of(ne,
+                    SqlExpr.Call.of(SqlFn.IS_NULL, col)));
+        }
+        return new SqlExpr.Call(SqlFn.OR, List.of(ne,
+                new SqlExpr.Call(SqlFn.AND, List.of(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, left),
+                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL, right))),
+                new SqlExpr.Call(SqlFn.AND, List.of(
+                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL, left),
+                        SqlExpr.Call.of(SqlFn.IS_NULL, right)))));
+    }
+
+    /** Engine processNot's SPECIAL arms — {@code not(equal)} redirects
+     *  through {@link #notEqualNullArms}, {@code not(nullSafeEqual)}
+     *  flips to {@code nullSafeNotEqual} (and back), and
+     *  {@code not(in)} gains the unconditional {@code OR L IS NULL}
+     *  (dbExtension.pure processNotIn); null = no special arm, the
+     *  caller emits the BARE not. */
+    static @com.legend.Nullable SqlExpr negate(SqlExpr inner,
+            boolean enumInvolved) {
+        if (!(inner instanceof SqlExpr.Call c)) {
+            return null;
+        }
+        return switch (c.fn()) {
+            case EQUAL -> enumInvolved
+                    ? notEqualExpandedArms(c.args())
+                    : notEqualNullArms(c.args());
+            case NULL_SAFE_EQUAL ->
+                    new SqlExpr.Call(SqlFn.NULL_SAFE_NOT_EQUAL, c.args());
+            case NULL_SAFE_NOT_EQUAL ->
+                    new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, c.args());
+            case IN -> new SqlExpr.Call(SqlFn.OR, List.of(
+                    new SqlExpr.Call(SqlFn.NOT, List.of(inner)),
+                    SqlExpr.Call.of(SqlFn.IS_NULL, c.args().get(0))));
+            default -> null;
+        };
     }
 
     private static boolean isSqlLiteral(SqlExpr e) {

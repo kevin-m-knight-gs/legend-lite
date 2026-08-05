@@ -29,6 +29,30 @@ public class EngineStyleDB2 extends EngineStyleH2 {
 
     /** DB2 plan goldens wrap a top-level WHERE conjunction in one extra
      * paren pair ({@code where ((A) and (B))}). */
+    /** Engine extensionDefaults.pure:254-255 — dialects without a
+     *  native null-safe operator spell the OR-expansion; the format
+     *  strings carry their own parens (incl. around {@code not (..)}),
+     *  so precedence is correct by construction. */
+    @Override
+    protected String expr(com.legend.sql.SqlExpr e, int parentPrec) {
+        if (e instanceof com.legend.sql.SqlExpr.Call c) {
+            if (c.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL) {
+                String a = expr(c.args().get(0), 4);
+                String b = expr(c.args().get(1), 4);
+                return "(" + a + " = " + b + " or (" + a + " is null and "
+                        + b + " is null))";
+            }
+            if (c.fn() == com.legend.sql.SqlFn.NULL_SAFE_NOT_EQUAL) {
+                String a = expr(c.args().get(0), 4);
+                String b = expr(c.args().get(1), 4);
+                return "(not (" + a + " = " + b + ") or (" + a
+                        + " is null and " + b + " is not null) or (" + a
+                        + " is not null and " + b + " is null))";
+            }
+        }
+        return super.expr(e, parentPrec);
+    }
+
     @Override
     protected String whereSql(SqlExpr w) {
         return w instanceof SqlExpr.Call c

@@ -61,8 +61,14 @@ final class PureSql {
                 case BOOLEAN -> SqlType.Scalar.BOOLEAN;
                 case DECIMAL -> new SqlType.Decimal(38, 18);
                 case STRICT_DATE -> SqlType.Scalar.DATE;
-                case DATE_TIME, DATE -> SqlType.Scalar.TIMESTAMP;
-                case BYTE, LATEST_DATE, STRICT_TIME -> throw new IllegalStateException(
+                // %latest IS the fixed engine sentinel timestamp
+                // ('9999-12-31 00:00:00.0000', Lowerer's value fold) —
+                // its SQL kind is TIMESTAMP wherever a type is demanded
+                // (the toSQLString re-render path types projections
+                // BEFORE values fold; milestoning PREDICATES never get
+                // here — TemporalFrame owns them)
+                case DATE_TIME, DATE, LATEST_DATE -> SqlType.Scalar.TIMESTAMP;
+                case BYTE, STRICT_TIME -> throw new IllegalStateException(
                         "no SQL type for Pure primitive " + p + " at the lowering boundary");
             };
             case Type.PrecisionDecimal d -> new SqlType.Decimal(d.precision(), d.scale());

@@ -48,6 +48,8 @@ class SpellingsTest {
             SqlFn.IN,
             SqlFn.INT_DIVIDE,
             SqlFn.IS_DISTINCT,
+            SqlFn.NULL_SAFE_EQUAL,
+            SqlFn.NULL_SAFE_NOT_EQUAL,
             SqlFn.IS_NOT_NULL,
             SqlFn.IS_NULL,
             SqlFn.JSON_MERGE_PATCH,

@@ -856,6 +856,22 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return e + " as \"" + a + '"';
     }
 
+    /** The row-order pseudo-column rides the SAME alias plan as
+     *  ordinary column reads. */
+    private String rowOrder(SqlExpr.RowOrder ro) {
+        return ro.table() == null ? "rowid"
+                : '"' + rename(ro.table()) + "\".rowid";
+    }
+
+    /** Engine h2Extension dynaFnToSql: nullSafeEqual =
+     *  {@code %s is not distinct from %s} (identical in 1.4.200 and
+     *  2.1.214), no parens in the format. */
+    private String nullSafeSpelling(SqlExpr.Call bc) {
+        String op = bc.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL
+                ? " is not distinct from " : " is distinct from ";
+        return expr(bc.args().get(0), 4) + op + expr(bc.args().get(1), 4);
+    }
+
     @Override
     protected String expr(SqlExpr e, int parentPrec) {
         // plan-template parameter (engine freemarker): strings are
@@ -994,11 +1010,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return c.table() == null ? phys(c.name())
                     : '"' + rename(c.table()) + "\"." + phys(c.name());
         }
-        // the row-order pseudo-column rides the SAME alias plan as
-        // ordinary column reads
         if (e instanceof SqlExpr.RowOrder ro) {
-            return ro.table() == null ? "rowid"
-                    : '"' + rename(ro.table()) + "\".rowid";
+            return rowOrder(ro);
         }
         String dd = engineDateDiff(e);
         if (dd != null) {
@@ -1009,6 +1022,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // '(x is not null and x > y)' (relative-date goldens)
         if (e instanceof SqlExpr.Call bc) {
             switch (bc.fn()) {
+                case NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL -> {
+                    return nullSafeSpelling(bc);
+                }
                 case AND -> {
                     // engine 'and' renders FLAT with no parens at any
                     // arity (extensionDefaults.pure:189) — parens come

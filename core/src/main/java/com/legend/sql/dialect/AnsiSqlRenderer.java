@@ -455,6 +455,13 @@ public class AnsiSqlRenderer implements SqlDialect {
             case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
             case IS_DISTINCT -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
                     + expr(a.get(1), 4) + ")";
+            // the SEMANTIC null-safe (in)equality nodes (engine
+            // nullSafeEqual/nullSafeNotEqual DynaFunctions) — dialects
+            // re-spell; execution backends use the native form
+            case NULL_SAFE_EQUAL -> "(" + expr(a.get(0), 4)
+                    + " IS NOT DISTINCT FROM " + expr(a.get(1), 4) + ")";
+            case NULL_SAFE_NOT_EQUAL -> "(" + expr(a.get(0), 4)
+                    + " IS DISTINCT FROM " + expr(a.get(1), 4) + ")";
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
             // operands render ABOVE TIMES precedence: a composite child
             // ((2*t)/(1+p)) must parenthesize or SQL re-associates it
