@@ -16,10 +16,31 @@ import java.util.Objects;
 public record ParameterDefinition(
         String name,
         TypeExpression type,
-        Multiplicity multiplicity) {
+        Multiplicity multiplicity,
+        @com.legend.Nullable SourceInfo pos) {
     public ParameterDefinition {
         Objects.requireNonNull(name, "Parameter name cannot be null");
         Objects.requireNonNull(type, "Parameter type cannot be null");
         Objects.requireNonNull(multiplicity, "Parameter multiplicity cannot be null");
+    }
+
+    /** Position-free form for synthesis and tests. The parser sets the span of the whole
+     *  `name: Type[mult]` declaration (engine convention). */
+    public ParameterDefinition(String name, TypeExpression type, Multiplicity multiplicity) {
+        this(name, type, multiplicity, null);
+    }
+
+    /** Position is excluded from equality — same contract as the value-spec records. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ParameterDefinition other
+                && name.equals(other.name())
+                && type.equals(other.type())
+                && multiplicity.equals(other.multiplicity());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, type, multiplicity);
     }
 }

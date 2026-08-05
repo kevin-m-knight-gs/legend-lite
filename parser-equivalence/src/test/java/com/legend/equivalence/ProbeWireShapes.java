@@ -134,6 +134,92 @@ class ProbeWireShapes {
                   UP, DOWN
                 }
                 """);
+        dump("brace pcall date", """
+                Class k::C
+                [
+                  cBrace: $this.xs->map({y | $y + 1})->size() > 0,
+                  cPcall: $this.tag('x') == 'y',
+                  cDate: $this.d > %2020-01-01
+                ]
+                {
+                  n: Integer[1];
+                  d: Date[1];
+                  xs: Integer[*];
+                  tag(s: String[1]) {$s + $this.n->toString()}: String[1];
+                }
+                """);
+        dump("owner", """
+                Class k2::C
+                [
+                  cOwn
+                  (
+                    ~owner: Finance
+                    ~function: $this.n > 0
+                  )
+                ]
+                {
+                  n: Integer[1];
+                }
+                """);
+        dump("let zoo", """
+                Class m::C
+                {
+                  q()
+                  {
+                    let a = 5;
+                    let s = 'x';
+                    let v = $a;
+                    let col = [1, 2];
+                    let p = $this.n;
+                    let arith = $a + 1;
+                    let cmp = $a > 1;
+                    let eq = $a == 1;
+                    let call = $this.xs->filter(e|$e > 1);
+                    let neg = !($a > 1);
+                    $a;
+                  }: Integer[1];
+                  n: Integer[1];
+                  xs: Integer[*];
+                }
+                """);
+        dump("enumeration", """
+                Enum <<k::P.s1>> {k::P.doc = 'an enum'} k::E
+                {
+                  <<k::P.s1>> {k::P.doc = 'up'} UP,
+                  DOWN
+                }
+                """);
+        dump("profile", """
+                Profile k::P
+                {
+                  stereotypes: [s1, s2];
+                  tags: [doc, todo];
+                }
+                """);
+        dump("association", """
+                Association <<k::P.s1>> k::A
+                {
+                  x: k::X[1];
+                  ys: k::Y[*];
+                }
+                """);
+        dump("function", """
+                function <<k::P.s1>> {k::P.doc = 'fn'} k::f(a: Integer[1], b: String[*]): Integer[1]
+                {
+                  let c = $a + 1;
+                  $c * 2;
+                }
+                """);
+        dump("native function", """
+                native function k::n(a: Integer[1]): Integer[1];
+                """);
+        dump("measure", """
+                Measure k::M
+                {
+                  *Gram: x -> $x;
+                  Kilogram: x -> 1000 * $x;
+                }
+                """);
         dump("constraint", """
                 Class f::C
                 [

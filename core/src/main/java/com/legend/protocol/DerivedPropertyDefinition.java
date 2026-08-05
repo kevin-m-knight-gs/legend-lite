@@ -24,20 +24,52 @@ public record DerivedPropertyDefinition(
         List<ParameterDefinition> parameters,
         Realization realization,
         TypeExpression type,
-        Multiplicity multiplicity) {
+        Multiplicity multiplicity,
+        List<Protocol.PStereotype> stereotypes,
+        List<Protocol.PTaggedValue> taggedValues,
+        @com.legend.Nullable SourceInfo pos) {
     public DerivedPropertyDefinition {
         Objects.requireNonNull(name, "Derived property name cannot be null");
         Objects.requireNonNull(type, "Derived property type cannot be null");
         Objects.requireNonNull(multiplicity, "Derived property multiplicity cannot be null");
         Objects.requireNonNull(realization, "Derived property realization cannot be null");
         parameters = parameters == null ? List.of() : List.copyOf(parameters);
+        stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+        taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+    }
+
+    /** Position-free form for synthesis and tests. */
+    public DerivedPropertyDefinition(String name, List<ParameterDefinition> parameters,
+                                     Realization realization,
+                                     TypeExpression type, Multiplicity multiplicity) {
+        this(name, parameters, realization, type, multiplicity, List.of(), List.of(), null);
     }
 
     /** Convenience: the sugar (inline-expression) form. */
     public DerivedPropertyDefinition(String name, List<ParameterDefinition> parameters,
                                      List<ValueSpecification> expression,
                                      TypeExpression type, Multiplicity multiplicity) {
-        this(name, parameters, new Realization.Inline(expression), type, multiplicity);
+        this(name, parameters, new Realization.Inline(expression), type, multiplicity,
+                List.of(), List.of(), null);
+    }
+
+    /** Position is excluded from equality — same contract as the value-spec records. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof DerivedPropertyDefinition other
+                && name.equals(other.name())
+                && parameters.equals(other.parameters())
+                && realization.equals(other.realization())
+                && type.equals(other.type())
+                && multiplicity.equals(other.multiplicity())
+                && stereotypes.equals(other.stereotypes())
+                && taggedValues.equals(other.taggedValues());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, parameters, realization, type, multiplicity,
+                stereotypes, taggedValues);
     }
 
     /**

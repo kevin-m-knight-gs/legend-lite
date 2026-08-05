@@ -539,8 +539,12 @@ public final class ElementParser implements TokenStreamCursor {
      * If we want to preserve them later, this is the place.
      */
     private DerivedPropertyDefinition parseDerivedProperty() {
-        parseStereotypes();   // parity: engine consumes and drops
-        parseTaggedValues();  // parity: engine consumes and drops
+        int declStart = pos;
+        // CAPTURED, not dropped: the wire carries qualified-property annotations — the old
+        // "engine consumes and drops" comment was engine-lite lore, refuted by the harness
+        // (DIFF on ClassWithQualifiedProperties: stereotypes size expected=2 actual=0).
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String name = parseIdentifier();
 
         expect(TokenType.PAREN_OPEN);
@@ -575,8 +579,12 @@ public final class ElementParser implements TokenStreamCursor {
 
         // Door 4: a bare function-reference body binds the derived property to a
         // user function; any other expression is the sugar (inline) form.
+        // Engine convention: the span covers the whole declaration incl. the semicolon-
+        // terminated tail (name..';' end column is the ';' - 1? — the probe shows the span
+        // running to the declaration's last token; the harness arbitrates).
         return new DerivedPropertyDefinition(
-                name, params, realizationOf(body), type, mult);
+                name, params, realizationOf(body), type, mult,
+                stereotypes, taggedValues, span(declStart, pos - 1));
     }
 
     /**
@@ -593,11 +601,13 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     private ParameterDefinition parseDerivedPropertyParameter() {
+        int pStart = pos;
         String name = parseIdentifier();
         expect(TokenType.COLON);
         TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
-        return new ParameterDefinition(name, type, mult);
+        // Engine convention: a parameter's span covers its whole `name: Type[mult]` decl.
+        return new ParameterDefinition(name, type, mult, span(pStart, pos - 1));
     }
 
     // ============================================================
@@ -648,7 +658,7 @@ public final class ElementParser implements TokenStreamCursor {
             // dropping it was DIFF #1 the harness ever caught on constraints); owner is
             // recorded as present-only until its wire spelling is probed.
             String externalId = null;
-            boolean hasOwner = false;
+            String owner = null;
             while (kw.equals("owner") || kw.equals("externalId")) {
                 expect(TokenType.COLON);
                 if (kw.equals("externalId") && peek() == TokenType.STRING) {
@@ -656,7 +666,9 @@ public final class ElementParser implements TokenStreamCursor {
                     externalId = raw.length() >= 2 && raw.startsWith("'") && raw.endsWith("'")
                             ? raw.substring(1, raw.length() - 1) : raw;
                 } else if (kw.equals("owner")) {
-                    hasOwner = true;
+                    // single identifier (engine REJECTS a bracketed list — probed); the
+                    // wire carries it as the string field "owner"
+                    owner = text();
                 }
                 while (!atEnd() && peek() != TokenType.TILDE) {
                     advance();
@@ -728,7 +740,7 @@ public final class ElementParser implements TokenStreamCursor {
             expect(TokenType.PAREN_CLOSE);
             // Engine convention: the span covers the whole `name ( ... )` block.
             return new ConstraintDefinition(name, realizationOf(List.of(fn)),
-                    message, level, externalId, hasOwner, span(constraintStart, pos - 1));
+                    message, level, externalId, owner, span(constraintStart, pos - 1));
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
@@ -759,7 +771,7 @@ public final class ElementParser implements TokenStreamCursor {
         // function; any other expression is the sugar (inline) predicate.
         // Engine convention: the span covers `name: expr`, name inclusive.
         return new ConstraintDefinition(name, realizationOf(List.of(expression)),
-                null, null, null, false, span(constraintStart, pos - 1));
+                null, null, null, null, span(constraintStart, pos - 1));
     }
 
     /** The bare level name of a parsed ~enforcementLevel value —

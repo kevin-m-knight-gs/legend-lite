@@ -75,7 +75,6 @@ public final class ProtocolEmitter {
     private static void pclass(StringBuilder b, PClass c) {
         // Not yet emitted. Loud rather than silently dropped — AGENTS.md invariant 4.
         require(c.typeParams().isEmpty(), "class type parameters", c.qualifiedName());
-        require(c.derivedProperties().isEmpty(), "qualifiedProperties", c.qualifiedName());
         b.append("{\"_type\":\"class\",\"constraints\":[");
         for (int i = 0; i < c.constraints().size(); i++) {
             if (i > 0) {
@@ -95,7 +94,14 @@ public final class ProtocolEmitter {
             }
             property(b, ps.get(i));
         }
-        b.append("],\"qualifiedProperties\":[],\"sourceInformation\":");
+        b.append("],\"qualifiedProperties\":[");
+        for (int i = 0; i < c.derivedProperties().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            qualifiedProperty(b, c.derivedProperties().get(i));
+        }
+        b.append("],\"sourceInformation\":");
         srcInfo(b, c.sourceInformation());
         b.append(",\"stereotypes\":");
         stereotypes(b, c.stereotypes());
@@ -279,7 +285,6 @@ public final class ProtocolEmitter {
                     "ProtocolEmitter needs a source position for constraint " + c.name()
                             + " and the parser did not thread one — fix the parse site.");
         }
-        require(!c.hasOwner(), "constraint ~owner (wire spelling unprobed)", c.name());
         b.append('{');
         if (c.enforcementLevel() != null) {
             // Alphabetically FIRST among the constraint's fields (ProbeWireShapes cLevel).
@@ -300,8 +305,70 @@ public final class ProtocolEmitter {
         }
         b.append(",\"name\":");
         str(b, c.name());
+        if (c.owner() != null) {
+            // Alphabetically between name and sourceInformation (ProbeWireShapes "owner");
+            // a single identifier — engine rejects a bracketed list outright.
+            b.append(",\"owner\":");
+            str(b, c.owner());
+        }
         b.append(",\"sourceInformation\":");
         srcInfo(b, c.pos());
+        b.append('}');
+    }
+
+    /**
+     * One qualified (derived) property:
+     * {@code {"body":[…],"name":…,"parameters":[…],"returnGenericType":…,
+     * "returnMultiplicity":…,"sourceInformation":…,"stereotypes":[],"taggedValues":[]}}.
+     *
+     * <p>Verified via {@code ProbeWireShapes} "qualified property": the body is the bare
+     * statement list — NO lambda wrapper and NO synthesised {@code $this} parameter (unlike
+     * constraints); parameters are the declared ones only, in the typed-var shape; the span
+     * covers the whole declaration. Engine consumes-and-drops annotations on qualified
+     * properties, so empty {@code stereotypes}/{@code taggedValues} are engine-parity.
+     */
+    private static void qualifiedProperty(StringBuilder b,
+                                          com.legend.protocol.DerivedPropertyDefinition d) {
+        if (!(d.realization() instanceof com.legend.protocol.Realization.Inline inl)) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for a function-ref qualified property (at "
+                            + d.name() + ") — add the emit rule, do not drop it.");
+        }
+        b.append("{\"body\":[");
+        for (int i = 0; i < inl.body().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, inl.body().get(i));
+        }
+        b.append("],\"name\":");
+        str(b, d.name());
+        b.append(",\"parameters\":[");
+        for (int i = 0; i < d.parameters().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.ParameterDefinition p = d.parameters().get(i);
+            b.append("{\"_type\":\"var\",\"genericType\":");
+            genericType(b, p.type());
+            b.append(",\"multiplicity\":");
+            multiplicity(b, p.multiplicity());
+            b.append(",\"name\":");
+            str(b, p.name());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, requirePos(p.pos(), "qualified-property parameter " + p.name()));
+            b.append('}');
+        }
+        b.append("],\"returnGenericType\":");
+        genericType(b, d.type());
+        b.append(",\"returnMultiplicity\":");
+        multiplicity(b, d.multiplicity());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, requirePos(d.pos(), "qualified property " + d.name()));
+        b.append(",\"stereotypes\":");
+        stereotypes(b, d.stereotypes());
+        b.append(",\"taggedValues\":");
+        taggedValues(b, d.taggedValues());
         b.append('}');
     }
 
@@ -362,7 +429,7 @@ public final class ProtocolEmitter {
             }
             case com.legend.protocol.spec.PureCollection c -> collection(b, c.values(),
                     requirePos(c.pos(), "collection literal"));
-            case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f);
+            case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f, null);
             case com.legend.protocol.spec.CFloat c ->
                     literal(b, "float", String.valueOf(c.value()), c.pos());
             case com.legend.protocol.spec.PackageableElementPtr ptr -> {
@@ -387,6 +454,17 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
+            case com.legend.protocol.spec.CDate d -> {
+                // Only day-precision dates are probed: {"_type":"strictDate","value":"2020-01-01"},
+                // span covering the whole %-literal. Coarser/finer precisions wall until probed.
+                require(d.value().precision() == com.legend.values.PureDateLiteral.Precision.DAY,
+                        "date literal precision " + d.value().precision(), "CDate");
+                b.append("{\"_type\":\"strictDate\",\"sourceInformation\":");
+                srcInfo(b, requirePos(d.pos(), "strictDate literal"));
+                b.append(",\"value\":");
+                str(b, d.value().toEngineString());
+                b.append('}');
+            }
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for value specification "
                             + v.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
@@ -437,6 +515,45 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
+    /**
+     * Emit a node with its top-level span REPLACED — the let-value rule. Nested nodes keep
+     * their own spans; only the top node's is overridden (ProbeWireShapes "let zoo").
+     */
+    private static void valueSpecWithSpan(StringBuilder b,
+                                          com.legend.protocol.spec.ValueSpecification v,
+                                          SourceInfo span) {
+        switch (v) {
+            case com.legend.protocol.spec.CBoolean c ->
+                    valueSpec(b, new com.legend.protocol.spec.CBoolean(c.value(), span));
+            case com.legend.protocol.spec.CInteger c ->
+                    valueSpec(b, new com.legend.protocol.spec.CInteger(c.value(), span));
+            case com.legend.protocol.spec.CString c ->
+                    valueSpec(b, new com.legend.protocol.spec.CString(c.value(), span));
+            case com.legend.protocol.spec.CFloat c ->
+                    valueSpec(b, new com.legend.protocol.spec.CFloat(c.value(), span));
+            case com.legend.protocol.spec.CDate c ->
+                    valueSpec(b, new com.legend.protocol.spec.CDate(c.value(), span));
+            case com.legend.protocol.spec.Variable var ->
+                    valueSpec(b, new com.legend.protocol.spec.Variable(
+                            var.name(), var.type(), var.multiplicity(), span));
+            case com.legend.protocol.spec.PureCollection c ->
+                    valueSpec(b, new com.legend.protocol.spec.PureCollection(c.values(), span));
+            case com.legend.protocol.spec.AppliedProperty pr ->
+                    valueSpec(b, new com.legend.protocol.spec.AppliedProperty(
+                            pr.receiver(), pr.property(), span));
+            case com.legend.protocol.spec.EnumValue e ->
+                    valueSpec(b, new com.legend.protocol.spec.EnumValue(
+                            e.fullPath(), e.value(), e.enumerationPos(), span));
+            // Pass the override ALONGSIDE the node: rebuilding pos would corrupt the
+            // n-ary chain-span derivation, which must read the original climb spans
+            // (caught by the harness on QueryWithLet).
+            case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
+            default -> throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no let-value span rule for "
+                            + v.getClass().getSimpleName() + " — probe, do not guess.");
+        }
+    }
+
     /** Arithmetic natives the engine spells N-ARY: one collection parameter holding the
      *  flattened operand chain. {@code divide} and the comparisons stay binary. */
     private static final java.util.Set<String> NARY_ARITHMETIC =
@@ -450,18 +567,48 @@ public final class ProtocolEmitter {
     private static final java.util.Set<String> BINARY_ARITHMETIC = java.util.Set.of("divide");
 
     private static void appliedFunction(StringBuilder b,
-                                        com.legend.protocol.spec.AppliedFunction f) {
+                                        com.legend.protocol.spec.AppliedFunction f,
+                                        @com.legend.Nullable SourceInfo topSpanOverride) {
         if (f.propertyCall()) {
             // The wire emits `receiver.name(args)` as a PROPERTY node with the arguments
-            // appended after the receiver (harness DIFF on AccountWithConstraints) — its
-            // span convention is not yet probed, so it walls rather than guessing.
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter has no rule for a dot-spelled property call ."
-                            + f.function() + "(...) — probe the property-node shape, do not"
-                            + " emit it as a func.");
+            // appended after the receiver, spanning the NAME token only (ProbeWireShapes
+            // cPcall, confirming the harness DIFF on AccountWithConstraints).
+            b.append("{\"_type\":\"property\",\"parameters\":[");
+            for (int i = 0; i < f.parameters().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                valueSpec(b, f.parameters().get(i));
+            }
+            b.append("],\"property\":");
+            str(b, f.function());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, topSpanOverride != null ? topSpanOverride
+                    : requirePos(f.pos(), "property call " + f.function()));
+            b.append('}');
+            return;
+        }
+        if ("letFunction".equals(f.function())) {
+            // `let name = value` — the name-string parameter carries NO span on the wire
+            // (ProbeWireShapes "function"); the func spans the whole let statement.
+            require(f.parameters().size() == 2
+                            && f.parameters().get(0) instanceof com.legend.protocol.spec.CString,
+                    "malformed letFunction", String.valueOf(f.parameters().size()));
+            SourceInfo letSpan = requirePos(f.pos(), "letFunction");
+            b.append("{\"_type\":\"func\",\"function\":\"letFunction\",\"parameters\":["
+                    + "{\"_type\":\"string\",\"value\":");
+            str(b, ((com.legend.protocol.spec.CString) f.parameters().get(0)).value());
+            b.append("},");
+            // Engine's let rule (ProbeWireShapes "let zoo", ALL value kinds verified): the
+            // value's TOP node takes the letFunction's own span; nested nodes keep theirs.
+            valueSpecWithSpan(b, f.parameters().get(1), letSpan);
+            b.append("],\"sourceInformation\":");
+            srcInfo(b, letSpan);
+            b.append('}');
+            return;
         }
         if (NARY_ARITHMETIC.contains(f.function())) {
-            naryArithmetic(b, f);
+            naryArithmetic(b, f, topSpanOverride);
             return;
         }
         // equal/and/or over an arithmetic-chain LHS: reachable in our grammar only through
@@ -488,7 +635,8 @@ public final class ProtocolEmitter {
             valueSpec(b, f.parameters().get(i));
         }
         b.append("],\"sourceInformation\":");
-        srcInfo(b, requirePos(f.pos(), "func " + f.function()));
+        srcInfo(b, topSpanOverride != null ? topSpanOverride
+                : requirePos(f.pos(), "func " + f.function()));
         b.append('}');
     }
 
@@ -500,7 +648,8 @@ public final class ProtocolEmitter {
      * flatten its left spine.
      */
     private static void naryArithmetic(StringBuilder b,
-                                       com.legend.protocol.spec.AppliedFunction f) {
+                                       com.legend.protocol.spec.AppliedFunction f,
+                                       @com.legend.Nullable SourceInfo topSpanOverride) {
         if (f.parameters().size() == 1) {
             // UNARY form (ProbeWireShapes cNeg): one direct parameter, NO collection,
             // span = the operator token only.
@@ -509,7 +658,8 @@ public final class ProtocolEmitter {
             b.append(",\"parameters\":[");
             valueSpec(b, f.parameters().get(0));
             b.append("],\"sourceInformation\":");
-            srcInfo(b, requirePos(f.pos(), "unary " + f.function()));
+            srcInfo(b, topSpanOverride != null ? topSpanOverride
+                    : requirePos(f.pos(), "unary " + f.function()));
             b.append('}');
             return;
         }
@@ -536,9 +686,11 @@ public final class ProtocolEmitter {
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, f.function());
         b.append(",\"parameters\":[");
+        // The COLLECTION always keeps the chain span — only the func's own span is
+        // overridden in let context (ProbeWireShapes "let zoo", `let arith = $a + 1`).
         collection(b, java.util.List.copyOf(operands), chain);
         b.append("],\"sourceInformation\":");
-        srcInfo(b, chain);
+        srcInfo(b, topSpanOverride != null ? topSpanOverride : chain);
         b.append('}');
     }
 

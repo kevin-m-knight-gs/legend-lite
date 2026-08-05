@@ -330,6 +330,7 @@ public final class SpecParser implements TokenStreamCursor {
      * expected.
      */
     private AppliedFunction parseLetExpression() {
+        int letTok = pos;
         pos++; // consume LET
         // Variable name may be a bare identifier OR a quoted
         // string (e.g. {@code let 'my var' = 42}). The quoted
@@ -350,9 +351,12 @@ public final class SpecParser implements TokenStreamCursor {
         }
         expect(TokenType.EQUAL, "expected '=' after 'let " + varName + "'");
         ValueSpecification value = parseCombinedExpression();
+        // Engine convention (ProbeWireShapes function): letFunction spans the whole
+        // `let name = value` statement; its name-string parameter carries NO span.
         return new AppliedFunction(
                 "letFunction",
-                List.of(new CString(varName), value));
+                List.of(new CString(varName), value),
+                List.of(), spanOf(letTok, pos - 1));
     }
 
     /**
@@ -859,7 +863,7 @@ public final class SpecParser implements TokenStreamCursor {
         int datePos = pos;
         pos++;
         try {
-            return new CDate(PureDateLiteral.parse(value));
+            return new CDate(PureDateLiteral.parse(value), spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,
                     "invalid date literal '%" + value + "': " + e.getMessage());
@@ -1188,11 +1192,11 @@ public final class SpecParser implements TokenStreamCursor {
             List<ValueSpecification> params = new ArrayList<>(1 + args.size());
             params.add(receiver);
             params.addAll(args);
-            // Engine convention: a DOT-call spans dot..close-paren — unlike an arrow
-            // call, which spans only the name token (ProbeWireShapes cPtr getAll).
-            // The propertyCall marker records the dot spelling: the WIRE emits it as a
-            // property node, not a func (harness DIFF on AccountWithConstraints).
-            return new AppliedFunction(name, params, List.of(), spanOf(dotTok, pos - 1), true);
+            // Engine convention (ProbeWireShapes cPcall): a dot-spelled property CALL is a
+            // property node on the wire, spanning the NAME token only — the dot..close-paren
+            // span belongs solely to the .all()-family getAll desugar. The propertyCall
+            // marker records the dot spelling for the emitter.
+            return new AppliedFunction(name, params, List.of(), spanOf(nameStart, nameEnd), true);
         }
         // Enum-value form: 'MyEnum.VALUE' on a PackageableElementPtr
         // receiver. Engine-lite emits EnumValue rather than
@@ -1391,11 +1395,13 @@ public final class SpecParser implements TokenStreamCursor {
             receiver = new Variable(varName);
             className = ""; // class recovered from $var's static type at typecheck
         } else {
+            int cnStart = pos;
             className = parseQualifiedName();
+            int cnEnd = pos - 1;
             if (!atEnd() && peek() == TokenType.LESS_THAN) {
                 typeArgs = parseTypeArguments();
             }
-            receiver = new PackageableElementPtr(className);
+            receiver = new PackageableElementPtr(className, spanOf(cnStart, cnEnd));
         }
         expect(TokenType.PAREN_OPEN, "expected '(' after class name or $variable in ^NewInstance");
         // LinkedHashMap to preserve source order for the small
@@ -1575,13 +1581,18 @@ public final class SpecParser implements TokenStreamCursor {
                 params.add(parseLambdaParam());
             }
         }
+        int pipeTok = pos;
         expect(TokenType.PIPE, "expected '|' to separate lambda parameters from body");
         List<ValueSpecification> body = parseCodeBlockUntil(TokenType.BRACE_CLOSE);
         if (body.isEmpty()) {
             throw error("lambda body must contain at least one statement");
         }
+        int bodyEnd = pos - 1;
         expect(TokenType.BRACE_CLOSE, "expected '}' to close lambda");
-        return new LambdaFunction(params, body);
+        // Engine convention (ProbeWireShapes cBrace, verified against token columns): a
+        // braced lambda spans PIPE..body-end — the same rule as the shorthand form; braces
+        // are excluded on both sides.
+        return new LambdaFunction(params, body, spanOf(pipeTok, bodyEnd));
     }
 
     /**
@@ -1795,6 +1806,7 @@ public final class SpecParser implements TokenStreamCursor {
      * <p>Pre-condition: cursor is on {@link TokenType#PIPE}.
      */
     private LambdaFunction parseLambdaPipe() {
+        int pipeTok = pos;
         pos++; // consume '|'
         // The body is a STATEMENT SEQUENCE per REAL Pure's grammar
         // (M3ParserGrammar.g4): codeBlock: programLine (';' (programLine ';')*)?
@@ -1813,7 +1825,8 @@ public final class SpecParser implements TokenStreamCursor {
                 pos++; // the REQUIRED trailing ';'
             }
         }
-        return new LambdaFunction(List.of(), body);
+        // Engine convention: pipe..body-end, the same rule as every inline lambda form.
+        return new LambdaFunction(List.of(), body, spanOf(pipeTok, pos - 1));
     }
 
     /** Depth of contexts where a ';' cannot belong to an enclosing

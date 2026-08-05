@@ -23,8 +23,25 @@ import java.util.Objects;
  * <p>Note: the {@code %latest} sentinel is a distinct token and
  * remains carried by {@link CLatestDate}.
  */
-public record CDate(PureDateLiteral value) implements ValueSpecification {
+public record CDate(PureDateLiteral value, @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        implements ValueSpecification {
     public CDate {
         Objects.requireNonNull(value, "value");
+    }
+
+    /** Position-free convenience constructor. */
+    public CDate(PureDateLiteral value) {
+        this(value, null);
+    }
+
+    /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof CDate other && value.equals(other.value());
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
     }
 }

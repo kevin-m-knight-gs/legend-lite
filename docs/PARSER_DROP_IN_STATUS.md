@@ -121,17 +121,34 @@ where `values`/`error` are themselves JDK-only leaves (6g).
 ### 3.1 Current numbers
 
 ```
-core suite            : 1632 tests, 0 failures
+core suite            : 1634 tests, 0 failures
 
 parser-equivalence:
   corpus sources      : 2289 files
   verdicts            : 6053
-    MATCH (byte-equal): 5948
+    MATCH (byte-equal): 5991
     DIFF  (BUG)       :    0
-    WALL  (no rule)   :   50
+    WALL  (no rule)   :    7
     PARSE_FAIL        :   55
-  coverage            : 5948 of 5948 comparable (100.0%)
+  coverage            : 5991 of 5991 comparable (100.0%)
 ```
+
+**CLASS EMISSION IS COMPLETE** (→ 5,991): qualifiedProperties (bare bodies, typed-var
+params, REAL stereotypes/taggedValues — the "engine consumes and drops" comment was
+engine-lite lore, refuted by a harness DIFF), ~owner (single identifier; engine rejects a
+list), braced + zero-param pipe lambdas (every inline lambda spans PIPE..body-end),
+dot-spelled property calls (property nodes with appended args, NAME-token span —
+dot..close-paren belongs only to the .all()/getAll desugar), strictDate literals, and the
+LET RULE: a let value's TOP node takes the letFunction's own span, whatever its kind, while
+nested nodes keep theirs (ProbeWireShapes "let zoo", all value kinds verified; the override
+rides beside the node — baking it into pos corrupts the n-ary chain-span derivation).
+Remaining 7 walls: generic multiplicity args 2, Named 2, NewInstance 2, path-literal var 1.
+
+**Element probes for the rest of ###Pure are already captured** (scratchpad probe5.txt +
+ProbeWireShapes): Enumeration (_type "Enumeration" — capitalized!), profile (bare
+stereotype/tag name-span lists), association (reuses the property machinery), function
+(name is SIGNATURE-MANGLED: f_Integer_1__String_MANY__Integer_1_). Engine REJECTS native
+functions and Measure in ###Pure outright — both permanently out of comparable scope.
 
 Progression: 1,750 → (superTypes) → 5,152 → (annotations) → 5,638 → (generics) → 5,725 →
 (defaults) → 5,733 → (constraints) → 5,864 → (ptr/enum/lambda/float/unary/level/externalId)
