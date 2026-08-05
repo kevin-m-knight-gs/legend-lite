@@ -741,8 +741,17 @@ public class RelationalCorpusRunner {
                         for (String tok : line.substring(
                                 line.indexOf(" extends ") + 9)
                                 .split("[,\\[{]")) {
-                            if (tok.strip().contains("::")) {
-                                wanted.add(tok.strip());
+                            String t = tok.strip();
+                            if (t.contains("::")) {
+                                wanted.add(t);
+                            } else if (!t.isEmpty()) {
+                                // a supertype resolved via import
+                                // wildcard (study §5.4b): try each
+                                // import prefix — unknown candidates
+                                // skip at the index lookup below
+                                for (String imp : imps) {
+                                    wanted.add(imp + "::" + t);
+                                }
                             }
                         }
                     }
