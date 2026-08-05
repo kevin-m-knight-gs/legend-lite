@@ -14,11 +14,14 @@ import java.util.Objects;
  * pattern-match on {@link PureTimeLiteral} variants instead of
  * re-parsing the string.
  */
-public record CTime(PureTimeLiteral value, @com.legend.Nullable String written,
+public record CTime(@com.legend.Nullable PureTimeLiteral value,
+        @com.legend.Nullable String written,
         @com.legend.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
     public CTime {
-        Objects.requireNonNull(value, "value");
+        if (value == null && written == null) {
+            throw new NullPointerException("a CTime needs a value or its written form");
+        }
     }
 
     /** Position-free convenience constructor. */
@@ -26,14 +29,27 @@ public record CTime(PureTimeLiteral value, @com.legend.Nullable String written,
         this(value, null, null);
     }
 
+    /** The STRUCTURED value; throws on an out-of-range literal the engine's parser
+     *  admits ({@code %200:12:22} — validation is the compiler's job, not the
+     *  parser's). */
+    public PureTimeLiteral requireValue() {
+        if (value == null) {
+            throw new IllegalStateException(
+                    "time literal '%" + written + "' is out of range");
+        }
+        return value;
+    }
+
     /** Position is excluded from equality — see {@code ValueSpecEqualityTest}. */
     @Override
     public boolean equals(Object o) {
-        return o instanceof CTime other && value.equals(other.value());
+        return o instanceof CTime other
+                && Objects.equals(value, other.value())
+                && (value != null || Objects.equals(written, other.written()));
     }
 
     @Override
     public int hashCode() {
-        return value.hashCode();
+        return Objects.hash(value, value == null ? written : null);
     }
 }

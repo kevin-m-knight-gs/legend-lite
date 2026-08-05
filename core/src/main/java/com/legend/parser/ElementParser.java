@@ -893,9 +893,8 @@ public final class ElementParser implements TokenStreamCursor {
         }
         expect(TokenType.BRACE_CLOSE);
 
-        if (ends.size() != 2) {
-            throw error("Association must have exactly 2 properties, found: " + ends.size());
-        }
+        // arity is a COMPILE error, not a parse error — the engine parses 1- or 3-end
+        // associations and serializes whatever it read (inline-snippet corpus)
         String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
         return new com.legend.protocol.Protocol.PAssociation(pn[0], pn[1], ends, derived,
                 stereotypes, taggedValues, span(declStart, pos - 1));
@@ -926,9 +925,8 @@ public final class ElementParser implements TokenStreamCursor {
         }
         expect(TokenType.BRACE_CLOSE);
 
-        if (values.isEmpty()) {
-            throw error("Enum '" + qualifiedName + "' must have at least one value");
-        }
+        // an EMPTY enum parses (values: [] on the wire) — rejection, if any, is the
+        // compiler's job (inline-snippet corpus)
         String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
         return new com.legend.protocol.Protocol.PEnumeration(pn[0], pn[1], values,
                 stereotypes, taggedValues, span(declStart, pos - 1));
@@ -1104,40 +1102,338 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_OPEN);
         List<com.legend.protocol.Protocol.PTestSuite> suites = new ArrayList<>();
         List<com.legend.protocol.Protocol.PFunctionTest> unnamed = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PTestData> unnamedData = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             if (peek(1) == TokenType.PAREN_OPEN) {
                 int suiteStart = pos;
                 String suiteId = parseIdentifier();
                 expect(TokenType.PAREN_OPEN);
+                List<com.legend.protocol.Protocol.PTestData> data = new ArrayList<>();
                 List<com.legend.protocol.Protocol.PFunctionTest> tests = new ArrayList<>();
                 while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-                    tests.add(parseFunctionTest(sig));
+                    parseSuiteEntry(sig, data, tests);
                 }
                 expect(TokenType.PAREN_CLOSE);
                 suites.add(new com.legend.protocol.Protocol.PTestSuite(
-                        suiteId, span(suiteStart, pos - 1), tests));
+                        suiteId, span(suiteStart, pos - 1), data, tests));
             } else {
-                unnamed.add(parseFunctionTest(sig));
+                parseSuiteEntry(sig, unnamedData, unnamed);
             }
         }
         expect(TokenType.BRACE_CLOSE);
-        if (!unnamed.isEmpty()) {
-            if (!suites.isEmpty()) {
-                throw error("a function test block mixing named suites and bare tests"
-                        + " has no probed wire order");
-            }
-            suites.add(new com.legend.protocol.Protocol.PTestSuite(
-                    null, span(blockOpen, pos - 1), unnamed));
+        if (!unnamed.isEmpty() || !unnamedData.isEmpty()) {
+            // the DEFAULT (bare) suite serializes FIRST, then named suites in source
+            // order (probe "pf mixed suites xml")
+            suites.add(0, new com.legend.protocol.Protocol.PTestSuite(
+                    null, span(blockOpen, pos - 1), unnamedData, unnamed));
         }
         return suites;
     }
 
+    /** One suite entry: {@code store: <payload>;} (test DATA, spotted by the ':' after
+     *  the leading name) or {@code id | call(args) => expected;} (a test). */
+    private void parseSuiteEntry(FunctionSignature sig,
+            List<com.legend.protocol.Protocol.PTestData> data,
+            List<com.legend.protocol.Protocol.PFunctionTest> tests) {
+        int entryStart = pos;
+        String head = parseQualifiedName();
+        int headEnd = pos - 1;
+        if (peek() == TokenType.COLON) {
+            advance();
+            com.legend.protocol.Protocol.PTestPayload payload = parseTestPayload();
+            expect(TokenType.SEMI_COLON);
+            // a relationAccessor's WRAPPER span runs through the entry semicolon
+            // (probe "pf relation island data")
+            if (payload instanceof com.legend.protocol.Protocol.PTestPayload
+                    .RelationElements re) {
+                // the accessor wrapper's end lands TWO past the entry ';' — the same
+                // walker length quirk as single-line assertion blocks (corpus #58 +
+                // probe "pf relation island data": ';' col 9, wire col 11)
+                payload = new com.legend.protocol.Protocol.PTestPayload.RelationElements(
+                        re.elements(), new com.legend.protocol.SourceInfo("",
+                                re.sourceInformation().startLine(),
+                                re.sourceInformation().startColumn(),
+                                tokens.endLine(pos - 1), tokens.endColumn(pos - 1) + 2));
+            }
+            data.add(new com.legend.protocol.Protocol.PTestData(head,
+                    span(entryStart, headEnd), payload,
+                    span(entryStart, pos - 1)));
+            return;
+        }
+        tests.add(parseFunctionTest(sig, entryStart, head));
+    }
+
+    /** {@code (JSON) '...'} | {@code some::Reference} | {@code Relation #{...}#}
+     *  (probes "pf test store data", "pf reference test data", "pf relation island
+     *  data"). */
+    private com.legend.protocol.Protocol.PTestPayload parseTestPayload() {
+        if (peek() == TokenType.PAREN_OPEN) {
+            int fmtStart = pos;
+            advance();
+            String fmt = parseIdentifier();
+            expect(TokenType.PAREN_CLOSE);
+            if (peek() != TokenType.STRING) {
+                throw error("expected a quoted payload after (" + fmt + ")");
+            }
+            String raw = text();
+            advance();
+            return new com.legend.protocol.Protocol.PTestPayload.ExternalFormat(
+                    formatContentType(fmt),
+                    TokenStreamCursor.unquoteAndUnescape(raw, this),
+                    span(fmtStart, pos - 1));
+        }
+        if ("Relation".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+            advance();                              // 'Relation'
+            List<com.legend.protocol.Protocol.PTestPayload.RelationElement> els =
+                    parseRelationIslandElements();
+            com.legend.protocol.SourceInfo first = els.isEmpty()
+                    ? span(pos - 1, pos - 1) : els.get(0).sourceInformation();
+            return new com.legend.protocol.Protocol.PTestPayload.RelationElements(
+                    els, first);
+        }
+        if ("ModelStore".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+            return parseModelStoreIsland();
+        }
+        if ("Relational".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+            return parseRelationalCsvIsland();
+        }
+        int refStart = pos;
+        String ref = parseQualifiedName();
+        return new com.legend.protocol.Protocol.PTestPayload.Reference(
+                ref, span(refStart, pos - 1));
+    }
+
+    /** Format keyword &rarr; contentType (probe "pf mixed suites xml": XML rides the
+     *  SAME equalToJson assertion, only the contentType changes). */
+    private String formatContentType(String fmt) {
+        return switch (fmt) {
+            case "JSON" -> "application/json";
+            case "XML" -> "application/xml";
+            default -> throw error(
+                    "test payload format (" + fmt + ") has no probed contentType");
+        };
+    }
+
+    /**
+     * {@code ModelStore #{ FQN: ExternalFormat #{ contentType: '...'; data: '...'; }# }#}
+     * (probe "pf modelstore island"): modelStore spans keyword..outer {@code }#}; each
+     * modelEmbeddedData spans its FQN..inner {@code }#}; the externalFormat spans
+     * {@code ExternalFormat}..inner {@code }#}.
+     */
+    private com.legend.protocol.Protocol.PTestPayload.ModelStoreData parseModelStoreIsland() {
+        int kw = pos;
+        advance();                                  // 'ModelStore'
+        int outerOpen = pos;
+        expect(TokenType.ISLAND_OPEN);
+        // island content arrives as coarse chunks — walk the token structure for the
+        // NESTED islands, the chars for everything else
+        List<com.legend.protocol.Protocol.PTestPayload.ModelEmbedded> models =
+                new ArrayList<>();
+        String source = tokens.source();
+        while (!atEnd() && peek() != TokenType.ISLAND_END) {
+            if (peek() == TokenType.ISLAND_OPEN) {
+                throw error("expected 'FQN: ExternalFormat' before a nested data island");
+            }
+            // chunk text holds "FQN:\n ExternalFormat" (possibly with commas between
+            // entries); the nested island follows
+            String chunk = tokens.text(pos);
+            int chunkStart = tokens.start(pos);
+            int colon = singleColon(chunk);
+            if (colon < 0) {
+                throw error("expected 'FQN:' inside a ModelStore data island");
+            }
+            int a = 0;
+            while (a < colon && (Character.isWhitespace(chunk.charAt(a))
+                    || chunk.charAt(a) == ',')) {
+                a++;
+            }
+            String model = chunk.substring(a, colon).trim();
+            String rest = chunk.substring(colon + 1).trim();
+            if (!rest.equals("ExternalFormat")) {
+                throw error("expected ExternalFormat inside a ModelStore data island,"
+                        + " got '" + rest + "'");
+            }
+            int efStart = chunkStart + chunk.indexOf("ExternalFormat", colon);
+            advance();                              // past the chunk
+            if (peek() != TokenType.ISLAND_OPEN && peek() != TokenType.ISLAND_START) {
+                throw error("expected a nested data island after ExternalFormat");
+            }
+            advance();
+            StringBuilder inner = new StringBuilder();
+            while (!atEnd() && peek() != TokenType.ISLAND_END) {
+                inner.append(tokens.text(pos));
+                advance();
+            }
+            int innerEndTok = pos;
+            expect(TokenType.ISLAND_END);
+            String[] kv = parseExternalFormatKv(inner.toString());
+            models.add(new com.legend.protocol.Protocol.PTestPayload.ModelEmbedded(model,
+                    new com.legend.protocol.Protocol.PTestPayload.ExternalFormat(
+                            kv[0], kv[1], new com.legend.protocol.SourceInfo("",
+                                    tokens.lineOf(efStart), tokens.columnOf(efStart),
+                                    tokens.endLine(innerEndTok), tokens.endColumn(innerEndTok))),
+                    new com.legend.protocol.SourceInfo("",
+                            tokens.lineOf(chunkStart + a), tokens.columnOf(chunkStart + a),
+                            tokens.endLine(innerEndTok), tokens.endColumn(innerEndTok))));
+            // trailing whitespace chunk before the outer close is fine
+            if (!atEnd() && peek() != TokenType.ISLAND_END
+                    && tokens.text(pos).isBlank()) {
+                advance();
+            }
+        }
+        expect(TokenType.ISLAND_END);
+        return new com.legend.protocol.Protocol.PTestPayload.ModelStoreData(models,
+                span(kw, pos - 1));
+    }
+
+    /** The first ':' that is NOT part of a '::' package separator, or -1. */
+    private static int singleColon(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == ':'
+                    && (i + 1 >= s.length() || s.charAt(i + 1) != ':')
+                    && (i == 0 || s.charAt(i - 1) != ':')) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** {@code contentType: '...'; data: '...';} — quote-aware. */
+    private String[] parseExternalFormatKv(String body) {
+        String contentType = null;
+        String data = null;
+        int i = 0;
+        int n = body.length();
+        while (i < n) {
+            char c = body.charAt(i);
+            if (Character.isWhitespace(c) || c == ';') {
+                i++;
+                continue;
+            }
+            int colon = body.indexOf(':', i);
+            if (colon < 0) {
+                break;
+            }
+            String key = body.substring(i, colon).trim();
+            int q1 = body.indexOf('\'', colon);
+            if (q1 < 0) {
+                throw error("expected a quoted value for ExternalFormat key '" + key + "'");
+            }
+            int q2 = q1 + 1;
+            StringBuilder v = new StringBuilder();
+            while (q2 < n && body.charAt(q2) != '\'') {
+                if (body.charAt(q2) == '\\' && q2 + 1 < n) {
+                    char e = body.charAt(q2 + 1);
+                    v.append(e == 'n' ? '\n' : e == 't' ? '\t' : e == 'r' ? '\r' : e);
+                    q2 += 2;
+                } else {
+                    v.append(body.charAt(q2));
+                    q2++;
+                }
+            }
+            if (key.equals("contentType")) {
+                contentType = v.toString();
+            } else if (key.equals("data")) {
+                data = v.toString();
+            } else {
+                throw error("unknown ExternalFormat key '" + key + "'");
+            }
+            i = q2 + 1;
+        }
+        if (contentType == null || data == null) {
+            throw error("ExternalFormat needs contentType and data");
+        }
+        return new String[]{contentType, data};
+    }
+
+    /**
+     * {@code Relational #{ schema.table: 'csv' + 'csv'; }#} (probe "pf relational
+     * island"): relationalCSVData spans keyword..{@code }#}; each table spans
+     * {@code schema.table:}..the last value literal (the ';' excluded); values are the
+     * '+'-concatenated unescaped strings.
+     */
+    private com.legend.protocol.Protocol.PTestPayload.RelationalCsv
+            parseRelationalCsvIsland() {
+        int kw = pos;
+        advance();                                  // 'Relational'
+        int openTok = pos;
+        expect(TokenType.ISLAND_OPEN);
+        while (!atEnd() && peek() != TokenType.ISLAND_END) {
+            advance();
+        }
+        int endTok = pos;
+        expect(TokenType.ISLAND_END);
+        String source = tokens.source();
+        int from = tokens.end(openTok);
+        int to = tokens.start(endTok);
+        List<com.legend.protocol.Protocol.PTestPayload.CsvTable> tables = new ArrayList<>();
+        int i = from;
+        while (i < to) {
+            char c = source.charAt(i);
+            if (Character.isWhitespace(c) || c == ';') {
+                i++;
+                continue;
+            }
+            int tStart = i;
+            int colon = source.indexOf(':', i);
+            if (colon < 0 || colon >= to) {
+                throw error("expected 'schema.table:' inside a Relational data island");
+            }
+            String head = source.substring(i, colon).trim();
+            int dot = head.indexOf('.');
+            if (dot < 0) {
+                throw error("expected 'schema.table:' inside a Relational data island,"
+                        + " got '" + head + "'");
+            }
+            String schema = head.substring(0, dot).trim();
+            String table = head.substring(dot + 1).trim();
+            i = colon + 1;
+            StringBuilder values = new StringBuilder();
+            int valEnd = colon;
+            while (i < to) {
+                char v = source.charAt(i);
+                if (Character.isWhitespace(v) || v == '+') {
+                    i++;
+                    continue;
+                }
+                if (v == ';') {
+                    valEnd = i;                     // the table span INCLUDES the ';'
+                    i++;
+                    break;
+                }
+                if (v != '\'') {
+                    throw error("expected a quoted CSV chunk inside a Relational"
+                            + " data island");
+                }
+                int q = i + 1;
+                while (q < to && source.charAt(q) != '\'') {
+                    if (source.charAt(q) == '\\' && q + 1 < to) {
+                        char e = source.charAt(q + 1);
+                        values.append(e == 'n' ? '\n' : e == 't' ? '\t'
+                                : e == 'r' ? '\r' : e);
+                        q += 2;
+                    } else {
+                        values.append(source.charAt(q));
+                        q++;
+                    }
+                }
+                valEnd = q;
+                i = q + 1;
+            }
+            tables.add(new com.legend.protocol.Protocol.PTestPayload.CsvTable(
+                    schema, table, values.toString(), new com.legend.protocol.SourceInfo("",
+                            tokens.lineOf(tStart), tokens.columnOf(tStart),
+                            tokens.lineOf(valEnd), tokens.columnOf(valEnd))));
+        }
+        return new com.legend.protocol.Protocol.PTestPayload.RelationalCsv(tables,
+                span(kw, pos - 1));
+    }
+
     /** {@code id | call(args) => expected;} — the call NAME is not on the wire; each
-     *  argument binds to the signature parameter at its position. */
+     *  argument binds to the signature parameter at its position ({@code null} name when
+     *  the signature runs out). */
     private com.legend.protocol.Protocol.PFunctionTest parseFunctionTest(
-            FunctionSignature sig) {
-        int testStart = pos;
-        String testId = parseIdentifier();
+            FunctionSignature sig, int testStart, String testId) {
         expect(TokenType.PIPE);
         parseQualifiedName();                       // call spelling — not serialized
         expect(TokenType.PAREN_OPEN);
@@ -1159,36 +1455,185 @@ public final class ElementParser implements TokenStreamCursor {
                 advance();
             }
             int idx = params.size();
-            if (idx >= sig.params().size()) {
-                throw error("function test passes more arguments than the signature"
-                        + " declares parameters");
-            }
             params.add(new com.legend.protocol.Protocol.PTestParam(
-                    sig.params().get(idx).name(),
+                    idx < sig.params().size() ? sig.params().get(idx).name() : null,
                     SpecParser.parse(tokens.slice(vStart, pos)),
                     span(vStart, pos - 1)));
         }
         expect(TokenType.PAREN_CLOSE);
         expect(TokenType.EQUAL);
         expect(TokenType.GREATER_THAN);
-        int eStart = pos;
-        int depth = 0;
-        while (!atEnd()) {
-            TokenType t = peek();
-            if (depth == 0 && t == TokenType.SEMI_COLON) {
-                break;
-            }
-            if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN) depth++;
-            else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE) depth--;
+        com.legend.protocol.Protocol.PAssertion assertion;
+        if (peek() == TokenType.PAREN_OPEN) {
+            // => (JSON) '...' — equalToJson (probe "pf fmt expected and data")
+            com.legend.protocol.Protocol.PTestPayload.ExternalFormat fmt =
+                    (com.legend.protocol.Protocol.PTestPayload.ExternalFormat)
+                            parseTestPayload();
+            assertion = new com.legend.protocol.Protocol.PAssertion.EqualToJson(
+                    fmt, fmt.sourceInformation());
+        } else if ("Relation".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
+            // => Relation #{...}# — equalToRelation spanning Relation..}#
+            int relStart = pos;
             advance();
+            List<com.legend.protocol.Protocol.PTestPayload.RelationElement> els =
+                    parseRelationIslandElements(true);
+            if (els.size() != 1) {
+                throw error("an equalTo Relation assertion needs exactly one block,"
+                        + " got " + els.size());
+            }
+            assertion = new com.legend.protocol.Protocol.PAssertion.EqualToRelation(
+                    els.get(0), span(relStart, pos - 1));
+        } else {
+            int eStart = pos;
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (depth == 0 && t == TokenType.SEMI_COLON) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN) depth++;
+                else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE) depth--;
+                advance();
+            }
+            assertion = new com.legend.protocol.Protocol.PAssertion.EqualTo(
+                    SpecParser.parse(tokens.slice(eStart, pos)), span(eStart, pos - 1));
         }
-        com.legend.protocol.spec.ValueSpecification expected =
-                SpecParser.parse(tokens.slice(eStart, pos));
-        com.legend.protocol.SourceInfo expectedSpan = span(eStart, pos - 1);
         expect(TokenType.SEMI_COLON);
         return new com.legend.protocol.Protocol.PFunctionTest(testId,
-                span(testStart, pos - 1), params, expected, expectedSpan);
+                span(testStart, pos - 1), params, assertion);
     }
+
+    /**
+     * A relation-data island {@code #{ path: col, col  v, v; ... }#}: dotted PATH line(s)
+     * ending {@code :}, one COLUMNS line, semicolon-terminated string-valued ROWS
+     * (probes "pf relation expected", "pf relation island data" — every cell serializes
+     * as a STRING; the element span covers the island CONTENT, first path token to last
+     * row token).
+     */
+    /**
+     * A relation island {@code #{ [path.path:] cols  row  row; [next-block] }#}
+     * (probes "pf relation expected", "pf relation island data"; corpus roundtrips):
+     * {@code ;} terminates each BLOCK; within a block the first line is the columns,
+     * every further NON-BLANK line is one row (no per-row semicolons); a block may be
+     * header-only. Every cell serializes as a STRING; a block's span runs first
+     * char..its terminating {@code ;}.
+     */
+    private List<com.legend.protocol.Protocol.PTestPayload.RelationElement>
+            parseRelationIslandElements() {
+        return parseRelationIslandElements(false);
+    }
+
+    /**
+     * In ASSERTION position ({@code => Relation #{...}#}) the engine's walker reparses
+     * the island with a lost line: when content starts on the line AFTER {@code #{},
+     * every span line shifts UP by one and a SINGLE-LINE block's end column lands two
+     * past the {@code ;}; content starting ON the {@code #{} line keeps real lines but
+     * the start column shifts left by one (probe "relation span fit" t1-t3 + corpus
+     * #14/#62). DATA-position islands keep real coordinates.
+     */
+    private List<com.legend.protocol.Protocol.PTestPayload.RelationElement>
+            parseRelationIslandElements(boolean assertionSpans) {
+        int openTok = pos;
+        expect(TokenType.ISLAND_OPEN);
+        while (!atEnd() && peek() != TokenType.ISLAND_END) {
+            advance();
+        }
+        int endTok = pos;
+        expect(TokenType.ISLAND_END);
+        String source = tokens.source();
+        int from = tokens.end(openTok);
+        int to = tokens.start(endTok);
+        List<com.legend.protocol.Protocol.PTestPayload.RelationElement> out =
+                new ArrayList<>();
+        int blockStart = from;
+        boolean inQuotes = false;
+        for (int i = from; i < to; i++) {
+            char c = source.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;               // "" escapes toggle twice — net safe
+                continue;
+            }
+            if (c != ';' || inQuotes) {
+                continue;
+            }
+            int a = blockStart;
+            while (a < i && Character.isWhitespace(source.charAt(a))) {
+                a++;
+            }
+            if (a < i) {
+                out.add(relationBlock(source, a, i, assertionSpans,
+                        tokens.startLine(openTok)));
+            }
+            blockStart = i + 1;
+        }
+        return out;
+    }
+
+    /** Quote-aware cell split: commas inside double-quotes do not split; every cell
+     *  keeps its RAW spelling, quotes and all (probe "pf csv cells"). */
+    private static List<String> csvCells(String line) {
+        List<String> cells = new ArrayList<>();
+        boolean q = false;
+        int start = 0;
+        for (int i = 0; i <= line.length(); i++) {
+            char c = i < line.length() ? line.charAt(i) : ',';
+            if (c == '"') {
+                q = !q;
+            } else if (c == ',' && !q) {
+                cells.add(line.substring(start, i).trim());
+                start = i + 1;
+            }
+        }
+        return cells;
+    }
+
+    /** One relation block over {@code source[a, semi]}; the span includes the ';'. */
+    private com.legend.protocol.Protocol.PTestPayload.RelationElement relationBlock(
+            String source, int a, int semi, boolean assertionSpans, int openLine) {
+        String body = source.substring(a, semi);
+        List<String> paths = new ArrayList<>();
+        int colon = body.indexOf(':');
+        if (colon >= 0) {
+            for (String seg : body.substring(0, colon).trim().split("\\.")) {
+                paths.add(seg.trim());
+            }
+            body = body.substring(colon + 1);
+        }
+        List<String> columns = new ArrayList<>();
+        List<List<String>> rows = new ArrayList<>();
+        boolean first = true;
+        for (String line : body.split("\\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            List<String> cells = csvCells(line);
+            if (first) {
+                columns.addAll(cells);
+                first = false;
+            } else {
+                rows.add(cells);
+            }
+        }
+        int sLine = tokens.lineOf(a);
+        int sCol = tokens.columnOf(a);
+        int eLine = tokens.lineOf(semi);
+        int eCol = tokens.columnOf(semi);
+        if (assertionSpans) {
+            if (sLine == openLine) {
+                sCol -= 1;
+            } else {
+                sLine -= 1;
+                eLine -= 1;
+                if (tokens.lineOf(a) == tokens.lineOf(semi)) {
+                    eCol += 2;                      // single-line block quirk
+                }
+            }
+        }
+        return new com.legend.protocol.Protocol.PTestPayload.RelationElement(
+                columns, paths, rows, new com.legend.protocol.SourceInfo("",
+                        sLine, sCol, eLine, eCol));
+    }
+
 
     /**
      * Parse a {@code native function ...;} declaration. {@code native} has
@@ -1863,7 +2308,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     private com.legend.protocol.Protocol.PStereotype parseStereotype() {
         int profStart = pos;
-        String profile = parseQualifiedName();
+        String profile = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
         int profEnd = pos - 1;
         expect(TokenType.DOT);
         String name = parseIdentifier();
@@ -1924,7 +2369,7 @@ public final class ElementParser implements TokenStreamCursor {
     private com.legend.protocol.Protocol.PTaggedValue parseTaggedValue() {
         int start = pos;
         int profStart = pos;
-        String profile = parseQualifiedName();
+        String profile = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
         int profEnd = pos - 1;
         expect(TokenType.DOT);
         int tagStart = pos;

@@ -50,28 +50,127 @@ public final class Protocol {
      */
     public record PTestSuite(@com.legend.Nullable String id,
                              com.legend.protocol.SourceInfo sourceInformation,
+                             List<PTestData> testData,
                              List<PFunctionTest> tests) {
         public PTestSuite {
+            testData = List.copyOf(testData);
             tests = List.copyOf(tests);
+        }
+
+        /** No-data convenience constructor. */
+        public PTestSuite(@com.legend.Nullable String id,
+                          com.legend.protocol.SourceInfo sourceInformation,
+                          List<PFunctionTest> tests) {
+            this(id, sourceInformation, List.of(), tests);
+        }
+    }
+
+    /** One {@code store: <payload>;} entry in a test block (probe "pf test store data"
+     *  and friends). */
+    public record PTestData(String storePath,
+                            com.legend.protocol.SourceInfo storeSpan,
+                            PTestPayload data,
+                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A test-data payload / format-prefixed assertion payload. */
+    public sealed interface PTestPayload {
+        /** {@code (JSON) '...'} — an externalFormat blob. */
+        record ExternalFormat(String contentType, String data,
+                              com.legend.protocol.SourceInfo sourceInformation)
+                implements PTestPayload {
+        }
+
+        /** {@code some::DataElement} — a reference, {@code type} fixed to {@code DATA}. */
+        record Reference(String path, com.legend.protocol.SourceInfo sourceInformation)
+                implements PTestPayload {
+        }
+
+        /** {@code Relation #{ path: cols rows }#} — a relationAccessor. */
+        record RelationElements(List<RelationElement> elements,
+                                com.legend.protocol.SourceInfo sourceInformation)
+                implements PTestPayload {
+            public RelationElements {
+                elements = List.copyOf(elements);
+            }
+        }
+
+        /** One relation block: dotted path, column names, string-valued rows. */
+        record RelationElement(List<String> columns, List<String> paths,
+                               List<List<String>> rows,
+                               com.legend.protocol.SourceInfo sourceInformation) {
+            public RelationElement {
+                columns = List.copyOf(columns);
+                paths = List.copyOf(paths);
+                rows = rows.stream().map(List::copyOf).toList();
+            }
+        }
+
+        /** {@code ModelStore #{ FQN: ExternalFormat #{...}# }#} — modelStore data. */
+        record ModelStoreData(List<ModelEmbedded> modelData,
+                              com.legend.protocol.SourceInfo sourceInformation)
+                implements PTestPayload {
+            public ModelStoreData {
+                modelData = List.copyOf(modelData);
+            }
+        }
+
+        /** One {@code FQN: ExternalFormat #{ contentType: '...'; data: '...'; }#}. */
+        record ModelEmbedded(String model, ExternalFormat data,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+        }
+
+        /** {@code Relational #{ schema.table: 'csv'; }#} — relationalCSVData. */
+        record RelationalCsv(List<CsvTable> tables,
+                             com.legend.protocol.SourceInfo sourceInformation)
+                implements PTestPayload {
+            public RelationalCsv {
+                tables = List.copyOf(tables);
+            }
+        }
+
+        /** One CSV table: schema, table, concatenated values; span =
+         *  {@code schema.table:}..values end (the ';' excluded). */
+        record CsvTable(String schema, String table, String values,
+                        com.legend.protocol.SourceInfo sourceInformation) {
         }
     }
 
     /** One {@code functionTest}: {@code id | call(args) => expected;} — span includes the
-     *  semicolon; the single assertion is an {@code equalTo} with id {@code "default"}
-     *  spanning the expected value. */
+     *  semicolon. */
     public record PFunctionTest(String id,
                                 com.legend.protocol.SourceInfo sourceInformation,
                                 List<PTestParam> parameters,
-                                com.legend.protocol.spec.ValueSpecification expected,
-                                com.legend.protocol.SourceInfo expectedSpan) {
+                                PAssertion assertion) {
         public PFunctionTest {
             parameters = List.copyOf(parameters);
         }
     }
 
-    /** One test-call argument, keyed by the SIGNATURE parameter name at its position;
-     *  both the parameter and its value span the argument text. */
-    public record PTestParam(String name,
+    /** The test's single assertion, id always {@code "default"} on the wire. */
+    public sealed interface PAssertion {
+        /** {@code => expr} — equalTo spanning the expected value. */
+        record EqualTo(com.legend.protocol.spec.ValueSpecification expected,
+                       com.legend.protocol.SourceInfo span) implements PAssertion {
+        }
+
+        /** {@code => (JSON) '...'} — equalToJson with an externalFormat expected. */
+        record EqualToJson(PTestPayload.ExternalFormat expected,
+                           com.legend.protocol.SourceInfo span) implements PAssertion {
+        }
+
+        /** {@code => Relation #{...}#} — equalToRelation; the expected object is the bare
+         *  columns/paths/rows shape (no _type), spanning the island CONTENT; the
+         *  assertion spans {@code Relation}..{@code }#}. */
+        record EqualToRelation(PTestPayload.RelationElement expected,
+                               com.legend.protocol.SourceInfo span) implements PAssertion {
+        }
+    }
+
+    /** One test-call argument, keyed by the SIGNATURE parameter name at its position —
+     *  {@code null} when the call passes more arguments than the signature declares
+     *  (probe "pf extra test arg": the name key is simply absent). */
+    public record PTestParam(@com.legend.Nullable String name,
                              com.legend.protocol.spec.ValueSpecification value,
                              com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -386,7 +485,34 @@ public final class Protocol {
      */
     public static String[] splitFqn(String qualifiedName) {
         int i = qualifiedName.lastIndexOf("::");
-        return i < 0 ? new String[]{"", qualifiedName}
-                     : new String[]{qualifiedName.substring(0, i), qualifiedName.substring(i + 2)};
+        String pkg = i < 0 ? "" : qualifiedName.substring(0, i);
+        String name = i < 0 ? qualifiedName : qualifiedName.substring(i + 2);
+        return new String[]{unquoteSegments(pkg), unquoteSegments(name)};
+    }
+
+    /** Public form for REFERENCE positions that also unquote (stereotype/tag
+     *  profiles — corpus DIFF: {@code <<'a profile'.st>>} emits {@code a profile}). */
+    public static String unquotePath(String path) {
+        return unquoteSegments(path);
+    }
+
+    /** DECLARATION names unquote their quoted segments on the wire
+     *  ({@code test::'p a c k'::A} &rarr; package {@code test::p a c k}); REFERENCES
+     *  keep the quotes — the parser hands the raw spelling to both. */
+    private static String unquoteSegments(String path) {
+        if (path.indexOf('\'') < 0) {
+            return path;
+        }
+        StringBuilder out = new StringBuilder();
+        String[] segs = path.split("::", -1);
+        for (int i = 0; i < segs.length; i++) {
+            if (i > 0) {
+                out.append("::");
+            }
+            String s = segs[i];
+            out.append(s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
+                    ? s.substring(1, s.length() - 1) : s);
+        }
+        return out.toString();
     }
 }

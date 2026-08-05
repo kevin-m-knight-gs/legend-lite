@@ -36,7 +36,7 @@ class CorpusEquivalenceTest {
 
     /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit. */
     private static final int MIN_ELEMENTS_COMPARED = 19258;
-    private static final int MIN_MATCHES = 19193;
+    private static final int MIN_MATCHES = 19258;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

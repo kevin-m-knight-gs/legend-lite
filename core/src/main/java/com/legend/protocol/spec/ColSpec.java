@@ -62,8 +62,21 @@ public record ColSpec(
         boolean qualified,
         @com.legend.Nullable com.legend.protocol.SourceInfo pos,
         @com.legend.Nullable com.legend.protocol.TypeExpression colType,
-        @com.legend.Nullable com.legend.protocol.Multiplicity colTypeMult)
+        @com.legend.Nullable com.legend.protocol.Multiplicity colTypeMult,
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes,
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues)
         implements ColumnInstance {
+
+    /** Annotation-free compatibility constructor. */
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
+            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+            List<ValueSpecification> args, boolean qualified,
+            @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+            @com.legend.Nullable com.legend.protocol.TypeExpression colType,
+            @com.legend.Nullable com.legend.protocol.Multiplicity colTypeMult) {
+        this(name, function1, function2, alias, args, qualified, pos, colType, colTypeMult,
+                List.of(), List.of());
+    }
 
     /** The lambda/bare form (no declared column type). */
     public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
@@ -103,6 +116,8 @@ public record ColSpec(
     public ColSpec {
         Objects.requireNonNull(name, "name");
         args = args == null ? List.of() : List.copyOf(args);
+        stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
+        taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
     }
 
     /** Historical arity: parenthesized-ness follows the args (the graph

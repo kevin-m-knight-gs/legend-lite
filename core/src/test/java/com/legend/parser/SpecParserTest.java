@@ -2832,10 +2832,12 @@ final class SpecParserTest {
     void tableReferenceWithoutDotRejected() {
         // '#>{no_table}#' \u2014 no '.' means we can't split into
         // db and table. Engine-lite throws; we match.
-        ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("#>{no_table}#"));
-        assertTrue(String.valueOf(ex.getMessage()).contains("db.TABLE"),
-                () -> "want table-reference error, got: " + ex.getMessage());
+        // REFUTED by the inline-snippet corpus: a store-only reference
+        // (#>{my::Store}#) is legal — ONE path element, no table split.
+        AppliedFunction af = assertInstanceOf(AppliedFunction.class,
+                SpecParser.parse("#>{no_table}#"));
+        assertEquals("tableReference", af.function());
+        assertEquals(1, af.parameters().size());
     }
 
     @Test

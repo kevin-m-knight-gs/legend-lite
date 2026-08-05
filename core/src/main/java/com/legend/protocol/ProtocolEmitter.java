@@ -148,17 +148,31 @@ public final class ProtocolEmitter {
         str(b, s.id() != null ? s.id() : "default");
         b.append(",\"sourceInformation\":");
         srcInfo(b, s.sourceInformation());
-        b.append(",\"testData\":[],\"tests\":[");
+        b.append(",\"testData\":[");
+        for (int i = 0; i < s.testData().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PTestData d = s.testData().get(i);
+            b.append("{\"data\":");
+            testPayload(b, d.data());
+            b.append(",\"packageableElementPointer\":{\"path\":");
+            str(b, d.storePath());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, d.storeSpan());
+            b.append("},\"sourceInformation\":");
+            srcInfo(b, d.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"tests\":[");
         for (int i = 0; i < s.tests().size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
             Protocol.PFunctionTest t = s.tests().get(i);
-            b.append("{\"_type\":\"functionTest\",\"assertions\":[{\"_type\":\"equalTo\",\"expected\":");
-            valueSpec(b, t.expected());
-            b.append(",\"id\":\"default\",\"sourceInformation\":");
-            srcInfo(b, t.expectedSpan());
-            b.append("}],\"id\":");
+            b.append("{\"_type\":\"functionTest\",\"assertions\":[");
+            assertion(b, t.assertion());
+            b.append("],\"id\":");
             str(b, t.id());
             if (!t.parameters().isEmpty()) {
                 b.append(",\"parameters\":[");
@@ -167,9 +181,15 @@ public final class ProtocolEmitter {
                         b.append(',');
                     }
                     Protocol.PTestParam pa = t.parameters().get(k);
-                    b.append("{\"name\":");
-                    str(b, pa.name());
-                    b.append(",\"sourceInformation\":");
+                    b.append('{');
+                    // an argument BEYOND the signature has no name key at all
+                    // (probe "pf extra test arg")
+                    if (pa.name() != null) {
+                        b.append("\"name\":");
+                        str(b, pa.name());
+                        b.append(',');
+                    }
+                    b.append("\"sourceInformation\":");
                     srcInfo(b, pa.sourceInformation());
                     b.append(",\"value\":");
                     valueSpec(b, pa.value());
@@ -182,6 +202,148 @@ public final class ProtocolEmitter {
             b.append('}');
         }
         b.append("]}");
+    }
+
+    /** The three assertion spellings (probes "fn tests wire", "pf fmt expected and
+     *  data", "pf relation expected"); assertion id is always {@code "default"}. */
+    private static void assertion(StringBuilder b, Protocol.PAssertion a) {
+        switch (a) {
+            case Protocol.PAssertion.EqualTo eq -> {
+                b.append("{\"_type\":\"equalTo\",\"expected\":");
+                valueSpec(b, eq.expected());
+                b.append(",\"id\":\"default\",\"sourceInformation\":");
+                srcInfo(b, eq.span());
+                b.append('}');
+            }
+            case Protocol.PAssertion.EqualToJson ej -> {
+                b.append("{\"_type\":\"equalToJson\",\"expected\":");
+                testPayload(b, ej.expected());
+                b.append(",\"id\":\"default\",\"sourceInformation\":");
+                srcInfo(b, ej.span());
+                b.append('}');
+            }
+            case Protocol.PAssertion.EqualToRelation er -> {
+                b.append("{\"_type\":\"equalToRelation\",\"expected\":");
+                relationElement(b, er.expected());
+                b.append(",\"id\":\"default\",\"sourceInformation\":");
+                srcInfo(b, er.span());
+                b.append('}');
+            }
+        }
+    }
+
+    private static void testPayload(StringBuilder b, Protocol.PTestPayload p) {
+        switch (p) {
+            case Protocol.PTestPayload.ExternalFormat ef -> {
+                b.append("{\"_type\":\"externalFormat\",\"contentType\":");
+                str(b, ef.contentType());
+                b.append(",\"data\":");
+                str(b, ef.data());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ef.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PTestPayload.Reference r -> {
+                b.append("{\"_type\":\"reference\",\"dataElement\":{\"path\":");
+                str(b, r.path());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, r.sourceInformation());
+                b.append(",\"type\":\"DATA\"},\"sourceInformation\":");
+                srcInfo(b, r.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PTestPayload.RelationElements re -> {
+                b.append("{\"_type\":\"relationAccessor\",\"relationElements\":[");
+                for (int i = 0; i < re.elements().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relationElement(b, re.elements().get(i));
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, re.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PTestPayload.ModelStoreData ms -> {
+                // probe "pf modelstore island"
+                b.append("{\"_type\":\"modelStore\",\"modelData\":[");
+                for (int i = 0; i < ms.modelData().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PTestPayload.ModelEmbedded me = ms.modelData().get(i);
+                    b.append("{\"_type\":\"modelEmbeddedData\",\"data\":");
+                    testPayload(b, me.data());
+                    b.append(",\"model\":");
+                    str(b, me.model());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, me.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, ms.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PTestPayload.RelationalCsv rc -> {
+                // probe "pf relational island"
+                b.append("{\"_type\":\"relationalCSVData\",\"sourceInformation\":");
+                srcInfo(b, rc.sourceInformation());
+                b.append(",\"tables\":[");
+                for (int i = 0; i < rc.tables().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PTestPayload.CsvTable t = rc.tables().get(i);
+                    b.append("{\"schema\":");
+                    str(b, t.schema());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, t.sourceInformation());
+                    b.append(",\"table\":");
+                    str(b, t.table());
+                    b.append(",\"values\":");
+                    str(b, t.values());
+                    b.append('}');
+                }
+                b.append("]}");
+            }
+        }
+    }
+
+    /** The bare columns/paths/rows shape — every cell a STRING. */
+    private static void relationElement(StringBuilder b,
+            Protocol.PTestPayload.RelationElement el) {
+        b.append("{\"columns\":[");
+        for (int i = 0; i < el.columns().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, el.columns().get(i));
+        }
+        b.append("],\"paths\":[");
+        for (int i = 0; i < el.paths().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, el.paths().get(i));
+        }
+        b.append("],\"rows\":[");
+        for (int i = 0; i < el.rows().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"values\":[");
+            List<String> row = el.rows().get(i);
+            for (int k = 0; k < row.size(); k++) {
+                if (k > 0) {
+                    b.append(',');
+                }
+                str(b, row.get(k));
+            }
+            b.append("]}");
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, el.sourceInformation());
+        b.append('}');
     }
 
     /** {@code _type:"association"} — ends emit as ordinary wire properties; qualified
@@ -1107,6 +1269,22 @@ public final class ProtocolEmitter {
             return;
         }
         if ("tableReference".equals(f.function())
+                && f.parameters().size() == 1
+                && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr store) {
+            // STORE-ONLY island (#>{my::Store}#): ONE path element (probe "pf named
+            // new and store tref" b); spans as in the two-part form
+            SourceInfo span = topSpanOverride != null ? topSpanOverride
+                    : requirePos(f.pos(), "table reference");
+            b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+            srcInfo(b, span);
+            b.append(",\"type\":\">\",\"value\":{\"path\":[");
+            str(b, store.fullPath());
+            b.append("],\"sourceInformation\":");
+            srcInfo(b, span);
+            b.append("}}");
+            return;
+        }
+        if ("tableReference".equals(f.function())
                 && f.parameters().size() == 2
                 && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr db
                 && f.parameters().get(1) instanceof com.legend.protocol.spec.CString tbl
@@ -1378,55 +1556,7 @@ public final class ProtocolEmitter {
             require(!seg.unsupportedArg(),
                     "dated path segment with a non-%latest argument", seg.name());
             b.append("{\"_type\":\"propertyPath\",\"parameters\":[");
-            for (int a = 0; a < seg.args().size(); a++) {
-                if (a > 0) {
-                    b.append(',');
-                }
-                // dated ARGUMENTS shift by one LESS than the property chunk — a-1
-                // rather than a-2 (ProbeWireShapes "alias dated tref2 gft2" b,
-                // "path dated and enum args"); enum args carry no span at all
-                switch (seg.args().get(a)) {
-                    case com.legend.protocol.spec.PathLiteral.PathArg.Latest r -> {
-                        b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
-                        srcInfo(b, new SourceInfo(lit.sourceId(),
-                                line, s + len + r.start() - 1,
-                                line, s + len + r.end() - 1));
-                        b.append('}');
-                    }
-                    case com.legend.protocol.spec.PathLiteral.PathArg.DateArg r -> {
-                        b.append("{\"_type\":\"dateTime\",\"sourceInformation\":");
-                        srcInfo(b, new SourceInfo(lit.sourceId(),
-                                line, s + len + r.start() - 1,
-                                line, s + len + r.end() - 1));
-                        b.append(",\"value\":");
-                        str(b, r.value());
-                        b.append('}');
-                    }
-                    case com.legend.protocol.spec.PathLiteral.PathArg.EnumArg e -> {
-                        b.append("{\"_type\":\"enumValue\",\"fullPath\":");
-                        str(b, e.fullPath());
-                        b.append(",\"value\":");
-                        str(b, e.value());
-                        b.append('}');
-                    }
-                    case com.legend.protocol.spec.PathLiteral.PathArg.IntArg n -> {
-                        b.append("{\"_type\":\"integer\",\"sourceInformation\":");
-                        srcInfo(b, new SourceInfo(lit.sourceId(),
-                                line, s + len + n.start() - 1,
-                                line, s + len + n.end() - 1));
-                        b.append(",\"value\":").append(n.value()).append('}');
-                    }
-                    case com.legend.protocol.spec.PathLiteral.PathArg.StrArg st -> {
-                        b.append("{\"_type\":\"string\",\"sourceInformation\":");
-                        srcInfo(b, new SourceInfo(lit.sourceId(),
-                                line, s + len + st.start() - 1,
-                                line, s + len + st.end() - 1));
-                        b.append(",\"value\":");
-                        str(b, st.value());
-                        b.append('}');
-                    }
-                }
-            }
+            pathArgs(b, seg.args(), lit, s, len, line);
             b.append("],\"property\":");
             str(b, seg.name());
             b.append(",\"sourceInformation\":");
@@ -1440,6 +1570,68 @@ public final class ProtocolEmitter {
         b.append(",\"startType\":");
         str(b, pl.startType());
         b.append("}}");
+    }
+
+
+    /** Dated-segment arguments under the shifted-span rules; collections recurse. */
+    private static void pathArgs(StringBuilder b,
+            List<com.legend.protocol.spec.PathLiteral.PathArg> args,
+            SourceInfo lit, int s, int len, int line) {
+        for (int a = 0; a < args.size(); a++) {
+            if (a > 0) {
+                b.append(',');
+            }
+            switch (args.get(a)) {
+                case com.legend.protocol.spec.PathLiteral.PathArg.Latest r -> {
+                    b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
+                    srcInfo(b, new SourceInfo(lit.sourceId(),
+                            line, s + len + r.start() - 1,
+                            line, s + len + r.end() - 1));
+                    b.append('}');
+                }
+                case com.legend.protocol.spec.PathLiteral.PathArg.DateArg r -> {
+                    b.append("{\"_type\":\"dateTime\",\"sourceInformation\":");
+                    srcInfo(b, new SourceInfo(lit.sourceId(),
+                            line, s + len + r.start() - 1,
+                            line, s + len + r.end() - 1));
+                    b.append(",\"value\":");
+                    str(b, r.value());
+                    b.append('}');
+                }
+                case com.legend.protocol.spec.PathLiteral.PathArg.EnumArg e -> {
+                    b.append("{\"_type\":\"enumValue\",\"fullPath\":");
+                    str(b, e.fullPath());
+                    b.append(",\"value\":");
+                    str(b, e.value());
+                    b.append('}');
+                }
+                case com.legend.protocol.spec.PathLiteral.PathArg.IntArg n -> {
+                    b.append("{\"_type\":\"integer\",\"sourceInformation\":");
+                    srcInfo(b, new SourceInfo(lit.sourceId(),
+                            line, s + len + n.start() - 1,
+                            line, s + len + n.end() - 1));
+                    b.append(",\"value\":").append(n.value()).append('}');
+                }
+                case com.legend.protocol.spec.PathLiteral.PathArg.StrArg st -> {
+                    b.append("{\"_type\":\"string\",\"sourceInformation\":");
+                    srcInfo(b, new SourceInfo(lit.sourceId(),
+                            line, s + len + st.start() - 1,
+                            line, s + len + st.end() - 1));
+                    b.append(",\"value\":");
+                    str(b, st.value());
+                    b.append('}');
+                }
+                case com.legend.protocol.spec.PathLiteral.PathArg.CollectionArg col -> {
+                    // span-less collection wrapper, elements carry their own shifted
+                    // spans (probe "pf path exotic")
+                    b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
+                            .append(col.elements().size()).append(",\"upperBound\":")
+                            .append(col.elements().size()).append("},\"values\":[");
+                    pathArgs(b, col.elements(), lit, s, len, line);
+                    b.append("]}");
+                }
+            }
+        }
     }
 
     /**
@@ -1668,6 +1860,16 @@ public final class ProtocolEmitter {
         str(b, cs.name());
         b.append(",\"sourceInformation\":");
         srcInfo(b, pos);
+        // ~<<...>> {...} name:Type — annotations ride the value, keys only when present
+        // (probe "pf colspec annotations")
+        if (!cs.stereotypes().isEmpty()) {
+            b.append(",\"stereotypes\":");
+            stereotypes(b, cs.stereotypes());
+        }
+        if (!cs.taggedValues().isEmpty()) {
+            b.append(",\"taggedValues\":");
+            taggedValues(b, cs.taggedValues());
+        }
         b.append('}');
     }
 

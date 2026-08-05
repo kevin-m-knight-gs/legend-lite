@@ -136,7 +136,8 @@ final class Typer {
             // Date literals type by PRECISION (engine's CStrictDate/CDateTime split):
             // year/year-month -> Date, full day -> StrictDate, any time part -> DateTime.
             case CDate lit -> new TypedCDate(lit.value(), ExprType.one(dateType(lit.value())));
-            case CTime lit -> new TypedCTime(lit.value(), ExprType.one(Type.Primitive.STRICT_TIME));
+            case CTime lit -> new TypedCTime(lit.requireValue(),
+                    ExprType.one(Type.Primitive.STRICT_TIME));
             case CLatestDate ignored -> new TypedCLatestDate(ExprType.one(Type.Primitive.LATEST_DATE));
             case TypeAnnotation ta -> typeRef(ta);
             case Variable v -> new TypedVariable(v.name(), env.lookup(v.name()).orElseThrow(

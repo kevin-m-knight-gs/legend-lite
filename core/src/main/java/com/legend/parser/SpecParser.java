@@ -893,8 +893,9 @@ public final class SpecParser implements TokenStreamCursor {
             return new CTime(PureTimeLiteral.parse(value), value,
                     spanOf(timePos, timePos));
         } catch (IllegalArgumentException e) {
-            throw TokenStreamCursor.throwAt(tokens, timePos,
-                    "invalid time literal '%" + value + "': " + e.getMessage());
+            // the ENGINE parses out-of-range times (%200:12:22) — carry the raw text,
+            // validation is the compiler's (inline-snippet corpus)
+            return new CTime(null, value, spanOf(timePos, timePos));
         }
     }
 
@@ -1422,6 +1423,11 @@ public final class SpecParser implements TokenStreamCursor {
             }
             receiver = new PackageableElementPtr(className, spanOf(cnStart, cnEnd));
         }
+        // OLD-pure named form '^Person klp (...)': the instance NAME parses and DROPS —
+        // the wire's name slot stays "" (probe "pf named new and store tref")
+        if (!atEnd() && isFqnSegmentToken(peek()) && peek(1) == TokenType.PAREN_OPEN) {
+            pos++;
+        }
         expect(TokenType.PAREN_OPEN, "expected '(' after class name or $variable in ^NewInstance");
         // LinkedHashMap to preserve source order for the small
         // observable cases (debug pretty-printers, AST dumps);
@@ -1446,7 +1452,9 @@ public final class SpecParser implements TokenStreamCursor {
         //
         // Cast is only legal in the class-literal form (className non-
         // empty), never in the copy-with-update ^$var(...) form.
-        if (!className.isEmpty() && !isFqnSegmentToken(peek())) {
+        if (!className.isEmpty() && !isFqnSegmentToken(peek())
+                && !(peek() == TokenType.STRING && pos + 1 < tokens.count()
+                        && tokens.type(pos + 1) == TokenType.EQUAL)) {
             ValueSpecification src = parseCombinedExpression();
             expect(TokenType.PAREN_CLOSE,
                     "expected ')' to close ^" + className + "($src) positional cast");
@@ -1501,6 +1509,16 @@ public final class SpecParser implements TokenStreamCursor {
      * cross-engine-consistent.
      */
     private void parseAndPutKeyExpression(Map<String, KeyExpression> properties) {
+        // quoted keys are legal: ^A('first name' = ...) — the wire keeps the RAW
+        // quoted spelling (corpus DIFF: key.value = "'firstname'")
+        if (peek() == TokenType.STRING && pos + 1 < tokens.count()
+                && tokens.type(pos + 1) == TokenType.EQUAL) {
+            String key = text();
+            pos += 2;                               // name + '='
+            ValueSpecification value = parseCombinedExpression();
+            properties.put(key, new KeyExpression(value, false, false));
+            return;
+        }
         if (!isFqnSegmentToken(peek())) {
             throw error("expected property name in ^NewInstance binding");
         }
@@ -1552,6 +1570,17 @@ public final class SpecParser implements TokenStreamCursor {
         List<TypeExpression> args = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.GREATER_THAN) {
             pos++;
+            return args;
+        }
+        // TestClass<|1>: multiplicity arguments with NO type arguments
+        if (!atEnd() && peek() == TokenType.PIPE) {
+            pos++;
+            multArgsOut.add(parseMultiplicityArgumentText());
+            while (!atEnd() && peek() == TokenType.COMMA) {
+                pos++;
+                multArgsOut.add(parseMultiplicityArgumentText());
+            }
+            expect(TokenType.GREATER_THAN, "expected '>' to close type arguments");
             return args;
         }
         args.add(parseType());
@@ -1939,7 +1968,21 @@ public final class SpecParser implements TokenStreamCursor {
         if (atEnd()) {
             throw error("expected column name after '~'");
         }
-        int nameTokIdx = pos;
+        // ~<<stereo>> {tag='v'} name:Type — annotations ride the colSpec VALUE as
+        // ordinary stereotype/taggedValue arrays; the spec's span STARTS at the first
+        // annotation token (probe "pf colspec annotations", corpus DIFFs)
+        int annotStart = -1;
+        List<com.legend.protocol.Protocol.PStereotype> csStereotypes = List.of();
+        List<com.legend.protocol.Protocol.PTaggedValue> csTaggedValues = List.of();
+        if ((peek() == TokenType.LESS_THAN && peek(1) == TokenType.LESS_THAN)
+                || (peek() == TokenType.BRACE_OPEN && looksLikeTaggedValues())) {
+            annotStart = pos;
+            ElementParser sub = ElementParser.at(tokens, pos);
+            csStereotypes = sub.parseStereotypes();
+            csTaggedValues = sub.parseTaggedValues();
+            pos = sub.pos();
+        }
+        int nameTokIdx = annotStart >= 0 ? annotStart : pos;
         TokenType nameTok = peek();
         String name;
         if (nameTok == TokenType.STRING) {
@@ -1965,7 +2008,8 @@ public final class SpecParser implements TokenStreamCursor {
             // when a spec terminator follows — anything else backtracks to the lambda
             // path ('Target.all()' parses as the type 'Target' but the '.' refutes it)
             int colonMark = pos;
-            ColSpec typed = tryTypedColSpec(name, nameTokIdx);
+            ColSpec typed = tryTypedColSpec(name, nameTokIdx, csStereotypes,
+                    csTaggedValues);
             if (typed != null) {
                 return typed;
             }
@@ -1982,13 +2026,31 @@ public final class SpecParser implements TokenStreamCursor {
         com.legend.protocol.SourceInfo span = function1 == null
                 ? spanOf(nameTokIdx, nameTokIdx)
                 : spanOf(nameTokIdx, pos - 1);
-        return new ColSpec(name, function1, function2, null, List.of(), false, span);
+        return new ColSpec(name, function1, function2, null, List.of(), false, span,
+                null, null, csStereotypes, csTaggedValues);
+    }
+
+    /** A '{' opening TAGGED VALUES ({profile.tag='v'}) rather than a lambda: the next
+     *  tokens spell an identifier path followed by '.'. */
+    private boolean looksLikeTaggedValues() {
+        int k = pos + 1;
+        if (k >= tokens.count() || !isFqnSegmentToken(tokens.type(k))) {
+            return false;
+        }
+        k++;
+        while (k + 1 < tokens.count() && tokens.type(k) == TokenType.PATH_SEPARATOR
+                && isFqnSegmentToken(tokens.type(k + 1))) {
+            k += 2;
+        }
+        return k < tokens.count() && tokens.type(k) == TokenType.DOT;
     }
 
     /** {@link #parseOneColSpec}'s TYPED attempt: a type (with optional multiplicity)
      *  followed immediately by a spec terminator, or {@code null} (cursor position is the
      *  caller's to restore). */
-    private @com.legend.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx) {
+    private @com.legend.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx,
+            List<com.legend.protocol.Protocol.PStereotype> stereotypes,
+            List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {
         try {
             TypeExpression colType = parseType();
             Multiplicity colMult = !atEnd() && peek() == TokenType.BRACKET_OPEN
@@ -1997,7 +2059,8 @@ public final class SpecParser implements TokenStreamCursor {
                     || peek() == TokenType.SEMI_COLON || peek() == TokenType.PAREN_CLOSE
                     || peek() == TokenType.BRACE_CLOSE) {
                 return new ColSpec(name, null, null, null, List.of(), false,
-                        spanOf(nameTokIdx, pos - 1), colType, colMult);
+                        spanOf(nameTokIdx, pos - 1), colType, colMult,
+                        stereotypes, taggedValues);
             }
             return null;
         } catch (ParseException e) {
@@ -2384,9 +2447,8 @@ public final class SpecParser implements TokenStreamCursor {
         pos++;
         String inner = text.substring(2, text.length() - 1);   // strip '#/' and '#'
         String[] segs = inner.split("/");
-        if (segs.length < 2) {
-            throw error("navigation path needs at least one property segment: " + text);
-        }
+        // a SEGMENT-LESS path (#/Person#) is legal: path [] + startType on the wire
+        // (probe "pf path exotic")
         // Track each PLAIN segment's 0-based char range inside the literal text — the
         // emitter's shifted-span rule needs them (PathLiteral javadoc).
         List<com.legend.protocol.spec.PathLiteral.Segment> pieces = new ArrayList<>();
@@ -2415,52 +2477,20 @@ public final class SpecParser implements TokenStreamCursor {
                 hasDated = true;
                 List<ValueSpecification> args = new ArrayList<>();
                 args.add(body);
-                for (String arg : dated.group(2).split(",")) {
+                for (String arg : splitTopLevel(dated.group(2))) {
                     args.add(SpecParser.parse("|" + arg.strip())
                             instanceof LambdaFunction lf && lf.body().size() == 1
                             ? lf.body().get(0)
                             : new Variable(arg.strip()));
                 }
-                // wire pieces for the DATED segment: %latest / %date carry their char
-                // range, Enum.VALUE is span-less; anything else walls at the emitter
+                // wire pieces for the DATED segment — a charwise scan so collections
+                // and empty argument lists work; anything unclassifiable walls
                 List<com.legend.protocol.spec.PathLiteral.PathArg> wireArgs =
                         new ArrayList<>();
-                boolean unsupported = false;
-                int scan = 0;
-                for (String arg : dated.group(2).split(",")) {
-                    String trimmed = arg.strip();
-                    int at = trimmed.isEmpty() ? -1 : rawSeg.indexOf(trimmed, scan);
-                    if (at >= 0) {
-                        scan = at + trimmed.length();
-                    }
-                    if (trimmed.equals("%latest")) {
-                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.Latest(
-                                cursor + lead + at, cursor + lead + at + 6));
-                    } else if (trimmed.startsWith("%")
-                            && trimmed.substring(1).matches("[0-9T:.Z+\\-]+")) {
-                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.DateArg(
-                                trimmed.substring(1),
-                                cursor + lead + at,
-                                cursor + lead + at + trimmed.length() - 1));
-                    } else if (trimmed.matches("[\\w:]+\\.\\w+")) {
-                        int dot = trimmed.lastIndexOf('.');
-                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
-                                trimmed.substring(0, dot), trimmed.substring(dot + 1)));
-                    } else if (trimmed.matches("\\d+")) {
-                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.IntArg(
-                                Long.parseLong(trimmed),
-                                cursor + lead + at,
-                                cursor + lead + at + trimmed.length() - 1));
-                    } else if (trimmed.length() >= 2 && trimmed.startsWith("'")
-                            && trimmed.endsWith("'")) {
-                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.StrArg(
-                                unescapeString(trimmed.substring(1, trimmed.length() - 1)),
-                                cursor + lead + at,
-                                cursor + lead + at + trimmed.length() - 1));
-                    } else {
-                        unsupported = true;
-                    }
-                }
+                boolean[] unsupportedFlag = {false};
+                scanPathArgs(rawSeg, rawSeg.indexOf('(') + 1, rawSeg.lastIndexOf(')'),
+                        cursor + lead, wireArgs, unsupportedFlag, false);
+                boolean unsupported = unsupportedFlag[0];
                 pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
                         dated.group(1), cursor + lead, cursor + lead + seg.length() - 1,
                         wireArgs, unsupported));
@@ -2491,6 +2521,133 @@ public final class SpecParser implements TokenStreamCursor {
         // carrier for the alias: consumed by ProjectChecker's legacy-form
         // normalization; any other position fails LOUD (unknown function)
         return new AppliedFunction("pathWithAlias", List.of(lit, new CString(alias)));
+    }
+
+    /**
+     * Charwise scan of a dated path segment's argument list {@code rawSeg[from,to)}.
+     * Scalars: {@code %latest}, {@code %date}, integers, quoted strings, {@code Enum.VAL};
+     * {@code [a, b]} recurses one level as a span-less collection (probe "pf path
+     * exotic"). Offsets are relative to the literal text via {@code base}.
+     */
+    private void scanPathArgs(String rawSeg, int from, int to, int base,
+            List<com.legend.protocol.spec.PathLiteral.PathArg> out,
+            boolean[] unsupported, boolean inCollection) {
+        int i = from;
+        while (i < to && i >= 0) {
+            char c = rawSeg.charAt(i);
+            if (Character.isWhitespace(c) || c == ',') {
+                i++;
+                continue;
+            }
+            if (c == '[' && !inCollection) {
+                int close = matchingBracket(rawSeg, i, to);
+                if (close < 0) {
+                    unsupported[0] = true;
+                    return;
+                }
+                List<com.legend.protocol.spec.PathLiteral.PathArg> elems = new ArrayList<>();
+                scanPathArgs(rawSeg, i + 1, close, base, elems, unsupported, true);
+                out.add(new com.legend.protocol.spec.PathLiteral.PathArg.CollectionArg(elems));
+                i = close + 1;
+                continue;
+            }
+            if (c == '%') {
+                int k = i + 1;
+                while (k < to && (Character.isLetterOrDigit(rawSeg.charAt(k))
+                        || "-T:.Z+".indexOf(rawSeg.charAt(k)) >= 0)) {
+                    k++;
+                }
+                String body = rawSeg.substring(i + 1, k);
+                if (body.equals("latest")) {
+                    out.add(new com.legend.protocol.spec.PathLiteral.PathArg.Latest(
+                            base + i, base + k - 1));
+                } else if (body.matches("[0-9T:.Z+\\-]+")) {
+                    out.add(new com.legend.protocol.spec.PathLiteral.PathArg.DateArg(
+                            body, base + i, base + k - 1));
+                } else {
+                    unsupported[0] = true;
+                }
+                i = k;
+                continue;
+            }
+            if (Character.isDigit(c)) {
+                int s = i;
+                while (i < to && Character.isDigit(rawSeg.charAt(i))) {
+                    i++;
+                }
+                out.add(new com.legend.protocol.spec.PathLiteral.PathArg.IntArg(
+                        Long.parseLong(rawSeg.substring(s, i)), base + s, base + i - 1));
+                continue;
+            }
+            if (c == '\'') {
+                int close = rawSeg.indexOf('\'', i + 1);
+                if (close < 0 || close >= to) {
+                    unsupported[0] = true;
+                    return;
+                }
+                out.add(new com.legend.protocol.spec.PathLiteral.PathArg.StrArg(
+                        unescapeString(rawSeg.substring(i + 1, close)),
+                        base + i, base + close));
+                i = close + 1;
+                continue;
+            }
+            if (Character.isLetter(c) || c == '_') {
+                int s = i;
+                while (i < to && (Character.isLetterOrDigit(rawSeg.charAt(i))
+                        || rawSeg.charAt(i) == '_' || rawSeg.charAt(i) == ':')) {
+                    i++;
+                }
+                if (i < to && rawSeg.charAt(i) == '.') {
+                    int vs = ++i;
+                    while (i < to && (Character.isLetterOrDigit(rawSeg.charAt(i))
+                            || rawSeg.charAt(i) == '_')) {
+                        i++;
+                    }
+                    out.add(new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
+                            rawSeg.substring(s, vs - 1), rawSeg.substring(vs, i)));
+                } else {
+                    unsupported[0] = true;
+                }
+                continue;
+            }
+            unsupported[0] = true;
+            i++;
+        }
+    }
+
+    /** Split on top-level commas only (bracket/paren-aware); empty pieces drop —
+     *  {@code ()} yields no arguments, {@code ['a','b']} stays one. */
+    private static List<String> splitTopLevel(String s) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i <= s.length(); i++) {
+            char c = i < s.length() ? s.charAt(i) : ',';
+            if (c == '[' || c == '(') {
+                depth++;
+            } else if (c == ']' || c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                String piece = s.substring(start, i).strip();
+                if (!piece.isEmpty()) {
+                    out.add(piece);
+                }
+                start = i + 1;
+            }
+        }
+        return out;
+    }
+
+    private static int matchingBracket(String s, int open, int limit) {
+        int depth = 0;
+        for (int i = open; i < limit; i++) {
+            if (s.charAt(i) == '[') {
+                depth++;
+            } else if (s.charAt(i) == ']' && --depth == 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -2672,8 +2829,11 @@ public final class SpecParser implements TokenStreamCursor {
         int pathEnd = content.lastIndexOf("::");
         int dot = content.indexOf('.', pathEnd < 0 ? 0 : pathEnd + 2);
         if (dot < 0) {
-            throw error(
-                    "table reference must be db.TABLE, got: '" + content + "'");
+            // a STORE-ONLY reference (#>{my::Store}#) is legal — one path element on
+            // the wire (probe "pf named new and store tref" b)
+            return new AppliedFunction("tableReference",
+                    List.of(new PackageableElementPtr(content)),
+                    List.of(), span);
         }
         String db = content.substring(0, dot);
         String tableName = content.substring(dot + 1);

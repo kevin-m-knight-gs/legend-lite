@@ -634,6 +634,240 @@ class ProbeWireShapes {
                   ~name:String[1];
                 }
                 """);
+        dump("pf empty enum assoc", """
+                Enum v1::A
+                {
+                }
+                Association v1::OneEnd
+                {
+                   product : v1::P[1];
+                }
+                Class v1::P { name: String[1]; }
+                """);
+        dump("pf fmt expected and data", """
+                function v2::MyFunc(firstName: String[1]): String[1]
+                {
+                  ''
+                }
+                {
+                  testDuplicate | MyFunc('x') => (JSON) '[]';
+                }
+                """);
+        dump("pf test store data", """
+                function v3::Hello(name: String[1]): String[1]
+                {
+                  'Hello ' + $name
+                }
+                {
+                  ModelStore: (JSON) '{}';
+                  myTest | Hello('John') => 'Hello John!';
+                }
+                """);
+        dump("pf relation expected", """
+                function v4::MyFunc(): meta::pure::metamodel::relation::Relation<(id:Integer, name:String)>[1]
+                {
+                  []->cast(@meta::pure::metamodel::relation::Relation<(id:Integer, name:String)>)
+                }
+                {
+                  testPass | MyFunc() => Relation
+                  #{
+                    id, name
+                    1 , John;
+                  }#;
+                }
+                """);
+        dump("pf string tvv", """
+                function v5::f(): meta::pure::precisePrimitives::Varchar(200)[0..1]
+                {
+                  []
+                }
+                function v5::g(x: Res<String>(1)[1]): Any[*]
+                {
+                  []
+                }
+                """);
+        dump("pf path exotic", """
+                function v6::a(): Any[*]
+                {
+                  print(#/Person/nameWithPrefixAndSuffix('a', [1, 2])#, 2);
+                  print(#/Person/nameWithTitle()#, 2);
+                  #/Person#;
+                }
+                """);
+        dump("pf named new and store tref", """
+                Class v7::Person { lastName: String[1]; }
+                function v7::a(): Any[1]
+                {
+                  let a = ^v7::Person klp (lastName = 'hello');
+                }
+                function v7::b(): Any[*]
+                {
+                  #>{my::Store}#->filter(c|$c.val);
+                }
+                """);
+        dump("pf quoted names", """
+                Class test::'p a c k a g e'::A
+                {
+                  's t r i n g': String[1];
+                }
+                Enum v8::'my Enum'
+                {
+                  'Anything e',
+                  DOWN
+                }
+                function v8::f(): Any[*]
+                {
+                  ^A('firstname' = 'ok');
+                }
+                Class v8::B { 'first name': String[1]; }
+                """);
+        dump("pf digit prop lenient time emptyargs", """
+                Class v9::C
+                {
+                  4prop : Date[*];
+                  time : StrictTime[1];
+                  t(){ $this.time == %200:12:22.88; }: Boolean[1];
+                }
+                function v9::g(): v9::TestClass<|1>[1]
+                {
+                  ^v9::TestClass<|1>(names='one name');
+                }
+                """);
+        dump("pf extra test arg", """
+                function v10::MyFunc(): String[1]
+                {
+                  ''
+                }
+                {
+                  testDuplicate | MyFunc('John') => 'x';
+                }
+                """);
+        dump("pf colspec annotations", """
+                function v11::t(): meta::pure::metamodel::relation::ColSpec<(name:String)>[1]
+                {
+                   ~<<meta::pure::profiles::doc.deprecated>> {meta::pure::profiles::doc.doc='test tagged value'} name:String[1];
+                }
+                """);
+        dump("pf reference test data", """
+                function v12::Hello(name: String[1]): String[1]
+                {
+                  'Hello ' + $name
+                }
+                {
+                  store::MyStore: testing::MyReference;
+                  myTest | Hello('John') => 'Hello John!';
+                }
+                """);
+        dump("pf relation island data", """
+                function v13::SimpleFunction(): String[1]
+                {
+                  'Hello World!'
+                }
+                {
+                  my::Database:
+                      Relation
+                      #{
+                        Schema.table:
+                            id, other
+                            1, a;
+                      }#;
+                  myTest | SimpleFunction() => 'Hello World!';
+                }
+                """);
+        dump("pf mixed suites xml", """
+                function v14::MyFunc(): String[1]
+                {
+                  ''
+                }
+                {
+                  testSuite1
+                  (
+                      testFail | MyFunc() => (JSON) '[]';
+                  )
+                  testPass | MyFunc() => (XML) 'x';
+                }
+                """);
+        dump("pf modelstore island", """
+                Class model::Firm { name: String[1]; }
+                function v15::f(): String[1]
+                {
+                  ''
+                }
+                {
+                  testSuite_1
+                  (
+                    ModelStore:
+                        ModelStore
+                        #{
+                          model::Firm:
+                            ExternalFormat
+                            #{
+                              contentType: 'application/json';
+                              data: '{}';
+                            }#
+                        }#;
+                    t1 | f() => 'x';
+                  )
+                }
+                """);
+        dump("pf relational island", """
+                function v16::f(): String[1]
+                {
+                  ''
+                }
+                {
+                  testSuite_1
+                  (
+                    store::TestDB:
+                        Relational
+                        #{
+                          default.PersonTable:
+                            'id,firstName\\n'+
+                            '1,I\\'m John\\n';
+                        }#;
+                    t1 | f() => 'x';
+                  )
+                }
+                """);
+        dump("pf csv cells", """
+                function v17::f(): String[1]
+                {
+                  ''
+                }
+                {
+                  my::Database:
+                      Relation
+                      #{
+                        Schema.table:
+                            id, firstName
+                            1 , "I'm,John\"\"Doe\"\"";
+                        Schema.table2:
+                            id, lastName
+                            2 , Jr;
+                      }#;
+                  t1 | f() => 'x';
+                }
+                """);
+        dump("relation span fit", """
+                function v18::a(): String[1]
+                {
+                  ''
+                }
+                {
+                  t1 | a() => Relation
+                  #{
+                    id, name;
+                  }#;
+                  t2 | a() => Relation
+                  #{
+                    ab;
+                  }#;
+                  t3 | a() => Relation
+                  #{ cd, ef
+                     1, 2;
+                  }#;
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

@@ -77,6 +77,13 @@ public record PathLiteral(
         /** A string literal argument; the range includes the quotes. */
         record StrArg(String value, int start, int end) implements PathArg {
         }
+
+        /** {@code [a, b]} — a span-less collection of scalar arguments. */
+        record CollectionArg(java.util.List<PathArg> elements) implements PathArg {
+            public CollectionArg {
+                elements = java.util.List.copyOf(elements);
+            }
+        }
     }
 
     @Override

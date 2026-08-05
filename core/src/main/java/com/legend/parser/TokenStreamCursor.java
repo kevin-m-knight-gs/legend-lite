@@ -351,36 +351,58 @@ public interface TokenStreamCursor {
      * a few keyword positions, but never a segment of an FQN.
      */
     default String parseQualifiedName() {
-        if (!isFqnSegmentToken(peek())) {
+        if (!isFqnSegmentToken(peek()) && peek() != TokenType.STRING
+                && !(peek() == TokenType.INTEGER && intLeadsIdentifier())) {
             throw error("expected type name, got " + peek());
         }
-        StringBuilder sb = new StringBuilder(text());
-        advance();
+        StringBuilder sb = new StringBuilder(fqnSegmentText());
         while (peek() == TokenType.PATH_SEPARATOR) {
             advance();
-            // a DIGIT-LEADING segment (my::pkg::2_0_0::A) lexes as INTEGER + adjacent
-            // identifier pieces — glue them back (engine's VALID_STRING admits digits
-            // first; ours cannot without colliding with number literals)
-            if (peek() == TokenType.INTEGER) {
-                sb.append("::");
-                sb.append(text());
-                advance();
-                TokenStream ts = tokens();
-                while (!atEnd()
-                        && (peek() == TokenType.VALID_STRING || peek() == TokenType.INTEGER)
-                        && ts.end(pos() - 1) == ts.start(pos())) {
-                    sb.append(text());
-                    advance();
-                }
-                continue;
-            }
-            if (!isFqnSegmentToken(peek())) {
-                throw error("expected identifier after '::' in qualified name");
-            }
-            sb.append("::").append(text());
-            advance();
+            sb.append("::").append(fqnSegmentText());
         }
         return sb.toString();
+    }
+
+    /**
+     * One FQN segment: a plain identifier, a QUOTED name ({@code test::'p a c k'::A} —
+     * unescaped, engine emits it raw), or a DIGIT-LEADING run ({@code pkg::2_0_0::A} —
+     * lexes as INTEGER + adjacent identifier pieces, glued back; engine's VALID_STRING
+     * admits digits first, ours cannot without colliding with number literals).
+     */
+    /** A lone INTEGER is a literal; only an INTEGER glued to an ADJACENT identifier
+     *  piece (4prop, 2_0_0) reads as a digit-leading name. */
+    default boolean intLeadsIdentifier() {
+        return pos() + 1 < tokens().count()
+                && tokens().type(pos() + 1) == TokenType.VALID_STRING
+                && tokens().end(pos()) == tokens().start(pos() + 1);
+    }
+
+    default String fqnSegmentText() {
+        if (peek() == TokenType.STRING) {
+            // a REFERENCE keeps the raw quoted spelling ('2000 Integer' as a column
+            // type); DECLARATION names unquote in Protocol.splitFqn
+            String seg = text();
+            advance();
+            return seg;
+        }
+        if (peek() == TokenType.INTEGER && intLeadsIdentifier()) {
+            StringBuilder seg = new StringBuilder(text());
+            advance();
+            TokenStream ts = tokens();
+            while (!atEnd()
+                    && (peek() == TokenType.VALID_STRING || peek() == TokenType.INTEGER)
+                    && ts.end(pos() - 1) == ts.start(pos())) {
+                seg.append(text());
+                advance();
+            }
+            return seg.toString();
+        }
+        if (!isFqnSegmentToken(peek())) {
+            throw error("expected identifier after '::' in qualified name");
+        }
+        String seg = text();
+        advance();
+        return seg;
     }
 
     /** Single identifier (no path). Accepts any token in
@@ -397,6 +419,11 @@ public interface TokenStreamCursor {
     }
 
     default String parseIdentifier() {
+        // digit-leading names (4prop) lex as INTEGER + adjacent identifier pieces —
+        // glue like FQN segments (inline-snippet corpus)
+        if (peek() == TokenType.INTEGER && intLeadsIdentifier()) {
+            return fqnSegmentText();
+        }
         if (!isIdentifierToken(peek())) {
             throw error("expected identifier, got " + peek());
         }
@@ -484,26 +511,11 @@ public interface TokenStreamCursor {
             name = name + "~" + text();
             advance();
         }
-        // precise primitives with TYPE-VARIABLE VALUES — Varchar(200), Numeric(10, 2):
-        // the wire's typeVariableValues; the rawType span covers the whole application
-        // (ProbeWireShapes "agg kind and varchar")
+        // precise primitives with TYPE-VARIABLE VALUES — Varchar(200), V('ok'),
+        // Numeric(10, 2): the wire's typeVariableValues; the rawType span covers the
+        // whole application (ProbeWireShapes "agg kind and varchar", "pf string tvv")
         if (peek() == TokenType.PAREN_OPEN) {
-            advance();
-            List<com.legend.protocol.spec.ValueSpecification> tvv = new ArrayList<>();
-            while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-                if (peek() == TokenType.COMMA) {
-                    advance();
-                    continue;
-                }
-                if (peek() != TokenType.INTEGER) {
-                    throw error("type variable values support integer literals only, got "
-                            + peek());
-                }
-                tvv.add(new com.legend.protocol.spec.CInteger(
-                        Long.parseLong(text()), spanOf(pos(), pos())));
-                advance();
-            }
-            expect(TokenType.PAREN_CLOSE);
+            List<com.legend.protocol.spec.ValueSpecification> tvv = parseTypeVariableValues();
             return new TypeExpression.Generic(name, List.of(), List.of(), tvv,
                     spanOf(startTok, pos() - 1));
         }
@@ -511,6 +523,18 @@ public interface TokenStreamCursor {
             return new TypeExpression.NameRef(name, spanOf(startTok, pos() - 1));
         }
         List<TypeExpression> args = new ArrayList<>();
+        // TestClass<|1>: multiplicity arguments with NO type arguments
+        if (peek() == TokenType.PIPE) {
+            advance();
+            List<String> multArgs = new ArrayList<>();
+            multArgs.add(parseMultiplicityArgumentText());
+            while (match(TokenType.COMMA)) {
+                multArgs.add(parseMultiplicityArgumentText());
+            }
+            expect(TokenType.GREATER_THAN);
+            return new TypeExpression.Generic(name, args, multArgs,
+                    spanOf(startTok, pos() - 1));
+        }
         args.add(parseTypeArgument());
         while (match(TokenType.COMMA)) {
             args.add(parseTypeArgument());
@@ -526,10 +550,40 @@ public interface TokenStreamCursor {
             }
         }
         expect(TokenType.GREATER_THAN);
+        // Res<String>(1, 'a'): type-variable VALUES may follow the angle brackets too
+        List<com.legend.protocol.spec.ValueSpecification> tvv =
+                !atEnd() && peek() == TokenType.PAREN_OPEN
+                        ? parseTypeVariableValues() : List.of();
         // Engine convention (verified via ProbeWireShapes): a generic's rawType span
         // covers the WHOLE application incl. the closing '>'; each argument carries
         // its own span on its own node.
-        return new TypeExpression.Generic(name, args, multArgs, spanOf(startTok, pos() - 1));
+        return new TypeExpression.Generic(name, args, multArgs, tvv,
+                spanOf(startTok, pos() - 1));
+    }
+
+    /** {@code (200)}, {@code (10, 2)}, {@code ('ok')} — integer or string literals. */
+    default List<com.legend.protocol.spec.ValueSpecification> parseTypeVariableValues() {
+        advance();                                  // past '('
+        List<com.legend.protocol.spec.ValueSpecification> tvv = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            if (peek() == TokenType.COMMA) {
+                advance();
+                continue;
+            }
+            if (peek() == TokenType.INTEGER) {
+                tvv.add(new com.legend.protocol.spec.CInteger(
+                        Long.parseLong(text()), spanOf(pos(), pos())));
+            } else if (peek() == TokenType.STRING) {
+                tvv.add(new com.legend.protocol.spec.CString(
+                        unquoteAndUnescape(text(), this), spanOf(pos(), pos())));
+            } else {
+                throw error("type variable values support integer and string literals,"
+                        + " got " + peek());
+            }
+            advance();
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return tvv;
     }
 
     /** A {@link com.legend.protocol.SourceInfo} covering an inclusive token range,
