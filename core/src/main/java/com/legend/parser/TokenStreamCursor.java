@@ -337,7 +337,10 @@ public interface TokenStreamCursor {
      *  quoted strings are <em>not</em> admissible as FQN segments &mdash;
      *  {@code foo::'bar'::baz} is not legal Pure in any position. */
     default boolean isFqnSegmentToken(TokenType t) {
+        // the engine's identifier rule admits many keywords but NOT the boolean
+        // literals — 'Class false::me' is a parse error there (rejection corpus)
         return t != null && t != TokenType.STRING
+                && t != TokenType.TRUE && t != TokenType.FALSE
                 && IDENTIFIER_TOKENS.contains(t);
     }
 

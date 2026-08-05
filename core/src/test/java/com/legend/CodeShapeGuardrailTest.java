@@ -57,6 +57,9 @@ class CodeShapeGuardrailTest {
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",
             "ElementParser.pos", "ElementParser.currentMappingScope",
+            // parse-surface MODE, set once at construction by the factory that owns
+            // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
+            "ElementParser.legendStrict",
             "ElementParser.currentTargetSets", "ElementParser.currentScopeBlock",
             "SpecParser.pos",
             // the shared minimal JSON reader's walk position — a parser

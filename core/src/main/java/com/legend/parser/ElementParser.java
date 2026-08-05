@@ -180,9 +180,16 @@ public final class ElementParser implements TokenStreamCursor {
      * must be the WHOLE file's, so source positions stay file-absolute; parsing isolated chunks
      * restarts line numbers at 1, which presents as a parser bug in any positional comparison.
      */
+    /** LEGEND-STRICT mode: reject what engine's PureGrammarParser rejects (type and
+     *  multiplicity parameters on classes/functions) even though legend-lite's own
+     *  dialect supports them. ON for the drop-in surface ({@link #at}), OFF for the
+     *  internal pipeline. */
+    private boolean legendStrict;
+
     public static ElementParser at(TokenStream tokens, int tokenIndex) {
         ElementParser p = new ElementParser(tokens);
         p.pos = tokenIndex;
+        p.legendStrict = true;                      // the drop-in surface
         return p;
     }
 
@@ -233,6 +240,16 @@ public final class ElementParser implements TokenStreamCursor {
     /** Parse a pre-lexed token stream into a {@link ParsedModel}. */
     public static ParsedModel parse(TokenStream tokens) {
         return new ElementParser(Objects.requireNonNull(tokens, "tokens")).parseModel();
+    }
+
+    /** The ENGINE-STRICT full parse — the drop-in/rejection-parity surface: everything
+     *  {@link #parse(String)} accepts EXCEPT the constructs engine's PureGrammarParser
+     *  refuses (see {@code legendStrict}). */
+    public static ParsedModel parseStrict(String source) {
+        ElementParser p = new ElementParser(
+                Lexer.tokenize(Objects.requireNonNull(source, "source")));
+        p.legendStrict = true;
+        return p.parseModel();
     }
 
     /**
@@ -428,6 +445,10 @@ public final class ElementParser implements TokenStreamCursor {
         String qualifiedName = parseQualifiedName();
 
         List<String> typeParams = parseClassTypeParams();
+        if (legendStrict && !typeParams.isEmpty()) {
+            throw error("Type and/or multiplicity parameters are not authorized in Legend"
+                    + " (rejection corpus; legend-lite's own dialect keeps them)");
+        }
 
         // PROJECTION class: `Class X projects Y { > name [expr] | +[props]
         // | * }` (engine class-projection grammar). Parsed as a NOMINAL
@@ -1032,6 +1053,10 @@ public final class ElementParser implements TokenStreamCursor {
         List<String> typeParams = new ArrayList<>();
         List<String> multParams = new ArrayList<>();
         parseTypeAndMultiplicityParameters(typeParams, multParams);
+        if (legendStrict && (!typeParams.isEmpty() || !multParams.isEmpty())) {
+            throw error("Type and/or multiplicity parameters are not authorized in Legend"
+                    + " (rejection corpus; legend-lite's own dialect keeps them)");
+        }
         expect(TokenType.PAREN_OPEN);
         List<com.legend.protocol.ParameterDefinition> params = new ArrayList<>();
         if (peek() != TokenType.PAREN_CLOSE) {
@@ -1435,7 +1460,18 @@ public final class ElementParser implements TokenStreamCursor {
     private com.legend.protocol.Protocol.PFunctionTest parseFunctionTest(
             FunctionSignature sig, int testStart, String testId) {
         expect(TokenType.PIPE);
-        parseQualifiedName();                       // call spelling — not serialized
+        // the call NAME is not serialized but the engine VALIDATES it against the
+        // enclosing function (rejection corpus: 'Function name in test ... does not
+        // match')
+        String callName = parseQualifiedName();
+        String simpleCall = callName.contains("::")
+                ? callName.substring(callName.lastIndexOf("::") + 2) : callName;
+        if (!simpleCall.equals(sig.qualifiedName().contains("::")
+                ? sig.qualifiedName().substring(sig.qualifiedName().lastIndexOf("::") + 2)
+                : sig.qualifiedName())) {
+            throw error("Function name in test '" + simpleCall
+                    + "' does not match the enclosing function");
+        }
         expect(TokenType.PAREN_OPEN);
         List<com.legend.protocol.Protocol.PTestParam> params = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {

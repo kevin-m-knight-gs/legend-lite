@@ -31,6 +31,35 @@ final class InlineSnippets {
     private static final Pattern PURE_DECL = Pattern.compile(
             "(?m)^\\s*(Class|Enum|Association|Profile|Measure|function|native\\s+function|import)\\s");
 
+    /** One test file's literal runs, in source order — the rejection-parity pairing
+     *  walks these directly. */
+    record FileRuns(String id, List<String> runs) {
+    }
+
+    /** Every Java test file's literal runs under a root (same walk as {@link #extract}). */
+    static List<FileRuns> literalRunsByFile(Path root) {
+        List<FileRuns> out = new ArrayList<>();
+        if (!Files.isDirectory(root)) {
+            return out;
+        }
+        try (Stream<Path> s = Files.walk(root)) {
+            for (Path p : s.filter(f -> f.toString().endsWith(".java"))
+                    .filter(f -> f.toString().contains("/src/test/"))
+                    .filter(f -> !f.toString().contains("/target/"))
+                    .sorted().toList()) {
+                try {
+                    out.add(new FileRuns(root.relativize(p).toString(),
+                            literalRuns(Files.readString(p))));
+                } catch (Exception ignored) {
+                    // non-UTF8 — visible via extract()'s counters
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("cannot walk " + root, e);
+        }
+        return out;
+    }
+
     static List<Corpus.Source> extract(Path root, String tier) {
         List<Path> javaFiles = new ArrayList<>();
         if (Files.isDirectory(root)) {
