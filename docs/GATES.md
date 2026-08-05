@@ -19,7 +19,7 @@ A/Bs old code).
 | 5 | h2 corpus sweep | `mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2` | ≥ 2148/2538 (portability sweep; scoreboard not written) (~45s) |
 | 6 | PCT full (DuckDB) | `cd pct && mvn -o test` | green (1 ledgered Relation expected-failure) (~30-80s) |
 | 7 | PCT h2modern Relation guard | `cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240` | 325/348 (~25s) |
-| 8 | Parser equivalence (all three dimensions) | `mvn -pl parser-equivalence test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | 19,260/19,260 byte-equal, 39/39 rejection pins, SPI seam 4,002 matched / 0 DIFF / 0 SPI-REJECTS (~90s) |
+| 8 | Parser equivalence (all four dimensions) | `mvn -pl parser-equivalence test -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest' -Dsurefire.failIfNoSpecifiedTests=false -Dlegend.engine.root=<engine checkout> -Dlegend.pure.root=<legend-pure checkout>` | 19,260/19,260 byte-equal, 39/39 rejection pins, SPI seam 4,002 matched / 0 DIFF / 0 SPI-REJECTS, pull sentinel ≥856 section files parsing (~90s) |
 
 `tools/allgates.sh` runs the whole chain (env: `LEGEND_ENGINE_ROOT`,
 `LEGEND_PURE_ROOT`, optional `MVN_SETTINGS`; log at `$GATES_LOG`,
@@ -45,3 +45,11 @@ dialect (H2/H2Modern/shared renderer) or the lowering changes.
 Scoped corpus runs (`-Drcorpus.only=…`) never write the scoreboard
 and their universe differs from the full sweep — they are probes,
 not gates.
+
+**After ANY upstream checkout pull, run gate 8's
+`SectionParseSentinelTest` FIRST** (~1s). It parses every corpus file
+containing ###Mapping/###Relational/###Connection/###Runtime sections
+through the real pipeline entry and fails if the parsing count drops —
+the named-failure version of the 2026-08-04 `~src` pull that silently
+collapsed gate 4 to 2/2567. A new message bucket in
+`target/section-sentinel-report.txt` IS the drift.

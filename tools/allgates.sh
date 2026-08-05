@@ -53,14 +53,15 @@ g "GATE7 PCT h2modern Relation (ledgered 325/348 => exit judged by counts)"
 grep -qE "Tests run: 348, Failures: 1, Errors: 22" /tmp/g7.out
 echo "G7_EXIT=$?" >> "$L"; grep -E "Tests run: [0-9]+, Fail" /tmp/g7.out | tail -1 >> "$L"
 
-g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam"
+g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
 mvn "${SFLAG[@]}" -pl parser-equivalence test \
-    -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest' \
+    -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest' \
     -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > /tmp/g8.out 2>&1
 echo "G8_EXIT=$?" >> "$L"
 sed -n '4,10p' parser-equivalence/target/equivalence-report.txt >> "$L" 2>/dev/null
 sed -n '3,6p' parser-equivalence/target/rejection-report.txt >> "$L" 2>/dev/null
 sed -n '3,9p' parser-equivalence/target/spi-seam-report.txt >> "$L" 2>/dev/null
+sed -n '3,5p' parser-equivalence/target/section-sentinel-report.txt >> "$L" 2>/dev/null
 
 echo "ALLGATES_DONE" >> "$L"
 echo "ALLGATES_DONE"
