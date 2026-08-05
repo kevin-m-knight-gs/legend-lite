@@ -13,7 +13,25 @@ import java.util.Objects;
  * record, so cross-codebase corpora compare byte-for-byte after a
  * parser swap.
  */
-public record CDecimal(BigDecimal value) implements ValueSpecification {
+public record CDecimal(BigDecimal value, @com.legend.Nullable String written,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+
+    /** Position-free convenience constructor. */
+    public CDecimal(BigDecimal value) {
+        this(value, null, null);
+    }
+
+    /** Position and source spelling are excluded from equality. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof CDecimal other && value.equals(other.value());
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
+    }
+
     public CDecimal {
         Objects.requireNonNull(value, "value");
     }

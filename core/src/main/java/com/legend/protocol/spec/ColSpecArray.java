@@ -22,7 +22,25 @@ import java.util.Objects;
  * @param colSpecs the column specs in source order; never {@code null},
  *                 may be empty, immutable after construction
  */
-public record ColSpecArray(List<ColSpec> colSpecs) implements ColumnInstance {
+public record ColSpecArray(List<ColSpec> colSpecs,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ColumnInstance {
+
+    /** Position-free form for synthesis and tests. */
+    public ColSpecArray(List<ColSpec> colSpecs) {
+        this(colSpecs, null);
+    }
+
+    /** Position is excluded from equality. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ColSpecArray other && colSpecs.equals(other.colSpecs());
+    }
+
+    @Override
+    public int hashCode() {
+        return colSpecs.hashCode();
+    }
+
 
     public ColSpecArray {
         Objects.requireNonNull(colSpecs, "colSpecs");

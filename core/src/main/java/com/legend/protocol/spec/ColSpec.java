@@ -59,7 +59,32 @@ public record ColSpec(
         @com.legend.Nullable LambdaFunction function2,
         @com.legend.Nullable String alias,
         List<ValueSpecification> args,
-        boolean qualified) implements ColumnInstance {
+        boolean qualified,
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ColumnInstance {
+
+    /** Position-free form for synthesis and tests. */
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
+            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+            List<ValueSpecification> args, boolean qualified) {
+        this(name, function1, function2, alias, args, qualified, null);
+    }
+
+    /** Position is excluded from equality. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ColSpec other
+                && name.equals(other.name())
+                && java.util.Objects.equals(function1, other.function1())
+                && java.util.Objects.equals(function2, other.function2())
+                && java.util.Objects.equals(alias, other.alias())
+                && args.equals(other.args())
+                && qualified == other.qualified();
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(name, function1, function2, alias, args, qualified);
+    }
 
     public ColSpec {
         Objects.requireNonNull(name, "name");

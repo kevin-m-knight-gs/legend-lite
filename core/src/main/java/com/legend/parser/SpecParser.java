@@ -700,7 +700,7 @@ public final class SpecParser implements TokenStreamCursor {
                 // element pointer; instance-metamodel consumers stay loud
                 if (t == TokenType.PATH_SEPARATOR) {
                     advance();
-                    yield new PackageableElementPtr("::");
+                    yield new PackageableElementPtr("::", spanOf(pos - 1, pos - 1));
                 }
                 throw error("unsupported expression token: " + t
                         + " ('" + safeText() + "')");
@@ -763,7 +763,7 @@ public final class SpecParser implements TokenStreamCursor {
         BigDecimal exact = new BigDecimal(text);
         double d = Double.parseDouble(text);
         if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
-            return new CDecimal(exact);
+            return new CDecimal(exact, text, spanOf(litTok, litTok));
         }
         return new CFloat(d, spanOf(litTok, litTok));
     }
@@ -776,10 +776,11 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private CDecimal parseDecimal() {
         String text = text();
+        int litTok = pos;
         pos++;
         char last = text.charAt(text.length() - 1);
         if (last == 'd' || last == 'D') text = text.substring(0, text.length() - 1);
-        return new CDecimal(new BigDecimal(text));
+        return new CDecimal(new BigDecimal(text), text, spanOf(litTok, litTok));
     }
 
     // -------------------------------------------------------------------
@@ -897,8 +898,9 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private CLatestDate parseLatestDate() {
+        int tok = pos;
         pos++;
-        return new CLatestDate();
+        return new CLatestDate(spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------
@@ -1539,6 +1541,10 @@ public final class SpecParser implements TokenStreamCursor {
      * closing {@code >}.
      */
     private List<TypeExpression> parseTypeArguments() {
+        return parseTypeArguments(new ArrayList<>());
+    }
+
+    private List<TypeExpression> parseTypeArguments(List<String> multArgsOut) {
         pos++; // consume '<'
         List<TypeExpression> args = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.GREATER_THAN) {
@@ -1551,15 +1557,15 @@ public final class SpecParser implements TokenStreamCursor {
             args.add(parseType());
         }
         // MULTIPLICITY type parameters (real M3: cast(@Property<Nil,Any|*>),
-        // ^Result<TabularDataSet|1>(...)): parsed and discarded here — the
-        // ^/cast head keeps only the raw type today, exactly like the
-        // type-argument list itself once the head resolves
+        // ^Result<TabularDataSet|1>(...)): CAPTURED — the wire carries them as
+        // genericType.multiplicityArguments (harness DIFF on transformMappingClass;
+        // the old parse-and-discard here was audit-21a's failure mode again).
         if (!atEnd() && peek() == TokenType.PIPE) {
             pos++;
-            parseMultiplicityArgumentText();
+            multArgsOut.add(parseMultiplicityArgumentText());
             while (!atEnd() && peek() == TokenType.COMMA) {
                 pos++;
-                parseMultiplicityArgumentText();
+                multArgsOut.add(parseMultiplicityArgumentText());
             }
         }
         expect(TokenType.GREATER_THAN, "expected '>' to close type arguments");
@@ -1925,6 +1931,7 @@ public final class SpecParser implements TokenStreamCursor {
         if (atEnd()) {
             throw error("expected column name after '~'");
         }
+        int nameTokIdx = pos;
         TokenType nameTok = peek();
         String name;
         if (nameTok == TokenType.STRING) {
@@ -1951,15 +1958,19 @@ public final class SpecParser implements TokenStreamCursor {
                 function2 = parseColumnLambda();
             }
         }
-        return new ColSpec(name, function1, function2);
+        // Engine convention (ProbeWireShapes "path and cols"): a colSpec spans its NAME
+        // token only — the tilde is excluded.
+        return new ColSpec(name, function1, function2, null, List.of(), false,
+                spanOf(nameTokIdx, nameTokIdx));
     }
 
     private ColSpecArray parseColSpecArray() {
+        int openTok = pos;
         pos++; // consume '['
         List<ColSpec> specs = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
-            return new ColSpecArray(specs);
+            return new ColSpecArray(specs, spanOf(openTok, pos - 1));
         }
         specs.add(parseOneColSpec());
         while (!atEnd() && peek() == TokenType.COMMA) {
@@ -1970,7 +1981,8 @@ public final class SpecParser implements TokenStreamCursor {
             specs.add(parseOneColSpec());
         }
         expect(TokenType.BRACKET_CLOSE, "expected ']' to close ColSpec array");
-        return new ColSpecArray(specs);
+        // Engine convention: the array spans brackets inclusive, tilde excluded.
+        return new ColSpecArray(specs, spanOf(openTok, pos - 1));
     }
 
     /**
@@ -2037,10 +2049,12 @@ public final class SpecParser implements TokenStreamCursor {
      * NameResolver tree-walk to rewrite simple names to FQNs.
      */
     private TypeAnnotation parseTypeAnnotation() {
+        int atTok = pos;
         pos++; // consume '@'
         if (!isFqnSegmentToken(peek())) {
             throw error("expected type name after '@'");
         }
+        int nameStart = pos;
         String name = parseQualifiedName();
         // @Mass~Kilogram — the UNIT type spelling; folded into one name
         // (same convention as the type grammar and expression primary)
@@ -2076,12 +2090,16 @@ public final class SpecParser implements TokenStreamCursor {
         // recursive descent inside the helper.
         TypeExpression type;
         if (!atEnd() && peek() == TokenType.LESS_THAN) {
-            List<TypeExpression> args = parseTypeArguments();
-            type = new TypeExpression.Generic(name, args);
+            List<String> multArgs = new ArrayList<>();
+            List<TypeExpression> args = parseTypeArguments(multArgs);
+            type = new TypeExpression.Generic(name, args, multArgs,
+                    spanOf(nameStart, pos - 1));
         } else {
-            type = new TypeExpression.NameRef(name);
+            type = new TypeExpression.NameRef(name, spanOf(nameStart, pos - 1));
         }
-        return new TypeAnnotation.Named(type);
+        // Engine convention (ProbeWireShapes "burn zoo" casts): the annotation node spans
+        // @..type-end; its rawType spans the type name alone.
+        return new TypeAnnotation.Named(type, spanOf(atTok, pos - 1));
     }
 
     /**
@@ -2403,6 +2421,7 @@ public final class SpecParser implements TokenStreamCursor {
      * chain call specially.
      */
     private ValueSpecification parseDsl() {
+        int islandStart = pos;
         String islandOpen = text();
         pos++; // consume ISLAND_OPEN
         // Extract DSL discriminator: strip leading '#' and trailing '{'.
@@ -2447,7 +2466,9 @@ public final class SpecParser implements TokenStreamCursor {
 
         ValueSpecification result = switch (dslType) {
             case "" -> parseGraphFetchTree(contentText);
-            case ">" -> parseTableReference(contentText);
+            // Engine convention (ProbeWireShapes "burn zoo 2" tref): the classInstance
+            // spans the whole #>{...}# literal.
+            case ">" -> parseTableReference(contentText, spanOf(islandStart, pos - 1));
             default -> throw error(
                     "unknown DSL island type: '#" + dslType + "{'");
         };
@@ -2504,7 +2525,8 @@ public final class SpecParser implements TokenStreamCursor {
      * FQN. Encoding the distinction once, at parse time, lets every
      * downstream layer dispatch structurally.
      */
-    private AppliedFunction parseTableReference(String content) {
+    private AppliedFunction parseTableReference(String content,
+            com.legend.protocol.SourceInfo span) {
         // Split at the FIRST dot after the ::-path: "db::DB.schema.TABLE"
         // is (db::DB, "schema.TABLE") — lastIndexOf('.') mis-split it into
         // an FQN with an embedded dot (audit M7). The db part is the
@@ -2520,7 +2542,8 @@ public final class SpecParser implements TokenStreamCursor {
         String db = content.substring(0, dot);
         String tableName = content.substring(dot + 1);
         return new AppliedFunction("tableReference",
-                List.of(new PackageableElementPtr(db), new CString(tableName)));
+                List.of(new PackageableElementPtr(db), new CString(tableName)),
+                List.of(), span);
     }
 
     /**

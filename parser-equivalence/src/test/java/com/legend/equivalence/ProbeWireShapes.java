@@ -240,6 +240,67 @@ class ProbeWireShapes {
                   [1, 2]->map(x|abs($x));
                 }
                 """);
+        dump("burn zoo", """
+                function q::newInst(): Any[*]
+                {
+                  ^q::X(a=1, b='x');
+                }
+                function q::casts(v: Any[1]): Any[*]
+                {
+                  $v->cast(@Integer);
+                  $v->cast(@q::X);
+                }
+                function q::dates(): Any[*]
+                {
+                  %2020;
+                  %2020-01;
+                  %2020-01-01T10;
+                  %2020-01-01T10:20:30;
+                  %2020-01-01T10:20:30.123;
+                }
+                function q::latest(): Any[*]
+                {
+                  q::X.all(%latest);
+                }
+                function q::dec(): Any[*]
+                {
+                  3.14d;
+                }
+                function q::parenEq(n: Integer[1]): Boolean[1]
+                {
+                  ($n + 1) == 2;
+                }
+                Class q::R
+                {
+                  p: q::Res<Integer|1>[1];
+                }
+                """);
+        dump("path and cols", """
+                function q2::path(): Any[*]
+                {
+                  #/q2::X/prop#;
+                }
+                function q2::cols(): Any[*]
+                {
+                  [1, 2]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->select(~a);
+                  [1, 2]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer, b:Integer)>)->select(~[a, b]);
+                }
+                """);
+        dump("burn zoo 2", """
+                function r::keyChain(v: String[1]): Any[*]
+                {
+                  ^r::Y(s='a' + 'b' + $v, n=1 + 2);
+                }
+                function r::extendCols(): Any[*]
+                {
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~b: x|$x.a);
+                  [1]->cast(@meta::pure::metamodel::relation::Relation<(a:Integer)>)->extend(~[c: x|$x.a, d: x|$x.a]);
+                }
+                function r::tref(): Any[*]
+                {
+                  #>{r::db.tbl}#->select();
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

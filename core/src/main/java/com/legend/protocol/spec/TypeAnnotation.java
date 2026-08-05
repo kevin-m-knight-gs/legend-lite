@@ -92,7 +92,25 @@ public sealed interface TypeAnnotation
      *
      * @param type the structured type expression; never {@code null}
      */
-    record Named(TypeExpression type) implements TypeAnnotation {
+    record Named(TypeExpression type,
+            @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements TypeAnnotation {
+
+        /** Position-free form. The parser sets the span of the whole @Type annotation. */
+        public Named(TypeExpression type) {
+            this(type, null);
+        }
+
+        /** Position is excluded from equality. */
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Named other && type.equals(other.type());
+        }
+
+        @Override
+        public int hashCode() {
+            return type.hashCode();
+        }
+
         public Named {
             Objects.requireNonNull(type, "type");
         }

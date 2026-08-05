@@ -120,24 +120,25 @@ class ConstraintEmissionTest {
                 """));
     }
 
-    /**
-     * Still walled: {@code equal} whose LHS is an explicitly PARENTHESISED arithmetic chain
-     * — the only route to an equal-over-arithmetic tree in our grammar. The engine bytes for
-     * this form are not yet probed; refuse loudly rather than guess.
-     */
+    /** Formerly walled, now probed harmless: equal over a PARENTHESISED arithmetic chain
+     *  needs no special rule — the inner func keeps its operator-run span (`+ 1` = cols
+     *  7-9 here) and the paren acts only as a flatten boundary (ProbeWireShapes "burn zoo"
+     *  parenEq; corpus-verified by the zero-DIFF gate). */
     @Test
-    void parenthesisedChainComparisonWallsUntilProbed() {
-        UnsupportedOperationException e = assertThrows(UnsupportedOperationException.class,
-                () -> emitFirstClass("""
-                        Class i::C
-                        [
-                          c: ($this.s + 'a') == 'x'
-                        ]
-                        {
-                          s: String[1];
-                        }
-                        """));
-        assertTrue(e.getMessage().contains("flat-grammar associativity"), e.getMessage());
+    void parenthesisedChainComparisonEmitsWithRunContextSpans() {
+        com.legend.lexer.TokenStream ts = com.legend.lexer.Lexer.tokenize("""
+                function q::parenEq(n: Integer[1]): Boolean[1]
+                {
+                  ($n + 1) == 2;
+                }
+                """);
+        int idx = ElementParser.topLevelIndexes(ts, TokenType.FUNCTION).get(0);
+        String json = ProtocolEmitter.emitElement(
+                ElementParser.at(ts, idx).parseFunctionProtocol());
+        assertTrue(json.contains("\"function\":\"equal\""), json);
+        assertTrue(json.contains("\"function\":\"plus\",\"parameters\":[{\"_type\":\"collection\""), json);
+        // the plus keeps its own operator-run span: `+ 1` at cols 7-9
+        assertTrue(json.contains("{\"endColumn\":9,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":7,\"startLine\":3}"), json);
     }
 
     private static final String EXPECTED_PTR_ENUM_LAMBDA =

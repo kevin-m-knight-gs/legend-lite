@@ -381,12 +381,9 @@ public final class ProtocolEmitter {
     private static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t) {
         switch (t) {
             case com.legend.protocol.TypeExpression.NameRef n ->
-                    genericTypeOf(b, n.name(), java.util.List.of(), n.pos());
-            case com.legend.protocol.TypeExpression.Generic g -> {
-                require(g.multiplicityArguments().isEmpty(),
-                        "generic multiplicity arguments", g.name());
-                genericTypeOf(b, g.name(), g.arguments(), g.pos());
-            }
+                    genericTypeOf(b, n.name(), java.util.List.of(), java.util.List.of(), n.pos());
+            case com.legend.protocol.TypeExpression.Generic g ->
+                    genericTypeOf(b, g.name(), g.arguments(), g.multiplicityArguments(), g.pos());
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for type expression "
                             + t.getClass().getSimpleName() + " — add the emit rule, do not drop it.");
@@ -395,13 +392,23 @@ public final class ProtocolEmitter {
 
     private static void genericTypeOf(StringBuilder b, String path,
                                       List<com.legend.protocol.TypeExpression> args,
+                                      List<String> multArgs,
                                       com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
         if (pos == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter needs a source position for type " + path
                             + " and the parser did not thread one — fix the parse site, do not default it.");
         }
-        b.append("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
+        b.append("{\"multiplicityArguments\":[");
+        for (int i = 0; i < multArgs.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            // Res<T|1>: the argument arrives as raw text; concrete spellings emit as
+            // multiplicities, parameter NAMES wall (ProbeWireShapes "burn zoo" R).
+            multiplicity(b, parseMultArg(multArgs.get(i), path));
+        }
+        b.append("],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":");
         str(b, path);
         b.append(",\"sourceInformation\":");
         srcInfo(b, pos);
@@ -604,22 +611,50 @@ public final class ProtocolEmitter {
                 srcInfo(b, requirePos(e.pos(), "enum value " + e.value()));
                 b.append('}');
             }
+            case com.legend.protocol.spec.CLatestDate l -> {
+                b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
+                srcInfo(b, requirePos(l.pos(), "%latest"));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.CDecimal dec -> {
+                if (dec.written() == null) {
+                    throw new UnsupportedOperationException(
+                            "ProtocolEmitter needs the verbatim spelling of a decimal literal.");
+                }
+                // {"_type":"decimal","value":3.14} — the value is a bare JSON number in the
+                // source's own digits (suffix stripped by the parser).
+                literal(b, "decimal", dec.written(), dec.pos());
+            }
+            case com.legend.protocol.spec.TypeAnnotation.Named named -> {
+                // @Type on the wire: {"_type":"genericTypeInstance","genericType":…,
+                // "sourceInformation":span-of-@..type} (ProbeWireShapes "burn zoo" casts).
+                b.append("{\"_type\":\"genericTypeInstance\",\"genericType\":");
+                genericType(b, named.type());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, requirePos(named.pos(), "@-type annotation"));
+                b.append('}');
+            }
+            case com.legend.protocol.spec.NewInstance ni -> newInstance(b, ni, null);
+            case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs);
+            case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
-                // Only day-precision dates are probed: {"_type":"strictDate","value":"2017-6-10"}
-                // — the value is the SOURCE SPELLING, verbatim, not a normalized form
-                // (harness DIFF on testBiTemporalDateMilestoning: engine keeps "2017-6-10").
-                require(d.value().precision() == com.legend.values.PureDateLiteral.Precision.DAY,
-                        "date literal precision " + d.value().precision(), "CDate");
+                // The value is the SOURCE SPELLING, verbatim. DAY precision emits strictDate;
+                // every other precision emits dateTime — and MONTH keeps its leading '%'
+                // (an engine walker quirk, verified via ProbeWireShapes "burn zoo" dates:
+                // %2020 -> "2020" but %2020-01 -> "%2020-01"). Reproduced, not questioned.
                 if (d.written() == null) {
                     throw new UnsupportedOperationException(
                             "ProtocolEmitter needs the verbatim source spelling of a date"
                                     + " literal and the parser did not thread it.");
                 }
-                b.append("{\"_type\":\"strictDate\",\"sourceInformation\":");
-                srcInfo(b, requirePos(d.pos(), "strictDate literal"));
+                boolean day = d.value().precision() == com.legend.values.PureDateLiteral.Precision.DAY;
+                boolean month = d.value().precision() == com.legend.values.PureDateLiteral.Precision.MONTH;
+                b.append(day ? "{\"_type\":\"strictDate\",\"sourceInformation\":"
+                        : "{\"_type\":\"dateTime\",\"sourceInformation\":");
+                srcInfo(b, requirePos(d.pos(), "date literal"));
                 b.append(",\"value\":");
-                str(b, d.written());
+                str(b, month ? "%" + d.written() : d.written());
                 b.append('}');
             }
             default -> throw new UnsupportedOperationException(
@@ -701,6 +736,21 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.EnumValue e ->
                     valueSpec(b, new com.legend.protocol.spec.EnumValue(
                             e.fullPath(), e.value(), e.enumerationPos(), span));
+            case com.legend.protocol.spec.PackageableElementPtr ptr ->
+                    valueSpec(b, new com.legend.protocol.spec.PackageableElementPtr(
+                            ptr.fullPath(), span));
+            case com.legend.protocol.spec.CLatestDate l ->
+                    valueSpec(b, new com.legend.protocol.spec.CLatestDate(span));
+            case com.legend.protocol.spec.ColSpecArray ca ->
+                    valueSpec(b, new com.legend.protocol.spec.ColSpecArray(ca.colSpecs(), span));
+            case com.legend.protocol.spec.ColSpec cs ->
+                    valueSpec(b, new com.legend.protocol.spec.ColSpec(cs.name(), cs.function1(),
+                            cs.function2(), cs.alias(), cs.args(), cs.qualified(), span));
+            case com.legend.protocol.spec.NewInstance ni ->
+                    valueSpec(b, ni);   // ^X(...) carries no span on the wire at all
+            case com.legend.protocol.spec.TypeAnnotation.Named named ->
+                    valueSpec(b, new com.legend.protocol.spec.TypeAnnotation.Named(
+                            named.type(), span));
             // Pass the override ALONGSIDE the node: rebuilding pos would corrupt the
             // n-ary chain-span derivation, which must read the original climb spans
             // (caught by the harness on QueryWithLet).
@@ -726,19 +776,38 @@ public final class ProtocolEmitter {
 
     private static final java.util.Set<String> BINARY_ARITHMETIC = java.util.Set.of("divide");
 
+    /** Every infix-built family — the key-expression first-atom rule strips them all. */
+    private static final java.util.Set<String> INFIX_FAMILIES = java.util.Set.of(
+            "plus", "minus", "times", "divide", "lessThan", "lessThanEqual",
+            "greaterThan", "greaterThanEqual", "equal", "and", "or");
+
     private static void appliedFunction(StringBuilder b,
                                         com.legend.protocol.spec.AppliedFunction f,
                                         @com.legend.Nullable SourceInfo topSpanOverride) {
         if (f.propertyCall()) {
             // The wire emits `receiver.name(args)` as a PROPERTY node with the arguments
             // appended after the receiver, spanning the NAME token only (ProbeWireShapes
-            // cPcall, confirming the harness DIFF on AccountWithConstraints).
+            // cPcall) — EXCEPT milestoned accesses (date/%latest arguments), which the
+            // engine's milestoning walker emits with no span at all (harness DIFF on
+            // testBiTemporalDateMilestoning).
+            boolean milestoned = false;
+            for (int i = 1; i < f.parameters().size(); i++) {
+                if (f.parameters().get(i) instanceof com.legend.protocol.spec.CLatestDate) {
+                    milestoned = true;
+                }
+            }
             b.append("{\"_type\":\"property\",\"parameters\":[");
             for (int i = 0; i < f.parameters().size(); i++) {
                 if (i > 0) {
                     b.append(',');
                 }
-                valueSpec(b, f.parameters().get(i));
+                if (milestoned && f.parameters().get(i)
+                        instanceof com.legend.protocol.spec.CLatestDate) {
+                    // the %latest argument of a milestoned access is span-less too
+                    b.append("{\"_type\":\"latestDate\"}");
+                } else {
+                    valueSpec(b, f.parameters().get(i));
+                }
             }
             b.append("],\"property\":");
             str(b, f.function());
@@ -771,19 +840,42 @@ public final class ProtocolEmitter {
             naryArithmetic(b, f, topSpanOverride);
             return;
         }
-        // equal/and/or over an arithmetic-chain LHS: reachable in our grammar only through
-        // explicit parentheses (unparenthesised, `==` binds into the preceding operand —
-        // matching engine's flat grammar, byte-pinned in ConstraintEmissionTest). The
-        // parenthesised form's engine bytes are unprobed, so it walls rather than guessing.
-        if (EQUAL_AND_OR.contains(f.function())
-                && !f.parameters().isEmpty()
-                && f.parameters().get(0) instanceof com.legend.protocol.spec.AppliedFunction lhs
-                && (NARY_ARITHMETIC.contains(lhs.function())
-                        || BINARY_ARITHMETIC.contains(lhs.function()))) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter has no rule for " + f.function()
-                            + " over an arithmetic chain (engine flat-grammar associativity)"
-                            + " — probe the wire shape before adding one.");
+        // (equal/and/or over a parenthesised arithmetic chain probed harmless: the inner
+        // func keeps its operator-run span, nothing special — ProbeWireShapes parenEq.)
+        if ("new".equals(f.function()) && !f.parameters().isEmpty()
+                && f.parameters().get(f.parameters().size() - 1)
+                        instanceof com.legend.protocol.spec.NewInstance ni) {
+            // The parser wraps ^X(...) as AppliedFunction("new", [receiver, NewInstance]);
+            // the wire's whole envelope comes from the NewInstance node alone and carries
+            // no spans anywhere STANDALONE — but the let rule still applies: a let-valued
+            // new takes the letFunction's span (harness DIFF on testFromJson2).
+            newInstance(b, ni, topSpanOverride);
+            return;
+        }
+        if ("tableReference".equals(f.function())) {
+            // #>{db.tbl}# on the wire: classInstance of type ">" whose value is
+            // {path:[db, table], sourceInformation} — outer and inner spans identical,
+            // covering the whole literal (ProbeWireShapes "burn zoo 2" tref).
+            require(f.parameters().size() == 2
+                            && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr
+                            && f.parameters().get(1) instanceof com.legend.protocol.spec.CString,
+                    "table reference shape", String.valueOf(f.parameters().size()));
+            com.legend.protocol.spec.PackageableElementPtr db =
+                    (com.legend.protocol.spec.PackageableElementPtr) f.parameters().get(0);
+            com.legend.protocol.spec.CString tbl =
+                    (com.legend.protocol.spec.CString) f.parameters().get(1);
+            SourceInfo span = topSpanOverride != null ? topSpanOverride
+                    : requirePos(f.pos(), "table reference");
+            b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+            srcInfo(b, span);
+            b.append(",\"type\":\">\",\"value\":{\"path\":[");
+            str(b, db.fullPath());
+            b.append(',');
+            str(b, tbl.value());
+            b.append("],\"sourceInformation\":");
+            srcInfo(b, span);
+            b.append("}}");
+            return;
         }
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, f.function());
@@ -859,6 +951,131 @@ public final class ProtocolEmitter {
         b.append("],\"sourceInformation\":");
         srcInfo(b, topSpanOverride != null ? topSpanOverride : ctx);
         b.append('}');
+    }
+
+    /**
+     * {@code ^X(k=v,…)} on the wire: {@code func "new"} with NO span, parameters
+     * [span-less {@code genericTypeInstance} of {@code Class<X>}, span-less empty string,
+     * span-less collection of {@code keyExpression}s whose keys are span-less strings and
+     * whose values keep their own spans] (ProbeWireShapes "burn zoo" newInst).
+     */
+    private static void newInstance(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
+                                     @com.legend.Nullable SourceInfo span) {
+        require(ni.typeArguments().isEmpty(), "new-instance type arguments", ni.className());
+        require(!ni.className().isEmpty(), "new-instance on a variable receiver", "^$x(...)");
+        b.append("{\"_type\":\"func\",\"function\":\"new\",\"parameters\":["
+                + "{\"_type\":\"genericTypeInstance\",\"genericType\":{"
+                + "\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","
+                + "\"fullPath\":\"meta::pure::metamodel::type::Class\"},\"typeArguments\":["
+                + "{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","
+                + "\"fullPath\":");
+        str(b, ni.className());
+        b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}],"
+                + "\"typeVariableValues\":[]}},{\"_type\":\"string\",\"value\":\"\"},"
+                + "{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
+                .append(ni.properties().size()).append(",\"upperBound\":")
+                .append(ni.properties().size()).append("},\"values\":[");
+        boolean first = true;
+        for (java.util.Map.Entry<String, com.legend.protocol.spec.KeyExpression> e
+                : ni.properties().entrySet()) {
+            if (!first) {
+                b.append(',');
+            }
+            first = false;
+            require(!e.getValue().isLocal(), "local key expression", e.getKey());
+            if (e.getValue().value() instanceof com.legend.protocol.spec.PackageableElementPtr root
+                    && "::".equals(root.fullPath())) {
+                // ENGINE QUIRK (harness DIFF on storeContract): `package=::` maps the root-
+                // package reference to null, and NON_NULL drops the expression field whole.
+                b.append("{\"_type\":\"keyExpression\",\"add\":")
+                        .append(e.getValue().isAdd()).append(",\"key\":{\"_type\":\"string\",\"value\":");
+                str(b, e.getKey());
+                b.append("}}");
+                continue;
+            }
+            b.append("{\"_type\":\"keyExpression\",\"add\":")
+                    .append(e.getValue().isAdd()).append(",\"expression\":");
+            // ENGINE DATA-LOSS BUG, reproduced for byte parity (ProbeWireShapes "burn
+            // zoo 2" keyChain; harness DIFF on ruleBasedTransformation for the boolean
+            // flavor): a key expression keeps only the FIRST ATOM of an unparenthesised
+            // infix chain — s='a'+'b'+$v emits just 'a', h=$a||$b emits just $a.
+            com.legend.protocol.spec.ValueSpecification kv = e.getValue().value();
+            while (kv instanceof com.legend.protocol.spec.AppliedFunction chain
+                    && INFIX_FAMILIES.contains(chain.function())
+                    && !chain.grouped()
+                    && chain.parameters().size() == 2) {
+                kv = chain.parameters().get(0);
+            }
+            valueSpec(b, kv);
+            b.append(",\"key\":{\"_type\":\"string\",\"value\":");
+            str(b, e.getKey());
+            b.append("}}");
+        }
+        b.append("]}]");
+        if (span != null) {
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, span);
+        }
+        b.append('}');
+    }
+
+    /** {@code ~name} on the wire: a {@code classInstance} of type {@code colSpec} spanning
+     *  the NAME token, tilde excluded (ProbeWireShapes "path and cols"). */
+    private static void colSpec(StringBuilder b, com.legend.protocol.spec.ColSpec cs) {
+        require(cs.function1() == null && cs.function2() == null && cs.alias() == null
+                        && cs.args().isEmpty() && !cs.qualified(),
+                "colSpec with functions/alias/args", cs.name());
+        SourceInfo pos = requirePos(cs.pos(), "colSpec " + cs.name());
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, pos);
+        b.append(",\"type\":\"colSpec\",\"value\":{\"name\":");
+        str(b, cs.name());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pos);
+        b.append("}}");
+    }
+
+    /** {@code ~[a, b]}: a {@code classInstance} of type {@code colSpecArray} spanning the
+     *  brackets, entries spanning their name tokens. */
+    private static void colSpecArray(StringBuilder b, com.legend.protocol.spec.ColSpecArray ca) {
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, requirePos(ca.pos(), "colSpecArray"));
+        b.append(",\"type\":\"colSpecArray\",\"value\":{\"colSpecs\":[");
+        for (int i = 0; i < ca.colSpecs().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.spec.ColSpec cs = ca.colSpecs().get(i);
+            require(cs.function1() == null && cs.function2() == null,
+                    "colSpec with functions inside array", cs.name());
+            b.append("{\"name\":");
+            str(b, cs.name());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, requirePos(cs.pos(), "colSpec " + cs.name()));
+            b.append('}');
+        }
+        b.append("]}}");
+    }
+
+    private static com.legend.protocol.Multiplicity parseMultArg(String text, String where) {
+        if (text.equals("*")) {
+            return new com.legend.protocol.Multiplicity.Concrete(0, null);
+        }
+        int dots = text.indexOf("..");
+        try {
+            if (dots < 0) {
+                int n = Integer.parseInt(text);
+                return new com.legend.protocol.Multiplicity.Concrete(n, n);
+            }
+            int lo = Integer.parseInt(text.substring(0, dots));
+            String hi = text.substring(dots + 2);
+            return new com.legend.protocol.Multiplicity.Concrete(lo,
+                    hi.equals("*") ? null : Integer.valueOf(hi));
+        } catch (NumberFormatException named) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter has no rule for a multiplicity PARAMETER '" + text
+                            + "' in generic " + where + " — add the emit rule.");
+        }
     }
 
     /** True when {@code s} begins strictly after {@code ctx} ends. */

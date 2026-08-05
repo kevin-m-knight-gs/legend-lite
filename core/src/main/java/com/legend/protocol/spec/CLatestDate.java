@@ -8,5 +8,23 @@ package com.legend.protocol.spec;
  * syntax; semantic interpretation (which milestone, in which store)
  * happens at compile / resolve time. Mirrors the engine record exactly.
  */
-public record CLatestDate() implements ValueSpecification {
+public record CLatestDate(@com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        implements ValueSpecification {
+
+    /** Position-free convenience constructor. */
+    public CLatestDate() {
+        this(null);
+    }
+
+    /** Position is excluded from equality. */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof CLatestDate;
+    }
+
+    @Override
+    public int hashCode() {
+        return CLatestDate.class.hashCode();
+    }
+
 }
