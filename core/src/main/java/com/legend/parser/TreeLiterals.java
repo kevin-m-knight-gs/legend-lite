@@ -21,6 +21,14 @@ public final class TreeLiterals {
     public static @com.legend.Nullable ValueSpecification parseTree(String source) {
         try {
             ValueSpecification v = SpecParser.parse(source.trim());
+            // the parse product became the wire-facing CARRIER when GraphFetchLiteral
+            // landed — dissolve to the desugared tree, restoring this method's
+            // ColSpecArray contract (regression: every string-built
+            // compileLegendValueSpecification tree returned null and its test died
+            // with the checker's arity message)
+            if (v instanceof com.legend.protocol.spec.GraphFetchLiteral gf) {
+                v = gf.desugared();
+            }
             return v instanceof ColSpecArray ? v : null;
         } catch (RuntimeException notATree) {
             return null;
