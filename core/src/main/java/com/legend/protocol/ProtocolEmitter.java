@@ -861,33 +861,45 @@ public final class ProtocolEmitter {
             pathLiteral(b, pathLit);
             return;
         }
-        if ("tableReference".equals(f.function())) {
-            // #>{db.tbl}# on the wire: classInstance of type ">" whose value is
-            // {path:[db, table], sourceInformation} — outer and inner spans identical,
-            // covering the whole literal (ProbeWireShapes "burn zoo 2" tref).
-            require(f.parameters().size() == 2
-                            && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr
-                            && f.parameters().get(1) instanceof com.legend.protocol.spec.CString,
-                    "table reference shape", String.valueOf(f.parameters().size()));
-            com.legend.protocol.spec.PackageableElementPtr db =
-                    (com.legend.protocol.spec.PackageableElementPtr) f.parameters().get(0);
-            com.legend.protocol.spec.CString tbl =
-                    (com.legend.protocol.spec.CString) f.parameters().get(1);
+        if ("tableReference".equals(f.function())
+                && f.parameters().size() == 2
+                && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr db
+                && f.parameters().get(1) instanceof com.legend.protocol.spec.CString tbl
+                && tbl.pos() == null) {
+            // The ISLAND form #>{db.schema.TBL}#: classInstance of type ">" with
+            // {path:[db, schema, TBL], sourceInformation} — outer and inner spans identical,
+            // covering the whole literal (ProbeWireShapes tref/tref2). Discriminated from
+            // the ORDINARY tableReference(db,'s','t') function call — which emits as a
+            // plain func below — by the island's synthesised, pos-less table-name string.
             SourceInfo span = topSpanOverride != null ? topSpanOverride
                     : requirePos(f.pos(), "table reference");
             b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
             srcInfo(b, span);
             b.append(",\"type\":\">\",\"value\":{\"path\":[");
             str(b, db.fullPath());
-            // schema-qualified names split into separate path entries:
-            // #>{db.schema.TBL}# -> ["db","schema","TBL"] (ProbeWireShapes c)
-            for (String part : tbl.value().split("\\.")) {
+            for (String piece : tbl.value().split("\\.")) {
                 b.append(',');
-                str(b, part);
+                str(b, piece);
             }
             b.append("],\"sourceInformation\":");
             srcInfo(b, span);
             b.append("}}");
+            return;
+        }
+        if (NARY_ARITHMETIC.contains(f.function())) {
+            naryArithmetic(b, f, topSpanOverride);
+            return;
+        }
+        // (equal/and/or over a parenthesised arithmetic chain probed harmless: the inner
+        // func keeps its operator-run span, nothing special — ProbeWireShapes parenEq.)
+        if ("new".equals(f.function()) && !f.parameters().isEmpty()
+                && f.parameters().get(f.parameters().size() - 1)
+                        instanceof com.legend.protocol.spec.NewInstance ni) {
+            // The parser wraps ^X(...) as AppliedFunction("new", [receiver, NewInstance]);
+            // the wire's whole envelope comes from the NewInstance node alone and carries
+            // no spans anywhere STANDALONE — but the let rule still applies: a let-valued
+            // new takes the letFunction's span (harness DIFF on testFromJson2).
+            newInstance(b, ni, topSpanOverride);
             return;
         }
         b.append("{\"_type\":\"func\",\"function\":");
