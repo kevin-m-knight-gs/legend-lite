@@ -856,18 +856,17 @@ final class SpecParserTest {
 
     @Test
     void booleanOpsComposeWithComparisons() {
-        // '$x > 10 && $x < 20': the engine's expressionPart chain is FLAT
-        // left-associative across comparisons and && alike (ProbeWireShapes
-        // "mixed bool arith", verified against the live parser) — the second
-        // comparison folds over the accumulated boolean, NOT symmetrically:
-        // lessThan(and(greaterThan(x,10), x), 20).
+        // '$x > 10 && $x < 20' parses SEMANTICALLY — and(gt, lt) — the shape the
+        // compiler types. The ENGINE's wire is flat left-associative
+        // (lessThan(and(gt(x,10),x),20), ProbeWireShapes "mixed bool arith");
+        // ProtocolEmitter.rotateFlatBoolean produces that spelling at EMISSION,
+        // conform-by-emission — the parse stays sane.
         assertEquals(
-                new AppliedFunction("lessThan", List.of(
-                        new AppliedFunction("and", List.of(
-                                new AppliedFunction("greaterThan", List.of(
-                                        new Variable("x"), new CInteger(10L))),
-                                new Variable("x"))),
-                        new CInteger(20L))),
+                new AppliedFunction("and", List.of(
+                        new AppliedFunction("greaterThan", List.of(
+                                new Variable("x"), new CInteger(10L))),
+                        new AppliedFunction("lessThan", List.of(
+                                new Variable("x"), new CInteger(20L))))),
                 SpecParser.parse("$x > 10 && $x < 20"));
     }
 

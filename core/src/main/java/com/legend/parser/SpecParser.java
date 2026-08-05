@@ -465,10 +465,10 @@ public final class SpecParser implements TokenStreamCursor {
                 // Engine convention: equal (and the not wrapping a !=) span the
                 // OPERATOR TOKEN only — unlike comparisons, which span op..RHS.
                 AppliedFunction eq = new AppliedFunction("equal", List.of(expr, right),
-                        List.of(), spanOf(opTok, opTok));
+                        List.of(), spanOf(opTok, opTok)).asInfix();
                 expr = (t == TokenType.TEST_EQUAL) ? eq
                         : new AppliedFunction("not", List.of(eq), List.of(),
-                                spanOf(opTok, opTok));
+                                spanOf(opTok, opTok)).asInfix();
             }
         }
         return expr;
@@ -520,13 +520,8 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private ValueSpecification parseCombinedArithmeticOnly() {
         ValueSpecification expr = parseExpression();
-        // TIGHT arithmetic only (+,-,*,/): comparisons fold LEFT at the combined level,
-        // over the accumulated boolean — $this.id > 0 && $this.id < 30 is
-        // lessThan(and(greaterThan(id,0), id), 30) (probe "mixed bool arith"; the
-        // engine's expressionPart chain is flat left-associative across && and
-        // comparisons alike)
-        while (!atEnd() && isArithmeticOp(peek()) && precedenceOf(peek()) >= 2) {
-            expr = parseArithmeticClimb(expr, 2);
+        while (!atEnd() && isArithmeticOp(peek())) {
+            expr = parseArithmeticPart(expr);
         }
         return expr;
     }
@@ -564,7 +559,7 @@ public final class SpecParser implements TokenStreamCursor {
         }
         // Engine convention: and/or span the OPERATOR TOKEN only.
         return new AppliedFunction(fn, List.of(left, right), List.of(),
-                spanOf(opTok, opTok));
+                spanOf(opTok, opTok)).asInfix();
     }
 
     /**

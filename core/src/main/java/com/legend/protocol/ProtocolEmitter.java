@@ -950,6 +950,42 @@ public final class ProtocolEmitter {
         }
     }
 
+    /** The comparison family that participates in the engine's flat left-fold —
+     *  NOT {@code equal}, which binds inside each operand (golden precedence corpus:
+     *  {@code true == false && true == false} keeps {@code and} on top). */
+    private static final java.util.Set<String> FLAT_COMPARISONS = java.util.Set.of(
+            "lessThan", "lessThanEqual", "greaterThan", "greaterThanEqual");
+
+    /** The boolean fold heads. */
+    private static final java.util.Set<String> BOOL_FOLD = java.util.Set.of("and", "or");
+
+    /**
+     * {@code bool(l, cmp(rl, rr))} &rarr; {@code cmp(bool(l, rl), rr)}, recursively —
+     * the engine's booleanPart chain is FLAT left-associative across {@code &&}/{@code ||}
+     * and comparisons (probe "mixed bool arith"). Applies only to OPERATOR-BUILT,
+     * unparenthesised nodes; each op keeps its own token span through the rotation.
+     */
+    private static com.legend.protocol.spec.AppliedFunction rotateFlatBoolean(
+            com.legend.protocol.spec.AppliedFunction f) {
+        if (!BOOL_FOLD.contains(f.function())
+                || !f.infix() || f.grouped() || f.parameters().size() != 2) {
+            return f;
+        }
+        if (f.parameters().get(1) instanceof com.legend.protocol.spec.AppliedFunction cmp
+                && cmp.infix() && !cmp.grouped()
+                && FLAT_COMPARISONS.contains(cmp.function())
+                && cmp.parameters().size() == 2) {
+            com.legend.protocol.spec.AppliedFunction inner =
+                    new com.legend.protocol.spec.AppliedFunction(f.function(),
+                            java.util.List.of(f.parameters().get(0), cmp.parameters().get(0)),
+                            f.candidateFqns(), f.pos(), false, false, true);
+            return new com.legend.protocol.spec.AppliedFunction(cmp.function(),
+                    java.util.List.of(rotateFlatBoolean(inner), cmp.parameters().get(1)),
+                    cmp.candidateFqns(), cmp.pos(), false, false, true);
+        }
+        return f;
+    }
+
     /** Arithmetic natives the engine spells N-ARY: one collection parameter holding the
      *  flattened operand chain. {@code divide} and the comparisons stay binary. */
     private static final java.util.Set<String> NARY_ARITHMETIC =
@@ -1022,6 +1058,11 @@ public final class ProtocolEmitter {
             b.append('}');
             return;
         }
+        // THE FLAT-CHAIN SPELLING (probe "mixed bool arith"; engine booleanPart folds
+        // LEFT over the accumulated chain): an operator-built and/or whose RIGHT operand
+        // is an operator-built comparison rotates at EMISSION — the parse stays the
+        // semantic and(gt,lt) shape the compiler types (conform-by-emission).
+        f = rotateFlatBoolean(f);
         // n-ary flatten applies to OPERATOR-SPELLED chains only: an arrow-spelled
         // (10)->times(2) is a plain two-parameter call (inline corpus TestM3AntlrParser)
         if (NARY_ARITHMETIC.contains(f.function()) && f.infix()) {
