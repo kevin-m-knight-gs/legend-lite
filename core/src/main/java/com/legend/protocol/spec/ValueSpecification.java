@@ -172,7 +172,8 @@ public sealed interface ValueSpecification permits
                 LambdaFunction f2 = old.function2() == null ? null
                         : (LambdaFunction) cs.get(i++);
                 yield new ColSpec(old.name(), f1, f2, old.alias(),
-                        cs.subList(i, cs.size()), old.qualified());
+                        cs.subList(i, cs.size()), old.qualified(), old.pos(),
+                        old.colType(), old.colTypeMult());
             }
         };
     }

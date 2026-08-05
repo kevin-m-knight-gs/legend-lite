@@ -940,6 +940,7 @@ public final class ProtocolEmitter {
             // (caught by the harness on QueryWithLet).
             case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
             case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf, span);
+            case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl, span);
             case com.legend.protocol.spec.LambdaFunction lam ->
                     valueSpec(b, new com.legend.protocol.spec.LambdaFunction(
                             lam.parameters(), lam.body(), span));
@@ -1346,6 +1347,13 @@ public final class ProtocolEmitter {
      * segment chars {@code [a,b]} (0-based inclusive) = {@code [s+len+a-2, s+len+b-1]}.
      */
     private static void pathLiteral(StringBuilder b, com.legend.protocol.spec.PathLiteral pl) {
+        pathLiteral(b, pl, null);
+    }
+
+    /** Let-value form: the OUTER classInstance takes the letFunction span; the value keeps
+     *  its SHIFTED spans unchanged (probe "path in let" — same rule as graph fetch). */
+    private static void pathLiteral(StringBuilder b, com.legend.protocol.spec.PathLiteral pl,
+            @com.legend.Nullable SourceInfo outerOverride) {
         SourceInfo lit = requirePos(pl.pos(), "path literal");
         require(lit.startLine() == lit.endLine(), "multi-line path literal", pl.startType());
         int s = lit.startColumn();
@@ -1353,7 +1361,7 @@ public final class ProtocolEmitter {
         int line = lit.startLine();
         SourceInfo outer = new SourceInfo(lit.sourceId(), line, s + len, line, s + 2 * len + 2);
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, outer);
+        srcInfo(b, outerOverride != null ? outerOverride : outer);
         b.append(",\"type\":\"path\",\"value\":{");
         if (pl.alias() != null) {
             // the !alias becomes the path's NAME, alphabetically first in the value
@@ -1401,6 +1409,22 @@ public final class ProtocolEmitter {
                         str(b, e.value());
                         b.append('}');
                     }
+                    case com.legend.protocol.spec.PathLiteral.PathArg.IntArg n -> {
+                        b.append("{\"_type\":\"integer\",\"sourceInformation\":");
+                        srcInfo(b, new SourceInfo(lit.sourceId(),
+                                line, s + len + n.start() - 1,
+                                line, s + len + n.end() - 1));
+                        b.append(",\"value\":").append(n.value()).append('}');
+                    }
+                    case com.legend.protocol.spec.PathLiteral.PathArg.StrArg st -> {
+                        b.append("{\"_type\":\"string\",\"sourceInformation\":");
+                        srcInfo(b, new SourceInfo(lit.sourceId(),
+                                line, s + len + st.start() - 1,
+                                line, s + len + st.end() - 1));
+                        b.append(",\"value\":");
+                        str(b, st.value());
+                        b.append('}');
+                    }
                 }
             }
             b.append("],\"property\":");
@@ -1445,7 +1469,29 @@ public final class ProtocolEmitter {
         srcInfo(b, pos);
         b.append(",\"subTrees\":[");
         graphNodes(b, gf.subTrees());
-        b.append("],\"subTypeTrees\":[]}}");
+        b.append("],\"subTypeTrees\":[");
+        graphSubTypes(b, gf.subTypeTrees());
+        b.append("]}}");
+    }
+
+    /** {@code ->subType(@X) { ... }} entries: {@code subTypeGraphFetchTree} nodes (the
+     *  {@code _type} key doubled like every graph node); span = the class name WITHOUT
+     *  the {@code @} (probe "gft root subtype"). */
+    private static void graphSubTypes(StringBuilder b,
+            List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> sts) {
+        for (int i = 0; i < sts.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode st = sts.get(i);
+            b.append("{\"_type\":\"subTypeGraphFetchTree\",\"_type\":\"subTypeGraphFetchTree\",\"sourceInformation\":");
+            srcInfo(b, requirePos(st.pos(), "graph-fetch subType " + st.subTypeClass()));
+            b.append(",\"subTrees\":[");
+            graphNodes(b, st.subTrees());
+            b.append("],\"subTypeClass\":");
+            str(b, st.subTypeClass());
+            b.append(",\"subTypeTrees\":[]}");
+        }
     }
 
     private static void graphNodes(StringBuilder b,
@@ -1479,7 +1525,9 @@ public final class ProtocolEmitter {
                 b.append(",\"subType\":");
                 str(b, n.subType());
             }
-            b.append(",\"subTypeTrees\":[]}");
+            b.append(",\"subTypeTrees\":[");
+            graphSubTypes(b, n.subTypeTrees());
+            b.append("]}");
         }
     }
 
@@ -1603,6 +1651,18 @@ public final class ProtocolEmitter {
             b.append("\"function2\":");
             lambda(b, cs.function2());
             b.append(',');
+        }
+        // ~name:Type[m] — the TYPED column spec (probe "typed colspec stmt"): genericType
+        // (+ multiplicity when declared) in place of the lambdas
+        if (cs.colType() != null) {
+            b.append("\"genericType\":");
+            genericType(b, cs.colType());
+            b.append(',');
+            if (cs.colTypeMult() != null) {
+                b.append("\"multiplicity\":");
+                multiplicity(b, cs.colTypeMult());
+                b.append(',');
+            }
         }
         b.append("\"name\":");
         str(b, cs.name());

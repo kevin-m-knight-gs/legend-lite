@@ -590,6 +590,50 @@ class ProbeWireShapes {
                   $x + 1;
                 }
                 """);
+        dump("path in let", """
+                function w1::a(): Any[*]
+                {
+                  let path = #/w1::Person/firstName#;
+                }
+                """);
+        dump("gft root subtype", """
+                function w2::a(): Any[*]
+                {
+                  #{
+                    test::Address {
+                      zipCode,
+                      ->subType(@test::Street) {
+                        street
+                      },
+                      ->subType(@test::City) {
+                        'cityName' : name
+                      }
+                    }
+                  }#
+                }
+                """);
+        dump("path scalar args", """
+                function w3::a(): Any[*]
+                {
+                  print(#/Person/nameWithTitle(1)#, 2);
+                  print(#/Person/nameWithTitle('1')#, 2);
+                  print(#/Person/nameWithPrefixAndSuffix('a', 'b')#, 2);
+                }
+                """);
+        dump("typed colspec stmt", """
+                function w4::a(): meta::pure::metamodel::relation::ColSpec<(name:String)>[1]
+                {
+                  ~name:String;
+                }
+                function w4::b(): meta::pure::metamodel::relation::ColSpecArray<(name:String, id:Integer)>[1]
+                {
+                  ~[name:String, id:Integer];
+                }
+                function w4::c(): meta::pure::metamodel::relation::ColSpec<(name:String)>[1]
+                {
+                  ~name:String[1];
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

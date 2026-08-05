@@ -19,6 +19,7 @@ import java.util.Objects;
 public record GraphFetchLiteral(
         String className,
         List<Node> subTrees,
+        List<SubTypeNode> subTypeTrees,
         ValueSpecification desugared,
         boolean unsupported,
         @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
@@ -26,8 +27,27 @@ public record GraphFetchLiteral(
     public GraphFetchLiteral {
         Objects.requireNonNull(className, "className");
         Objects.requireNonNull(subTrees, "subTrees");
+        Objects.requireNonNull(subTypeTrees, "subTypeTrees");
         Objects.requireNonNull(desugared, "desugared");
         subTrees = List.copyOf(subTrees);
+        subTypeTrees = List.copyOf(subTypeTrees);
+    }
+
+    /** No-subtype convenience constructor. */
+    public GraphFetchLiteral(String className, List<Node> subTrees,
+            ValueSpecification desugared, boolean unsupported,
+            @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+        this(className, subTrees, List.of(), desugared, unsupported, pos);
+    }
+
+    /** A {@code ->subType(@X) { ... }} ENTRY — the level's subTypeTrees on the wire;
+     *  {@code pos} is the class-name span WITHOUT the {@code @}. */
+    public record SubTypeNode(String subTypeClass,
+                              @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+                              List<Node> subTrees) {
+        public SubTypeNode {
+            subTrees = List.copyOf(subTrees);
+        }
     }
 
     /**
@@ -41,10 +61,19 @@ public record GraphFetchLiteral(
                        List<ValueSpecification> parameters,
                        @com.legend.Nullable String alias,
                        @com.legend.Nullable String subType,
-                       List<Node> subTrees) {
+                       List<Node> subTrees,
+                       List<SubTypeNode> subTypeTrees) {
         public Node {
             parameters = List.copyOf(parameters);
             subTrees = List.copyOf(subTrees);
+            subTypeTrees = List.copyOf(subTypeTrees);
+        }
+
+        /** No-subtype-entries convenience constructor. */
+        public Node(String property, @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+                    List<ValueSpecification> parameters, @com.legend.Nullable String alias,
+                    @com.legend.Nullable String subType, List<Node> subTrees) {
+            this(property, pos, parameters, alias, subType, subTrees, List.of());
         }
     }
 

@@ -69,6 +69,14 @@ public record PathLiteral(
         /** {@code Enum.VALUE} — an {@code enumValue} node with NO sourceInformation. */
         record EnumArg(String fullPath, String value) implements PathArg {
         }
+
+        /** An integer literal argument — same {@code a-1} shift as dates. */
+        record IntArg(long value, int start, int end) implements PathArg {
+        }
+
+        /** A string literal argument; the range includes the quotes. */
+        record StrArg(String value, int start, int end) implements PathArg {
+        }
     }
 
     @Override

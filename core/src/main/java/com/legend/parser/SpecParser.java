@@ -1960,6 +1960,16 @@ public final class SpecParser implements TokenStreamCursor {
         LambdaFunction function2 = null;
         if (!atEnd() && peek() == TokenType.COLON) {
             pos++; // consume ':'
+            // ~name:Type[m] (TYPED spec, probe "typed colspec stmt") vs ~name:x|expr /
+            // ~name:thunk() (lambda forms): ATTEMPT the type parse and accept it only
+            // when a spec terminator follows — anything else backtracks to the lambda
+            // path ('Target.all()' parses as the type 'Target' but the '.' refutes it)
+            int colonMark = pos;
+            ColSpec typed = tryTypedColSpec(name, nameTokIdx);
+            if (typed != null) {
+                return typed;
+            }
+            pos = colonMark;
             function1 = parseColumnLambda();
             if (!atEnd() && peek() == TokenType.COLON) {
                 pos++; // consume ':'
@@ -1973,6 +1983,26 @@ public final class SpecParser implements TokenStreamCursor {
                 ? spanOf(nameTokIdx, nameTokIdx)
                 : spanOf(nameTokIdx, pos - 1);
         return new ColSpec(name, function1, function2, null, List.of(), false, span);
+    }
+
+    /** {@link #parseOneColSpec}'s TYPED attempt: a type (with optional multiplicity)
+     *  followed immediately by a spec terminator, or {@code null} (cursor position is the
+     *  caller's to restore). */
+    private @com.legend.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx) {
+        try {
+            TypeExpression colType = parseType();
+            Multiplicity colMult = !atEnd() && peek() == TokenType.BRACKET_OPEN
+                    ? parseMultiplicity() : null;
+            if (atEnd() || peek() == TokenType.COMMA || peek() == TokenType.BRACKET_CLOSE
+                    || peek() == TokenType.SEMI_COLON || peek() == TokenType.PAREN_CLOSE
+                    || peek() == TokenType.BRACE_CLOSE) {
+                return new ColSpec(name, null, null, null, List.of(), false,
+                        spanOf(nameTokIdx, pos - 1), colType, colMult);
+            }
+            return null;
+        } catch (ParseException e) {
+            return null;
+        }
     }
 
     private ColSpecArray parseColSpecArray() {
@@ -2416,6 +2446,17 @@ public final class SpecParser implements TokenStreamCursor {
                         int dot = trimmed.lastIndexOf('.');
                         wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
                                 trimmed.substring(0, dot), trimmed.substring(dot + 1)));
+                    } else if (trimmed.matches("\\d+")) {
+                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.IntArg(
+                                Long.parseLong(trimmed),
+                                cursor + lead + at,
+                                cursor + lead + at + trimmed.length() - 1));
+                    } else if (trimmed.length() >= 2 && trimmed.startsWith("'")
+                            && trimmed.endsWith("'")) {
+                        wireArgs.add(new com.legend.protocol.spec.PathLiteral.PathArg.StrArg(
+                                unescapeString(trimmed.substring(1, trimmed.length() - 1)),
+                                cursor + lead + at,
+                                cursor + lead + at + trimmed.length() - 1));
                     } else {
                         unsupported = true;
                     }
@@ -2690,10 +2731,13 @@ public final class SpecParser implements TokenStreamCursor {
         com.legend.protocol.SourceInfo namePos = charSpan(ns, ne);
         boolean[] unsupported = {false};
         int[] cursor = {brace};
+        List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> subTypes =
+                new ArrayList<>();
         List<com.legend.protocol.spec.GraphFetchLiteral.Node> nodes =
-                scanGraphNodes(src, cursor, z, unsupported);
+                scanGraphNodes(src, cursor, z, unsupported, subTypes);
         return new com.legend.protocol.spec.GraphFetchLiteral(
-                src.substring(ns, ne + 1), nodes, desugared, unsupported[0], namePos);
+                src.substring(ns, ne + 1), nodes, subTypes, desugared,
+                unsupported[0], namePos);
     }
 
     /** Inclusive character range → engine 1-based/inclusive-end {@link com.legend.protocol.SourceInfo}. */
@@ -2708,7 +2752,8 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private List<com.legend.protocol.spec.GraphFetchLiteral.Node> scanGraphNodes(
-            String src, int[] cursor, int limit, boolean[] unsupported) {
+            String src, int[] cursor, int limit, boolean[] unsupported,
+            List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> subTypesOut) {
         List<com.legend.protocol.spec.GraphFetchLiteral.Node> nodes = new ArrayList<>();
         int i = cursor[0];
         if (i >= limit || src.charAt(i) != '{') {
@@ -2731,6 +2776,48 @@ public final class SpecParser implements TokenStreamCursor {
                 while (i < limit && src.charAt(i) != '\n') {
                     i++;
                 }
+                continue;
+            }
+            // ->subType(@X) { ... } ENTRY: this level's subTypeTrees (probe "gft root
+            // subtype"; span = the class name WITHOUT the '@')
+            if (c == '-' && i + 1 < limit && src.charAt(i + 1) == '>') {
+                int k = i + 2;
+                int ws = k;
+                while (k < limit && isGraphIdentChar(src.charAt(k))) {
+                    k++;
+                }
+                if (src.substring(ws, k).equals("subType")
+                        && k + 1 < limit && src.charAt(k) == '(' && src.charAt(k + 1) == '@') {
+                    int ts = k + 2;
+                    int te = src.indexOf(')', ts);
+                    if (te < 0 || te >= limit) {
+                        unsupported[0] = true;
+                        i = k;
+                        continue;
+                    }
+                    int j = te + 1;
+                    while (j < limit && Character.isWhitespace(src.charAt(j))) {
+                        j++;
+                    }
+                    List<com.legend.protocol.spec.GraphFetchLiteral.Node> sub = List.of();
+                    List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> nestedSts =
+                            new ArrayList<>();
+                    if (j < limit && src.charAt(j) == '{') {
+                        cursor[0] = j;
+                        sub = scanGraphNodes(src, cursor, limit, unsupported, nestedSts);
+                        i = cursor[0];
+                    } else {
+                        i = te + 1;
+                    }
+                    if (!nestedSts.isEmpty()) {
+                        unsupported[0] = true;      // subType inside subType — unprobed
+                    }
+                    subTypesOut.add(new com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode(
+                            src.substring(ts, te), charSpan(ts, te - 1), sub));
+                    continue;
+                }
+                unsupported[0] = true;
+                i += 2;
                 continue;
             }
             String alias = null;
@@ -2811,13 +2898,15 @@ public final class SpecParser implements TokenStreamCursor {
                     }
                 }
                 List<com.legend.protocol.spec.GraphFetchLiteral.Node> sub = List.of();
+                List<com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode> nodeSts =
+                        new ArrayList<>();
                 if (j < limit && src.charAt(j) == '{') {
                     cursor[0] = j;
-                    sub = scanGraphNodes(src, cursor, limit, unsupported);
+                    sub = scanGraphNodes(src, cursor, limit, unsupported, nodeSts);
                     i = cursor[0];
                 }
                 nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(
-                        prop, pos, params, alias, subType, sub));
+                        prop, pos, params, alias, subType, sub, nodeSts));
                 continue;
             }
             // root-level ->subType, quoted names in other positions — wire shapes unprobed

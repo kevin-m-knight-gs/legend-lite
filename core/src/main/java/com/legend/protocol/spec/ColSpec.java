@@ -60,13 +60,24 @@ public record ColSpec(
         @com.legend.Nullable String alias,
         List<ValueSpecification> args,
         boolean qualified,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ColumnInstance {
+        @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+        @com.legend.Nullable com.legend.protocol.TypeExpression colType,
+        @com.legend.Nullable com.legend.protocol.Multiplicity colTypeMult)
+        implements ColumnInstance {
+
+    /** The lambda/bare form (no declared column type). */
+    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
+            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+            List<ValueSpecification> args, boolean qualified,
+            @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+        this(name, function1, function2, alias, args, qualified, pos, null, null);
+    }
 
     /** Position-free form for synthesis and tests. */
     public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
             @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
             List<ValueSpecification> args, boolean qualified) {
-        this(name, function1, function2, alias, args, qualified, null);
+        this(name, function1, function2, alias, args, qualified, null, null, null);
     }
 
     /** Position is excluded from equality. */
@@ -78,12 +89,15 @@ public record ColSpec(
                 && java.util.Objects.equals(function2, other.function2())
                 && java.util.Objects.equals(alias, other.alias())
                 && args.equals(other.args())
-                && qualified == other.qualified();
+                && qualified == other.qualified()
+                && java.util.Objects.equals(colType, other.colType())
+                && java.util.Objects.equals(colTypeMult, other.colTypeMult());
     }
 
     @Override
     public int hashCode() {
-        return java.util.Objects.hash(name, function1, function2, alias, args, qualified);
+        return java.util.Objects.hash(name, function1, function2, alias, args, qualified,
+                colType, colTypeMult);
     }
 
     public ColSpec {
