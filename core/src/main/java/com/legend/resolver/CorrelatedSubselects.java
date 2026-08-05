@@ -1994,6 +1994,14 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                                     k -> new ArrayList<>())
                             .add(new StoreResolver.AggDemand(nc, null, tmap.mapper(),
                                     mOrder, mAsc));
+                    // the mapper BODY can still reference the OUTER row
+                    // variable ($userVar) — its demands register too
+                    // (study #13: the arm previously returned without
+                    // rescanning, silently dropping outer-var aggregates)
+                    for (TypedSpec b : tmap.mapper().body()) {
+                        aggScan(b, userVar, cs, aggOut, bareOut,
+                                toManyHead, bareHead);
+                    }
                     for (int i = 1; i < nc.args().size(); i++) {
                         aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead, bareHead);
                     }
@@ -2099,6 +2107,26 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         + nc.callee().qualifiedName() + "' over the multi-hop"
                         + " to-many navigation " + String.join(".", path)
                         + " is not supported yet");
+            }
+            // STUDY #12: a to-many hop at index > 0 behind a to-one HEAD
+            // escaped both audit-9 guards. For the IDENTITY-ELIDING
+            // reducer family (sum/average/mean — Scalars' to-one elision)
+            // that silently EATS the aggregate (the witnessed wrong
+            // rows); list-space reducers (joinStrings, count) reduce the
+            // exploded values correctly and stay allowed. Chain-demand
+            // registration for this class is the real fix (own slice).
+            if (path != null && path.size() >= 2
+                    && !toManyHead.test(cs, path.get(0))
+                    && isElidingReducer(nc)
+                    && !(nc.args().get(0).info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded mb
+                            && Integer.valueOf(1).equals(mb.upper()))) {
+                throw new NotImplementedException("aggregate '"
+                        + nc.callee().qualifiedName() + "' over the navigation "
+                        + String.join(".", path) + " whose to-many hop sits"
+                        + " BEHIND a to-one head is not supported yet"
+                        + " (study #12 — the silent-eaten-aggregate class)");
             }
             if (path == null && containsToManyCrossing(nc.args().get(0), userVar, cs, toManyHead)) {
                 throw new NotImplementedException("aggregate '"
@@ -2212,6 +2240,17 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             }
         }
         return false;
+    }
+
+    /** The reducers whose to-one identity elision (Scalars) EATS the
+     *  aggregate when the arg bare-demands to a per-row column — the
+     *  guard fires only for these; list-carrier reducers survive. */
+    private static boolean isElidingReducer(
+            com.legend.compiler.spec.typed.TypedNativeCall nc) {
+        String n = nc.callee().qualifiedName();
+        return n.equals("meta::pure::functions::math::sum")
+                || n.equals("meta::pure::functions::math::average")
+                || n.equals("meta::pure::functions::math::mean");
     }
 
     private static boolean hasCol(Type.RelationType row, String name) {

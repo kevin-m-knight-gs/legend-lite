@@ -20,6 +20,26 @@ import java.util.stream.Collectors;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
+    /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a
+     *  literal with NONZERO sub-microsecond digits silently truncates
+     *  (proven with a standalone repro: comparisons against a
+     *  TIMESTAMP_NS column then invert). Only those bind as
+     *  {@code TIMESTAMP_NS}: the milestoning INFINITY sentinel spells
+     *  nine ZERO ns digits, where truncation is lossless and the plain
+     *  spelling must stay. */
+    @Override
+    protected String timestampLit(String iso) {
+        int dot = iso.lastIndexOf('.');
+        if (dot >= 0 && iso.length() - dot - 1 > 6) {
+            String subMicro = iso.substring(dot + 7)
+                    .replaceAll("[^0-9].*$", "");
+            if (!subMicro.isEmpty() && !subMicro.matches("0+")) {
+                return "TIMESTAMP_NS '" + iso + "'";
+            }
+        }
+        return super.timestampLit(iso);
+    }
+
     public DuckDb() {
         super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
     }

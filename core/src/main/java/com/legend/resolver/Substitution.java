@@ -1747,6 +1747,14 @@ final class Substitution {
                             "object-space use of the instance variable '$" + v.name()
                                     + "' other than property access is not supported yet");
             case TypedVariable v -> v;
+            // HOST-side literal instance: a property read off ^X(k=v)
+            // folds to the ctor value (engine constant-folds these before
+            // routing; study #15)
+            case TypedPropertyAccess pa
+                    when pa.source() instanceof
+                            com.legend.compiler.spec.typed.TypedNewInstance ni
+                    && ni.properties().containsKey(pa.property()) ->
+                    rewrite(ni.properties().get(pa.property()));
             // structural family: children rewrite, withChildren reassembles
             case TypedPropertyAccess pa -> pa.mapChildren(this::rewrite);
             case TypedMilestonedAccess ma -> ma.mapChildren(this::rewrite);

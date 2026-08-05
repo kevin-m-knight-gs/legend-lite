@@ -36,10 +36,10 @@ shared source registered by several families cannot double-count. Run with
 | aggregationAware/test/rewrite/NOP | 15 | 15 | 0 | 0 | 0 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 |
-| executionPlan/tests | 108 | 48 | 30 | 7 | 23 | 0 |
+| executionPlan/tests | 108 | 48 | 31 | 7 | 22 | 0 |
 | functions/tests | 259 | 234 | 8 | 11 | 6 | 66 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
-| functions/tests/projection | 155 | 136 | 7 | 11 | 1 | 1 |
+| functions/tests/projection | 155 | 137 | 6 | 11 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
 | graphFetch/tests | 143 | 136 | 3 | 2 | 2 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
@@ -66,7 +66,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/advanced | 68 | 60 | 3 | 5 | 0 | 21 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
-| tests/mapping | 10 | 6 | 3 | 1 | 0 | 0 |
+| tests/mapping | 10 | 7 | 0 | 3 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
@@ -94,11 +94,11 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 117 | 0 | 9 | 1 | 8 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 77 | 4 | 6 | 0 | 36 |
+| tests/query | 87 | 77 | 3 | 7 | 0 | 36 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2262** | 109 | 96 | 103 | 243 |
+| **total** | 2570 | **2264** | 105 | 99 | 102 | 243 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1165,7 +1165,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testMapWithOpenVariable [executionPlan/tests]: assertEquals: expected Sequence\n(\n  type = Integer\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type = Integer\n      resultSizeRange = 1\n      name = a\n      value = \n        (\n          Constant\n          (\n            type = Integer\n            resultSizeRange = 1\n            values=[10]\n          )\n        )\n    )\n    Relational\n    (\n      type = Integer\n      resultSizeRange = *\n      resultColumns = [("firmtable_1".aggCol + ${a}, "")]\n      sql = select "firmtable_1".aggCol + ${a} from firmTable as "root" left outer join (select "firmtable_1".ID as ID, count(*) as aggCol from firmTable as "firmtable_1" left outer join personTable as "persontable_0" on ("firmtable_1".ID = "persontable_0".FIRMID) group by "firmtable_1".ID) as "firmtable_1" on ("root".ID = "firmtable_1".ID)\n      connection = TestDatabaseConnection(type = "H2")\n    )\n  )\n)\n, got Sequence\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Firm | simpleRelationalMappingInc.meta_relational_tests_model_simple_Firm)]\n         as meta::relational::tests::model::simple::Firm\n  resultSizeRange = *\n  (\n    Allocation\n    (\n      type = Integer\n      resultSizeRange = 1\n      name = a\n      value = \n        (\n          Constant\n          (\n            type = Integer\n            resultSizeRange = 1\n            values=[10]\n          )\n        )\n    )\n    Relational\n    (\n      type = Class[impls=(meta::relational::tests::model::simple::Firm | simpleRelationalMappingInc.meta_relational_tests_model_simple_Firm)]\n             as meta::relational::tests::model::simple::Firm\n      resultSizeRange = *\n      resultColumns = [("u_map__value", "")]\n      sql = select case when "persontable_0"."agg_0" is not null then "persontable_0"."agg_0" else 0 end + ${a} from firmTable as "root" left outer join (select "root".FIRMID as "FIRMID", count(*) as "agg_0" from personTable as "root" group by "root".FIRMID) as "persontable_0" on ("root".ID = "persontable_0"."FIRMID")\n      connection = TestDatabaseConnection(type = "H2")\n    )\n  )\n)\n
 - ERROR testPlanForExecutionOption [executionPlan/tests]: Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - SHAPE testRoutingContextBuilderFunctions [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: class meta::pure::metamodel::type::Any has no property 'type'
-- SHAPE testMapWithOpenVariableOutsideBlock [executionPlan/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: object-space expression node TypedNewInstance is not substitutable yet (H2 vocabulary): TypedNewInstance[classFqn=meta::pure::executionPlan::tests::Struct, properties={val=TypedCInteger[value=10, info=ExprType[type=INTEGER, multiplicity=
+- FAIL testMapWithOpenVariableOutsideBlock [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = Integer\n  resultSizeRange = *\n  resultColumns = [("firmtable_1".aggCol + 10, "")]\n  sql = select "firmtable_1".aggCol + 10 from firmTable as "root" left outer join (select "firmtable_1".ID as ID, count(*) as aggCol from firmTable as "firmtable_1" left outer join personTable as "persontable_0" on ("firmtable_1".ID = "persontable_0".FIRMID) group by "firmtable_1".ID) as "firmtable_1" on ("root".ID = "firmtable_1".ID)\n  connection = TestDatabaseConnection(type = "H2")\n)\n, got Relational\n(\n  type = Class[impls=(meta::relational::tests::model::simple::Firm | simpleRelationalMappingInc.meta_relational_tests_model_simple_Firm)]\n         as meta::relational::tests::model::simple::Firm\n  resultSizeRange = *\n  resultColumns = [("u_map__value", "")]\n  sql = select case when "persontable_0"."agg_0" is not null then "persontable_0"."agg_0" else 0 end + 10 from firmTable as "root" left outer join (select "root".FIRMID as "FIRMID", count(*) as "agg_0" from personTable as "root" group by "root".FIRMID) as "persontable_0" on ("root".ID = "persontable_0"."FIRMID")\n  connection = TestDatabaseConnection(type = "H2")\n)\n
 - ERROR withPlatform [executionPlan/tests]: collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - SHAPE testPreprocessFunctionOnRuntime [executionPlan/tests]: no execute(|...) call [calls meta::pure::executionPlan] — wall: assert form 'assertEquals/2' is not supported yet — plan wall: class 'meta::pure::metamodel::function::FunctionDefinition' has no property 'expressionSequence'
 - ERROR testDatabaseConnectionSQLPopulationLegacy [executionPlan/tests]: class meta::relational::mapping::SQLExecutionNode has no property 'connection'
@@ -1230,7 +1230,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
-- FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as date)), got select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when 1 - date_part('isodow', cast(now() as date)) > 0 then 1 - date_part('isodow', cast(now() as date)) - 7 else 1 - date_part('isodow', cast(now() as date)) end, cast(now() as date))
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -1365,9 +1364,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
-- FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
-- FAIL testQuery [tests/mapping]: assertSize(result.values): expected 1, got 2 (TDS = one carrier; collections splat)
-- FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
+- ERROR testGet [tests/mapping]: Binder Error: Cannot compare values of type TIMESTAMP_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required |  | LINE 3: WHERE t0.settlementDateTime <= now() |                                     ^
+- ERROR testQuery [tests/mapping]: Binder Error: Cannot compare values of type TIMESTAMP_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required |  | LINE 8: ... (t0.settlementDateTime IS NOT NULL AND t0.settlementDateTime <= now()) |                                                                          ^
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
@@ -1433,7 +1431,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testPushDownProjectWithParameter [tests/query]: unknown function 'meta::json::parseJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
-- FAIL testFilterTimesWithManyOperands [tests/query]: h2-advisory divergence: golden SQL on H2 gave 12 row(s) [Allen|6556, Firm B|4690, Harris|4900, Hill|3576, Hill|4288], our pipeline gave 46 row(s) [Allen|1012, Allen|1540, Allen|1540, Allen|528, Allen|968]
+- ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testDayOfWeekNumberFunction [tests/query]: no overload of 'meta::pure::functions::date::dayOfWeekNumber' accepts 2 argument(s)
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call [calls meta::relational::tests::functions::sqlstring] — wall: class query under TypedNewInstance is not resolvable yet (H2 vocabulary)
