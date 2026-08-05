@@ -1331,6 +1331,8 @@ public final class NameResolver {
             // A path literal dissolves into its desugared lambda at resolution — nothing
             // downstream of the resolver ever sees the wire-facing node.
             case PathLiteral pl -> resolveVs(pl.desugared(), scope);
+            case com.legend.protocol.spec.GraphFetchLiteral gf ->
+                    resolveVs(gf.desugared(), scope);
             case PackageableElementPtr ptr -> {
                 String r = resolveName(ptr.fullPath(), scope);
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);

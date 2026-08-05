@@ -2517,7 +2517,7 @@ public final class SpecParser implements TokenStreamCursor {
         String contentText = content.toString().trim();
 
         ValueSpecification result = switch (dslType) {
-            case "" -> parseGraphFetchTree(contentText);
+            case "" -> wrapGraphFetch(parseGraphFetchTree(contentText), islandStart, pos - 1);
             // Engine convention (ProbeWireShapes "burn zoo 2" tref): the classInstance
             // spans the whole #>{...}# literal.
             case ">" -> parseTableReference(contentText, spanOf(islandStart, pos - 1));
@@ -2617,6 +2617,115 @@ public final class SpecParser implements TokenStreamCursor {
      * {@code graphFetch($classCollection, #{ ... }#)} call and
      * discards the inline root name. We follow suit.
      */
+    /**
+     * Wrap a parsed graph-fetch desugar with the wire-facing span tree. The island lexer
+     * emits coarse {@code ISLAND_CONTENT} chunks (names live INSIDE chunk strings), so the
+     * scan runs CHARWISE over the raw source between {@code #"{"} and the island closer,
+     * with positions derived from character offsets — absolute, because graph-fetch spans
+     * are NOT island-shifted (unlike navigation paths). Any form beyond plain property
+     * names and nesting — aliases, parameters, subtype trees — marks the literal
+     * unsupported and the emitter walls.
+     */
+    private ValueSpecification wrapGraphFetch(ValueSpecification desugared,
+            int islandStart, int islandEnd) {
+        String src = tokens.source();
+        int a = tokens.end(islandStart);           // char offset just past '#{'
+        int z = tokens.start(islandEnd);           // char offset of the island closer
+        int brace = src.indexOf('{', a);
+        int ns = a;
+        while (ns < z && Character.isWhitespace(src.charAt(ns))) {
+            ns++;
+        }
+        if (brace < 0 || brace >= z || ns >= brace) {
+            return new com.legend.protocol.spec.GraphFetchLiteral(
+                    "", List.of(), desugared, true, spanOf(islandStart, islandStart));
+        }
+        int ne = brace - 1;
+        while (ne > ns && Character.isWhitespace(src.charAt(ne))) {
+            ne--;
+        }
+        com.legend.protocol.SourceInfo namePos = charSpan(ns, ne);
+        boolean[] unsupported = {false};
+        int[] cursor = {brace};
+        List<com.legend.protocol.spec.GraphFetchLiteral.Node> nodes =
+                scanGraphNodes(src, cursor, z, unsupported);
+        return new com.legend.protocol.spec.GraphFetchLiteral(
+                src.substring(ns, ne + 1), nodes, desugared, unsupported[0], namePos);
+    }
+
+    /** Inclusive character range → engine 1-based/inclusive-end {@link com.legend.protocol.SourceInfo}. */
+    private com.legend.protocol.SourceInfo charSpan(int from, int to) {
+        return new com.legend.protocol.SourceInfo("",
+                tokens.lineOf(from), tokens.columnOf(from),
+                tokens.lineOf(to), tokens.columnOf(to));
+    }
+
+    private static boolean isGraphIdentChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    private List<com.legend.protocol.spec.GraphFetchLiteral.Node> scanGraphNodes(
+            String src, int[] cursor, int limit, boolean[] unsupported) {
+        List<com.legend.protocol.spec.GraphFetchLiteral.Node> nodes = new ArrayList<>();
+        int i = cursor[0];
+        if (i >= limit || src.charAt(i) != '{') {
+            unsupported[0] = true;
+            cursor[0] = i;
+            return nodes;
+        }
+        i++;                                        // past '{'
+        while (i < limit) {
+            char c = src.charAt(i);
+            if (c == '}') {
+                i++;
+                break;
+            }
+            if (Character.isWhitespace(c) || c == ',') {
+                i++;
+                continue;
+            }
+            if (isGraphIdentChar(c)) {
+                int s = i;
+                while (i < limit && isGraphIdentChar(src.charAt(i))) {
+                    i++;
+                }
+                String prop = src.substring(s, i);
+                com.legend.protocol.SourceInfo pos = charSpan(s, i - 1);
+                int j = i;
+                while (j < limit && Character.isWhitespace(src.charAt(j))) {
+                    j++;
+                }
+                List<com.legend.protocol.spec.GraphFetchLiteral.Node> sub = List.of();
+                if (j < limit && src.charAt(j) == '{') {
+                    cursor[0] = j;
+                    sub = scanGraphNodes(src, cursor, limit, unsupported);
+                    i = cursor[0];
+                } else if (j < limit && src.charAt(j) == '(') {
+                    // property parameters — wire shape unprobed
+                    unsupported[0] = true;
+                    i = j;
+                    int d = 0;
+                    do {
+                        char cc = src.charAt(i);
+                        if (cc == '(') {
+                            d++;
+                        } else if (cc == ')') {
+                            d--;
+                        }
+                        i++;
+                    } while (i < limit && d > 0);
+                }
+                nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(prop, pos, sub));
+                continue;
+            }
+            // aliases ('x':p), ->subType(@X), quoted names — wire shapes unprobed
+            unsupported[0] = true;
+            i++;
+        }
+        cursor[0] = i;
+        return nodes;
+    }
+
     private ValueSpecification parseGraphFetchTree(String content) {
         TokenStream innerTokens = Lexer.tokenize(content);
         SpecParser inner = new SpecParser(innerTokens);

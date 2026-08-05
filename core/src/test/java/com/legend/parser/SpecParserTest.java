@@ -2723,7 +2723,7 @@ final class SpecParserTest {
                                 List.of(new AppliedProperty(
                                         new Variable("_gf0"), "age"))),
                         null)));
-        assertEquals(expected, SpecParser.parse("#{Person {name, age}}#"));
+        assertEquals(expected, desugar(SpecParser.parse("#{Person {name, age}}#")));
     }
 
     @Test
@@ -2753,8 +2753,13 @@ final class SpecParserTest {
                                         new Variable("_gf0"), "name"))),
                         null),
                 new ColSpec("firm", firmFn1, firmFn2)));
-        assertEquals(expected,
-                SpecParser.parse("#{Person {name, firm {legalName}}}#"));
+        assertEquals(expected, desugar(
+                SpecParser.parse("#{Person {name, firm {legalName}}}#")));
+    }
+
+    /** Graph-fetch parses to the wire-facing literal; these pins assert its desugared tree. */
+    private static ValueSpecification desugar(ValueSpecification v) {
+        return v instanceof com.legend.protocol.spec.GraphFetchLiteral gf ? gf.desugared() : v;
     }
 
     @Test
@@ -2770,8 +2775,8 @@ final class SpecParserTest {
                                 List.of(new AppliedProperty(
                                         new Variable("_gf0"), "name"))),
                         null, "alias")));
-        assertEquals(expected,
-                SpecParser.parse("#{Person {'alias': name}}#"));
+        assertEquals(expected, desugar(
+                SpecParser.parse("#{Person {'alias': name}}#")));
     }
 
     @Test
@@ -2789,8 +2794,8 @@ final class SpecParserTest {
                                         new Variable("_gf0"), "name"))),
                         null, null,
                         List.of(new CDate(new PureDateLiteral.StrictDate(2024, 1, 1))))));
-        assertEquals(expected,
-                SpecParser.parse("#{Person {name(%2024-01-01)}}#"));
+        assertEquals(expected, desugar(
+                SpecParser.parse("#{Person {name(%2024-01-01)}}#")));
     }
 
     @Test
@@ -2799,8 +2804,8 @@ final class SpecParserTest {
         // graph-fetch definition is tolerated per engine-lite.
         // Pins the lenient-termination behaviour so a future
         // tightening doesn't silently break compatibility.
-        ColSpecArray result = (ColSpecArray)
-                SpecParser.parse("#{Person {name, age,}}#");
+        ColSpecArray result = (ColSpecArray) desugar(
+                SpecParser.parse("#{Person {name, age,}}#"));
         assertEquals(2, result.colSpecs().size());
     }
 
@@ -2842,7 +2847,9 @@ final class SpecParserTest {
         assertTrue(result instanceof AppliedFunction af
                         && af.function().equals("serialize")
                         && af.parameters().size() == 1
-                        && af.parameters().get(0) instanceof ColSpecArray,
+                        && af.parameters().get(0)
+                                instanceof com.legend.protocol.spec.GraphFetchLiteral gf
+                        && gf.desugared() instanceof ColSpecArray,
                 () -> "want serialize(graphFetchTree), got: " + result);
     }
 

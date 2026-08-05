@@ -638,6 +638,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs);
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
+            case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf);
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
                 // The value is the SOURCE SPELLING, verbatim. DAY precision emits strictDate;
@@ -756,6 +757,7 @@ public final class ProtocolEmitter {
             // n-ary chain-span derivation, which must read the original climb spans
             // (caught by the harness on QueryWithLet).
             case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
+            case com.legend.protocol.spec.GraphFetchLiteral gf -> graphFetch(b, gf, span);
             case com.legend.protocol.spec.LambdaFunction lam ->
                     valueSpec(b, new com.legend.protocol.spec.LambdaFunction(
                             lam.parameters(), lam.body(), span));
@@ -1136,6 +1138,53 @@ public final class ProtocolEmitter {
         b.append(",\"startType\":");
         str(b, pl.startType());
         b.append("}}");
+    }
+
+    /**
+     * {@code #{Root {a, k {b}}}#}: a {@code classInstance} of type {@code rootGraphFetchTree}
+     * whose outer and value spans are BOTH the class-name token span (absolute — graph-fetch
+     * spans are not island-shifted); each property node spans its name token
+     * (ProbeWireShapes "typed new and gft", "alias dated tref2 gft2" d).
+     */
+    private static void graphFetch(StringBuilder b, com.legend.protocol.spec.GraphFetchLiteral gf) {
+        graphFetch(b, gf, null);
+    }
+
+    /** Let-value form: the OUTER classInstance takes the letFunction span; the inner value
+     *  keeps the class-name span (probe "gft as let value"). */
+    private static void graphFetch(StringBuilder b, com.legend.protocol.spec.GraphFetchLiteral gf,
+            @com.legend.Nullable SourceInfo outerSpan) {
+        require(!gf.unsupported(),
+                "graph-fetch with aliases/parameters/subType (wire shape unprobed)",
+                gf.className());
+        SourceInfo pos = requirePos(gf.pos(), "graph fetch " + gf.className());
+        b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
+        srcInfo(b, outerSpan != null ? outerSpan : pos);
+        // the engine DOUBLES the _type key here (Jackson subtype + explicit property — probe "gft in let arg")
+        b.append(",\"type\":\"rootGraphFetchTree\",\"value\":{\"_type\":\"rootGraphFetchTree\",\"_type\":\"rootGraphFetchTree\",\"class\":");
+        str(b, gf.className());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pos);
+        b.append(",\"subTrees\":[");
+        graphNodes(b, gf.subTrees());
+        b.append("],\"subTypeTrees\":[]}}");
+    }
+
+    private static void graphNodes(StringBuilder b,
+            List<com.legend.protocol.spec.GraphFetchLiteral.Node> nodes) {
+        for (int i = 0; i < nodes.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            com.legend.protocol.spec.GraphFetchLiteral.Node n = nodes.get(i);
+            b.append("{\"_type\":\"propertyGraphFetchTree\",\"_type\":\"propertyGraphFetchTree\",\"parameters\":[],\"property\":");
+            str(b, n.property());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, requirePos(n.pos(), "graph-fetch property " + n.property()));
+            b.append(",\"subTrees\":[");
+            graphNodes(b, n.subTrees());
+            b.append("],\"subTypeTrees\":[]}");
+        }
     }
 
     /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */

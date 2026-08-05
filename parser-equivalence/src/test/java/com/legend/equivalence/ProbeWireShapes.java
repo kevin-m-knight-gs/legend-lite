@@ -369,6 +369,22 @@ class ProbeWireShapes {
                   #{x1::X {a, k {b}}}#;
                 }
                 """);
+        dump("gft in let arg", """
+                function y1::a(): Any[*]
+                {
+                  let t = z()->add(#{I {s, f}}#);
+                }
+                function y1::b(): Any[*]
+                {
+                  #{I {s}}#;
+                }
+                """);
+        dump("gft as let value", """
+                function y2::a(): Any[*]
+                {
+                  let t = #{I {s, f}}#;
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

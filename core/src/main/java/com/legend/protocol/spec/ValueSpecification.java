@@ -51,6 +51,7 @@ public sealed interface ValueSpecification permits
         CFloat,
         CInteger,
         CLatestDate,
+        GraphFetchLiteral,
         PathLiteral,
         CString,
         CTime,
@@ -79,6 +80,7 @@ public sealed interface ValueSpecification permits
     default java.util.List<ValueSpecification> children() {
         return switch (this) {
             case PathLiteral pl -> java.util.List.of(pl.desugared());
+            case GraphFetchLiteral gf -> java.util.List.of(gf.desugared());
             case CBoolean ignored -> java.util.List.of();
             case CDate ignored -> java.util.List.of();
             case CDecimal ignored -> java.util.List.of();
@@ -126,6 +128,8 @@ public sealed interface ValueSpecification permits
             case PathLiteral pl -> new PathLiteral(pl.startType(), pl.segments(),
                     (LambdaFunction) cs.get(0), pl.alias(), pl.hasDatedSegment(),
                     pl.pos(), pl.literalLength());
+            case GraphFetchLiteral gf -> new GraphFetchLiteral(gf.className(),
+                    gf.subTrees(), cs.get(0), gf.unsupported(), gf.pos());
             case CBoolean ignored -> this;
             case CDate ignored -> this;
             case CDecimal ignored -> this;

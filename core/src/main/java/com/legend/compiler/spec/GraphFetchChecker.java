@@ -231,6 +231,11 @@ final class GraphFetchChecker {
      * arity message stands.
      */
     private static ValueSpecification unwrapCompiledTree(ValueSpecification v) {
+        // the wire-facing literal carrier dissolves to its desugared tree on
+        // first checker touch (same rule as PathLiteral in the resolver)
+        if (v instanceof com.legend.protocol.spec.GraphFetchLiteral gf) {
+            return gf.desugared();
+        }
         if (v instanceof AppliedFunction c
                 && (c.function().equals("cast")
                         || c.function().equals("meta::pure::functions::lang::cast"))

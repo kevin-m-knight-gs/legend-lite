@@ -281,6 +281,12 @@ class SpecChildrenContractsTest {
         if (type == RelationalOperation.class) {
             return new RelationalOperation.Literal("x");
         }
+        // self-recursive record (Node holds List<Node>) — the generic builder
+        // would recurse forever; pin a leaf
+        if (type == com.legend.protocol.spec.GraphFetchLiteral.Node.class) {
+            return new com.legend.protocol.spec.GraphFetchLiteral.Node(
+                    "p", null, List.of());
+        }
         if (type.isRecord()) {
             return build(type);
         }

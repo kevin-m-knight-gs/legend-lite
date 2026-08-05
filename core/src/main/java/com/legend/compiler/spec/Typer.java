@@ -127,6 +127,7 @@ final class Typer {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
             case PathLiteral pl -> synth(pl.desugared(), env);
+            case com.legend.protocol.spec.GraphFetchLiteral gf -> synth(gf.desugared(), env);
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));
