@@ -1113,7 +1113,7 @@ shared source registered by several families cannot double-count. Run with
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
-- 2x unknown function 'SimpleDateTimeFormat' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- 2x in function 'meta::relational::tests::csv::toCSVString': unknown type 'TDSNull' in @TDSNull
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
@@ -1314,10 +1314,10 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR columnValueDifferenceTest [tds/tests]: unknown function 'SimpleDateTimeFormat' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- ERROR columnValueDifferenceTest [tds/tests]: in function 'meta::relational::tests::csv::toCSVString': unknown type 'TDSNull' in @TDSNull
 - ERROR columnValueDifferenceWithoutPrevalTest [tds/tests]: store resolution left getAll(meta::relational::tests::model::simple::Trade) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedMap > TypedLambda > TypedNativeCall > TypedCollection > TypedPropertyAccess > TypedFrom > TypedSort > TypedConcate
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call — wall: no overload of 'meta::pure::functions::relation::join' structurally matches the argument types (ExprType[type=RelationType[columns=[Column[name=name, type=STRING, multiplicity=Bounded[lower=1, upper=1]], Column[name=score, type=INTEGER, multiplicity=Bounded[lower=1, upp
-- ERROR rowValueDifferenceTest [tds/tests]: unknown function 'SimpleDateTimeFormat' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- ERROR rowValueDifferenceTest [tds/tests]: in function 'meta::relational::tests::csv::toCSVString': unknown type 'TDSNull' in @TDSNull
 - SHAPE testExtendDigest_InMemory [tds/tests]: no execute(|...) call — wall: cannot access 'name' on String
 - ERROR testExtendDigest_Relational [tds/tests]: cannot access 'name' on String
 - SHAPE testFirstNotNull [tds/tests]: no execute(|...) call [calls meta::pure::tds::extensions] — wall: unresolved type variable T reached the lowering boundary

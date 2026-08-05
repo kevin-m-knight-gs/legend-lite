@@ -72,6 +72,20 @@ public class RelationalCorpusRunner {
                   $set->filter(v | $v != TDSNull)->first();
                 }
                 """,
+                // engine-core date-format constants (VERBATIM from
+                // core/pure/corefunctions/dateExtension.pure:384-392 —
+                // the corpus's toCSV date rendering)
+                """
+                function meta::pure::functions::date::SimpleDateTimeFormat():String[1]
+                {
+                   '%t{yyyy-MM-dd HH:mm:ss}';
+                }
+
+                function meta::pure::functions::date::ISO8601DateFormat():String[1]
+                {
+                   '%t{yyyy-MM-dd}';
+                }
+                """,
                 // engine-core geo distances (VERBATIM from
                 // core/pure/corefunctions/mathExtension.pure:15-48 —
                 // the olap rank fail-stubs are not carried)

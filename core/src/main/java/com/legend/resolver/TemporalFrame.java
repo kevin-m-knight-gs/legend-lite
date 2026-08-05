@@ -1341,6 +1341,17 @@ final class TemporalFrame {
         TypedTableReference root = rootTable(pipe);
         var ms = root == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
+        return stampWithBlock(pipe, date, strategy, classFqn, root, ms);
+    }
+
+    /** The window/snapshot stamp with the milestoning BLOCK supplied —
+     *  the for-each-date pipe passes the BASE pipe's block (rootTable on
+     *  the joined pipe would find the DATES side and silently skip). */
+    private TypedSpec stampWithBlock(TypedSpec pipe, TypedSpec date,
+            MilestoningStrategy strategy, String classFqn,
+            @com.legend.Nullable TypedTableReference root,
+            com.legend.model.DatabaseDefinition.TableDefinition
+                    .@com.legend.Nullable Milestoning ms) {
         String fromCol;
         String thruCol;
         String snapCol;
@@ -2447,6 +2458,12 @@ final class TemporalFrame {
         return false;
     }
 
+    /** The for-each-date DATES column on the joined row — when set, the
+     *  generated businessDate/processingDate reads THIS column (the
+     *  engine projects the calendar date per row), overriding the
+     *  table-derived sweep column. */
+    private @com.legend.Nullable String forEachDateColumn;
+
     /** The generated milestone-struct leaf -> physical column map for the
      * pipe's root table, by the class's temporal dimension. */
     Map<String, String> milestoneColumnsOf(TypedSpec pipe, String classFqn) {
@@ -2455,9 +2472,19 @@ final class TemporalFrame {
         var ms = root == null || strat == null ? null
                 : ctx.findTableMilestoning(root.store(), root.table()).orElse(null);
         if (ms == null) {
+            if (forEachDateColumn != null && strat != null) {
+                return Map.of(strat == MilestoningStrategy.PROCESSING
+                        ? GEN_PROCESSING_DATE : GEN_BUSINESS_DATE,
+                        forEachDateColumn);
+            }
             return Map.of();
         }
         Map<String, String> out = new LinkedHashMap<>();
+        if (forEachDateColumn != null && strat != null) {
+            out.put(strat == MilestoningStrategy.PROCESSING
+                    ? GEN_PROCESSING_DATE : GEN_BUSINESS_DATE,
+                    forEachDateColumn);
+        }
         if (strat != MilestoningStrategy.PROCESSING && ms.business() != null) {
             var b = ms.business();
             if (b.from() != null) {
@@ -2476,7 +2503,7 @@ final class TemporalFrame {
             String gen = b.snapshotDate() != null ? b.snapshotDate()
                     : b.thruIsInclusive() ? b.thru() : b.from();
             if (gen != null) {
-                out.put(GEN_BUSINESS_DATE, gen);
+                out.putIfAbsent(GEN_BUSINESS_DATE, gen);
             }
         }
         if (strat != MilestoningStrategy.BUSINESS && ms.processing() != null) {
@@ -2600,6 +2627,77 @@ final class TemporalFrame {
      * loud if the catalog ever gains a second one, so a reorder can never
      * silently stamp a different signature.
      */
+    /** The FOR-EACH-DATE extent (engine getAllForEachDate,
+     *  golden testGetAllForEachDate.pure:85): the resolved DATES relation
+     *  cross-joins the class extent and the milestoning window stamps the
+     *  JOINED row, its date operand reading the dates COLUMN off the same
+     *  stamp row var — {@code from <= d.date and thru > d.date} per date.
+     *  The block comes from the BASE pipe's root table (rootTable on the
+     *  joined pipe would find the DATES side and silently skip); the
+     *  generated businessDate registers as the dates column
+     *  ({@link #milestoneColumnsOf}). */
+    TypedSpec forEachDatePipe(TypedSpec base, TypedSpec datesRel,
+            String classFqn) {
+        MilestoningStrategy strategy = temporalStrategy(classFqn);
+        if (strategy == null) {
+            throw new MappingResolutionException("getAllForEachDate of '"
+                    + classFqn + "': the class declares no temporal"
+                    + " stereotype", classFqn);
+        }
+        if (strategy == MilestoningStrategy.BITEMPORAL) {
+            throw new MappingResolutionException("getAllForEachDate of the"
+                    + " bi-temporal class '" + classFqn
+                    + "' is not supported yet", classFqn);
+        }
+        if (!(datesRel.info().type() instanceof Type.RelationType dRow)
+                || dRow.columns().size() != 1) {
+            throw new MappingResolutionException("getAllForEachDate of '"
+                    + classFqn + "': the dates argument must resolve to a"
+                    + " ONE-column relation", classFqn);
+        }
+        Type.Column dCol = dRow.columns().get(0);
+        Type.RelationType bRow = (Type.RelationType) base.info().type();
+        java.util.List<Type.Column> joinedCols =
+                new java.util.ArrayList<>(dRow.columns());
+        joinedCols.addAll(bRow.columns());
+        Type.RelationType joinedRow = new Type.RelationType(joinedCols);
+        var one = Multiplicity.Bounded.ONE;
+        ExprType boolT = new ExprType(Type.Primitive.BOOLEAN, one);
+        TypedLambda onTrue = new TypedLambda(
+                java.util.List.of("_fed_d", "_fed_p"),
+                java.util.List.of(
+                        new com.legend.compiler.spec.typed.TypedCBoolean(
+                                true, boolT)),
+                new ExprType(new Type.FunctionType(
+                        java.util.List.of(new Type.Param(dRow, one),
+                                new Type.Param(bRow, one)),
+                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+        var kind = new com.legend.compiler.spec.typed.TypedEnumValue(
+                "meta::pure::functions::relation::JoinKind", "LEFT",
+                new ExprType(new Type.EnumType(
+                        "meta::pure::functions::relation::JoinKind"), one));
+        TypedSpec joined = new com.legend.compiler.spec.typed.TypedJoin(
+                datesRel, base, kind, onTrue, java.util.Optional.empty(),
+                null, new ExprType(joinedRow,
+                        Multiplicity.Bounded.ZERO_MANY));
+        TypedSpec dateRead = new TypedPropertyAccess(
+                new com.legend.compiler.spec.typed.TypedVariable(
+                        STAMP_ROW_VAR, new ExprType(joinedRow, one)),
+                dCol.name(), new ExprType(dCol.type(), one));
+        TypedTableReference baseRoot = rootTable(base);
+        var baseMs = baseRoot == null ? null
+                : ctx.findTableMilestoning(baseRoot.store(), baseRoot.table())
+                        .orElse(null);
+        if (baseMs == null) {
+            throw new MappingResolutionException("getAllForEachDate of '"
+                    + classFqn + "': the mapped table declares no"
+                    + " milestoning block", classFqn);
+        }
+        forEachDateColumn = dCol.name();
+        return stampWithBlock(joined, dateRead, strategy, classFqn,
+                baseRoot, baseMs);
+    }
+
     private TypedSpec cmpCall(String fqn, TypedSpec a, TypedSpec b,
             ExprType out) {
         var fns = ctx.findFunction(fqn).stream()

@@ -214,11 +214,9 @@ public final class StoreResolver {
         return fns.get(0);
     }
 
-    /**
-     * POST-CONDITION (core/README rule 9): no {@code TypedGetAll} or
-     * {@code TypedUserCall} survives store resolution — a RESOLVER-phase
-     * gap named as such, with its ancestry path.
-     */
+    /** POST-CONDITION (core/README rule 9): no {@code TypedGetAll} or
+     *  {@code TypedUserCall} survives store resolution — a RESOLVER-phase
+     *  gap named as such, with its ancestry path. */
     static void assertNoStoreOnlyEscapees(TypedSpec n) {
         assertNoStoreOnlyEscapees(n, "root");
     }
@@ -1847,6 +1845,9 @@ public final class StoreResolver {
             materializedPipe = g.milestoning().isEmpty() ? basePipe
                     : temporal.rangeMilestonedPipe(basePipe, g.milestoning().get(0),
                             g.milestoning().get(1), g.classFqn());
+        } else if (g.forEachDate()) {
+            materializedPipe = temporal.forEachDatePipe(basePipe,
+                    g.milestoning().get(0), g.classFqn());
         } else if (g.milestoning().size() == 2
                 && temporal.temporalStrategy(g.classFqn()) == MilestoningStrategy.BITEMPORAL) {
             // BI-TEMPORAL fetch: .all(processingDate, businessDate) — real
@@ -2663,12 +2664,8 @@ public final class StoreResolver {
             if (cur instanceof TypedPropertyAccess hp
                     && hp.info().type() instanceof Type.ClassType
                     && hp.source().info().type() instanceof Type.ClassType oc) {
-                // ASSOCIATION hops and NAVIGATE-SLOT-mapped class properties
-                // both flatten (flattenSource routes by the hop's mapping);
-                // a genuinely EMBEDDED hop falls to the association route's
-                // own loud wall downstream (#63: testChainedFiltersGet's
-                // 'locations' is a plain Join-PM class property, not an
-                // association — the old guard rejected it here).
+                // ASSOCIATION hops and NAVIGATE-SLOT-mapped class props both
+                // flatten; truly EMBEDDED hops hit the assoc loud wall (#63).
                 flattenHops.add(hp.property());
                 flatSegs.add(new ArrayList<>());
                 cur = hp.source();
@@ -2690,6 +2687,12 @@ public final class StoreResolver {
             };
         }
         TypedGetAll g = (TypedGetAll) cur;
+        if (g.forEachDate()) {
+            g = new TypedGetAll(g.classFqn(), List.of(   // dates resolve NOW
+                    SubQueryLift.resolveDatesRelation(g.milestoning().get(0),
+                            chainContext, ctx, specs, letBindings)),
+                    false, true, g.info());
+        }
         if (g.milestoning().size() > 2) {
             throw new MappingResolutionException("class fetch of '"
                     + g.classFqn() + "' with " + g.milestoning().size()
@@ -2698,9 +2701,8 @@ public final class StoreResolver {
 
         if (g.milestoning().isEmpty() && !g.versionSweep()
                 && temporal.temporalStrategy(g.classFqn()) != null) {
-            // engine: .all() on a temporal class REQUIRES a date argument
-            // (allVersions() = sweep) — unfiltered extent would silently
-            // return every version as a row
+            // engine: .all() on a temporal class REQUIRES a date argument —
+            // an unfiltered extent silently returns every version
             throw new MappingResolutionException("fetch of temporal class '"
                     + g.classFqn() + "' requires a milestoning date argument"
                     + " (use allVersions() for the unfiltered extent)",
@@ -2709,7 +2711,8 @@ public final class StoreResolver {
         // M3 temporal context: fresh ROOT frame per getAll (audit 10);
         // calculus = engine getMilestoningContextForAll (M:830-844)
         temporal = TemporalFrame.rootFrame(ctx, sources, letBindings,
-                g.milestoning(), g.versionSweep(), g.classFqn());
+                g.forEachDate() ? List.of() : g.milestoning(),
+                g.versionSweep(), g.classFqn());
         final Context fctx = chainContext;
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
                 (t9, ex9) -> sources.dispatch(fctx.explicitMapping(),

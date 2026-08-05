@@ -122,6 +122,56 @@ final class SubQueryLift {
         return true;
     }
 
+    /** getAllForEachDate's DATES argument as a RESOLVED one-column
+     *  relation ({@code Calendar.all()->filter(...).calendarDate} — the
+     *  property-terminal chain becomes a project, resolved through a
+     *  fresh resolver exactly like the scalar-subquery path, but KEEPS
+     *  its many-row relation identity: it is the for-each FROM root). */
+    static TypedSpec resolveDatesRelation(TypedSpec datesArg,
+            StoreResolver.Context context, ModelContext ctx,
+            SpecCompiler specs, Map<String, TypedSpec> letBindings) {
+        if (!(datesArg instanceof TypedPropertyAccess pa)
+                || !(pa.source().info().type() instanceof Type.ClassType ct)) {
+            throw new com.legend.error.NotImplementedException(
+                    "getAllForEachDate dates argument shape "
+                    + datesArg.getClass().getSimpleName()
+                    + " is not supported yet (property-terminal class"
+                    + " chains only)");
+        }
+        var one = Multiplicity.Bounded.ONE;
+        String v = "_fed";
+        TypedSpec read = new TypedPropertyAccess(
+                new TypedVariable(v, new ExprType(ct, one)),
+                pa.property(), pa.info());
+        TypedLambda mapper = new TypedLambda(List.of(v), List.of(read),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(ct, one)),
+                        new Type.Param(read.info().type(),
+                                read.info().multiplicity())), one));
+        Type.RelationType row = new Type.RelationType(List.of(
+                new Type.Column(pa.property(), read.info().type(), one)));
+        TypedProject proj = new TypedProject(pa.source(),
+                List.of(new TypedFuncCol(pa.property(), mapper)),
+                new ExprType(row, Multiplicity.Bounded.ZERO_MANY));
+        Optional<TypedPackageableRef> m = context.explicitMapping() == null
+                ? Optional.empty()
+                : Optional.of(new TypedPackageableRef(
+                        context.explicitMapping(), proj.info()));
+        Optional<TypedPackageableRef> r = context.runtimeFqn() == null
+                ? Optional.empty()
+                : Optional.of(new TypedPackageableRef(
+                        context.runtimeFqn(), proj.info()));
+        TypedSpec wrapped = new TypedFrom(proj, m, r,
+                context.chainMappings(), context.jsonSources(), proj.info());
+        TypedSpec resolved = new StoreResolver(ctx, specs)
+                .withLetBindings(letBindings)
+                .resolve(List.of(wrapped), null).get(0);
+        while (resolved instanceof TypedFrom fr) {
+            resolved = fr.source();
+        }
+        return resolved;
+    }
+
     private static TypedSpec resolveScalarRead(TypedSpec chain,
             TypedPropertyAccess pa, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
