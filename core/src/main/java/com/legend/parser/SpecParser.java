@@ -465,10 +465,10 @@ public final class SpecParser implements TokenStreamCursor {
                 // Engine convention: equal (and the not wrapping a !=) span the
                 // OPERATOR TOKEN only — unlike comparisons, which span op..RHS.
                 AppliedFunction eq = new AppliedFunction("equal", List.of(expr, right),
-                        List.of(), spanOf(opTok, opTok)).asInfix();
+                        List.of(), spanOf(opTok, opTok), false, false, true);
                 expr = (t == TokenType.TEST_EQUAL) ? eq
                         : new AppliedFunction("not", List.of(eq), List.of(),
-                                spanOf(opTok, opTok)).asInfix();
+                                spanOf(opTok, opTok), false, false, true);
             }
         }
         return expr;
@@ -499,13 +499,13 @@ public final class SpecParser implements TokenStreamCursor {
                 // Engine convention (ProbeWireShapes cNeg): unary minus is a ONE-parameter
                 // func (no collection) spanning just the operator token.
                 return new AppliedFunction("minus", List.of(parseExpression()),
-                        List.of(), spanOf(opTok, opTok)).asInfix();
+                        List.of(), spanOf(opTok, opTok), false, false, true);
             }
             if (t == TokenType.PLUS) {
                 int opTok = pos;
                 pos++;
                 return new AppliedFunction("plus", List.of(parseExpression()),
-                        List.of(), spanOf(opTok, opTok)).asInfix();
+                        List.of(), spanOf(opTok, opTok), false, false, true);
             }
         }
         return parsePrimary();
@@ -559,7 +559,7 @@ public final class SpecParser implements TokenStreamCursor {
         }
         // Engine convention: and/or span the OPERATOR TOKEN only.
         return new AppliedFunction(fn, List.of(left, right), List.of(),
-                spanOf(opTok, opTok)).asInfix();
+                spanOf(opTok, opTok), false, false, true);
     }
 
     /**
@@ -615,7 +615,7 @@ public final class SpecParser implements TokenStreamCursor {
                 right = parseArithmeticClimb(right, precedenceOf(peek()));
             }
             left = new AppliedFunction(fn, List.of(left, right), List.of(),
-                    spanOf(runStartOp, rhsEnd)).asInfix();
+                    spanOf(runStartOp, rhsEnd), false, false, true);
         }
         return left;
     }
@@ -2008,12 +2008,17 @@ public final class SpecParser implements TokenStreamCursor {
             // when a spec terminator follows — anything else backtracks to the lambda
             // path ('Target.all()' parses as the type 'Target' but the '.' refutes it)
             int colonMark = pos;
-            ColSpec typed = tryTypedColSpec(name, nameTokIdx, csStereotypes,
-                    csTaggedValues);
-            if (typed != null) {
-                return typed;
+            // CHEAP token-shape pre-check first: the exception-backtracking attempt was
+            // 2.2x parse-time on braced-lambda colspecs (corpus gate profile) — only
+            // attempt the type parse when the tokens actually spell a type
+            if (looksLikeColumnType()) {
+                ColSpec typed = tryTypedColSpec(name, nameTokIdx, csStereotypes,
+                        csTaggedValues);
+                if (typed != null) {
+                    return typed;
+                }
+                pos = colonMark;
             }
-            pos = colonMark;
             function1 = parseColumnLambda();
             if (!atEnd() && peek() == TokenType.COLON) {
                 pos++; // consume ':'
@@ -2048,6 +2053,62 @@ public final class SpecParser implements TokenStreamCursor {
     /** {@link #parseOneColSpec}'s TYPED attempt: a type (with optional multiplicity)
      *  followed immediately by a spec terminator, or {@code null} (cursor position is the
      *  caller's to restore). */
+    /**
+     * Zero-allocation lookahead: do the tokens after {@code :} spell a TYPE
+     * ({@code FQN (<...>)? ((...))? ([mult])?}) followed immediately by a spec
+     * terminator? Anything else — lambdas, thunk calls, literals — skips the typed
+     * attempt entirely (hot path: no exceptions, no backtracking).
+     */
+    private boolean looksLikeColumnType() {
+        int k = pos;
+        int n = tokens.count();
+        if (k >= n || !isFqnSegmentToken(tokens.type(k))) {
+            return false;
+        }
+        k++;
+        while (k + 1 < n && tokens.type(k) == TokenType.PATH_SEPARATOR
+                && isFqnSegmentToken(tokens.type(k + 1))) {
+            k += 2;
+        }
+        if (k < n && tokens.type(k) == TokenType.LESS_THAN) {
+            int depth = 1;
+            k++;
+            while (k < n && depth > 0) {
+                TokenType t = tokens.type(k);
+                if (t == TokenType.LESS_THAN) depth++;
+                else if (t == TokenType.GREATER_THAN) depth--;
+                k++;
+            }
+        }
+        if (k < n && tokens.type(k) == TokenType.PAREN_OPEN) {
+            int depth = 1;
+            k++;
+            while (k < n && depth > 0) {
+                TokenType t = tokens.type(k);
+                if (t == TokenType.PAREN_OPEN) depth++;
+                else if (t == TokenType.PAREN_CLOSE) depth--;
+                k++;
+            }
+        }
+        if (k < n && tokens.type(k) == TokenType.BRACKET_OPEN) {
+            int depth = 1;
+            k++;
+            while (k < n && depth > 0) {
+                TokenType t = tokens.type(k);
+                if (t == TokenType.BRACKET_OPEN) depth++;
+                else if (t == TokenType.BRACKET_CLOSE) depth--;
+                k++;
+            }
+        }
+        if (k >= n) {
+            return true;
+        }
+        TokenType t = tokens.type(k);
+        return t == TokenType.COMMA || t == TokenType.BRACKET_CLOSE
+                || t == TokenType.SEMI_COLON || t == TokenType.PAREN_CLOSE
+                || t == TokenType.BRACE_CLOSE;
+    }
+
     private @com.legend.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx,
             List<com.legend.protocol.Protocol.PStereotype> stereotypes,
             List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {

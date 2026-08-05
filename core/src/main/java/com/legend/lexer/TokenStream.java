@@ -145,19 +145,58 @@ public final class TokenStream {
         return offset - lineStarts()[lineOf(offset) - 1] + 1;
     }
 
+    /**
+     * Per-token line/column caches — spans are computed on nearly every parsed node
+     * (the byte-parity feature), and four binary searches per span measured as a
+     * uniform ~1.5x parse-time tax on the corpus gate. One monotonic pass builds all
+     * four arrays; same benign-racy lazy init as {@link #lineStarts}.
+     */
+    private volatile int @com.legend.Nullable [][] tokenPositions;
+
+    private int[][] tokenPositions() {
+        int[][] tp = tokenPositions;
+        if (tp == null) {
+            int[] ls = lineStarts();
+            int n = count();
+            int[] sl = new int[n];
+            int[] sc = new int[n];
+            int[] el = new int[n];
+            int[] ec = new int[n];
+            int line = 0;                            // 0-based index into ls
+            for (int i = 0; i < n; i++) {
+                int s = starts[i];
+                while (line + 1 < ls.length && ls[line + 1] <= s) {
+                    line++;
+                }
+                sl[i] = line + 1;
+                sc[i] = s - ls[line] + 1;
+                int e = Math.max(s, ends[i] - 1);
+                int eline = line;
+                while (eline + 1 < ls.length && ls[eline + 1] <= e) {
+                    eline++;
+                }
+                el[i] = eline + 1;
+                ec[i] = e - ls[eline] + 1;
+            }
+            tp = new int[][]{sl, sc, el, ec};
+            tokenPositions = tp;
+        }
+        return tp;
+    }
+
     /** 1-based line of the first character of token {@code i}. */
     public int startLine(int i) {
-        return lineOf(starts[i]);
+        return tokenPositions()[0][i];
     }
 
     /** 1-based column of the first character of token {@code i}. */
     public int startColumn(int i) {
-        return columnOf(starts[i]);
+        return tokenPositions()[1][i];
     }
 
     /** 1-based line of the LAST character of token {@code i} (ends are exclusive, so step back one). */
     public int endLine(int i) {
-        return lineOf(Math.max(starts[i], ends[i] - 1));
+        return tokenPositions()[2][i];
     }
 
     /**
@@ -165,7 +204,7 @@ public final class TokenStream {
      * the engine's convention, not a half-open bound.
      */
     public int endColumn(int i) {
-        return columnOf(Math.max(starts[i], ends[i] - 1));
+        return tokenPositions()[3][i];
     }
 
     /** Materialize the token at index {@code i} as a {@link Token} record. */
@@ -215,6 +254,13 @@ public final class TokenStream {
         System.arraycopy(types,  fromInclusive, tSlice, 0, len);
         System.arraycopy(starts, fromInclusive, sSlice, 0, len);
         System.arraycopy(ends,   fromInclusive, eSlice, 0, len);
-        return new TokenStream(source, len, tSlice, sSlice, eSlice);
+        TokenStream s = new TokenStream(source, len, tSlice, sSlice, eSlice);
+        // SHARE the parent's line index: rebuilding it rescans the WHOLE source per
+        // slice, and span-everywhere parsing made that quadratic (corpus-gate profile:
+        // the lineStarts/tokenPositions BUILD dominated every sample). lineStarts
+        // depends only on the shared source, so the reference is safe to share —
+        // trigger the parent's lazy build once and hand the array down.
+        s.lineStarts = lineStarts();
+        return s;
     }
 }
