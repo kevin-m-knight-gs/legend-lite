@@ -199,7 +199,15 @@ public final class ElementParser implements TokenStreamCursor {
                 case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
                 case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
                 default -> {
-                    if (depth == 0 && t == marker) {
+                    // keywords are legal identifiers in Pure ('function' packages,
+                    // 'Class<Any>' types, 'PCT.function' stereotype values) — a marker is
+                    // a DECLARATION only where one can start: at stream start (sections
+                    // are lexer-skipped), after a block close, or after a semicolon
+                    if (depth == 0 && t == marker
+                            && (i == 0 || ts.type(i - 1) == TokenType.BRACE_CLOSE
+                                    || ts.type(i - 1) == TokenType.SEMI_COLON)
+                            && (i + 1 >= ts.count()
+                                    || ts.type(i + 1) != TokenType.PATH_SEPARATOR)) {
                         out.add(i);
                     }
                 }
@@ -1738,6 +1746,18 @@ public final class ElementParser implements TokenStreamCursor {
         int startTok = pos;
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
         List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        // AGGREGATION KIND — (composite) / (shared) / (none); UPPERCASE on the wire
+        // (ProbeWireShapes "agg kind and varchar")
+        String aggregation = null;
+        if (peek() == TokenType.PAREN_OPEN) {
+            advance();
+            String kind = parseIdentifier();
+            if (!kind.equals("composite") && !kind.equals("shared") && !kind.equals("none")) {
+                throw error("unknown aggregation kind '(" + kind + ")'");
+            }
+            aggregation = kind.toUpperCase(java.util.Locale.ROOT);
+            expect(TokenType.PAREN_CLOSE);
+        }
         String name = parseIdentifier();
         expect(TokenType.COLON);
         TypeExpression type = parseType();   // parseType threads the type's own span onto the node
@@ -1780,7 +1800,7 @@ public final class ElementParser implements TokenStreamCursor {
         // token span of this property is in hand. No side table, no second pass.
         return new com.legend.protocol.Protocol.PProperty(
                 name, type, mult, stereotypes, taggedValues,
-                span(startTok, pos - 1), defaultValue);
+                span(startTok, pos - 1), defaultValue, aggregation);
     }
 
     /** A {@link com.legend.protocol.SourceInfo} for an inclusive token range. */

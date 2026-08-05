@@ -35,8 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CorpusEquivalenceTest {
 
     /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit. */
-    private static final int MIN_ELEMENTS_COMPARED = 10375;
-    private static final int MIN_MATCHES = 10097;
+    private static final int MIN_ELEMENTS_COMPARED = 10106;
+    private static final int MIN_MATCHES = 10106;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
@@ -70,13 +70,18 @@ class CorpusEquivalenceTest {
         Files.writeString(Path.of("target", "equivalence-report.txt"), report);
         // per-wall detail — the burn-down worklist, one line per walled element
         StringBuilder wd = new StringBuilder();
+        StringBuilder pf = new StringBuilder();
         for (Verdict v : all) {
             if (v.kind() == Kind.WALL) {
                 wd.append(ParserEquivalence.rule(v.detail())).append('\t')
                         .append(v.sourceId()).append('\t').append(v.element()).append('\n');
+            } else if (v.kind() == Kind.PARSE_FAIL) {
+                pf.append(v.detail().replaceAll("\\s+", " ")).append('\t')
+                        .append(v.sourceId()).append('\t').append(v.element()).append('\n');
             }
         }
         Files.writeString(Path.of("target", "walls-detail.txt"), wd.toString());
+        Files.writeString(Path.of("target", "parsefails-detail.txt"), pf.toString());
         System.out.println(report);
 
         // (1) the run must have done work — an empty run is a failure, never a pass

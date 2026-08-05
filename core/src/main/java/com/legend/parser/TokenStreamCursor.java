@@ -468,6 +468,29 @@ public interface TokenStreamCursor {
             name = name + "~" + text();
             advance();
         }
+        // precise primitives with TYPE-VARIABLE VALUES — Varchar(200), Numeric(10, 2):
+        // the wire's typeVariableValues; the rawType span covers the whole application
+        // (ProbeWireShapes "agg kind and varchar")
+        if (peek() == TokenType.PAREN_OPEN) {
+            advance();
+            List<com.legend.protocol.spec.ValueSpecification> tvv = new ArrayList<>();
+            while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                if (peek() == TokenType.COMMA) {
+                    advance();
+                    continue;
+                }
+                if (peek() != TokenType.INTEGER) {
+                    throw error("type variable values support integer literals only, got "
+                            + peek());
+                }
+                tvv.add(new com.legend.protocol.spec.CInteger(
+                        Long.parseLong(text()), spanOf(pos(), pos())));
+                advance();
+            }
+            expect(TokenType.PAREN_CLOSE);
+            return new TypeExpression.Generic(name, List.of(), List.of(), tvv,
+                    spanOf(startTok, pos() - 1));
+        }
         if (!match(TokenType.LESS_THAN)) {
             return new TypeExpression.NameRef(name, spanOf(startTok, pos() - 1));
         }

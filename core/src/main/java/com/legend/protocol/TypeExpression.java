@@ -97,25 +97,35 @@ public sealed interface TypeExpression {
      *  that resolving the head and resolving the arguments are obvious
      *  separate steps in any walk. */
     record Generic(String name, List<TypeExpression> arguments,
-            List<String> multiplicityArguments, @com.legend.Nullable SourceInfo pos)
+            List<String> multiplicityArguments,
+            List<com.legend.protocol.spec.ValueSpecification> typeVariableValues,
+            @com.legend.Nullable SourceInfo pos)
             implements TypeExpression {
         public Generic {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(arguments, "arguments");
             Objects.requireNonNull(multiplicityArguments, "multiplicityArguments");
+            Objects.requireNonNull(typeVariableValues, "typeVariableValues");
             arguments = List.copyOf(arguments);
             multiplicityArguments = List.copyOf(multiplicityArguments);
+            typeVariableValues = List.copyOf(typeVariableValues);
+        }
+
+        /** The angle-bracket form: no type-variable values ({@code X<T|m>}). */
+        public Generic(String name, List<TypeExpression> arguments,
+                List<String> multiplicityArguments, @com.legend.Nullable SourceInfo pos) {
+            this(name, arguments, multiplicityArguments, List.of(), pos);
         }
 
         /** Position-free form for synthesis and tests. */
         public Generic(String name, List<TypeExpression> arguments,
                 List<String> multiplicityArguments) {
-            this(name, arguments, multiplicityArguments, null);
+            this(name, arguments, multiplicityArguments, List.of(), null);
         }
 
         /** The common no-multiplicity-parameters form. */
         public Generic(String name, List<TypeExpression> arguments) {
-            this(name, arguments, List.of(), null);
+            this(name, arguments, List.of(), List.of(), null);
         }
 
         /** Position excluded — see {@link NameRef}; argument equality is

@@ -3000,7 +3000,10 @@ public final class SpecParser implements TokenStreamCursor {
             expect(TokenType.AT, "expected '@' in ->subType(@Type)");
             String subFqn = parseQualifiedName();
             expect(TokenType.PAREN_CLOSE, "expected ')' after ->subType type");
-            ColSpecArray nested = parseGraphDefinition(depth + 1);
+            // a LEAF subType view (no braces) fetches the subtype with no extra props
+            ColSpecArray nested = !atEnd() && peek() == TokenType.BRACE_OPEN
+                    ? parseGraphDefinition(depth + 1)
+                    : new ColSpecArray(List.of());
             LambdaFunction fn2 = new LambdaFunction(List.of(), List.of(nested));
             return new ColSpec("->subType", null, fn2, null,
                     List.of(new TypeAnnotation.Named(
@@ -3054,7 +3057,9 @@ public final class SpecParser implements TokenStreamCursor {
             expect(TokenType.AT, "expected '@' in ->subType(@Type)");
             String subFqn = parseQualifiedName();
             expect(TokenType.PAREN_CLOSE, "expected ')' after ->subType type");
-            ColSpecArray subBody = parseGraphDefinition(depth + 1);
+            ColSpecArray subBody = !atEnd() && peek() == TokenType.BRACE_OPEN
+                    ? parseGraphDefinition(depth + 1)
+                    : new ColSpecArray(List.of());
             ColSpec subChild = new ColSpec("->subType", null,
                     new LambdaFunction(List.of(), List.of(subBody)), null,
                     List.of(new TypeAnnotation.Named(

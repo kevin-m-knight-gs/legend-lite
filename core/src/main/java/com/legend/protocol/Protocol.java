@@ -295,10 +295,21 @@ public final class Protocol {
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation,
-                            @com.legend.Nullable PDefaultValue defaultValue) {
+                            @com.legend.Nullable PDefaultValue defaultValue,
+                            @com.legend.Nullable String aggregation) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);
+        }
+
+        /** The common no-aggregation-kind form. */
+        public PProperty(String name, com.legend.protocol.TypeExpression type,
+                         com.legend.protocol.Multiplicity multiplicity,
+                         List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
+                         com.legend.protocol.SourceInfo sourceInformation,
+                         @com.legend.Nullable PDefaultValue defaultValue) {
+            this(name, type, multiplicity, stereotypes, taggedValues,
+                    sourceInformation, defaultValue, null);
         }
     }
 

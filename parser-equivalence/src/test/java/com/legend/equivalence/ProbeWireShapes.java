@@ -488,6 +488,22 @@ class ProbeWireShapes {
                     t2 | b() => 'yy';
                 }
                 """);
+        dump("agg kind and varchar", """
+                Class z2::B { s: String[1]; }
+                Association z2::A
+                {
+                  a: z2::B[1];
+                  (shared) b: z2::B[1..*];
+                }
+                Class z2::C
+                {
+                  (composite) x: z2::B[1];
+                }
+                function z2::f(v: meta::pure::precisePrimitives::Varchar(200)[1]): String[*]
+                {
+                  'x';
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

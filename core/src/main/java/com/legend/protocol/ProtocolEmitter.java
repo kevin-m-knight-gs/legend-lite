@@ -348,8 +348,15 @@ public final class ProtocolEmitter {
 
     private static void property(StringBuilder b, PProperty p) {
         b.append('{');
+        if (p.aggregation() != null) {
+            // (shared)/(composite)/(none) — alphabetically FIRST
+            // (ProbeWireShapes "agg kind and varchar")
+            b.append("\"aggregation\":");
+            str(b, p.aggregation());
+            b.append(',');
+        }
         if (p.defaultValue() != null) {
-            // Alphabetically first among the property's fields. Outer span covers the whole
+            // Alphabetically next among the property's fields. Outer span covers the whole
             // default expression; the value node carries its own (identical for literals).
             b.append("\"defaultValue\":{\"sourceInformation\":");
             srcInfo(b, p.defaultValue().sourceInformation());
@@ -435,9 +442,11 @@ public final class ProtocolEmitter {
     private static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t) {
         switch (t) {
             case com.legend.protocol.TypeExpression.NameRef n ->
-                    genericTypeOf(b, n.name(), java.util.List.of(), java.util.List.of(), n.pos());
+                    genericTypeOf(b, n.name(), java.util.List.of(), java.util.List.of(),
+                            java.util.List.of(), n.pos());
             case com.legend.protocol.TypeExpression.Generic g ->
-                    genericTypeOf(b, g.name(), g.arguments(), g.multiplicityArguments(), g.pos());
+                    genericTypeOf(b, g.name(), g.arguments(), g.multiplicityArguments(),
+                            g.typeVariableValues(), g.pos());
             // (col:Type, ...): relationType rawType; neither the wrapper genericType nor
             // the relationType carries a span; undeclared column multiplicity is 0..1 ON
             // THE WIRE; column span = name (quotes included) .. type end (ProbeWireShapes
@@ -471,6 +480,7 @@ public final class ProtocolEmitter {
     private static void genericTypeOf(StringBuilder b, String path,
                                       List<com.legend.protocol.TypeExpression> args,
                                       List<String> multArgs,
+                                      List<com.legend.protocol.spec.ValueSpecification> typeVarValues,
                                       com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
         if (pos == null) {
             throw new UnsupportedOperationException(
@@ -497,7 +507,14 @@ public final class ProtocolEmitter {
             }
             genericType(b, args.get(i));
         }
-        b.append("],\"typeVariableValues\":[]}");
+        b.append("],\"typeVariableValues\":[");
+        for (int i = 0; i < typeVarValues.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            valueSpec(b, typeVarValues.get(i));
+        }
+        b.append("]}");
     }
 
     /**

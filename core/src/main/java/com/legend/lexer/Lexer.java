@@ -562,6 +562,13 @@ public final class Lexer {
         if (c == '.' && pos + 1 < length && source.charAt(pos + 1) == '.') {
             emit(TokenType.DOT_DOT, pos, pos + 2); pos += 2; return true;
         }
+        if (c == '.' && pos + 1 < length
+                && source.charAt(pos + 1) >= '0' && source.charAt(pos + 1) <= '9') {
+            // bare-fraction literal (.5) — the numeric scanner's fractional branch
+            // handles a zero-digit integer part
+            scanNumericLiteral();
+            return true;
+        }
         if (c == '&' && pos + 1 < length && source.charAt(pos + 1) == '&') {
             emit(TokenType.AND, pos, pos + 2); pos += 2; return true;
         }
