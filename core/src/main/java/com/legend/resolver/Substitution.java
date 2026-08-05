@@ -1730,14 +1730,8 @@ final class Substitution {
                     && f.source() instanceof TypedVariable fv
                     && fv.name().equals(target.userVar())
                     && f.predicate().parameters().size() == 1
-                    && f.predicate().body().size() == 1 -> {
-                TypedSpec pred = inlineParam(f.predicate().body().get(0),
-                        f.predicate().parameters().get(0), f.source());
-                yield new TypedIf(rewrite(pred),
-                        rewrite(new TypedPropertyAccess(f.source(),
-                                pa.property(), pa.info())),
-                        java.util.Optional.empty(), pa.info());
-            }
+                    && f.predicate().body().size() == 1 ->
+                    filteredInstanceRead(pa, f);
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
                     java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
@@ -1756,7 +1750,16 @@ final class Substitution {
                     && ni.properties().containsKey(pa.property()) ->
                     rewrite(ni.properties().get(pa.property()));
             // structural family: children rewrite, withChildren reassembles
-            case TypedPropertyAccess pa -> pa.mapChildren(this::rewrite);
+            // — with the instance FOLD-THROUGH: a source that itself
+            // folded to a ^X(k=v) literal feeds the outer read
+            // ($host.coord.latitude chains fold hop by hop)
+            case TypedPropertyAccess pa -> rebuildWithInstanceFold(pa);
+            // a HOST literal instance passes through with its property
+            // VALUES rewritten — downstream consumers (an inlined user
+            // fn's property reads, the struct-value lowering) take it
+            // from there
+            case com.legend.compiler.spec.typed.TypedNewInstance ni ->
+                    ni.mapChildren(this::rewrite);
             case TypedMilestonedAccess ma -> ma.mapChildren(this::rewrite);
             case TypedNativeCall c -> {
                 // A REDUCER call whose collection arg is an object-space
@@ -1885,6 +1888,32 @@ final class Substitution {
                                         ? shape.substring(0, 220) + "…" : shape));
             }
         };
+    }
+
+    /** Leaf read through a filter on the INSTANCE itself (engine golden
+     *  testConcatenateWithFilter: CASE WHEN pred THEN leaf ELSE NULL). */
+    private TypedSpec filteredInstanceRead(TypedPropertyAccess pa, TypedFilter f) {
+        TypedSpec pred = inlineParam(f.predicate().body().get(0),
+                f.predicate().parameters().get(0), f.source());
+        return new TypedIf(rewrite(pred),
+                rewrite(new TypedPropertyAccess(f.source(),
+                        pa.property(), pa.info())),
+                java.util.Optional.empty(), pa.info());
+    }
+
+    /** Structural rebuild with the instance FOLD-THROUGH: a source that
+     *  itself folded to a {@code ^X(k=v)} literal feeds the outer read
+     *  ({@code $host.coord.latitude} chains fold hop by hop). */
+    private TypedSpec rebuildWithInstanceFold(TypedPropertyAccess pa) {
+        TypedSpec rebuilt = pa.mapChildren(this::rewrite);
+        if (rebuilt instanceof TypedPropertyAccess rp
+                && rp.source() instanceof
+                        com.legend.compiler.spec.typed.TypedNewInstance ni
+                && ni.properties().containsKey(rp.property())) {
+            return rewrite(java.util.Objects.requireNonNull(
+                    ni.properties().get(rp.property())));
+        }
+        return rebuilt;
     }
 
     /** {@code $p.head.leaf}: embedded ctor look-through, or association leaf. */
