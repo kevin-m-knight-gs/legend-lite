@@ -173,13 +173,43 @@ public class RelationalCorpusRunner {
             }
         }
 
+        // THE DENOMINATOR, stated by the discovery path itself — no external
+        // grep, no arithmetic, nothing to argue with. Every core_relational
+        // test is either runnable or excluded-with-a-named-reason.
+        Map<String, Long> byReason = Runner.CENSUS_EXCLUDED.values().stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        r -> r == null ? "unknown" : r,
+                        java.util.TreeMap::new,
+                        java.util.stream.Collectors.counting()));
+        int runnable = Runner.CENSUS_RUNNABLE.size();
+        int excluded = Runner.CENSUS_EXCLUDED.size();
+        String census = "\n## Census (core_relational)\n\n"
+                + "| | count |\n|---|---:|\n"
+                + "| **total `<<test.Test>>` functions** | **" + (runnable + excluded) + "** |\n"
+                + "| runnable (this scoreboard) | " + runnable + " |\n"
+                + "| excluded by stereotype | " + excluded + " |\n"
+                + byReason.entrySet().stream()
+                        .map(e -> "| …`<<test." + e.getKey() + ">>` | " + e.getValue() + " |\n")
+                        .collect(java.util.stream.Collectors.joining())
+                + "\nCounted by the discovery path (`Runner.discoverTests`), keyed by test FQN so a\n"
+                + "shared source registered by several families cannot double-count. Run with\n"
+                + "`-Drcorpus.includeExcluded` to run the excluded ones too.\n";
+        System.out.println("[rcorpus] census: " + (runnable + excluded)
+                + " total, " + runnable + " runnable, " + excluded
+                + " excluded " + byReason
+                + (Runner.INCLUDE_EXCLUDED ? "  (INCLUDED THIS RUN)" : ""));
+
         String header = "# Relational corpus scoreboard (real legend-engine core_relational)\n\n"
                 + "RUN-as-data over the local legend-engine checkout; row equality is the\n"
                 + "contract, golden SQL is advisory. SHAPE = test body/assert form the\n"
                 + "runner does not yet recognize (accounted, not skipped silently).\n"
                 + "Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness\n"
                 + "parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the\n"
-                + "in-process Alloy-shaped path).\n";
+                + "in-process Alloy-shaped path)"
+                + (Runner.INCLUDE_EXCLUDED
+                        ? " — BUT THIS RUN INCLUDED THEM\n(-Drcorpus.includeExcluded).\n"
+                        : ".\n")
+                + census;
         List<String> seedFails = runner.seedFailures();
         if (!seedFails.isEmpty()) {
             StringBuilder sf = new StringBuilder("\n## Failed seed statements ("
@@ -198,7 +228,8 @@ public class RelationalCorpusRunner {
         // said "do not commit the rewritten scoreboard", which is advice, not
         // a mechanism. Compute the verdict here; write only when clean.
         List<String> regressions = new ArrayList<>();
-        if (System.getProperty("rcorpus.test", "").trim().isEmpty()) {
+        if (System.getProperty("rcorpus.test", "").trim().isEmpty()
+                && !Runner.INCLUDE_EXCLUDED) {
             byFamily.forEach((f, outs) -> {
                 long p = outs.stream()
                         .filter(o -> o.status() == Runner.Status.PASS).count();
@@ -263,7 +294,17 @@ public class RelationalCorpusRunner {
                     + " ms");
             return;
         }
-        if (onlyFilters.isEmpty() && regressions.isEmpty()) {
+        if (onlyFilters.isEmpty() && Runner.INCLUDE_EXCLUDED) {
+            // the 100% ledger is a DIFFERENT denominator (it runs the
+            // upstream-skipped tests), so it gets its own file and never
+            // touches the DuckDB baseline — same rule as the H2 sweep.
+            // Promoting it would make every later normal run look like a
+            // mass regression.
+            Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS_ALL.md"), byFamily,
+                    runner.walls(), header);
+            System.out.println("[rcorpus] 100% ledger written to"
+                    + " docs/RELATIONAL_CORPUS_ALL.md (baseline untouched)");
+        } else if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);
         } else if (onlyFilters.isEmpty()) {
