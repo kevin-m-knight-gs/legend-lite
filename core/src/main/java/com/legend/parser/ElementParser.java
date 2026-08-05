@@ -1070,10 +1070,26 @@ public final class ElementParser implements TokenStreamCursor {
         List<ValueSpecification> body = SpecParser.parseCodeBlock(tokens.slice(bodyStart, pos));
         expect(TokenType.BRACE_CLOSE);
 
+        // Optional TEST-SUITE block: `function f(...) { body } { suite... }` (legend-testable).
+        // Consumed into the declaration span (the wire's function span covers it); content
+        // walls at the emitter until the tests wire shape is probed.
+        boolean hasTests = false;
+        if (peek() == TokenType.BRACE_OPEN) {
+            hasTests = true;
+            advance();
+            int d = 1;
+            while (!atEnd() && d > 0) {
+                TokenType t = peek();
+                if (t == TokenType.BRACE_OPEN) d++;
+                else if (t == TokenType.BRACE_CLOSE) d--;
+                advance();
+            }
+        }
+
         String[] pn = com.legend.protocol.Protocol.splitFqn(sig.qualifiedName());
         return new com.legend.protocol.Protocol.PFunction(pn[0], pn[1],
                 sig.typeParams(), sig.multParams(), sig.params(),
-                sig.returnType(), sig.returnMult(), body, constraints,
+                sig.returnType(), sig.returnMult(), body, constraints, hasTests,
                 sig.stereotypes(), sig.taggedValues(),
                 span(sig.declStart(), pos - 1));
     }

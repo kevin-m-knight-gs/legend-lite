@@ -86,6 +86,7 @@ public final class ProtocolEmitter {
         require(f.typeParams().isEmpty() && f.multParams().isEmpty(),
                 "function type/multiplicity parameters", f.qualifiedName());
         require(f.preConstraints().isEmpty(), "function constraints", f.qualifiedName());
+        require(!f.hasTests(), "function test suites (wire shape unprobed)", f.qualifiedName());
         b.append("{\"_type\":\"function\",\"body\":[");
         for (int i = 0; i < f.body().size(); i++) {
             if (i > 0) {
@@ -605,14 +606,20 @@ public final class ProtocolEmitter {
             }
             case com.legend.protocol.spec.LambdaFunction lam -> lambda(b, lam);
             case com.legend.protocol.spec.CDate d -> {
-                // Only day-precision dates are probed: {"_type":"strictDate","value":"2020-01-01"},
-                // span covering the whole %-literal. Coarser/finer precisions wall until probed.
+                // Only day-precision dates are probed: {"_type":"strictDate","value":"2017-6-10"}
+                // — the value is the SOURCE SPELLING, verbatim, not a normalized form
+                // (harness DIFF on testBiTemporalDateMilestoning: engine keeps "2017-6-10").
                 require(d.value().precision() == com.legend.values.PureDateLiteral.Precision.DAY,
                         "date literal precision " + d.value().precision(), "CDate");
+                if (d.written() == null) {
+                    throw new UnsupportedOperationException(
+                            "ProtocolEmitter needs the verbatim source spelling of a date"
+                                    + " literal and the parser did not thread it.");
+                }
                 b.append("{\"_type\":\"strictDate\",\"sourceInformation\":");
                 srcInfo(b, requirePos(d.pos(), "strictDate literal"));
                 b.append(",\"value\":");
-                str(b, d.value().toEngineString());
+                str(b, d.written());
                 b.append('}');
             }
             default -> throw new UnsupportedOperationException(
@@ -682,7 +689,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CFloat c ->
                     valueSpec(b, new com.legend.protocol.spec.CFloat(c.value(), span));
             case com.legend.protocol.spec.CDate c ->
-                    valueSpec(b, new com.legend.protocol.spec.CDate(c.value(), span));
+                    valueSpec(b, new com.legend.protocol.spec.CDate(c.value(), c.written(), span));
             case com.legend.protocol.spec.Variable var ->
                     valueSpec(b, new com.legend.protocol.spec.Variable(
                             var.name(), var.type(), var.multiplicity(), span));
@@ -698,6 +705,9 @@ public final class ProtocolEmitter {
             // n-ary chain-span derivation, which must read the original climb spans
             // (caught by the harness on QueryWithLet).
             case com.legend.protocol.spec.AppliedFunction af -> appliedFunction(b, af, span);
+            case com.legend.protocol.spec.LambdaFunction lam ->
+                    valueSpec(b, new com.legend.protocol.spec.LambdaFunction(
+                            lam.parameters(), lam.body(), span));
             default -> throw new UnsupportedOperationException(
                     "ProtocolEmitter has no let-value span rule for "
                             + v.getClass().getSimpleName() + " — probe, do not guess.");
@@ -816,32 +826,45 @@ public final class ProtocolEmitter {
         java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> operands =
                 new java.util.ArrayDeque<>();
         com.legend.protocol.spec.AppliedFunction node = f;
-        SourceInfo end = requirePos(f.pos(), "func " + f.function());
-        SourceInfo start = end;
         while (true) {
             require(node.parameters().size() == 2, "non-infix " + node.function(), "arity "
                     + node.parameters().size());
             operands.addFirst(node.parameters().get(1));
-            start = requirePos(node.pos(), "func " + node.function());
             if (node.parameters().get(0) instanceof com.legend.protocol.spec.AppliedFunction inner
-                    && inner.function().equals(f.function())) {
+                    && inner.function().equals(f.function())
+                    && !inner.grouped()) {
                 node = inner;
             } else {
                 operands.addFirst(node.parameters().get(0));
                 break;
             }
         }
-        SourceInfo chain = new SourceInfo(start.sourceId(),
-                start.startLine(), start.startColumn(), end.endLine(), end.endColumn());
+        // The func's span is its own operator-run context, carried on the node by the
+        // climb. The COLLECTION keeps that same span — UNLESS the run's last operand was
+        // claimed by a tighter operator (its context lies entirely after the run's), in
+        // which case the engine's walker leaves the collection stamped with the CLAIMING
+        // context (ProbeWireShapes "precedence zoo": 2 + 2 * 4 -> plus coll spans the
+        // times segment). In let context only the FUNC span is overridden.
+        SourceInfo ctx = requirePos(f.pos(), "func " + f.function());
+        SourceInfo coll = ctx;
+        if (operands.peekLast() instanceof com.legend.protocol.spec.AppliedFunction lastOp
+                && lastOp.pos() != null
+                && startsAfter(lastOp.pos(), ctx)) {
+            coll = lastOp.pos();
+        }
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, f.function());
         b.append(",\"parameters\":[");
-        // The COLLECTION always keeps the chain span — only the func's own span is
-        // overridden in let context (ProbeWireShapes "let zoo", `let arith = $a + 1`).
-        collection(b, java.util.List.copyOf(operands), chain);
+        collection(b, java.util.List.copyOf(operands), coll);
         b.append("],\"sourceInformation\":");
-        srcInfo(b, topSpanOverride != null ? topSpanOverride : chain);
+        srcInfo(b, topSpanOverride != null ? topSpanOverride : ctx);
         b.append('}');
+    }
+
+    /** True when {@code s} begins strictly after {@code ctx} ends. */
+    private static boolean startsAfter(SourceInfo s, SourceInfo ctx) {
+        return s.startLine() > ctx.endLine()
+                || (s.startLine() == ctx.endLine() && s.startColumn() > ctx.endColumn());
     }
 
     /** {@code {"_type":"collection","multiplicity":{n,n},"sourceInformation":…,"values":[…]}} */

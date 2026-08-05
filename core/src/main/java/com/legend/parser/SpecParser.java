@@ -578,6 +578,13 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private ValueSpecification parseArithmeticClimb(ValueSpecification left, int minPrec) {
+        // Engine span semantics (ProbeWireShapes "precedence zoo"): consecutive SAME-op
+        // segments form one grammar context — the func spans the whole run — while a
+        // DIFFERENT op opens a new context. A tighter op that claims the right operand
+        // does NOT extend the outer context: `2 + 2 * 4` gives plus the span of `+ 2`
+        // only (the pre-claim right end), with times spanning `* 4`.
+        int runStartOp = -1;
+        String runFn = null;
         while (!atEnd() && isArithmeticOp(peek())
                 && precedenceOf(peek()) >= minPrec) {
             TokenType op = peek();
@@ -595,17 +602,20 @@ public final class SpecParser implements TokenStreamCursor {
                         "parseArithmeticClimb on non-arithmetic token: " + op);
             };
             int opTok = pos;
+            if (!fn.equals(runFn)) {
+                runFn = fn;
+                runStartOp = opTok;
+            }
             pos++;
             ValueSpecification right = parseExpression();
+            int rhsEnd = pos - 1;
             // Tighter-binding operators on the right claim the operand first.
             while (!atEnd() && isArithmeticOp(peek())
                     && precedenceOf(peek()) > prec) {
                 right = parseArithmeticClimb(right, precedenceOf(peek()));
             }
-            // Engine convention (ProbeWireShapes): an infix arithmetic/comparison span
-            // runs from the operator token to the end of its right operand.
             left = new AppliedFunction(fn, List.of(left, right), List.of(),
-                    spanOf(opTok, pos - 1));
+                    spanOf(runStartOp, rhsEnd));
         }
         return left;
     }
@@ -863,7 +873,7 @@ public final class SpecParser implements TokenStreamCursor {
         int datePos = pos;
         pos++;
         try {
-            return new CDate(PureDateLiteral.parse(value), spanOf(datePos, datePos));
+            return new CDate(PureDateLiteral.parse(value), value, spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,
                     "invalid date literal '%" + value + "': " + e.getMessage());
@@ -976,6 +986,11 @@ public final class SpecParser implements TokenStreamCursor {
         // e.g. '1 + (2 * 3)' to force right-side grouping.
         ValueSpecification inner = parseCombinedExpression();
         expect(TokenType.PAREN_CLOSE, "expected ')' to close parenthesised expression");
+        // Parens are a FLATTEN BOUNDARY on the wire: engine folds `a - b - 7` into one
+        // 3-operand collection but keeps `(a - b) - 7` nested. Mark, don't wrap.
+        if (inner instanceof AppliedFunction af) {
+            return af.asGrouped();
+        }
         return inner;
     }
 

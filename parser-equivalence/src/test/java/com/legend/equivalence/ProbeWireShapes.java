@@ -232,6 +232,14 @@ class ProbeWireShapes {
                   1;
                 }
                 """);
+        dump("precedence zoo", """
+                function p::z(): Any[*]
+                {
+                  2 * 4 + 2;
+                  2 + 2 * 4;
+                  [1, 2]->map(x|abs($x));
+                }
+                """);
         dump("measure", """
                 Measure k::M
                 {

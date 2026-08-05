@@ -67,7 +67,8 @@ public record AppliedFunction(
         List<ValueSpecification> parameters,
         List<String> candidateFqns,
         @com.legend.Nullable com.legend.protocol.SourceInfo pos,
-        boolean propertyCall) implements ValueSpecification {
+        boolean propertyCall,
+        boolean grouped) implements ValueSpecification {
 
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
@@ -84,13 +85,27 @@ public record AppliedFunction(
      *  {@code not}-from-{@code !} spans {@code !}..operand-end. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
             List<String> candidateFqns) {
-        this(function, parameters, candidateFqns, null, false);
+        this(function, parameters, candidateFqns, null, false, false);
     }
 
     /** Span-carrying form for ordinary (non-dot) applications. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
             List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
-        this(function, parameters, candidateFqns, pos, false);
+        this(function, parameters, candidateFqns, pos, false, false);
+    }
+
+    /** Dot-call form. */
+    public AppliedFunction(String function, List<ValueSpecification> parameters,
+            List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+            boolean propertyCall) {
+        this(function, parameters, candidateFqns, pos, propertyCall, false);
+    }
+
+    /** A copy marked as PARENTHESISED — a flatten boundary: engine folds `a - b - 7` into
+     *  one 3-operand collection but keeps `(a - b) - 7` as two nested 2-operand calls
+     *  (harness DIFF on mostRecentDayOfWeek). Excluded from equality like pos. */
+    public AppliedFunction asGrouped() {
+        return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall, true);
     }
 
     /** Position and the dot-call spelling marker are excluded from equality — see

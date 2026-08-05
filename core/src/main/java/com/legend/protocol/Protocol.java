@@ -56,6 +56,7 @@ public final class Protocol {
                             com.legend.protocol.Multiplicity returnMultiplicity,
                             List<com.legend.protocol.spec.ValueSpecification> body,
                             List<com.legend.protocol.ConstraintDefinition> preConstraints,
+                            boolean hasTests,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation) implements Element {
