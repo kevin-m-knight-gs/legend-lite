@@ -98,6 +98,9 @@ public final class ParserEquivalence {
         for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.PROFILE)) {
             sites.add(new int[]{i, 2});
         }
+        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.ASSOCIATION)) {
+            sites.add(new int[]{i, 3});
+        }
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -110,10 +113,14 @@ public final class ParserEquivalence {
                     Protocol.PEnumeration en = ElementParser.at(ts, site[0]).parseEnumDefinition();
                     el = en;
                     fqn = en.qualifiedName();
-                } else {
+                } else if (site[1] == 2) {
                     Protocol.PProfile pr = ElementParser.at(ts, site[0]).parseProfileDefinition();
                     el = pr;
                     fqn = pr.qualifiedName();
+                } else {
+                    Protocol.PAssociation a = ElementParser.at(ts, site[0]).parseAssociationDefinition();
+                    el = a;
+                    fqn = a.qualifiedName();
                 }
             } catch (Throwable t) {
                 out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));

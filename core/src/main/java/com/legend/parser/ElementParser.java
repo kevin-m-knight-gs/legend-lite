@@ -818,9 +818,12 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** {@code Association <<stereos>> {tags} qualifiedName { end1; end2; }} */
     private PackageableElement parseAssociation() {
+        int declStart = pos;
         expect(TokenType.ASSOCIATION);
-        parseStereotypes();   // parity: engine consumes and drops
-        parseTaggedValues();  // parity: engine consumes and drops
+        // CAPTURED, not dropped: the wire carries association annotations
+        // (ProbeWireShapes "association").
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
         String qualifiedName = parseQualifiedName();
         // PROJECTION association: `Association X projects Y<A, B>` — a
         // nominal registration only (like projection classes); the
@@ -842,9 +845,33 @@ public final class ElementParser implements TokenStreamCursor {
                     List.of(), List.of(), List.of(), List.of(), List.of(),
                     false);
         }
+        return com.legend.model.FromProtocol.toAssociationDefinition(
+                parseAssociationBody(declStart, stereotypes, taggedValues, qualifiedName));
+    }
+
+    /** Parses one non-projection {@code Association} at the cursor into its protocol
+     *  record — the per-element protocol entry point (see {@link #at}). */
+    public com.legend.protocol.Protocol.PAssociation parseAssociationDefinition() {
+        int declStart = pos;
+        expect(TokenType.ASSOCIATION);
+        List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        String qualifiedName = parseQualifiedName();
+        if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
+            throw error("projection associations are a legend-lite-local form with no"
+                    + " protocol shape (engine rejects 'projects')");
+        }
+        return parseAssociationBody(declStart, stereotypes, taggedValues, qualifiedName);
+    }
+
+    private com.legend.protocol.Protocol.PAssociation parseAssociationBody(
+            int declStart,
+            List<com.legend.protocol.Protocol.PStereotype> stereotypes,
+            List<com.legend.protocol.Protocol.PTaggedValue> taggedValues,
+            String qualifiedName) {
         expect(TokenType.BRACE_OPEN);
 
-        List<AssociationEndDefinition> ends = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PProperty> ends = new ArrayList<>();
         List<DerivedPropertyDefinition> derived = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
             // real pure allows QUALIFIED properties in associations — they
@@ -854,19 +881,17 @@ public final class ElementParser implements TokenStreamCursor {
                 derived.add(parseDerivedProperty());
                 continue;
             }
-            String name = parseIdentifier();
-            expect(TokenType.COLON);
-            TypeExpression type = parseType();
-            Multiplicity mult = parseMultiplicity();
-            expect(TokenType.SEMI_COLON);
-            ends.add(new AssociationEndDefinition(name, type, mult));
+            // an end is an ordinary wire property (annotations, span and all)
+            ends.add(parseProperty());
         }
         expect(TokenType.BRACE_CLOSE);
 
         if (ends.size() != 2) {
             throw error("Association must have exactly 2 properties, found: " + ends.size());
         }
-        return new AssociationDefinition(qualifiedName, ends.get(0), ends.get(1), derived);
+        String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
+        return new com.legend.protocol.Protocol.PAssociation(pn[0], pn[1], ends, derived,
+                stereotypes, taggedValues, span(declStart, pos - 1));
     }
 
     // ============================================================

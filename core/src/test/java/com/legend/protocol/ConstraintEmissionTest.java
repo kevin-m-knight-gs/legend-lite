@@ -271,4 +271,22 @@ class ConstraintEmissionTest {
         assertEquals(EXPECTED_PROFILE,
                 ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseProfileDefinition()));
     }
+
+    private static final String EXPECTED_ASSOCIATION =
+            "{\"_type\":\"association\",\"name\":\"A\",\"originalMilestonedProperties\":[],\"package\":\"k\",\"properties\":[{\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"k::X\",\"sourceInformation\":{\"endColumn\":9,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":6,\"startLine\":3}},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":1,\"upperBound\":1},\"name\":\"x\",\"sourceInformation\":{\"endColumn\":13,\"endLine\":3,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":3},\"stereotypes\":[],\"taggedValues\":[]},{\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"k::Y\",\"sourceInformation\":{\"endColumn\":10,\"endLine\":4,\"sourceId\":\"\",\"startColumn\":7,\"startLine\":4}},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{\"lowerBound\":0},\"name\":\"ys\",\"sourceInformation\":{\"endColumn\":14,\"endLine\":4,\"sourceId\":\"\",\"startColumn\":3,\"startLine\":4},\"stereotypes\":[],\"taggedValues\":[]}],\"qualifiedProperties\":[],\"sourceInformation\":{\"endColumn\":1,\"endLine\":5,\"sourceId\":\"\",\"startColumn\":1,\"startLine\":1},\"stereotypes\":[{\"profile\":\"k::P\",\"profileSourceInformation\":{\"endColumn\":18,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":15,\"startLine\":1},\"sourceInformation\":{\"endColumn\":21,\"endLine\":1,\"sourceId\":\"\",\"startColumn\":15,\"startLine\":1},\"value\":\"s1\"}],\"taggedValues\":[]}";
+
+    /** Association ends are ordinary wire properties; annotations captured on the decl. */
+    @Test
+    void associationIsByteIdentical() {
+        com.legend.lexer.TokenStream ts = com.legend.lexer.Lexer.tokenize("""
+                Association <<k::P.s1>> k::A
+                {
+                  x: k::X[1];
+                  ys: k::Y[*];
+                }
+                """);
+        int idx = ElementParser.topLevelIndexes(ts, TokenType.ASSOCIATION).get(0);
+        assertEquals(EXPECTED_ASSOCIATION,
+                ProtocolEmitter.emitElement(ElementParser.at(ts, idx).parseAssociationDefinition()));
+    }
 }

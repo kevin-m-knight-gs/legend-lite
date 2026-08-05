@@ -38,7 +38,28 @@ public final class Protocol {
     }
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
-    public sealed interface Element permits PClass, PEnumeration, PProfile, PSectionIndex {
+    public sealed interface Element permits PClass, PAssociation, PEnumeration, PProfile,
+            PSectionIndex {
+    }
+
+    /** {@code _type:"association"} — ends are ordinary wire properties; qualified properties
+     *  ride along exactly as on classes. */
+    public record PAssociation(String pkg, String name,
+                               List<PProperty> properties,
+                               List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                               List<PStereotype> stereotypes,
+                               List<PTaggedValue> taggedValues,
+                               com.legend.protocol.SourceInfo sourceInformation) implements Element {
+        public PAssociation {
+            properties = List.copyOf(properties);
+            derivedProperties = List.copyOf(derivedProperties);
+            stereotypes = List.copyOf(stereotypes);
+            taggedValues = List.copyOf(taggedValues);
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
     }
 
     /** {@code _type:"profile"} — stereotype/tag declarations as bare name+span entries. */

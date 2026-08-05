@@ -68,10 +68,41 @@ public final class ProtocolEmitter {
     private static void element(StringBuilder b, Element e) {
         switch (e) {
             case PClass c -> pclass(b, c);
+            case Protocol.PAssociation a -> association(b, a);
             case Protocol.PEnumeration en -> enumeration(b, en);
             case Protocol.PProfile pr -> profile(b, pr);
             case PSectionIndex s -> sectionIndex(b, s);
         }
+    }
+
+    /** {@code _type:"association"} — ends emit as ordinary wire properties; qualified
+     *  properties exactly as on classes (ProbeWireShapes "association"). */
+    private static void association(StringBuilder b, Protocol.PAssociation a) {
+        b.append("{\"_type\":\"association\",\"name\":");
+        str(b, a.name());
+        b.append(",\"originalMilestonedProperties\":[],\"package\":");
+        str(b, a.pkg());
+        b.append(",\"properties\":[");
+        for (int i = 0; i < a.properties().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            property(b, a.properties().get(i));
+        }
+        b.append("],\"qualifiedProperties\":[");
+        for (int i = 0; i < a.derivedProperties().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            qualifiedProperty(b, a.derivedProperties().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, a.sourceInformation());
+        b.append(",\"stereotypes\":");
+        stereotypes(b, a.stereotypes());
+        b.append(",\"taggedValues\":");
+        taggedValues(b, a.taggedValues());
+        b.append('}');
     }
 
     /** {@code _type:"profile"} — declared stereotypes/tags as bare {@code {sourceInformation,

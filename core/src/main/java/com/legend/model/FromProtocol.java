@@ -50,6 +50,18 @@ public final class FromProtocol {
         return out;
     }
 
+    /** Protocol association to the model's — two ends plus qualified properties. */
+    public static AssociationDefinition toAssociationDefinition(Protocol.PAssociation a) {
+        java.util.List<AssociationDefinition.AssociationEndDefinition> ends =
+                new ArrayList<>(a.properties().size());
+        for (PProperty p : a.properties()) {
+            ends.add(new AssociationDefinition.AssociationEndDefinition(
+                    p.name(), p.type(), p.multiplicity()));
+        }
+        return new AssociationDefinition(a.qualifiedName(), ends.get(0), ends.get(1),
+                a.derivedProperties());
+    }
+
     /** Protocol profile to the model's — bare names; spans stay protocol-side. */
     public static ProfileDefinition toProfileDefinition(Protocol.PProfile p) {
         java.util.List<String> ss = new ArrayList<>(p.stereotypes().size());
