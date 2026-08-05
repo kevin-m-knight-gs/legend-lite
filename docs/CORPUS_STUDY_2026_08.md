@@ -38,11 +38,12 @@ taught the parser the `$src.<col>` relation-mapping spellings the 08-04 upstream
 sweep runs again. The commit message confirms the diagnosis in § 9.1 independently — gate 4 had been
 dead for both `main` and the parser branch since the checkout moved.
 
-**§ 9.2 is not resolved, and is now load-bearing.** `Corpus.ENGINE_ROOT` still defaults to
-`/Users/neema/legend/legend-engine` (`Corpus.java:31-37`), but the committed baseline is produced
-against `/Users/neemsandv/legend/legend-engine`. The two are genuinely distinct checkouts (different
-inodes; 2668 vs 2697 `<<test.Test>>` functions — a difference of exactly 29, matching the table
-above). Running the sweep **without** the override trips the runner's own regression gate:
+**§ 9.2 was real, and is now fixed.** `Corpus.ENGINE_ROOT` hard-coded
+`/Users/neema/legend/legend-engine` (`Corpus.java:31-32`) — *another account's home*, which exists
+and is readable on this machine — while the committed baseline is produced against the checkout under
+this account's home. The two are genuinely distinct (different inodes; 2668 vs 2697
+`<<test.Test>>` functions — a difference of exactly 29, matching the table above). Running the sweep
+**without** an override read the wrong tree and tripped the runner's own regression gate:
 
 ```
 CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md:
@@ -50,17 +51,21 @@ CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md:
   — fix or revert; do not commit the rewritten scoreboard
 ```
 
-So the sweep must be invoked as:
+The gate caught it — but only *after* the sweep had already rewritten `docs/RELATIONAL_CORPUS.md` in
+place. This was previously logged as `STATE_AUDIT.md` **S4.4** and in `PERFORMANCE_AUDIT.md` § 6,
+where it was demonstrated accidentally the same way.
+
+**Fixed** by defaulting under `user.home`, matching the convention `parser-equivalence`'s
+`Corpus.engineRoot()` already used. The obvious invocation now works:
 
 ```bash
 mvn -o test -pl engine -am -Dtest=RelationalCorpusRunner \
-    -Dlegend.engine.root=/Users/neemsandv/legend/legend-engine \
     -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
-With that override the sweep is **green** and reproduces the committed scoreboard exactly. The
-default in `Corpus.java` should be corrected, or the override documented in the runner — as it
-stands, the obvious invocation silently reads the wrong corpus and looks like a 42-test regression.
+Verified: gate green, and the regenerated scoreboard is **byte-identical** to the committed baseline —
+no churn. `-Dlegend.engine.root=…` remains available to point at a different checkout; if the
+resolved path has no corpus, the sweep skips via `Corpus.available()` rather than half-running.
 
 **What this does and does not invalidate.** Every root cause in this document is anchored in
 legend-lite's own Java, which the drift does not touch; the cause groups, `file:line` citations and
@@ -68,13 +73,14 @@ classifications stand. What has moved is the *per-test verdict roster* — some 
 some changed bucket, and 29 newly-visible tests were never studied. Re-partitioning against the
 current 314 would be a re-run of § 0's method, not a re-derivation of § 2–§ 7.
 
-**One unexplained observation.** Across two runs at identical `HEAD` and identical corpus root, one
-row (`testViewToTDS [executionPlan/tests]`) reported a *different wall message* — `class
-'meta::relational::mapping::TableTDS' has no property 'store'` versus `property 'table' … expected
-NamedRelation, got View`. Same test, same SHAPE verdict, no number affected. The two messages come
-from different loops in `compiler/spec/NewChecker.java` (the copy path at `:40` and the construction
-path at `:70`), so the query is reaching a different checker between runs. Not chased; recorded
-because a scoreboard that is not byte-reproducible is a hazard for any ratchet built on it.
+**A scare that resolved.** The wrong-corpus run also reported a *different wall message* for one row
+(`testViewToTDS [executionPlan/tests]`) — `class 'meta::relational::mapping::TableTDS' has no
+property 'store'` versus the baseline's `property 'table' … expected NamedRelation, got View`. The
+two come from different loops in `compiler/spec/NewChecker.java` (the copy path at `:40` and the
+construction path at `:70`), which briefly looked like scoreboard nondeterminism. It was not: with
+the corpus root corrected, the regenerated scoreboard is byte-identical to the baseline. The
+divergence was another symptom of reading the wrong tree, whose different model assembly reaches a
+different checker first.
 
 ---
 
