@@ -39,7 +39,12 @@ class CodeShapeGuardrailTest {
     private static final Map<String, Integer> METHOD_ALLOWLIST = Map.of();
 
     /** Known oversized FILES, pending their planned splits. */
-    private static final Map<String, Integer> FILE_ALLOWLIST = Map.of();
+    private static final Map<String, Integer> FILE_ALLOWLIST = Map.of(
+            // sat exactly AT the 3500 ceiling before the upstream explicit-src
+            // relation-mapping forms landed (2026-08-05); the row-expression binding
+            // added ~4 lines. Next real touch should extract the relation-col binding
+            // family into its own normalizer helper instead of growing this again.
+            "MappingNormalizer.java", 3510);
 
     /** Mutable instance fields that are DELIBERATE: hand-rolled parser
      * cursors (Lexer/ElementParser/SpecParser walk positions and scope

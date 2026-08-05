@@ -357,9 +357,29 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         /** One {@code property: COLUMN} binding. */
         public record Col(String property, @com.legend.Nullable String column, boolean local,
                 @com.legend.Nullable String enumMappingId, List<Col> embedded,
-                @com.legend.Nullable String inlineSetId) {
+                @com.legend.Nullable String inlineSetId,
+                @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr) {
             public Col {
                 embedded = embedded == null ? List.of() : List.copyOf(embedded);
+            }
+
+            /** Column-name form (no row expression). */
+            public Col(String property, @com.legend.Nullable String column, boolean local,
+                    @com.legend.Nullable String enumMappingId, List<Col> embedded,
+                    @com.legend.Nullable String inlineSetId) {
+                this(property, column, local, enumMappingId, embedded, inlineSetId, null);
+            }
+
+            /** Replace every {@code $src} in a row-expression binding with the ROW
+             *  variable — the normalizer's inlining step for {@link #expr()} cols. */
+            public static com.legend.protocol.spec.ValueSpecification bindSrc(
+                    com.legend.protocol.spec.ValueSpecification v,
+                    com.legend.protocol.spec.ValueSpecification row) {
+                if (v instanceof com.legend.protocol.spec.Variable var
+                        && "src".equals(var.name())) {
+                    return row;
+                }
+                return v.mapChildren(c -> bindSrc(c, row));
             }
 
             /** An EMBEDDED block ({@code prop ( sub: COL, ... )}). */

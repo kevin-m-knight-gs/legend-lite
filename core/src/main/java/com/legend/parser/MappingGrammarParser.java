@@ -548,10 +548,16 @@ final class MappingGrammarParser {
      */
     ClassMapping.RelationFunction parseRelationFunctionBody(String className,
             @com.legend.Nullable String setId, @com.legend.Nullable String extendsSetId, boolean root) {
-        p.expect(TokenType.TILDE);
-        String kw = p.parseIdentifier();
-        if (!"func".equals(kw)) {
-            throw p.error("expected ~func in Relation class mapping, got ~" + kw);
+        // ~func <fqn> (canonical) or ~src <fqn>() (upstream 2026-08-01 alias, the
+        // row-source spelling) — both name the extent function
+        if (p.peek() == TokenType.SRC_CMD) {
+            p.advance();
+        } else {
+            p.expect(TokenType.TILDE);
+            String kw = p.parseIdentifier();
+            if (!"func".equals(kw)) {
+                throw p.error("expected ~func in Relation class mapping, got ~" + kw);
+            }
         }
         String ref = p.parseQualifiedName();
         if (p.peek() == TokenType.PAREN_OPEN) {
@@ -615,8 +621,44 @@ final class MappingGrammarParser {
                 enumId = p.parseIdentifier();
                 p.expect(TokenType.COLON);
             }
-            String col = p.parseIdentifier();
-            cols.add(new ClassMapping.RelationFunction.Col(prop, col, local, enumId));
+            // The RHS is a full ROW EXPRESSION (upstream 2026-08-01): bare COL and
+            // quoted 'COL' stay plain column bindings, $src.COL is the same binding in
+            // row-lambda spelling, anything richer ('Hello ' + $src.X) parses as a real
+            // spec and rides Col.expr — dependent tests stay individually loud instead
+            // of the whole setup walling
+            int exprStart = p.pos();
+            int depth = 0;
+            while (!p.atEnd()) {
+                TokenType t = p.peek();
+                if (depth == 0 && (t == TokenType.COMMA || t == stop)) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                }
+                p.advance();
+            }
+            com.legend.protocol.spec.ValueSpecification rhs = com.legend.parser
+                    .SpecParser.parse(p.tokens().slice(exprStart, p.pos()));
+            if (rhs instanceof com.legend.protocol.spec.AppliedProperty ap
+                    && ap.receiver() instanceof com.legend.protocol.spec.Variable) {
+                cols.add(new ClassMapping.RelationFunction.Col(prop, ap.property(),
+                        local, enumId));
+            } else if (rhs instanceof com.legend.protocol.spec.CString cs) {
+                cols.add(new ClassMapping.RelationFunction.Col(prop, cs.value(),
+                        local, enumId));
+            } else if (rhs instanceof com.legend.protocol.spec.PackageableElementPtr ptr
+                    && !ptr.fullPath().contains("::")) {
+                cols.add(new ClassMapping.RelationFunction.Col(prop, ptr.fullPath(),
+                        local, enumId));
+            } else {
+                cols.add(new ClassMapping.RelationFunction.Col(prop, null, local,
+                        enumId, List.of(), null, rhs));
+            }
             if (!p.match(TokenType.COMMA)) {
                 break;
             }

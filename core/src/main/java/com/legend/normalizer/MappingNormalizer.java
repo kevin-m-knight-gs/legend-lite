@@ -1033,8 +1033,11 @@ public final class MappingNormalizer {
                         false, false));
                 continue;
             }
-            ValueSpecification read = new AppliedProperty(row, java.util.Objects.requireNonNull(
-                    c.column(), "column read on an embedded ~func col"));
+            // a ROW-EXPRESSION binding (explicit-src form) rebinds $src to THIS row
+            ValueSpecification read = c.expr() != null
+                    ? ClassMapping.RelationFunction.Col.bindSrc(c.expr(), row)
+                    : new AppliedProperty(row, java.util.Objects.requireNonNull(
+                            c.column(), "column read on an embedded ~func col"));
             if (c.enumMappingId() != null) {
                 // enum-decoded column: the same source-value decode chain
                 // every other enum-mapped read synthesizes
