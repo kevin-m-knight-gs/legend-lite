@@ -68,6 +68,7 @@ public final class ProtocolEmitter {
     private static void element(StringBuilder b, Element e) {
         switch (e) {
             case PClass c -> pclass(b, c);
+            case Protocol.PMeasure m -> measure(b, m);
             case Protocol.PAssociation a -> association(b, a);
             case Protocol.PFunction fn -> function(b, fn);
             case Protocol.PEnumeration en -> enumeration(b, en);
@@ -1110,6 +1111,49 @@ public final class ProtocolEmitter {
                     "ProtocolEmitter has no let-value span rule for "
                             + v.getClass().getSimpleName() + " — probe, do not guess.");
         }
+    }
+
+    /** {@code _type:"measure"} (probe: vanilla engine Measure JSON): units carry a
+     *  span-less arrow-lambda conversion; the {@code *} canonical unit rides its own
+     *  key; unit spans run name..the terminating ';'. */
+    private static void measure(StringBuilder b, Protocol.PMeasure m) {
+        b.append("{\"_type\":\"measure\"");
+        if (m.canonicalUnit() != null) {
+            b.append(",\"canonicalUnit\":");
+            unit(b, m.canonicalUnit());
+        }
+        b.append(",\"name\":");
+        str(b, m.name());
+        b.append(",\"nonCanonicalUnits\":[");
+        for (int i = 0; i < m.nonCanonicalUnits().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            unit(b, m.nonCanonicalUnits().get(i));
+        }
+        b.append("],\"package\":");
+        str(b, m.pkg());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, m.sourceInformation());
+        b.append('}');
+    }
+
+    private static void unit(StringBuilder b, Protocol.PUnit u) {
+        b.append('{');
+        if (u.body() != null) {
+            b.append("\"conversionFunction\":{\"_type\":\"lambda\",\"body\":[");
+            valueSpec(b, u.body());
+            b.append("],\"parameters\":[{\"_type\":\"var\",\"name\":");
+            str(b, java.util.Objects.requireNonNull(u.paramName(), "unit param"));
+            b.append("}]},");
+        }
+        b.append("\"measure\":");
+        str(b, u.measureFqn());
+        b.append(",\"name\":");
+        str(b, u.name());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, u.sourceInformation());
+        b.append('}');
     }
 
     /** A realization's WIRE body: inline statements, or the kept reference NODE for the

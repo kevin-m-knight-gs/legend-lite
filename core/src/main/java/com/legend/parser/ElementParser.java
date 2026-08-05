@@ -1078,6 +1078,111 @@ public final class ElementParser implements TokenStreamCursor {
         return com.legend.model.FromProtocol.toFunctionDefinition(parseFunctionProtocol());
     }
 
+    /** Top-level {@code Measure} declaration sites — the keyword lexes as a plain
+     *  identifier, so the scan matches text under the same POSITIVE predecessor rule
+     *  {@link #topLevelIndexes} uses. */
+    public static java.util.List<Integer> measureSites(TokenStream ts) {
+        java.util.List<Integer> out = new ArrayList<>();
+        int depth = 0;
+        for (int i = 0; i < ts.count(); i++) {
+            TokenType t = ts.type(i);
+            switch (t) {
+                case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                default -> {
+                    if (depth == 0 && t == TokenType.VALID_STRING
+                            && "Measure".equals(ts.text(i))
+                            && (i == 0 || ts.type(i - 1) == TokenType.BRACE_CLOSE
+                                    || ts.type(i - 1) == TokenType.SEMI_COLON)) {
+                        out.add(i);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Parses one {@code Measure} declaration at the cursor into its protocol record
+     *  (probe: vanilla engine Measure JSON). Engine grammar (DomainParserGrammar.g4):
+     *  {@code (measureExpr* canonicalExpr measureExpr*) | nonConvertibleMeasureExpr+} —
+     *  either every unit has a conversion and exactly one carries {@code *}, or every
+     *  unit is a bare name and the FIRST is promoted to canonical
+     *  (DomainParseTreeWalker: {@code canonicalUnit = nonConvertibleUnits.get(0)}). */
+    public com.legend.protocol.Protocol.PMeasure parseMeasureDefinition() {
+        int declStart = pos;
+        advance();                                  // 'Measure'
+        String qualifiedName = parseQualifiedName();
+        String measureFqn = com.legend.protocol.Protocol.unquotePath(qualifiedName);
+        expect(TokenType.BRACE_OPEN);
+        List<com.legend.protocol.Protocol.PUnit> units = new ArrayList<>();
+        int starredIdx = -1;
+        Boolean convertible = null;                 // form locked by the first unit
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            boolean starred = false;
+            if (peek() == TokenType.STAR) {
+                starred = true;
+                advance();
+            }
+            int unitStart = pos;
+            String unitName = parseIdentifier();
+            boolean hasConversion = starred || peek() == TokenType.COLON;
+            if (convertible == null) {
+                convertible = hasConversion;
+            } else if (convertible != hasConversion) {
+                throw error("measure units cannot mix conversion functions with"
+                        + " bare (non-convertible) units");
+            }
+            String param = null;
+            com.legend.protocol.spec.ValueSpecification body = null;
+            if (hasConversion) {
+                expect(TokenType.COLON);
+                param = parseIdentifier();
+                expect(TokenType.ARROW);
+                int bodyStart = pos;
+                int depth = 0;
+                while (!atEnd()) {
+                    TokenType t = peek();
+                    if (depth == 0 && t == TokenType.SEMI_COLON) {
+                        break;
+                    }
+                    if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                            || t == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE
+                            || t == TokenType.BRACE_CLOSE) {
+                        depth--;
+                    }
+                    advance();
+                }
+                body = SpecParser.parse(tokens.slice(bodyStart, pos));
+            }
+            expect(TokenType.SEMI_COLON);
+            if (starred) {
+                if (starredIdx >= 0) {
+                    throw error("measure declares more than one canonical ('*') unit");
+                }
+                starredIdx = units.size();
+            }
+            units.add(new com.legend.protocol.Protocol.PUnit(unitName, measureFqn, param,
+                    body, span(unitStart, pos - 1)));
+        }
+        if (units.isEmpty()) {
+            throw error("measure requires at least one unit");
+        }
+        if (Boolean.TRUE.equals(convertible) && starredIdx < 0) {
+            throw error("measure with conversion functions requires a canonical"
+                    + " ('*') unit");
+        }
+        expect(TokenType.BRACE_CLOSE);
+        int canonicalIdx = Math.max(starredIdx, 0);
+        com.legend.protocol.Protocol.PUnit canonical = units.get(canonicalIdx);
+        List<com.legend.protocol.Protocol.PUnit> others = new ArrayList<>(units);
+        others.remove(canonicalIdx);
+        String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
+        return new com.legend.protocol.Protocol.PMeasure(pn[0], pn[1], canonical, others,
+                span(declStart, pos - 1));
+    }
+
     /** Parses one {@code function} declaration at the cursor into its protocol record —
      *  the per-element protocol entry point (see {@link #at}). Constraint blocks are
      *  CAPTURED (the wire carries pre/postConstraints; the emitter walls until probed). */

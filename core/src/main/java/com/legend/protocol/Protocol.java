@@ -39,7 +39,35 @@ public final class Protocol {
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
-            PProfile, PSectionIndex {
+            PProfile, PSectionIndex, PMeasure {
+    }
+
+    /**
+     * {@code _type:"measure"} — {@code Measure pkg::M { *Canon: x -> $x; Other: x -> ... }}.
+     * The {@code *}-marked unit is canonical; each unit's conversion is an arrow-form
+     * lambda whose wrapper carries NO span (probe: vanilla engine Measure JSON).
+     */
+    public record PMeasure(String pkg, String name,
+                           @com.legend.Nullable PUnit canonicalUnit,
+                           List<PUnit> nonCanonicalUnits,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public PMeasure {
+            nonCanonicalUnits = List.copyOf(nonCanonicalUnits);
+        }
+
+        /** The UNmangled FQN — legend-lite's key. */
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One measure unit: name, owning measure FQN, optional conversion (param + body —
+     *  {@code *Unit;} has none), span = name..the terminating ';' ({@code *} excluded). */
+    public record PUnit(String name, String measureFqn,
+                        @com.legend.Nullable String paramName,
+                        @com.legend.Nullable com.legend.protocol.spec.ValueSpecification body,
+                        com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /**
