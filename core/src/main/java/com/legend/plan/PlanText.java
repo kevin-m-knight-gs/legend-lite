@@ -60,10 +60,24 @@ public final class PlanText {
                 !body.isEmpty() && body.get(body.size() - 1).info().type()
                         instanceof com.legend.compiler.element.type
                                 .Type.RelationType r2 ? r2 : null;
+        String cols;
+        if (rrt == null && !body.isEmpty()
+                && body.get(body.size() - 1).info().type()
+                        instanceof com.legend.compiler.element.type
+                                .Type.Primitive) {
+            // scalar projection: the ONE select expression, empty doc —
+            // spelled from the emitted sql (the engine prints the raw
+            // select item text)
+            String item = sql.startsWith("select ")
+                    ? sql.substring("select ".length(),
+                            sql.indexOf(" from ")) : sql;
+            cols = "(" + item + ", \"\")";
+        } else {
+            cols = resultColumns(ctx, impl[2], plan, rrt);
+        }
         return "Relational\n(\n"
                 + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
-                + "  resultColumns = [" + resultColumns(ctx, impl[2], plan, rrt)
-                + "]\n"
+                + "  resultColumns = [" + cols + "]\n"
                 + "  sql = " + sql + "\n"
                 + "  connection = " + connectionName + "\n"
                 + ")\n";
@@ -99,6 +113,14 @@ public final class PlanText {
             size = bm.lower() == bm.upper()
                     ? String.valueOf(bm.lower())
                     : bm.lower() + ".." + bm.upper();
+        }
+        // a SCALAR terminal (class extent ->map to a primitive) types the
+        // node as the primitive, not the class envelope
+        // (testMapWithOpenVariable's golden)
+        if (last.info().type()
+                instanceof com.legend.compiler.element.type.Type.Primitive) {
+            return "  type = " + pureTypeName(last.info().type())
+                    + "\n  resultSizeRange = " + size + "\n";
         }
         return "  type = Class[impls=(" + rootClassFqn + " | "
                 + impl[0] + "." + impl[1] + ")]\n"
