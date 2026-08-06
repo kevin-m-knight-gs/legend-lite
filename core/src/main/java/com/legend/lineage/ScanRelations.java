@@ -88,15 +88,6 @@ public final class ScanRelations {
         }
     }
 
-    /** Whether the query roots at {@code tableToTDS(tableReference(...))}
-     * — the runtime-variant lineage shape whose tree is pure table/column
-     * semantics (the harness verifies exactly these; class-rooted runtime
-     * scans keep the engine's plan vocabulary and stay advisory). A MIXED
-     * concatenate counts as tds-rooted when ANY branch is. */
-    public static boolean tdsRooted(ModelContext ctx, LambdaFunction query) {
-        return containsCall(query, "tableToTDS");
-    }
-
     public static String treeString(ModelContext ctx, LambdaFunction query,
             String mappingFqn) {
         StringBuilder sb = new StringBuilder("root\n");
