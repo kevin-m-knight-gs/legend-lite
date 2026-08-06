@@ -658,7 +658,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (!s.groupBy().isEmpty()) {
             sb.append(" group by ").append(s.groupBy().stream()
                     .map(e -> groupKey(s, e))
-                    .collect(Collectors.joining(", ")));
+                    .collect(Collectors.joining(groupBySeparator())));
         }
         if (s.having() != null) {
             sb.append(" having ").append(expr(s.having(), 0));
@@ -870,6 +870,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         String op = bc.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL
                 ? " is not distinct from " : " is distinct from ";
         return expr(bc.args().get(0), 4) + op + expr(bc.args().get(1), 4);
+    }
+
+    /** Engine H2 text joins group-by keys with {@code ", "}; the DB2
+     *  extension spells the bare comma (testGroupByWithJoinDB2 golden). */
+    protected String groupBySeparator() {
+        return ", ";
     }
 
     @Override

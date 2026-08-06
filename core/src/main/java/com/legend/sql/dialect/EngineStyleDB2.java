@@ -29,6 +29,11 @@ public class EngineStyleDB2 extends EngineStyleH2 {
 
     /** DB2 plan goldens wrap a top-level WHERE conjunction in one extra
      * paren pair ({@code where ((A) and (B))}). */
+    @Override
+    protected String groupBySeparator() {
+        return ",";
+    }
+
     /** Engine extensionDefaults.pure:254-255 — dialects without a
      *  native null-safe operator spell the OR-expansion; the format
      *  strings carry their own parens (incl. around {@code not (..)}),
