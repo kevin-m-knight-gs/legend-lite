@@ -34,9 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CorpusEquivalenceTest {
 
-    /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit. */
-    private static final int MIN_ELEMENTS_COMPARED = 19269;
-    private static final int MIN_MATCHES = 19269;
+    /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit.
+     * 19,269 -> 19,305: Measure sites added + SectionIndex excluded + the
+     * comparator drains both directions (implementation audit §3.2). */
+    private static final int MIN_ELEMENTS_COMPARED = 19305;
+    private static final int MIN_MATCHES = 19305;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
@@ -88,10 +90,16 @@ class CorpusEquivalenceTest {
         assertTrue(all.size() > 0, "no verdicts produced: the harness did not run");
         // (2) non-zero comparisons
         assertTrue(compared > 0, "nothing was actually compared");
-        // (4) the corpus may not shrink
-        assertTrue(all.size() >= MIN_ELEMENTS_COMPARED,
-                "corpus shrank: " + all.size() + " verdicts < baseline " + MIN_ELEMENTS_COMPARED
+        // (4) the corpus may not shrink — COMPARED rows, so rejection rows
+        // cannot pad the floor
+        assertTrue(compared >= MIN_ELEMENTS_COMPARED,
+                "corpus shrank: " + compared + " compared < baseline " + MIN_ELEMENTS_COMPARED
                         + ". A smaller corpus is a failure, not a quieter green.");
+        // (5) the comparison is bidirectional: a reference element we never
+        // compared is a front-door disagreement, never background noise
+        assertEquals(0, (int) counts.get(Kind.LITE_MISSED),
+                "reference elements never compared (site discovery and the"
+                        + " reference disagree about what an element is)");
         assertTrue(counts.get(Kind.MATCH) >= MIN_MATCHES,
                 "byte-identical matches regressed: " + counts.get(Kind.MATCH) + " < " + MIN_MATCHES);
         // the actual gate
@@ -113,7 +121,9 @@ class CorpusEquivalenceTest {
                 .append(String.format("  DIFF  (BUG)         : %d%n", counts.get(Kind.DIFF)))
                 .append(String.format("  WALL  (no rule yet) : %d%n", counts.get(Kind.WALL)))
                 .append(String.format("  PARSE_FAIL          : %d%n", counts.get(Kind.PARSE_FAIL)))
-                .append(String.format("  REFERENCE_REJECTED  : %d%n", counts.get(Kind.REFERENCE_REJECTED)))
+                .append(String.format("  REFERENCE_REJECTED  : %d files%n", counts.get(Kind.REFERENCE_REJECTED)))
+                .append(String.format("  LITE_EXTRA          : %d%n", counts.get(Kind.LITE_EXTRA)))
+                .append(String.format("  LITE_MISSED         : %d%n", counts.get(Kind.LITE_MISSED)))
                 .append(String.format("%ncoverage: %d of %d comparable (%.1f%%)%n",
                         counts.get(Kind.MATCH), compared,
                         compared == 0 ? 0.0 : 100.0 * counts.get(Kind.MATCH) / compared));

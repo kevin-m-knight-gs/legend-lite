@@ -48,8 +48,16 @@ public final class ParserEquivalence {
         WALL,
         /** Our parser could not read it. */
         PARSE_FAIL,
-        /** The reference parser rejected the input, so there is nothing to compare against. */
-        REFERENCE_REJECTED
+        /** The reference parser threw on the WHOLE source — one verdict per
+         * file, so the 25% silently-skipped bucket is counted, not invisible
+         * (implementation audit §3.1). */
+        REFERENCE_REJECTED,
+        /** We produced an element the reference did not — the old, misnamed
+         * "REFERENCE_REJECTED" arm. */
+        LITE_EXTRA,
+        /** The reference produced an element we never compared — the
+         * one-directional hole (implementation audit §3.2). Must be zero. */
+        LITE_MISSED
     }
 
     public record Verdict(Kind kind, String sourceId, String element, String detail) {
@@ -79,9 +87,13 @@ public final class ParserEquivalence {
             return out;                          // other sections have no emitter yet — not a wall, just out of scope
         }
 
-        Map<String, List<String>> referenceBytes = referenceElements(src);
-        if (referenceBytes == null) {
-            return out;                          // reference could not read it either; §see REFERENCE_REJECTED below
+        Map<String, List<String>> referenceBytes;
+        try {
+            referenceBytes = referenceElements(src);
+        } catch (Throwable t) {
+            // ONE named verdict per rejected file — silence is not evidence
+            out.add(new Verdict(Kind.REFERENCE_REJECTED, src.id(), "-", root(t)));
+            return out;
         }
 
         // Parse the WHOLE file so source information is file-absolute, then position the parser
@@ -104,6 +116,9 @@ public final class ParserEquivalence {
         for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.FUNCTION)) {
             sites.add(new int[]{i, 4});
         }
+        for (int i : ElementParser.measureSites(ts)) {
+            sites.add(new int[]{i, 5});
+        }
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -124,6 +139,10 @@ public final class ParserEquivalence {
                     Protocol.PAssociation a = ElementParser.at(ts, site[0]).parseAssociationDefinition();
                     el = a;
                     fqn = a.qualifiedName();
+                } else if (site[1] == 5) {
+                    Protocol.PMeasure me = ElementParser.at(ts, site[0]).parseMeasureDefinition();
+                    el = me;
+                    fqn = me.qualifiedName();
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -138,7 +157,7 @@ public final class ParserEquivalence {
             List<String> queue = referenceBytes.get(fqn);
             String expected = queue == null || queue.isEmpty() ? null : queue.remove(0);
             if (expected == null) {
-                out.add(new Verdict(Kind.REFERENCE_REJECTED, src.id(), fqn, "no reference element"));
+                out.add(new Verdict(Kind.LITE_EXTRA, src.id(), fqn, "no reference element"));
                 continue;
             }
             String actual;
@@ -152,24 +171,36 @@ public final class ParserEquivalence {
                     ? new Verdict(Kind.MATCH, src.id(), fqn, "")
                     : new Verdict(Kind.DIFF, src.id(), fqn, firstDivergence(expected, actual)));
         }
+        // DRAIN: every reference element we never looked up is a named row —
+        // the comparison was one-directional and this is the other direction
+        for (Map.Entry<String, List<String>> e : referenceBytes.entrySet()) {
+            for (int i = 0; i < e.getValue().size(); i++) {
+                out.add(new Verdict(Kind.LITE_MISSED, src.id(), e.getKey(),
+                        "reference element never compared"));
+            }
+        }
         return out;
     }
 
     /** The reference parser's elements, serialised individually and keyed by FQN. The value
      *  is a LIST: a source may declare the same FQN twice (the SameElementInSameNamespace
      *  test family) and sites pair with reference elements in source order. */
-    private Map<String, List<String>> referenceElements(Corpus.Source src) {
-        try {
-            PureModelContextData pmcd = reference.parseModel(src.text());
-            Map<String, List<String>> byFqn = new LinkedHashMap<>();
-            for (PackageableElement e : pmcd.getElements()) {
-                byFqn.computeIfAbsent(e.getPath(), k -> new ArrayList<>())
-                        .add(mapper.writeValueAsString(e));
+    private Map<String, List<String>> referenceElements(Corpus.Source src)
+            throws Exception {
+        PureModelContextData pmcd = reference.parseModel(src.text());
+        Map<String, List<String>> byFqn = new LinkedHashMap<>();
+        for (PackageableElement e : pmcd.getElements()) {
+            // SectionIndex is parse METADATA, not a comparable element —
+            // leaving it in the map made every leftover invisible because
+            // draining would have flagged 4,039 false LITE_MISSED rows
+            if (e instanceof org.finos.legend.engine.protocol.pure.v1.model
+                    .packageableElement.section.SectionIndex) {
+                continue;
             }
-            return byFqn;
-        } catch (Throwable t) {
-            return null;
+            byFqn.computeIfAbsent(e.getPath(), k -> new ArrayList<>())
+                    .add(mapper.writeValueAsString(e));
         }
+        return byFqn;
     }
 
     /** A diff message that names the exact JSON path, not just "differs". */
