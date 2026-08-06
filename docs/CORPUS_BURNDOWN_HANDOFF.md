@@ -20,7 +20,13 @@
 > …MultipleLevels pin the split); and `unionNavigate` children
 > `computeIfAbsent` so repeated paths accumulate demand (a plain `put`
 > silently DROPPED the earlier path's columns). **8 rows remain**
-> (diffs in scratchpad lineage11.log). The big unlock, fully derived
+> (diffs in scratchpad lineage11.log). Batch 5 (+1, 37 → 38) LANDED
+> the suffixed-OR grammar: it fires for OPERATION targets (union AND
+> inheritance — `hasUnionOperation` accepts both) on UN-NARROWED hops
+> only (`st == null`; a ->subType()-pinned hop joins its arm
+> independently with the plain mangle — Inheritance_2 pins it), and
+> the arm ORDINAL follows target-name order, not PM declaration order
+> (Bicycle < Car). Was derived
 > from the MultiJoin/UnionViewOnView diffs: the **suffixed-OR union
 > label grammar** — a union-OPERATION target's runtime join condition
 > is `or_` over arms j of `equal_root<srcCol>_` + (j==k ?

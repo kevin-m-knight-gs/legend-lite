@@ -1370,6 +1370,96 @@ public final class ScanRelations {
         }
     }
 
+    /** The suffixed-OR union label for the arm {@code self} of a
+     * UNION-OPERATION target: {@code or_} over arms j of
+     * {@code equal_<src><srcCol_j>_} + (own arm ?
+     * {@code unionAlias<tgtCol_j>_<j>} : {@code SQLNull}) — the arm's
+     * slice of the union join condition, other arms' key columns reading
+     * SQLNull (testTableTreeMultiJoin pins both arms). Null when the
+     * target class carries no Union operation mapping or fewer than two
+     * Join arms exist. */
+    private static @com.legend.Nullable String orUnionLabel(ModelContext ctx,
+            LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
+            @com.legend.Nullable String targetClassFqn, List<PropertyMapping> pms,
+            PropertyMapping.Join self) {
+        if (targetClassFqn == null
+                || !hasUnionOperation(ctx, md, targetClassFqn)) {
+            return null;
+        }
+        List<PropertyMapping.Join> arms = new ArrayList<>();
+        for (PropertyMapping pm : pms) {
+            if (pm instanceof PropertyMapping.Join a && !a.joins().isEmpty()) {
+                arms.add(a);
+            }
+        }
+        if (arms.size() < 2) {
+            return null;
+        }
+        String srcMain = mainTableOf(cm);
+        String srcName = node.joinName == null && node.labelOverride == null
+                ? "root" : String.valueOf(node.table);
+        record Arm(PropertyMapping.Join pm, String tgtTable, String sCol,
+                String tCol) {
+        }
+        List<Arm> resolved = new ArrayList<>();
+        for (PropertyMapping.Join a : arms) {
+            JoinChainElement last = a.joins().get(a.joins().size() - 1);
+            DatabaseDefinition.JoinDefinition jd = joinDef(ctx,
+                    last.databaseName() != null ? last.databaseName()
+                            : a.database(), last.joinName());
+            List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+            columnRefs(jd.operation(), refs);
+            String sCol = null;
+            String tCol = null;
+            String tTab = null;
+            for (RelationalOperation.ColumnRef r : refs) {
+                if (java.util.Objects.equals(bare(r.table()), srcMain)) {
+                    sCol = r.column();
+                } else {
+                    tCol = r.column();
+                    tTab = bare(r.table());
+                }
+            }
+            if (sCol == null || tCol == null || tTab == null) {
+                return null;   // outside the grammar — keep the mangle
+            }
+            resolved.add(new Arm(a, tTab, sCol, tCol));
+        }
+        // the engine's arm ordinal follows the OPERATION's member order —
+        // target-name order in the inheritance router (Bicycle < Car,
+        // testTableTreeMultiJoin), not PM declaration order
+        resolved.sort(java.util.Comparator
+                .comparing(Arm::tgtTable).thenComparing(Arm::tCol));
+        StringBuilder sb = new StringBuilder("or");
+        for (int jx = 0; jx < resolved.size(); jx++) {
+            Arm a = resolved.get(jx);
+            sb.append("_equal_").append(srcName).append(a.sCol()).append('_');
+            sb.append(a.pm() == self
+                    ? "unionAlias" + a.tCol() + "_" + jx : "SQLNull");
+        }
+        return sb.toString();
+    }
+
+    /** Whether the mapping closure carries an OPERATION mapping (union
+     * or inheritance) for {@code classFqn} — an UN-NARROWED hop to such a
+     * target rides the union subselect and labels with the suffixed-OR
+     * grammar; a ->subType()-pinned hop joins its arm independently and
+     * keeps the plain mangle (testTableTreeMultiJoin vs
+     * testTableTree_Inheritance_2 pin the split). */
+    private static boolean hasUnionOperation(ModelContext ctx,
+            LegacyMappingDefinition md, String classFqn) {
+        for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
+            for (ClassMapping c : m.classMappings()) {
+                if ((c instanceof ClassMapping.Union
+                        || c instanceof ClassMapping.Inheritance)
+                        && typeMatches(c.className(), classFqn)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** The LOCAL (+) property name whose Column PM maps {@code col} in
      * {@code cm}, or null. */
     private static @com.legend.Nullable String localPropNameFor(
@@ -1465,6 +1555,19 @@ public final class ScanRelations {
                     // is navigated); subType narrows the CONTINUATION.
                     Node child = joinChain(ctx, md, node, j.database(),
                             j.joins());
+                    // a UNION-OPERATION target's runtime label is the
+                    // arm's SLICE of the union join condition (suffixed-OR
+                    // grammar; other arms read SQLNull) — plain multi-set
+                    // inheritance keeps join-name mangles
+                    // (testTableTreeMultiJoin vs Inheritance_2)
+                    if (runtimeScan && st == null) {
+                        String lbl = orUnionLabel(ctx, md, cm, node,
+                                propertyTargetClass(ctx, cm, prop.name()),
+                                pms, j);
+                        if (lbl != null) {
+                            child.labelOverride = lbl;
+                        }
+                    }
                     if (st != null && !typeMatches(target.className(),
                             st.classFqn())) {
                         continue;
