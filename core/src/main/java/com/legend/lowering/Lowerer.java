@@ -2190,27 +2190,7 @@ public final class Lowerer {
             // Date literals: full dates/timestamps render typed; PARTIAL
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
-            case TypedCDate d -> switch (d.value()) {
-                case PureDateLiteral.StrictDate sd ->
-                        new SqlExpr.DateLit(sd.toEngineString());
-                case PureDateLiteral.Year y ->
-                        new SqlExpr.StringLit(y.toEngineString());
-                case PureDateLiteral.YearMonth ym ->
-                        new SqlExpr.StringLit(ym.toEngineString());
-                // Every time-bearing precision is a TIMESTAMP — exhaustive,
-                // so a new precision variant demands a decision here.
-                // HOUR/MINUTE-precision literals PAD to the full timestamp
-                // shape SQL demands (%2015-04-15T17 is 17:00:00); second-level
-                // precision is already full.
-                case PureDateLiteral.DateWithHour h ->
-                        new SqlExpr.TimestampLit(h.toEngineString() + ":00:00");
-                case PureDateLiteral.DateWithMinute mi ->
-                        new SqlExpr.TimestampLit(mi.toEngineString() + ":00");
-                case PureDateLiteral.DateWithSecond se ->
-                        new SqlExpr.TimestampLit(se.toEngineString());
-                case PureDateLiteral.DateWithSubsecond su ->
-                        new SqlExpr.TimestampLit(su.toEngineString());
-            };
+            case TypedCDate d -> MatchFold.dateLit(d.value());
             // %latest in VALUE position (generated milestoning-date reads:
             // the engine's k_businessDate golden projects the LatestDate
             // constant '9999-12-31T00:00:00.0000+0000') — the FIXED engine
@@ -2801,11 +2781,16 @@ public final class Lowerer {
             // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
             case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
                     SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped())));
+            // static-dispatch match fold (MatchFold doc)
+            case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
+                    scalar(MatchFold.fold(mr), columns);
             // SANCTIONED frontier default — see relation() above.
             default -> throw new NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());
         };
     }
+
+
 
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */
     private static SqlExpr clamp0(SqlExpr e) {
