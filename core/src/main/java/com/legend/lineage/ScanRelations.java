@@ -818,7 +818,18 @@ public final class ScanRelations {
             sb.append('(').append(condLabels
                     ? joinLabel(ctx, n, rootTable) : n.joinName).append(')');
         }
-        sb.append(" [").append(String.join(", ", n.cols)).append("]\n");
+        Set<String> cols = n.cols;
+        if (condLabels) {
+            // the RUNTIME scan reads a MILESTONED table's window columns
+            // (pureToSqlQuery's temporal predicates demand them —
+            // testTableTreeMilestoning pins from_z/thru_z/in_z/out_z)
+            Set<String> ms = milestoningCols(ctx, n);
+            if (!ms.isEmpty()) {
+                cols = new TreeSet<>(cols);
+                cols.addAll(ms);
+            }
+        }
+        sb.append(" [").append(String.join(", ", cols)).append("]\n");
         for (Node c : n.children.values()) {
             print(sb, c, depth + 1, ctx, rootTable, condLabels);
         }
@@ -833,6 +844,50 @@ public final class ScanRelations {
                         condLabels ? inner.table : null, condLabels);
             }
         }
+    }
+
+    /** A milestoned table's window columns (business from/thru,
+     * processing in/out, snapshot) — empty for plain tables. */
+    private static Set<String> milestoningCols(ModelContext ctx, Node n) {
+        if (n.db == null || n.table == null) {
+            return Set.of();
+        }
+        DatabaseDefinition db = ctx.findDatabase(n.db).orElse(null);
+        if (db == null) {
+            return Set.of();
+        }
+        List<DatabaseDefinition.TableDefinition> tables =
+                new ArrayList<>(db.tables());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            tables.addAll(s.tables());
+        }
+        for (DatabaseDefinition.TableDefinition td : tables) {
+            if (!td.name().equalsIgnoreCase(n.table) || td.milestoning() == null) {
+                continue;
+            }
+            Set<String> out = new TreeSet<>();
+            var ms = td.milestoning();
+            if (ms.business() != null) {
+                var b = ms.business();
+                if (b.snapshotDate() != null) {
+                    out.add(b.snapshotDate());
+                } else {
+                    out.add(java.util.Objects.requireNonNull(b.from()));
+                    out.add(java.util.Objects.requireNonNull(b.thru()));
+                }
+            }
+            if (ms.processing() != null) {
+                var p = ms.processing();
+                if (p.snapshotDate() != null) {
+                    out.add(p.snapshotDate());
+                } else {
+                    out.add(java.util.Objects.requireNonNull(p.in()));
+                    out.add(java.util.Objects.requireNonNull(p.out()));
+                }
+            }
+            return out;
+        }
+        return Set.of();
     }
 
     /** The engine's node label is the join CONDITION rendered

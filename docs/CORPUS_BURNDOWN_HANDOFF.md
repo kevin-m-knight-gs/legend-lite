@@ -1,5 +1,22 @@
 # Burn-down handoff — start here
 
+> **LINEAGE LEG IN FLIGHT (2026-08-06, fourth stretch).** scanRelations
+> 19 → 32 honest across two gated batches (`28e16e2e` + milestoning
+> cols). Landed rungs: variant-split label grammars (STATIC = join
+> names + no extent for constant-only; RUNTIME = condition mangle +
+> extent root — testConstant pins both), `stripAliasBreadcrumbs`
+> compare (both sides; §12 SETTLED — see banner below), milestoned
+> tables print their window columns under the runtime scan. **13
+> rows remain, diffs in scratchpad lineage5.log:** union trees
+> (FirmSet1/FirmSet2 + PersonMaster per set — union roots print but
+> children don't fork per set), per-occurrence join forks
+> (testSameRelationsAtSameLevel: engine re-walks a shared join per
+> DEMAND SITE; we dedup on chain identity), subtype branch selection
+> (testSelectOnLeftSide: a ->select() prunes the non-matching subtype
+> branch), tableToTDS join labels (quoted `"joinleft_"` grammar), OLAP
+> groupBy, inheritance_2. Each is a walk-structure change in
+> `buildRoots`/`walk`, not a label change.
+
 > **THIRD-SESSION DELTA (2026-08-06).** Next-designs #1 and #4 are
 > LANDED: views as join targets (`HopTarget` carries the view identity;
 > PASS-2 view landings expand as relation frames) took the view-to-view
@@ -62,6 +79,21 @@
 > than blanket cancel. #19/#20 are ONE design leg over the demand
 > model (which navigations are semantically demanded, incl. the
 > NavMaterializer demand-withholding pin at :181-188), not two patches.
+>
+> **§12 alias-grammar question SETTLED with ground truth (2026-08-06,
+> lineage diffs).** The engine's `_d#N_…_mN` label mangles decompose
+> into SEMANTIC content (function prefix `equal_`/`and_`, column
+> names, literal constants, table identities, tree-root-renders-as
+> `root`) — all reproducible — plus alias BREADCRUMBS (`_d#2`, `_d_1`,
+> `_m3`, `_l`, `_r`, `_md`, `_dy1`, `_f`) that are pureToSqlQuery's
+> internal processing-step counters and are NOT worth emulating. The
+> remedy (as §12 itself authorizes): EMIT the semantic mangle in
+> treeString labels, and compare with the breadcrumbs stripped from
+> the expected — everything semantic stays exactly verified. ~20 of
+> the 26 honest lineage FAILs are label-only under this rule; the
+> structural residue is testConstant (missing empty-column extent
+> node), testSelectOnLeftSide (branch selection),
+> testSameRelationsAtSameLevel (per-occurrence forks).
 >
 > **Still-open ranked work (synthesis §2, verified against code):**
 > #19/20 as the JOINT demand-model leg (above), #25 test-data-gen
