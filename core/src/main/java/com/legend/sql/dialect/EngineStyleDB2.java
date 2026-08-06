@@ -65,12 +65,20 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                 ? "(" + expr(w, 0) + ")" : expr(w, 0);
     }
 
+    @Override
+    protected String nullSafeEq(String l, String r) {
+        // DB2 has no IS NOT DISTINCT FROM — the engine expands the OR
+        // form (testFilterEqualsWithOptionalParameter_DB2)
+        return "(" + l + " = " + r + " or (" + l + " is null and " + r
+                + " is null))";
+    }
+
     /** DB2 QUOTES boolean placeholders — the mapped case-expr yields
      * {@code 'true'}/{@code 'false'} strings. */
     @Override
     protected String holderArgs(SqlExpr.PlanParam.Kind k) {
         return k == SqlExpr.PlanParam.Kind.BOOLEAN
-                ? "\"\\'\" \"\\'\" {}" : super.holderArgs(k);
+                ? "\"'\" \"'\" {}" : super.holderArgs(k);
     }
 
     /** DB2 has no group-by-alias: every key spells the PHYSICAL

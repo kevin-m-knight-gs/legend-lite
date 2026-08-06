@@ -497,11 +497,89 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 + holderArgs(p.kind()) + " \"null\")}";
     }
 
+    /** {@link #holder} for TEMPLATE-EMBEDDED contexts (inside a
+     * single-quoted freemarker arg): the args' quotes escape, and the
+     * legacy template spells DATETIME with the DATE-style args (no
+     * TIMESTAMP prefix — the pre-#5028 goldens pin it). */
+    private String holderEscaped(SqlExpr.PlanParam p) {
+        String inner = p.name() + "![]";
+        if (p.kind() == SqlExpr.PlanParam.Kind.DATETIME
+                && timeZone != null) {
+            inner = "GMTtoTZ( \"[" + timeZone + "]\" " + inner + ")";
+        }
+        SqlExpr.PlanParam.Kind k =
+                p.kind() == SqlExpr.PlanParam.Kind.DATETIME
+                        ? SqlExpr.PlanParam.Kind.DATE : p.kind();
+        return "${varPlaceHolderToString(" + inner + " "
+                + holderArgs(k).replace("'", "\\'") + " \"null\")}";
+    }
+
+
+    /** An OPTIONAL plan parameter in an equality — NULL-SAFE on the
+     * plan surface (`A is not distinct from B`, dialect-spelled via
+     * {@link #nullSafeEq}; upstream #5028 split the doctrine: in-flow
+     * execute keeps legacy plain-equals, PLAN surfaces are null-safe).
+     * The DATE and two-optional DATETIME goldens stayed on the legacy
+     * freemarker SELECTOR template. Null = not this shape. */
+    private @com.legend.Nullable String optionalParamEquality(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Call oc)
+                || oc.fn() != com.legend.sql.SqlFn.EQUAL
+                || oc.args().size() != 2) {
+            return null;
+        }
+        SqlExpr l = oc.args().get(0);
+        SqlExpr r = oc.args().get(1);
+        if (l instanceof SqlExpr.PlanParam lp2 && lp2.optional()
+                && r instanceof SqlExpr.PlanParam rp2 && rp2.optional()) {
+            if (lp2.kind() == SqlExpr.PlanParam.Kind.DATE
+                    || lp2.kind() == SqlExpr.PlanParam.Kind.DATETIME) {
+                return "(${optionalVarPlaceHolderOperationSelector("
+                        + lp2.name()
+                        + "![], optionalVarPlaceHolderOperationSelector("
+                        + rp2.name() + "![], '" + holderEscaped(lp2)
+                        + " = " + holderEscaped(rp2)
+                        + "', '1 = 0'), optionalVarPlaceHolderOperation"
+                        + "Selector(" + rp2.name()
+                        + "![], '1 = 0', '1 = 1'))})";
+            }
+            return nullSafeEq(holder(lp2), holder(rp2));
+        }
+        SqlExpr.PlanParam opt = l instanceof SqlExpr.PlanParam lp
+                && lp.optional() ? lp
+                : r instanceof SqlExpr.PlanParam rp && rp.optional()
+                        ? rp : null;
+        if (opt == null) {
+            return null;
+        }
+        SqlExpr other = opt == l ? r : l;
+        if (opt.kind() == SqlExpr.PlanParam.Kind.DATE) {
+            // legacy selector — the DATE goldens kept it
+            String otherEsc = expr(other, 4).replace("'", "\\'");
+            String present = opt == l
+                    ? holderEscaped(opt) + " = " + otherEsc
+                    : otherEsc + " = " + holderEscaped(opt);
+            return "(${optionalVarPlaceHolderOperationSelector("
+                    + opt.name() + "![], '" + present
+                    + "', '" + otherEsc + " is null')})";
+        }
+        String otherTx = expr(other, 4);
+        return opt == l
+                ? nullSafeEq(holder(opt), otherTx)
+                : nullSafeEq(otherTx, holder(opt));
+    }
+
+    /** NULL-SAFE equality spelling on the plan surface — H2 spells
+     * {@code IS NOT DISTINCT FROM}; dialects without it (DB2) expand
+     * the OR form. */
+    protected String nullSafeEq(String l, String r) {
+        return l + " is not distinct from " + r;
+    }
+
     protected String holderArgs(SqlExpr.PlanParam.Kind k) {
         return switch (k) {
-            case STRING -> "\"\\'\" \"\\'\" {\"\\'\" : \"\\'\\'\"}";
-            case DATE -> "\"\\'\" \"\\'\" {}";
-            case DATETIME -> "\"TIMESTAMP\\'\" \"\\'\" {}";
+            case STRING -> "\"'\" \"'\" {\"'\" : \"''\"}";
+            case DATE -> "\"'\" \"'\" {}";
+            case DATETIME -> "\"TIMESTAMP'\" \"'\" {}";
             case FLOAT -> "\"CAST(\" \" AS FLOAT)\" {}";
             case BOOLEAN, ENUM, OTHER -> "\"\" \"\" {}";
         };
@@ -950,46 +1028,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (et0 != null) {
             return et0;
         }
-        // an OPTIONAL parameter in a comparison renders the engine's
-        // freemarker SELECTOR template: present -> the comparison with a
-        // varPlaceHolderToString spelling, absent -> the column null test
-        if (e instanceof SqlExpr.Call oc
-                && oc.fn() == com.legend.sql.SqlFn.EQUAL
-                && oc.args().size() == 2) {
-            SqlExpr l = oc.args().get(0);
-            SqlExpr r = oc.args().get(1);
-            // BOTH operands optional: nested selectors — present/present
-            // compares placeholders, one-sided null is FALSE (1 = 0),
-            // null == null is TRUE (1 = 1)
-            if (l instanceof SqlExpr.PlanParam lp2 && lp2.optional()
-                    && r instanceof SqlExpr.PlanParam rp2
-                    && rp2.optional()) {
-                return "(${optionalVarPlaceHolderOperationSelector("
-                        + lp2.name()
-                        + "![], optionalVarPlaceHolderOperationSelector("
-                        + rp2.name() + "![], '" + holder(lp2) + " = "
-                        + holder(rp2)
-                        + "', '1 = 0'), optionalVarPlaceHolderOperation"
-                        + "Selector(" + rp2.name()
-                        + "![], '1 = 0', '1 = 1'))})";
-            }
-            SqlExpr.PlanParam opt = l instanceof SqlExpr.PlanParam lp
-                    && lp.optional() ? lp
-                    : r instanceof SqlExpr.PlanParam rp && rp.optional()
-                            ? rp : null;
-            if (opt != null) {
-                SqlExpr other = opt == l ? r : l;
-                // raw SQL embeds in the single-quoted freemarker clause —
-                // its own quotes ESCAPE (the engine's template spelling);
-                // holder() text stays as-is (pre-escaped placeholder args)
-                String otherTx = expr(other, 4).replace("'", "\\'");
-                String present = opt == l
-                        ? holder(opt) + " = " + otherTx
-                        : otherTx + " = " + holder(opt);
-                return "(${optionalVarPlaceHolderOperationSelector("
-                        + opt.name() + "![], '" + present
-                        + "', '" + otherTx + " is null')})";
-            }
+        String optEq = optionalParamEquality(e);
+        if (optEq != null) {
+            return optEq;
         }
         // a property read THROUGH a plan parameter spells the engine's
         // dotted placeholder ('${reportEndDate.date}' — Allocation-bound
