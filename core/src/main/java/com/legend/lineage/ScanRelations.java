@@ -71,6 +71,10 @@ public final class ScanRelations {
         // SYNTHETIC edge condition (tableToTDS ->join lambdas — no named
         // store join exists); null on model-join edges
         @com.legend.Nullable RelationalOperation cond;
+        // UNION-navigation label: non-null wins over joinName at print —
+        // "" prints NO label (per-member forks), a merged-key label
+        // prints verbatim (the unionAlias grammar)
+        @com.legend.Nullable String labelOverride;
         // a BARE tableToTDS side (no project): the whole table is the
         // demand — string retention must not narrow it
         boolean keepAll;
@@ -90,20 +94,26 @@ public final class ScanRelations {
 
     public static String treeString(ModelContext ctx, LambdaFunction query,
             String mappingFqn) {
-        return treeString(ctx, query, mappingFqn, false);
+        return treeString(ctx, query, mappingFqn, false, true);
     }
 
-    /** {@code runtimeVariant}: the RUNTIME (4-arg) scan — join edges
-     * label with the CONDITION mangle instead of the join name, and an
-     * undemanded root prints its EXTENT (`(t) Person []`); the STATIC
-     * variant's goldens spell join names and print nothing for a
-     * constant-only projection (testConstant pins both). */
+    /** {@code runtimeVariant}: the RUNTIME (4-arg) scan — an undemanded
+     * root prints its EXTENT (`(t) Person []`), union-mapped navigation
+     * forks per MEMBER SET (union keys + member PK demand), and
+     * milestoned tables read their window columns; the STATIC variant
+     * scans per pair route and prints nothing for a constant-only
+     * projection (testConstant pins both). */
+    /** {@code showLabels}: relationTreeAsString's boolean — {@code
+     * (false)} HIDES the edge labels; no-arg and {@code (true)} show
+     * them. The label CONTENT is the variant's: the STATIC tree carries
+     * JOIN NAMES, the RUNTIME tree the CONDITION MANGLE (testUnion pins
+     * static+no-arg=names and runtime+(false)=hidden; WithDiffKeys pins
+     * runtime+(true)=mangle). */
     public static String treeString(ModelContext ctx, LambdaFunction query,
-            String mappingFqn, boolean runtimeVariant) {
+            String mappingFqn, boolean runtimeVariant, boolean showLabels) {
         StringBuilder sb = new StringBuilder("root\n");
         for (Node r : scanRoots(ctx, query, mappingFqn, runtimeVariant)) {
-            print(sb, r, 1, ctx, runtimeVariant ? r.table : null,
-                    runtimeVariant);
+            print(sb, r, 1, ctx, r.table, runtimeVariant, showLabels);
         }
         return sb.toString();
     }
@@ -780,7 +790,8 @@ public final class ScanRelations {
         }
         for (List<Seg> p : paths) {
             for (int i = 0; i < rootCms.size(); i++) {
-                walk(ctx, md, rootCms.get(i), roots.get(i), p, 0, tdgMode);
+                walk(ctx, md, rootCms.get(i), roots.get(i), p, 0, tdgMode,
+                        extentRoots && !tdgMode);
             }
         }
         return roots;
@@ -809,17 +820,25 @@ public final class ScanRelations {
     }
 
     private static void print(StringBuilder sb, Node n, int depth,
-            ModelContext ctx, @com.legend.Nullable String rootTable, boolean condLabels) {
+            ModelContext ctx, @com.legend.Nullable String rootTable,
+            boolean runtimeVariant, boolean showLabels) {
         DatabaseDefinition.ViewDefinition vd = n.db == null ? null
                 : findView(ctx, n.db, n.schema, n.table);
         sb.append("  ".repeat(depth)).append("------> (")
                 .append(vd != null ? 'v' : 't').append(") ").append(n.table);
-        if (n.joinName != null) {
-            sb.append('(').append(condLabels
-                    ? joinLabel(ctx, n, rootTable) : n.joinName).append(')');
+        if (showLabels) {
+            if (n.labelOverride != null) {
+                if (!n.labelOverride.isEmpty()) {
+                    sb.append('(').append(n.labelOverride).append(')');
+                }
+            } else if (n.joinName != null) {
+                sb.append('(').append(runtimeVariant
+                        ? joinLabel(ctx, n, rootTable) : n.joinName)
+                        .append(')');
+            }
         }
         Set<String> cols = n.cols;
-        if (condLabels) {
+        if (runtimeVariant) {
             // the RUNTIME scan reads a MILESTONED table's window columns
             // (pureToSqlQuery's temporal predicates demand them —
             // testTableTreeMilestoning pins from_z/thru_z/in_z/out_z)
@@ -831,7 +850,8 @@ public final class ScanRelations {
         }
         sb.append(" [").append(String.join(", ", cols)).append("]\n");
         for (Node c : n.children.values()) {
-            print(sb, c, depth + 1, ctx, rootTable, condLabels);
+            print(sb, c, depth + 1, ctx, rootTable, runtimeVariant,
+                    showLabels);
         }
         if (vd != null) {
             // a VIEW EXPANDS: a nested 'root' subtree of its underlying
@@ -840,8 +860,8 @@ public final class ScanRelations {
             sb.append("  ".repeat(depth + 1)).append("root\n");
             Node inner = expandView(ctx, n.db, vd);
             if (inner != null) {
-                print(sb, inner, depth + 2, ctx,
-                        condLabels ? inner.table : null, condLabels);
+                print(sb, inner, depth + 2, ctx, inner.table,
+                        runtimeVariant, showLabels);
             }
         }
     }
@@ -1153,7 +1173,7 @@ public final class ScanRelations {
 
     private static void walk(ModelContext ctx, LegacyMappingDefinition md,
             ClassMapping.Relational cm, Node node, List<Seg> path, int i,
-            boolean tdgMode) {
+            boolean tdgMode, boolean runtimeScan) {
         if (i >= path.size()) {
             return;
         }
@@ -1179,10 +1199,10 @@ public final class ScanRelations {
                 for (List<Seg> sub : expanded.results()) {
                     List<Seg> spliced = new ArrayList<>(sub);
                     spliced.addAll(path.subList(next, path.size()));
-                    walk(ctx, md, cm, node, spliced, 0, tdgMode);
+                    walk(ctx, md, cm, node, spliced, 0, tdgMode, runtimeScan);
                 }
                 for (List<Seg> side : expanded.sides()) {
-                    walk(ctx, md, cm, node, side, 0, tdgMode);
+                    walk(ctx, md, cm, node, side, 0, tdgMode, runtimeScan);
                 }
                 return;
             }
@@ -1201,7 +1221,191 @@ public final class ScanRelations {
                     + prop.name() + "' has no property mapping in set '"
                     + cm.className() + "'");
         }
-        dispatchPms(ctx, md, cm, node, prop, st, pms, path, next, tdgMode);
+        // the RUNTIME scan forks a UNION-mapped navigation target per
+        // MEMBER SET (union keys + member PK demand; a merged-local-key
+        // union labels with the engine's unionAlias grammar); the STATIC
+        // scan and tdg walk per pair route
+        if (runtimeScan && st == null
+                && pms.stream().allMatch(p2 -> p2 instanceof PropertyMapping.Join)) {
+            String tgtCls = propertyTargetClass(ctx, cm, prop.name());
+            List<ClassMapping.Relational> tsets = tgtCls == null
+                    ? List.<ClassMapping.Relational>of() : unionSets(ctx, md, tgtCls);
+            if (tsets.size() > 1) {
+                unionNavigate(ctx, md, cm, node, prop, tsets, path, next);
+                return;
+            }
+        }
+        dispatchPms(ctx, md, cm, node, prop, st, pms, path, next, tdgMode,
+                runtimeScan);
+    }
+
+    private static List<ClassMapping.Relational> unionSets(ModelContext ctx,
+            LegacyMappingDefinition md, String classFqn) {
+        try {
+            return rootClassMappings(ctx, md, classFqn);
+        } catch (NotImplementedException e) {
+            return List.of();
+        }
+    }
+
+    private record URoute(@com.legend.Nullable String srcCol, String tgtCol) {
+    }
+
+    /** Union-target navigation (engine: the property joins the UNION
+     * SUBSELECT, scanned as one child PER MEMBER SET). Key demand per
+     * child: the routes' target-side key columns present on the member's
+     * table — unless every member maps its route key through ONE
+     * same-named LOCAL (+) property (the merged-key union), where each
+     * member demands only ITS mapped column and the child labels with
+     * the engine's {@code equal_unionAlias<name>_root<srcCol>} grammar
+     * (testUnionToSameTableWithDiffKeys); unmerged unions print NO label
+     * (testUnion/testUnionToUnion pin both). */
+    private static void unionNavigate(ModelContext ctx,
+            LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
+            Seg.Prop prop, List<ClassMapping.Relational> targetSets,
+            List<Seg> path, int next) {
+        List<ClassMapping.Relational> srcSets = unionSets(ctx, md, cm.className());
+        if (srcSets.isEmpty()) {
+            srcSets = List.of(cm);
+        }
+        List<URoute> routes = new ArrayList<>();
+        for (ClassMapping.Relational s : srcSets) {
+            String srcMain = mainTableOf(s);
+            for (PropertyMapping pm : pmsFor(ctx, md, s, prop.name())) {
+                if (!(pm instanceof PropertyMapping.Join j)
+                        || j.joins().isEmpty()) {
+                    continue;
+                }
+                JoinChainElement last = j.joins().get(j.joins().size() - 1);
+                DatabaseDefinition.JoinDefinition jd = joinDef(ctx,
+                        last.databaseName() != null ? last.databaseName()
+                                : j.database(), last.joinName());
+                List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+                columnRefs(jd.operation(), refs);
+                String sCol = null;
+                String tCol = null;
+                for (RelationalOperation.ColumnRef r : refs) {
+                    if (java.util.Objects.equals(bare(r.table()), srcMain)) {
+                        sCol = r.column();
+                    } else {
+                        tCol = r.column();
+                    }
+                }
+                if (tCol != null) {
+                    URoute r = new URoute(sCol, tCol);
+                    if (!routes.contains(r)) {
+                        routes.add(r);
+                    }
+                    // the source set's OWN route key demands on the
+                    // source node (root [ID, name] — engine union join)
+                    if (sCol != null
+                            && java.util.Objects.equals(s.setId(), cm.setId())) {
+                        node.cols.add(sCol);
+                    }
+                }
+            }
+        }
+        // merged-key detection: one local (+) property name maps EVERY
+        // member's route key, and all routes read one source column
+        String mergedName = null;
+        boolean merged = !routes.isEmpty()
+                && routes.stream().map(URoute::srcCol).distinct().count() == 1
+                && routes.get(0).srcCol() != null;
+        for (ClassMapping.Relational ts : merged ? targetSets
+                : List.<ClassMapping.Relational>of()) {
+            String name = null;
+            for (URoute r : routes) {
+                String n2 = localPropNameFor(ts, r.tgtCol());
+                if (n2 != null) {
+                    name = n2;
+                    break;
+                }
+            }
+            if (name == null || (mergedName != null && !mergedName.equals(name))) {
+                merged = false;
+                break;
+            }
+            mergedName = name;
+        }
+        for (ClassMapping.Relational ts : targetSets) {
+            Node child = new Node(java.util.Objects.requireNonNull(
+                    mainDbOf(ts), "union member set without a main db"),
+                    mainTableOf(ts), null);
+            child.labelOverride = merged
+                    ? "equal_unionAlias" + mergedName + "_root"
+                            + routes.get(0).srcCol()
+                    : "";
+            if (merged) {
+                for (URoute r : routes) {
+                    if (localPropNameFor(ts, r.tgtCol()) != null) {
+                        child.cols.add(r.tgtCol());
+                    }
+                }
+            } else {
+                for (URoute r : routes) {
+                    if (tableHasCol(ctx, child.db, child.table, r.tgtCol())) {
+                        child.cols.add(r.tgtCol());
+                    }
+                }
+                // the union subselect projects each member's PRIMARY KEY
+                // for instance identity (engine <pk>_N columns) — the
+                // member's own PK demands on its arm
+                child.cols.addAll(pkCols(ctx, child.db, child.table));
+            }
+            node.children.put("union#" + ts.setId(), child);
+            walk(ctx, md, ts, child, path, next, false, true);
+        }
+    }
+
+    /** The LOCAL (+) property name whose Column PM maps {@code col} in
+     * {@code cm}, or null. */
+    private static @com.legend.Nullable String localPropNameFor(
+            ClassMapping.Relational cm, String col) {
+        for (PropertyMapping pm : cm.propertyMappings()) {
+            if (pm instanceof PropertyMapping.LocalProperty lp
+                    && lp.body() instanceof PropertyMapping.Column c
+                    && c.column().equals(col)) {
+                return lp.propertyName();
+            }
+        }
+        return null;
+    }
+
+    /** PRIMARY KEY columns of {@code table} in {@code dbFqn}. */
+    private static Set<String> pkCols(ModelContext ctx, String dbFqn,
+            @com.legend.Nullable String table) {
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db == null || table == null) {
+            return Set.of();
+        }
+        List<DatabaseDefinition.TableDefinition> tables =
+                new ArrayList<>(db.tables());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            tables.addAll(s.tables());
+        }
+        Set<String> out = new TreeSet<>();
+        tables.stream().filter(t -> t.name().equalsIgnoreCase(table))
+                .flatMap(t -> t.columns().stream())
+                .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                .forEach(c -> out.add(c.name()));
+        return out;
+    }
+
+    private static boolean tableHasCol(ModelContext ctx, String dbFqn,
+            @com.legend.Nullable String table, String col) {
+        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
+        if (db == null || table == null) {
+            return false;
+        }
+        List<DatabaseDefinition.TableDefinition> tables =
+                new ArrayList<>(db.tables());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            tables.addAll(s.tables());
+        }
+        return tables.stream()
+                .filter(t -> t.name().equalsIgnoreCase(table))
+                .flatMap(t -> t.columns().stream())
+                .anyMatch(c -> c.name().equals(col));
     }
 
     /** One property hop's mappings dispatch — shared by class-mapping hops
@@ -1209,7 +1413,7 @@ public final class ScanRelations {
     private static void dispatchPms(ModelContext ctx,
             LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
             Seg.Prop prop, Seg.@com.legend.Nullable SubType st, List<PropertyMapping> pms,
-            List<Seg> path, int next, boolean tdgMode) {
+            List<Seg> path, int next, boolean tdgMode, boolean runtimeScan) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.Column c -> {
@@ -1252,7 +1456,14 @@ public final class ScanRelations {
                             st.classFqn())) {
                         continue;
                     }
-                    walk(ctx, md, target, child, path, next, tdgMode);
+                    walk(ctx, md, target, child, path, next, tdgMode, runtimeScan);
+                    if (runtimeScan && unionSets(ctx, md,
+                            target.className()).size() > 1) {
+                        // a UNION-mapped target's arm projects its PK for
+                        // instance identity (engine <pk>_N columns) —
+                        // the per-PM dispatch route (embedded bridges)
+                        child.cols.addAll(pkCols(ctx, child.db, child.table));
+                    }
                     if (tdgMode) {
                         unionSiblings(ctx, md, node, child, target, st,
                                 path, next);
@@ -1300,7 +1511,7 @@ public final class ScanRelations {
                                 + prop.name() + "'");
                     }
                     dispatchPms(ctx, md, cm, node, nprop, nst, sub, path,
-                            nnext, tdgMode);
+                            nnext, tdgMode, runtimeScan);
                 }
                 default -> throw new NotImplementedException("scanRelations: "
                         + pm.getClass().getSimpleName()
@@ -1352,7 +1563,7 @@ public final class ScanRelations {
                     x -> new Node(child.db, child.table, child.joinName));
             dup.cols.addAll(child.cols);
             dup.cond = child.cond;
-            walk(ctx, md, cm2, dup, path, next, true);
+            walk(ctx, md, cm2, dup, path, next, true, false);
         }
     }
 

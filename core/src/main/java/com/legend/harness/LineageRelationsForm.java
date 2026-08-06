@@ -76,7 +76,13 @@ final class LineageRelationsForm {
             String var = receiverVar(tas.parameters().get(0));
             String expected = foldString(ae.parameters().get(0), lets);
             if (var != null && expected != null) {
-                asserts.add(new String[]{var, expected});
+                // relationTreeAsString's label arg: no-arg = JOIN names,
+                // false = NO labels, true = condition MANGLE
+                String lm = tas.parameters().size() >= 2
+                        && tas.parameters().get(1)
+                                instanceof com.legend.protocol.spec.CBoolean b
+                        ? (b.value() ? "M" : "N") : "J";
+                asserts.add(new String[]{var, expected, lm});
             }
         }
         if (asserts.isEmpty() || isScan.isEmpty()) {
@@ -117,7 +123,8 @@ final class LineageRelationsForm {
                                 qualifyMapping(mp.fullPath(), ctx,
                                         imports),
                                 "unresolvable mapping reference"),
-                        scan.parameters().size() == 4);
+                        scan.parameters().size() == 4,
+                        !"N".equals(a[2]));
                 verified++;
                 if (!stripAliasBreadcrumbs(a[1])
                         .equals(stripAliasBreadcrumbs(got))) {

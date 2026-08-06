@@ -1,21 +1,26 @@
 # Burn-down handoff — start here
 
 > **LINEAGE LEG IN FLIGHT (2026-08-06, fourth stretch).** scanRelations
-> 19 → 32 honest across two gated batches (`28e16e2e` + milestoning
-> cols). Landed rungs: variant-split label grammars (STATIC = join
-> names + no extent for constant-only; RUNTIME = condition mangle +
-> extent root — testConstant pins both), `stripAliasBreadcrumbs`
-> compare (both sides; §12 SETTLED — see banner below), milestoned
-> tables print their window columns under the runtime scan. **13
-> rows remain, diffs in scratchpad lineage5.log:** union trees
-> (FirmSet1/FirmSet2 + PersonMaster per set — union roots print but
-> children don't fork per set), per-occurrence join forks
-> (testSameRelationsAtSameLevel: engine re-walks a shared join per
-> DEMAND SITE; we dedup on chain identity), subtype branch selection
-> (testSelectOnLeftSide: a ->select() prunes the non-matching subtype
-> branch), tableToTDS join labels (quoted `"joinleft_"` grammar), OLAP
-> groupBy, inheritance_2. Each is a walk-structure change in
-> `buildRoots`/`walk`, not a label change.
+> **19 → 35 honest** across three gated batches. The load-bearing
+> model, corrected mid-leg (batch 1 conflated it): TWO ORTHOGONAL
+> AXES. (1) The SCAN VARIANT shapes the TREE — static (3-arg) walks
+> per pair route, prints nothing for constant-only projections;
+> runtime (4-arg) prints extent roots, milestoned window columns,
+> forks UNION targets per member set (`unionNavigate`: route keys
+> present on the arm's table + the arm's PK for instance identity;
+> merged-local-key unions label `equal_unionAlias<name>_root<col>`),
+> and adds union-arm PKs on the per-PM dispatch route too (embedded
+> bridges). (2) relationTreeAsString's ARG only SHOWS/HIDES labels —
+> no-arg/true show, false hides; label CONTENT is the variant's
+> (static=join names, runtime=condition mangle, breadcrumbs stripped
+> both sides at compare). testConstant + testUnion pin all cells of
+> this matrix. **10 rows remain** (diffs in scratchpad lineage9.log):
+> testUnionToUnionMultiple/-Levels + testUnionViewOnView (deeper union
+> shapes), per-occurrence join forks (testSameRelationsAtSameLevel:
+> engine re-walks a shared join per DEMAND SITE; we dedup on chain
+> identity), subtype branch pruning (testSelectOnLeftSide), tableToTDS
+> labels (quoted `"joinleft_"` grammar) ×3, testTableTreeMultiJoin,
+> testTableTree_Inheritance_2.
 
 > **THIRD-SESSION DELTA (2026-08-06).** Next-designs #1 and #4 are
 > LANDED: views as join targets (`HopTarget` carries the view identity;
