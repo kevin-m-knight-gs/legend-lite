@@ -2699,6 +2699,24 @@ final class Typer {
             }
             return new Type.GenericType(fqn, args);
         }
+        // FUNCTION-TYPE annotations (f:Function<{T[1]->R[*]}>[1] spelled
+        // structurally — domainManagement/tds postprocessor library
+        // params): same conversion TypeClassifier applies to signatures
+        if (te instanceof TypeExpression.FunctionType ft) {
+            java.util.List<com.legend.compiler.element.type.Type.Param> ps =
+                    new java.util.ArrayList<>(ft.parameters().size());
+            for (TypeExpression.TypedParameter tp : ft.parameters()) {
+                ps.add(new com.legend.compiler.element.type.Type.Param(
+                        namedType(tp.type()),
+                        com.legend.compiler.element.type.Multiplicity
+                                .from(tp.multiplicity())));
+            }
+            return new Type.FunctionType(ps,
+                    new com.legend.compiler.element.type.Type.Param(
+                            namedType(ft.result().type()),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .from(ft.result().multiplicity())));
+        }
         if (!(te instanceof TypeExpression.NameRef nr)) {
             throw new TypeInferenceException(
                     "unsupported type annotation form: " + te.getClass().getSimpleName());

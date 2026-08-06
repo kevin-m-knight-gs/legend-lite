@@ -1054,9 +1054,15 @@ shared source registered by several families cannot double-count. Run with
 - global meta::pure::mapping::modelToModel::test::mft::mapping::rowexplosion::testRowExplosionMapping => Unknown type: 'MFTMappingTest' is not a known primitive, class, or enum
 - global meta::pure::mapping::modelToModel::test::mft::mapping::rowexplosion::testRowExplosionUnionMapping => Unknown type: 'MFTMappingTest' is not a known primitive, class, or enum
 - global meta::pure::mapping::modelToModel::test::mft::mapping::union::testunionMapping => Unknown type: 'MFTMappingTest' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping$class$Domain => Unknown type: 'Domain' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping$class$Person => Unknown type: 'Person' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::extractDomainTypeClassFromGraphFetchTree => Unknown type: 'meta::external::format::shared::binding::Binding' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateFunctionExpressionByOperationType => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateMutationFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateInitializeFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateQueryFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::lambdaParamsByOperationType => Unknown type: 'meta::pure::graphFetch::PropertyGraphFetchTree' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::findGetAllInQualifiedProperties => Unknown type: 'SimpleFunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::lookForGetAll => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::reprocessVariables => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctTestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctUnionTestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
 - global meta::relational::tests::mapping::extension::model::mapping::mft::extensionTestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
@@ -1086,7 +1092,6 @@ shared source registered by several families cannot double-count. Run with
 - global meta::pure::executionPlan::tests::DummyExecutionOption$prop$paramsRequired => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - global meta::pure::executionPlan::tests::OtherDummyExecutionOption$prop$paramsRequired => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::FunctionParamScope$prop$resolveFunctionReferenceByVar => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping => mapping 'meta::relational::graphFetch::domain::tests::TestMapping' binds unknown class 'Domain'
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctTestMapping => mapping 'meta::relational::tests::mapping::distinct::model::mapping::mft::distinctTestMapping' binds unknown class 'Firm'
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctUnionTestMapping => mapping 'meta::relational::tests::mapping::distinct::model::mapping::mft::distinctUnionTestMapping' binds unknown class 'Firm'
 - global meta::relational::tests::mapping::extension::model::mapping::mft::extensionTestMapping => mapping 'meta::relational::tests::mapping::extension::model::mapping::mft::extensionTestMapping' binds unknown class 'Firm'
@@ -1109,7 +1114,7 @@ shared source registered by several families cannot double-count. Run with
 ### top error buckets
 
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
-- 2x in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
+- 2x in function 'meta::relational::postProcessor::transformNonCached': eval expects a lambda, a function reference, ~col, or a function-typed variable; got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
@@ -1208,7 +1213,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME, "persontable_0".FIRSTNAME
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
+- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': eval expects a lambda, a function reference, ~col, or a function-typed variable; got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
@@ -1246,7 +1251,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
-- SHAPE testGraphFetch [graphFetch/domain]: assert form 'assertEquals/2' is not supported yet — plan wall: 'Domain' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- SHAPE testGraphFetch [graphFetch/domain]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::function::FunctionDefinition has no property 'expressionSequence'
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: from() argument 2 must be a mapping or runtime reference, got TypedCopyInstance
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
@@ -1328,7 +1333,7 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
-- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
+- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': eval expects a lambda, a function reference, ~col, or a function-typed variable; got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable_d#6_d#3_m3" on ("firmTable_d#6_d#3_m3".ID = "root".FIRMID), got select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeV
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions

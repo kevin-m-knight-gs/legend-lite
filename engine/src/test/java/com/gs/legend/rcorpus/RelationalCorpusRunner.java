@@ -141,6 +141,26 @@ public class RelationalCorpusRunner {
                 }
             }
         }
+        // the graphFetch DOMAIN-MANAGEMENT library (engine-core
+        // core/pure/graphFetch/domain — the Domain/DataSpace test model
+        // the relational graphFetch/domain family maps onto); library
+        // elements only, pulled by reference like the m2m test library
+        Path gfDomain = Corpus.ENGINE_ROOT.resolve(
+                "legend-engine-core/legend-engine-core-pure/"
+                + "legend-engine-pure-code-compiled-core/"
+                + "src/main/resources/core/pure/graphFetch/domain");
+        if (Files.isDirectory(gfDomain)) {
+            try (Stream<Path> gf = Files.walk(gfDomain)) {
+                for (Path f : gf.filter(x -> x.toString().endsWith(".pure"))
+                        .sorted().toList()) {
+                    try {
+                        runner.registerLibrarySource(Files.readString(f));
+                    } catch (Exception ignore) {
+                        // unreadable library file: its elements stay dark
+                    }
+                }
+            }
+        }
         // the relational compiler's OWN model vocabulary
         // (RelationalDebugContext / IsolationStrategy — the tests/advanced
         // testForced* family constructs them): pureToSQLQuery.pure parses
