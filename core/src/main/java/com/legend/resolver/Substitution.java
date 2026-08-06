@@ -131,11 +131,12 @@ final class Substitution {
      * property-function dates — legacy list shapes at this boundary. */
     record TemporalView(List<TypedSpec> rootTemporalDates,
                         Map<String, List<TypedSpec>> headTemporalDates,
-                        @com.legend.Nullable TemporalContext rootCtx) {
+                        @com.legend.Nullable TemporalContext rootCtx,
+                        @com.legend.Nullable String forEachDateColumn) {
 
         TemporalView(List<TypedSpec> rootTemporalDates,
                 Map<String, List<TypedSpec>> headTemporalDates) {
-            this(rootTemporalDates, headTemporalDates, null);
+            this(rootTemporalDates, headTemporalDates, null, null);
         }
 
         static final TemporalView NONE =
@@ -1382,6 +1383,16 @@ final class Substitution {
                     TypedSpec hd = target.temporal().rootContextDate(prop);
                     return hd != null ? hd
                             : contextDate(target.rootTemporalDates(), prop);
+                }
+                if (prop.equals("businessDate") || prop.equals("processingDate")) {
+                    // FOR-EACH-DATE: the generated date reads THE DATES
+                    // COLUMN off the joined row (the engine projects the
+                    // calendar date per row — temporalDateProjectionQuery)
+                    String fed = target.temporal().forEachDateColumn();
+                    if (fed != null) {
+                        return milestoneColumnRead(fed, target.freshRowVar(),
+                                target.rowType(), "", n);
+                    }
                 }
                 // VERSION SWEEP (allVersions / allVersionsInRange — the
                 // root context is EMPTY): each version row's OWN

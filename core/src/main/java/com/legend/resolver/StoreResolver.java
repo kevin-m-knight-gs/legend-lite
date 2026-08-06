@@ -3439,13 +3439,13 @@ public final class StoreResolver {
                                 m.pipeline(), cs.mappingFqn(), ctx),
                         inCallee(), boolCallee("and"), boolCallee("or")),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
-                        temporal.headTemporalDates(), temporal.root()),
+                        temporal.headTemporalDates(), temporal.root(),
+                        temporal.forEachDateColumn()),
                 filterPosition, false));
     }
 
     private com.legend.compiler.element.TypedFunction boolCallee(String n2) {
-        return ctx.findFunction("meta::pure::functions::boolean::" + n2)
-                .get(0);
+        return ctx.findFunction("meta::pure::functions::boolean::" + n2).get(0);
     }
 
     /** The 2-arg in overload — the objectReferenceIn pk membership. */

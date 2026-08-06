@@ -2464,6 +2464,11 @@ final class TemporalFrame {
      *  table-derived sweep column. */
     private @com.legend.Nullable String forEachDateColumn;
 
+    /** The for-each-date DATES column, or null outside that mode. */
+    @com.legend.Nullable String forEachDateColumn() {
+        return forEachDateColumn;
+    }
+
     /** The generated milestone-struct leaf -> physical column map for the
      * pipe's root table, by the class's temporal dimension. */
     Map<String, String> milestoneColumnsOf(TypedSpec pipe, String classFqn) {
