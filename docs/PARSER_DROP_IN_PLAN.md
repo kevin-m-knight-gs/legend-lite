@@ -317,13 +317,28 @@ specs fall back to two families and a transform, like the elements.
 
 ### 4.2 Parser work, in dependency order
 
+> **Status as of 2026-08-05.** A nine-agent section sweep re-measured this list against
+> `266fe1d5`; see [`GRAMMAR_COMPATIBILITY_2026_08.md`](GRAMMAR_COMPATIBILITY_2026_08.md) **§10**.
+> Items 1, 6, 10 and the exit criteria are **confirmed**; items 2, 7, 8 are annotated below;
+> the ordering in Phase 3 and the `MappingElementContext` risk row are **superseded**.
+
 1. **Fix the silent-drop lexer — prerequisite for everything.** `Lexer.java:287-293` raw-skips any
    section outside `{Pure, Mapping, Relational, Connection, Runtime}` and returns **success**. You
    cannot delegate a section you have already swallowed. Make it a loud, delegable miss.
+   > **Confirmed and quantified 2026-08-05:** 1,363 of 7,211 sources (18.9%) yield zero
+   > verdicts; ~2,452 `###Pure` elements are invisible as collateral. The priority call was right.
+   >
+   > **A second, co-equal prerequisite was missed here:** the harness gates. The `pureOnly`
+   > filter (`ParserEquivalence.java:71-80`, duplicated in `SpiSeamProofTest` and
+   > `RejectionParityTest`), the `.pure`-only corpus predicate, and the `parser-equivalence`
+   > **classpath** each independently exclude a section before grammar work can be judged.
+   > Neither is grammar work; both gate every section. See `GRAMMAR_COMPATIBILITY_2026_08.md` §1.
 2. **A line index in the lexer.** Positions must be cheap at all 88 construction sites in `parser/`.
    Today line/column is computed *only when throwing*, by an O(offset) rescan
    (`TokenStreamCursor.java:285-301`). Build an `int[]` of line starts once per source and
    binary-search it. Self-contained; touches no AST.
+   > **Likely DONE.** `PARSER_DROP_IN_STATUS.md` §3 describes `com.legend.lexer.TokenStream` as
+   > carrying a *"lazily-built line index, binary search."* Verify before re-doing.
 3. **Fix the column-base disagreement** — `TokenStreamCursor.java:295` starts at 0,
    `LegendCompileException.java:66` at 1. Engine is 1-based, inclusive end column.
 4. **Emit protocol records** from the 88 sites (SpecParser 75, ElementParser 11, the two grammar
@@ -334,8 +349,22 @@ specs fall back to two families and a transform, like the elements.
 6. **`###Service`** — `ElementParser.java:333` already has `case SERVICE`, but the lexer discards
    `###Service` bodies, which is how all 43 real ones are spelled. The parser supports a construct
    the lexer never delivers. Cheapest real coverage win.
+   > **Half stale.** The lexer/parser mismatch is confirmed, and it is the cheapest *lexing*
+   > win. It is **not** a parity win: all 51 `###Service` corpus files are mixed-section, so
+   > none is reachable by any byte-parity gate until §1 of the compatibility doc lands (the
+   > `pureOnly` filter), and 28 of them sit in a service test-runner module we have no reason
+   > to consume.
 7. **`###Connection`** — fails 0/3 today despite being whitelisted. A bug.
+   > **Understated, and not a bug.** Measured **17/56 sections parse (30.4%)**. It is a
+   > *grammar divergence*: 1 of 8 connection types, 4 of 16 datasource specs, 3 of 12 auth
+   > strategies, with invented keyword spellings (`Static{database:}` vs the engine's `name:`;
+   > `UsernamePassword` vs `UserNamePassword`) that can never match however many bugs are
+   > fixed. Also: `sqlQueryPostProcessors` is **not** a `###Connection` grammar key at all —
+   > it is an M3 lambda-typed property settable only from Pure copy-construction.
 8. **`DataElement`** — `###Data` parses but produces 0/4 matching elements.
+   > **Framing stale.** 48 of 57 `###Data` files parse cleanly, with **zero** failures
+   > attributable to `###Data` — all 9 are other sections in the same file. 42 single-section
+   > files need only embedded-data kinds we already emit. Best cost/benefit in this list.
 9. **`ProtocolToModel`** — the transform feeding legend-lite's compiler; also stage 2's adapter.
 10. **Delete `MappingGrammarParser.java:432-440`** — it deliberately swallows the tail of an XStore
     block after a missing comma. Incompatible with any equivalence claim.
@@ -364,13 +393,34 @@ correctness. `PureGrammarParser.visitSection` consults extension `SectionParser`
 hard-wired legacy ones, so a jar claiming `"Pure"` wins over `DomainParser` — no fork.
 
 ### Phase 3 — sections, in this order
-**Connection** (39-line grammar, 105-line walker, and it inherits all 8 connection types plus 12
-database datasource/auth modules free) -> **Diagram** -> **Runtime** -> **Relational** ->
-**Mapping** -> **Pure**.
 
-Mapping needs the `MappingElementContext` shim spiked **before** committing: 21 of 24 sub-parsers are
-reachable through pure-`String` SPIs and delegate verbatim; only the 3 mapping-side SPIs are welded
-to ANTLR nodes. Shim ~200–400 lines; without it Mapping is ~1,800.
+> **Superseded 2026-08-05** by measurement — see `GRAMMAR_COMPATIBILITY_2026_08.md` §10.3.
+> The order is now **Runtime -> Connection -> Relational -> Mapping**, with **Diagram removed**.
+>
+> - **Diagram is a byte-parity dead end.** Its 49 corpus files use legend-pure's **M3** dialect
+>   (`Diagram fqn(width=, height=) { TypeView … }`); the engine grammar demands the Legend one
+>   (`Diagram fqn { classView … }`). Two languages sharing a section name, so there is no
+>   reference-adjudicable corpus at all. (This also resolves `PARSER_DROP_IN.md:713-716`'s
+>   *"genuinely unexplained"* zero.) It remains the cheapest **lexing-coverage** win.
+> - **Connection's "free inheritance" is the unbuilt part.** 8 types + 16 datasource specs +
+>   12 auth strategies are exactly what is missing today (1, 4 and 3 built respectively).
+> - **Runtime is the smaller proof** — 46 elements, 8 wire discriminators, 33 field names; the
+>   smallest *complete* section, and it exercises the whole non-`Pure` loop end to end.
+> - **Relational must precede Mapping**: it *is* ~9 of Mapping's 52 wire discriminators and
+>   **8,620** of Mapping's node instances. Mapping-first builds that vocabulary twice.
+
+~~**Connection** (39-line grammar, 105-line walker, and it inherits all 8 connection types plus 12
+database datasource/auth modules free) -> **Diagram** -> **Runtime** -> **Relational** ->
+**Mapping** -> **Pure**.~~
+
+~~Mapping needs the `MappingElementContext` shim spiked **before** committing: 21 of 24 sub-parsers
+are reachable through pure-`String` SPIs and delegate verbatim; only the 3 mapping-side SPIs are
+welded to ANTLR nodes. Shim ~200–400 lines; without it Mapping is ~1,800.~~
+
+> **The shim was never needed.** `LegendLiteSectionParser:150-155` emits JSON and hands it to the
+> engine's own deserializer — no ANTLR context is ever constructed. `MappingParser`,
+> `ConnectionParser` and `RuntimeParser` all return `ImportAwareCodeSection`, the exact type the
+> bridge already builds; only `###Relational` differs (`DefaultCodeSection`), a one-line change.
 
 **Per-section exit criteria — all required:**
 - S1 100% on that section's corpus slice
@@ -408,7 +458,7 @@ S3 byte-identity everywhere; delete grammars; drop the ANTLR plugin; unpin.
 
 | risk | trigger | action |
 |---|---|---|
-| `MappingElementContext` shim fails | spike in Phase 3 | delegate `###Mapping` permanently; claim the rest |
+| ~~`MappingElementContext` shim fails~~ | ~~spike in Phase 3~~ | **Struck 2026-08-05 — dead risk.** The bridge crosses the seam as JSON, not ANTLR nodes; no shim exists or is needed. See Phase 3. |
 | Fuzz divergence does not converge | Phase 3 | stop at S1; never claim byte-identity |
 | Protocol drift outpaces us | CI red on upstream bumps | pin an engine version per release; batch catch-up |
 | Emitter accumulates upstream quirks | review | each deviation gets a named case + upstream citation; if the count grows unbounded, reconsider |
