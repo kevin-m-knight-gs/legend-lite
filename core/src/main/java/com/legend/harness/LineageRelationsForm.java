@@ -116,9 +116,11 @@ final class LineageRelationsForm {
                         java.util.Objects.requireNonNull(
                                 qualifyMapping(mp.fullPath(), ctx,
                                         imports),
-                                "unresolvable mapping reference"));
+                                "unresolvable mapping reference"),
+                        scan.parameters().size() == 4);
                 verified++;
-                if (!a[1].equals(got)) {
+                if (!stripAliasBreadcrumbs(a[1])
+                        .equals(stripAliasBreadcrumbs(got))) {
                     failures.add("scanRelations: expected\n" + a[1]
                             + "got\n" + got);
                 }
@@ -128,6 +130,41 @@ final class LineageRelationsForm {
             }
         }
         return new TestBody.Outcome.Ran(verified, advisory, 0, failures);
+    }
+
+    /** Strip the engine's alias BREADCRUMBS from tree labels before
+     * compare (handoff: §12 settled) — the `_d#N`/`_dyN`/`_mN` runs and
+     * their `_l`/`_r`/`_f`/`_md`/`_N`/`#N` continuations are
+     * pureToSqlQuery's internal processing-step counters, not
+     * reproducible from our IR. A run must START with a `_d…`/`_mN`
+     * token, so literal constants (`…fk_8`) and ordinary identifiers
+     * survive. Applied to BOTH sides: our labels carry no breadcrumbs,
+     * so the semantic content (function names, tables, columns,
+     * constants, the root spelling) stays exactly verified. */
+    static String stripAliasBreadcrumbs(String s) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("_d(?:#\\d+|y\\d+)?(?![A-Za-z])|_m\\d+")
+                .matcher(s);
+        StringBuilder out = new StringBuilder();
+        int pos = 0;
+        while (m.find(pos)) {
+            out.append(s, pos, m.start());
+            int end = m.end();
+            // consume the continuation run
+            while (true) {
+                java.util.regex.Matcher c = java.util.regex.Pattern
+                        .compile("\\G(?:_d(?:#\\d+|y\\d+)?(?![A-Za-z])"
+                                + "|_m\\d+|_md|_l|_r|_f|_\\d+|#\\d+)")
+                        .matcher(s);
+                if (!c.find(end)) {
+                    break;
+                }
+                end = c.end();
+            }
+            pos = end;
+        }
+        out.append(s, pos, s.length());
+        return out.toString();
     }
 
     private static @com.legend.Nullable String qualifyMapping(String name, ModelContext ctx,

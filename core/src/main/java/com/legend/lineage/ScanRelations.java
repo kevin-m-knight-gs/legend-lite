@@ -90,9 +90,20 @@ public final class ScanRelations {
 
     public static String treeString(ModelContext ctx, LambdaFunction query,
             String mappingFqn) {
+        return treeString(ctx, query, mappingFqn, false);
+    }
+
+    /** {@code runtimeVariant}: the RUNTIME (4-arg) scan — join edges
+     * label with the CONDITION mangle instead of the join name, and an
+     * undemanded root prints its EXTENT (`(t) Person []`); the STATIC
+     * variant's goldens spell join names and print nothing for a
+     * constant-only projection (testConstant pins both). */
+    public static String treeString(ModelContext ctx, LambdaFunction query,
+            String mappingFqn, boolean runtimeVariant) {
         StringBuilder sb = new StringBuilder("root\n");
-        for (Node r : scanRoots(ctx, query, mappingFqn)) {
-            print(sb, r, 1, ctx);
+        for (Node r : scanRoots(ctx, query, mappingFqn, runtimeVariant)) {
+            print(sb, r, 1, ctx, runtimeVariant ? r.table : null,
+                    runtimeVariant);
         }
         return sb.toString();
     }
@@ -101,7 +112,7 @@ public final class ScanRelations {
      * independently, in order — demand never bleeds across branches; a
      * mixed tds/class concatenate scans each branch by its own kind). */
     private static List<Node> scanRoots(ModelContext ctx,
-            LambdaFunction query, String mappingFqn) {
+            LambdaFunction query, String mappingFqn, boolean extentRoots) {
         ValueSpecification body = query.body().isEmpty() ? query
                 : query.body().get(query.body().size() - 1);
         List<ValueSpecification> branches = new ArrayList<>();
@@ -110,7 +121,9 @@ public final class ScanRelations {
         for (ValueSpecification b : branches) {
             LambdaFunction bl = new LambdaFunction(List.of(), List.of(b));
             List<Node> tds = tableToTdsRoots(ctx, bl);
-            out.addAll(tds.isEmpty() ? buildRoots(ctx, bl, mappingFqn) : tds);
+            out.addAll(tds.isEmpty()
+                    ? buildRoots(ctx, bl, mappingFqn, false, extentRoots)
+                    : tds);
         }
         if (branches.size() > 1) {
             // engine root order across concatenate branches: by TABLE name,
@@ -728,17 +741,21 @@ public final class ScanRelations {
     }
 
     private static List<Node> buildRoots(ModelContext ctx,
-            LambdaFunction query, String mappingFqn) {
-        return buildRoots(ctx, query, mappingFqn, false);
+            LambdaFunction query, String mappingFqn, boolean tdgMode) {
+        return buildRoots(ctx, query, mappingFqn, tdgMode, true);
     }
 
     /** {@code tdgMode}: the #46 data consumer — union-mapped JOIN targets
      * branch a child PER TARGET SET (the engine's testDataGeneration
      * relation tree fetches every set, its own goldens carry the
      * duplicate SQLs); treeString's lineage vocabulary keeps the
-     * single-target shape. */
+     * single-target shape. {@code extentRoots}: an undemanded root still
+     * prints its extent — the RUNTIME scan and tdg; the STATIC scan
+     * prints nothing for a constant-only projection (testConstant pins
+     * both variants). */
     private static List<Node> buildRoots(ModelContext ctx,
-            LambdaFunction query, String mappingFqn, boolean tdgMode) {
+            LambdaFunction query, String mappingFqn, boolean tdgMode,
+            boolean extentRoots) {
         LegacyMappingDefinition md = mapping(ctx, mappingFqn);
         String rootClass = rootClassFqn(query);
         // a UNION-mapped root walks ONCE PER SET, one root table node
@@ -751,16 +768,17 @@ public final class ScanRelations {
             System.err.println("[scanRelations] paths=" + paths);
         }
         List<Node> roots = new ArrayList<>();
+        if (paths.isEmpty() && !extentRoots) {
+            return roots;
+        }
+        for (ClassMapping.Relational cm : rootCms) {
+            Node r = new Node(java.util.Objects.requireNonNull(
+                    mainDbOf(cm), "root set without a main db"),
+                    mainTableOf(cm), null);
+            roots.add(r);
+            foldClassFilter(ctx, r, cm);
+        }
         for (List<Seg> p : paths) {
-            if (roots.isEmpty()) {
-                for (ClassMapping.Relational cm : rootCms) {
-                    Node r = new Node(java.util.Objects.requireNonNull(
-                            mainDbOf(cm), "root set without a main db"),
-                            mainTableOf(cm), null);
-                    roots.add(r);
-                    foldClassFilter(ctx, r, cm);
-                }
-            }
             for (int i = 0; i < rootCms.size(); i++) {
                 walk(ctx, md, rootCms.get(i), roots.get(i), p, 0, tdgMode);
             }
@@ -791,17 +809,18 @@ public final class ScanRelations {
     }
 
     private static void print(StringBuilder sb, Node n, int depth,
-            ModelContext ctx) {
+            ModelContext ctx, @com.legend.Nullable String rootTable, boolean condLabels) {
         DatabaseDefinition.ViewDefinition vd = n.db == null ? null
                 : findView(ctx, n.db, n.schema, n.table);
         sb.append("  ".repeat(depth)).append("------> (")
                 .append(vd != null ? 'v' : 't').append(") ").append(n.table);
         if (n.joinName != null) {
-            sb.append('(').append(n.joinName).append(')');
+            sb.append('(').append(condLabels
+                    ? joinLabel(ctx, n, rootTable) : n.joinName).append(')');
         }
         sb.append(" [").append(String.join(", ", n.cols)).append("]\n");
         for (Node c : n.children.values()) {
-            print(sb, c, depth + 1, ctx);
+            print(sb, c, depth + 1, ctx, rootTable, condLabels);
         }
         if (vd != null) {
             // a VIEW EXPANDS: a nested 'root' subtree of its underlying
@@ -810,9 +829,76 @@ public final class ScanRelations {
             sb.append("  ".repeat(depth + 1)).append("root\n");
             Node inner = expandView(ctx, n.db, vd);
             if (inner != null) {
-                print(sb, inner, depth + 2, ctx);
+                print(sb, inner, depth + 2, ctx,
+                        condLabels ? inner.table : null, condLabels);
             }
         }
+    }
+
+    /** The engine's node label is the join CONDITION rendered
+     * function-prefix style (`equal_<alias><col>_<alias><col>`), with
+     * the subtree's ROOT relation spelled `root` — its alias BREADCRUMBS
+     * (`_d#2_m1`…) are pureToSqlQuery's internal counters and are
+     * stripped on BOTH sides at compare time (handoff: §12 settled).
+     * A join we cannot resolve, or a condition shape outside the
+     * rendered grammar, keeps the JOIN NAME — a visible diff, never an
+     * error. */
+    private static String joinLabel(ModelContext ctx, Node n,
+            @com.legend.Nullable String rootTable) {
+        String jn = java.util.Objects.requireNonNull(n.joinName, "joinName");
+        if (n.db == null) {
+            return jn;
+        }
+        DatabaseDefinition db = ctx.findDatabase(n.db).orElse(null);
+        if (db == null) {
+            return jn;
+        }
+        DatabaseDefinition.JoinDefinition jd = db.joins().stream()
+                .filter(j -> j.name().equals(jn)).findFirst().orElse(null);
+        if (jd == null) {
+            return jn;
+        }
+        try {
+            return mangleCond(jd.operation(), rootTable, n.table);
+        } catch (NotImplementedException outsideGrammar) {
+            return jn;
+        }
+    }
+
+    private static String mangleCond(RelationalOperation op,
+            @com.legend.Nullable String rootTable, @com.legend.Nullable String selfTable) {
+        return switch (op) {
+            case RelationalOperation.ColumnRef cr ->
+                    (java.util.Objects.equals(bare(cr.table()), rootTable)
+                            ? "root" : bare(cr.table())) + cr.column();
+            case RelationalOperation.TargetColumnRef tr ->
+                    (java.util.Objects.equals(selfTable, rootTable)
+                            ? "root" : String.valueOf(selfTable)) + tr.column();
+            case RelationalOperation.Literal l -> String.valueOf(l.value());
+            case RelationalOperation.Comparison c ->
+                    comparisonName(c.op()) + "_"
+                    + mangleCond(c.left(), rootTable, selfTable) + "_"
+                    + mangleCond(c.right(), rootTable, selfTable);
+            case RelationalOperation.BooleanOp b ->
+                    (b.op() == com.legend.model.LogicalOp.AND ? "and_" : "or_")
+                    + mangleCond(b.left(), rootTable, selfTable) + "_"
+                    + mangleCond(b.right(), rootTable, selfTable);
+            case RelationalOperation.Group g ->
+                    mangleCond(g.inner(), rootTable, selfTable);
+            default -> throw new NotImplementedException(
+                    "label grammar: " + op.getClass().getSimpleName());
+        };
+    }
+
+    private static String comparisonName(com.legend.model.ComparisonOp op) {
+        return switch (op) {
+            case EQ -> "equal";
+            case NEQ -> "notEqual";
+            case GT -> "greaterThan";
+            case LT -> "lessThan";
+            case GTE -> "greaterThanEqual";
+            case LTE -> "lessThanEqual";
+        };
     }
 
     /** The view's INTERNAL tree: plain column expressions seed the root
