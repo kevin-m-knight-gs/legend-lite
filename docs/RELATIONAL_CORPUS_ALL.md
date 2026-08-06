@@ -73,7 +73,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 8 | 5 | 3 | 0 | 0 | 2 |
-| tests/mapping/embedded | 76 | 60 | 4 | 11 | 1 | 0 |
+| tests/mapping/embedded | 76 | 62 | 4 | 9 | 1 | 0 |
 | tests/mapping/enumeration | 30 | 18 | 4 | 5 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
@@ -100,7 +100,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2793 | **2361** | 149 | 165 | 118 | 261 |
+| **total** | 2793 | **2363** | 149 | 163 | 118 | 261 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1056,9 +1056,15 @@ shared source registered by several families cannot double-count. Run with
 - global meta::pure::mapping::modelToModel::test::mft::mapping::rowexplosion::testRowExplosionMapping => Unknown type: 'MFTMappingTest' is not a known primitive, class, or enum
 - global meta::pure::mapping::modelToModel::test::mft::mapping::rowexplosion::testRowExplosionUnionMapping => Unknown type: 'MFTMappingTest' is not a known primitive, class, or enum
 - global meta::pure::mapping::modelToModel::test::mft::mapping::union::testunionMapping => Unknown type: 'MFTMappingTest' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping$class$Domain => Unknown type: 'Domain' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping$class$Person => Unknown type: 'Person' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::extractDomainTypeClassFromGraphFetchTree => Unknown type: 'meta::external::format::shared::binding::Binding' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateFunctionExpressionByOperationType => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateMutationFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateInitializeFunction => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::generateQueryFunctionExpression => Unknown type: 'FunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::lambdaParamsByOperationType => Unknown type: 'meta::pure::graphFetch::PropertyGraphFetchTree' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::findGetAllInQualifiedProperties => Unknown type: 'SimpleFunctionExpression' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::lookForGetAll => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
+- global meta::pure::graphFetch::domain::reprocessVariables => Unknown type: 'ValueSpecification' is not a known primitive, class, or enum
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctTestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctUnionTestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
 - global meta::relational::tests::mapping::extension::model::mapping::mft::extensionTestMapping$class$Firm => Unknown type: 'Firm' is not a known primitive, class, or enum
@@ -1088,7 +1094,6 @@ shared source registered by several families cannot double-count. Run with
 - global meta::pure::executionPlan::tests::DummyExecutionOption$prop$paramsRequired => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - global meta::pure::executionPlan::tests::OtherDummyExecutionOption$prop$paramsRequired => Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - global meta::relational::functions::pureToSqlQuery::FunctionParamScope$prop$resolveFunctionReferenceByVar => Unknown type: 'VariableExpression' is not a known primitive, class, or enum
-- global meta::relational::graphFetch::domain::tests::TestMapping => mapping 'meta::relational::graphFetch::domain::tests::TestMapping' binds unknown class 'Domain'
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctTestMapping => mapping 'meta::relational::tests::mapping::distinct::model::mapping::mft::distinctTestMapping' binds unknown class 'Firm'
 - global meta::relational::tests::mapping::distinct::model::mapping::mft::distinctUnionTestMapping => mapping 'meta::relational::tests::mapping::distinct::model::mapping::mft::distinctUnionTestMapping' binds unknown class 'Firm'
 - global meta::relational::tests::mapping::extension::model::mapping::mft::extensionTestMapping => mapping 'meta::relational::tests::mapping::extension::model::mapping::mft::extensionTestMapping' binds unknown class 'Firm'
@@ -1117,7 +1122,7 @@ shared source registered by several families cannot double-count. Run with
 - 3x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
 - 2x unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- 2x in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
+- 2x in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - 2x class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x Conversion Error: Malformed JSON at byte 0 of input: unexpected character.  Input: "John" |  | LINE 3: WHERE list_contains(['John'], to_json(t0.FIRSTNAME)) |                              ^
@@ -1219,7 +1224,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testUsingSameAggFunctionTwiceWithFilter [functions/tests]: assertEquals: expected [Firm X, 34.0], got [Firm X, 158]
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
+- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testConcatenateClassJoinMerge [functions/tests]: assertSize: expected 7, got 21
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -1244,7 +1249,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: emptiness check over a toOne()-pierced navigation through the ~filter-mapped set of 'firm' needs the strict-read filter hoist — not supported yet
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |        
-- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {address={name=San Fransisco}}, {address={name=Ho...
+- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {address={name=New Yo...
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
@@ -1278,7 +1283,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testAllOneSimplePropertyUsingVariables2 [functions/tests/projection]: expected a string-literal column name
 - ERROR testAllOneSimplePropertyUsingVariables3 [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes (no candidates at all)
-- SHAPE testGraphFetch [graphFetch/domain]: assert form 'assertEquals/2' is not supported yet — plan wall: 'Domain' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- SHAPE testGraphFetch [graphFetch/domain]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::pure::graphFetch::domain::extractDomainTypeClassFromFunction': class meta::pure::metamodel::function::FunctionDefinition has no property 'expressionSequence'
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: from() argument 2 must be a mapping or runtime reference, got TypedCopyInstance
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
@@ -1296,7 +1301,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testRootUnionWithOnePropertySet_CrossStore [graphFetch/tests/union]: filter predicate references column 'productId', unresolvable even after isolation [param=srcRow; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::equal, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, type=ClassType[fqn=meta:
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: from() argument 2 must be a mapping or runtime reference, got TypedNewInstance
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
-- SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1] -> String[1]}>
+- SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - SHAPE testSameRelationsAtSameLevel [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1418,7 +1423,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testProjectFunctionOnEnumColumn [tds/tests]: assertEquals: expected Hoboken|CITY|1,New York|CITY|1,New York|CITY|1,New York|CITY|1,San Fransisco|CITY|1,Hong Kong|CITY|1,New York|CITY|1,New York|CITY|1,Cupertino|CITY|1,Tokyo|CITY|1,Mountain View|CITY|1, got Hoboken|CITY|true,New York|CITY|true,New York|CITY|true,New York|CITY|true,San Fransisco|CITY|true,Hong Kong|CITY|true,New York|CITY|true,New York|CITY|true,Cupertino|CITY|true,Tokyo|CITY|true,Mountain View|CITY|true
 - ERROR testProjectWithVariables1 [tds/tests]: extend/project columns [first_name, last_name, first_name_length] reference names unresolvable even after isolation [col='first_name_length' ref='<whole variable>']
 - ERROR testProjectWithVariables2 [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unsupported type annotation form: FunctionType
+- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable_d#6_d#3_m3" on ("firmTable_d#6_d#3_m3".ID = "root".FIRMID), got select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeV
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
@@ -1468,8 +1473,6 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testGet [tests/mapping/dynaJoin]: assertSameElements: expected [2014-12-03, 2014-12-04], got 2014-12-03
 - FAIL testJoinWithAggregateFunctionQualifier [tests/mapping/dynaJoin]: assertSize(result.values): expected 2, got 1 (TDS = one carrier; collections splat)
 - FAIL testJoinWithAggregateFunctionQualifierWithAssociation [tests/mapping/dynaJoin]: assertSize(result.values): expected 2, got 1 (TDS = one carrier; collections splat)
-- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'address' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail'
-- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'unit' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::Person'
 - ERROR testProjectionMappingIncludes [tests/mapping/embedded]: class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIdsWithIncludes' (InlineEmbedded PM 'issuer' references unknown setId 'issuer' in mapping=meta::relational
 - FAIL testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: assertEquals: expected type,h\n5 years,holder1\n5 years,holder2\n7 weeks,holder3\n, got [5 years, holder1, 5 years, holder1, 7 weeks, holder3]
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
@@ -1538,8 +1541,8 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
-- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
-- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
+- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
+- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: expected at most one value, got many ([*])

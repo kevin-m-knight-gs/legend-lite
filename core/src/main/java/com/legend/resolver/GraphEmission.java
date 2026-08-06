@@ -447,13 +447,33 @@ final class GraphEmission {
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE))));
             }
-            orderKeys.addAll(pkOrderKeys(cs, pipeline, rowType, rowVar, toRow));
+            // an EXPLICIT user sort in the pipeline governs row order —
+            // appending PK keys emitted BOTH order specs and the PK one
+            // won, silently discarding the user's sortBy (study #23,
+            // the near-miss the audit named)
+            if (!containsExplicitSort(pipeline)) {
+                orderKeys.addAll(pkOrderKeys(cs, pipeline, rowType, rowVar, toRow));
+            }
         }
         TypedSerializeGraph node = new TypedSerializeGraph(pipeline, rowVar,
                 leaves, children, arrayWrap, false, cs.classFqn(), info,
                 false, subTypePatches, orderKeys);
         return checked ? withChecked(node, cs, slotPrefixes, stripped,
                 rowVar, rowType, context, toRow) : node;
+    }
+
+    /** An explicit {@code sortBy} anywhere in the pipeline (the user's
+     *  order, which the graph contract must preserve). */
+    private static boolean containsExplicitSort(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedSortBy) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsExplicitSort(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** ROW-ORDER determinism keys (engine graph contract: rows serialize
@@ -2001,12 +2021,24 @@ final class GraphEmission {
             TypedGraphTree node, TypedNewInstance ctor,
             StoreResolver.Context context, TypedSpec parentPipeline,
             @com.legend.Nullable TypedSpec otherwiseFallback) {
-        var prop = ctx.findProperty(cs.classFqn(), node.property())
+        return embeddedChild(cs, cs.classFqn(), node, ctor, context,
+                parentPipeline, otherwiseFallback);
+    }
+
+    /** {@code ownerFqn}: the class whose property {@code node} names — the
+     *  PARENT'S class at the top level, the computed child class on
+     *  nested recursion (study #22: it was computed then discarded, so
+     *  nested embedded children resolved against the wrong class). */
+    private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
+            String ownerFqn, TypedGraphTree node, TypedNewInstance ctor,
+            StoreResolver.Context context, TypedSpec parentPipeline,
+            @com.legend.Nullable TypedSpec otherwiseFallback) {
+        var prop = ctx.findProperty(ownerFqn, node.property())
                 .orElseThrow(() -> new IllegalStateException(
                         "resolver bug: graph child '" + node.property()
-                        + "' is not a property of '" + cs.classFqn() + "'"));
+                        + "' is not a property of '" + ownerFqn + "'"));
         String childClass = prop.type() instanceof Type.ClassType cc
-                ? cc.fqn() : cs.classFqn();
+                ? cc.fqn() : ownerFqn;
         List<TypedGraphTree> want = node.children().isEmpty()
                 ? ctor.properties().keySet().stream()
                         .map(k -> new TypedGraphTree(k, List.of()))
@@ -2104,8 +2136,8 @@ final class GraphEmission {
                 ei = tc1.args().get(0);
             }
             if (ei instanceof TypedNewInstance subCtor) {
-                nested.add(embeddedChild(cs, c, subCtor, context,
-                        parentPipeline));
+                nested.add(embeddedChild(cs, childClass, c, subCtor,
+                        context, parentPipeline, null));
                 continue;
             }
             if (ei.info().type() instanceof Type.ClassType) {

@@ -133,9 +133,13 @@ final class EvalChecker {
         boolean functionTyped = declared instanceof Type.FunctionType
                 || (declared instanceof Type.GenericType g && g.arguments().size() == 1
                         && g.arguments().get(0) instanceof Type.FunctionType);
-        if (!(fnTyped instanceof TypedVariable) || !functionTyped) {
+        // any function-typed EXPRESSION serves — a variable, or a CALL
+        // RESULT (transformNonCached(), createTempTableStatement(...):
+        // the index's eval-of-call-result rows); the kernel's
+        // FunctionType unification below is expression-agnostic
+        if (!functionTyped) {
             throw new TypeInferenceException(
-                    "eval expects a lambda, a function reference, ~col, or a function-typed variable; got "
+                    "eval expects a lambda, a function reference, ~col, or a function-typed value; got "
                             + declared.typeName());
         }
         // THE registered verbatim signatures govern (eval<T,V|m,n>(

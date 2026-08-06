@@ -71,7 +71,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
-| tests/mapping/embedded | 63 | 56 | 1 | 6 | 0 | 0 |
+| tests/mapping/embedded | 63 | 58 | 1 | 4 | 0 | 0 |
 | tests/mapping/enumeration | 26 | 18 | 3 | 2 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2267** | 105 | 99 | 99 | 243 |
+| **total** | 2570 | **2269** | 105 | 97 | 99 | 243 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1114,7 +1114,7 @@ shared source registered by several families cannot double-count. Run with
 ### top error buckets
 
 - 2x class meta::relational::mapping::SQLExecutionNode has no property 'connection'
-- 2x in function 'meta::relational::postProcessor::transformNonCached': eval expects a lambda, a function reference, ~col, or a function-typed variable; got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
+- 2x in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedLambda > TypedNativeCall > TypedMap > TypedFrom > TypedProject]
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
@@ -1213,7 +1213,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME, "persontable_0".FIRSTNAME
 - FAIL testSequenceMapWithConfusingSetImplementation [functions/tests]: assertEquals: expected [ROOT, ok, TDSNull], got [Firm X, ok, ROOT]
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': eval expects a lambda, a function reference, ~col, or a function-typed variable; got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
+- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testConcatenateFlatWithOtherProperty [functions/tests]: assertEquals: expected [1, 1, 2, 2], got [1, 2]
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
@@ -1228,7 +1228,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: emptiness check over a toOne()-pierced navigation through the ~filter-mapped set of 'firm' needs the strict-read filter hoist — not supported yet
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(JSON, JSON)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_concat((SELECT CASE WHEN COUNT(*) = 1 THEN MIN(json_ob... |        
-- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {address={name=San Fransisco}}, {address={name=Ho...
+- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {address={name=New Yo...
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: planToString: no getAll root (multi-node plans pending)
@@ -1262,7 +1262,7 @@ shared source registered by several families cannot double-count. Run with
 - FAIL test6 [graphFetch/tests/union]: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X | expected [{legalName=Firm B, employees=[{lastName=Bala, address={name=New York}}, {lastName=Raman, address={name=Hoboken}}, {lastName=Bark, address={name=New York}}, ..., got [{legalName=Firm X, employees=[{lastName=Scott, address={name=New York}}, {lastName=Anand, address={name=Hoboken}}, {lastName=Taylor, address={name=New York}...
 - ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: from() argument 2 must be a mapping or runtime reference, got TypedNewInstance
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
-- SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: eval expects a lambda, a function reference, ~col, or a function-typed variable; got Function<{String[1], meta::relational::metamodel::Column[*], meta::relational::runtime::DatabaseType[1] -> String[1]}>
+- SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - SHAPE testSameRelationsAtSameLevel [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -1333,7 +1333,7 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
-- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': eval expects a lambda, a function reference, ~col, or a function-typed variable; got {meta::relational::metamodel::RelationalOperationElement[1] -> meta::relational::metamodel::RelationalOperationElement[1]}
+- ERROR testRestrictWithPostProcessor [tds/tests]: in function 'meta::relational::postProcessor::transformNonCached': unknown type 'ViewSelectSQLQuery' in @ViewSelectSQLQuery
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable_d#6_d#3_m3" on ("firmTable_d#6_d#3_m3".ID = "root".FIRMID), got select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)
 - SHAPE testExecutionPlanGeneration [tds/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeV
 - SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
@@ -1372,8 +1372,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
-- ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'address' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail'
-- ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: resolver bug: graph child 'unit' is not a property of 'meta::relational::tests::mapping::embedded::advanced::model::Person'
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[bondDetails]; head subNavs=[holder]; head binding=TypedNativeCall]
 - ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: derived property 'isFirmX' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
