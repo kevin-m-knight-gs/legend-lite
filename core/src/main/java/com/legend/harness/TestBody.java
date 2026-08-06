@@ -3210,13 +3210,13 @@ public final class TestBody {
      * joined by ','), each row '   ' + cells joined by ',', '#' framing.
      * Rows compare ordered when the chain sorts, else as a line multiset
      * (the standard order policy). Cells render String.valueOf with NULL
-     * as 'null' — a format the engine golden doesn't use stays a loud
-     * mismatch, never a tolerant guess. */
+     * as 'null'; space-bearing names quote ('First Name'). */
     private static boolean tdsStringEquals(String expected,
             com.legend.exec.ExecutionResult.Tabular t, boolean ordered) {
         List<String> lines = new ArrayList<>();
         lines.add("#TDS");
-        lines.add("   " + t.columns().stream().map(com.legend.exec.Column::name)
+        lines.add("   " + t.columns().stream().map(c -> c.name()
+                .contains(" ") ? "'" + c.name() + "'" : c.name())
                 .collect(java.util.stream.Collectors.joining(",")));
         for (var r : t.rows()) {
             StringBuilder sb = new StringBuilder("   ");
