@@ -856,8 +856,14 @@ public final class ScanRelations {
         }
         sb.append(" [").append(String.join(", ", cols)).append("]\n");
         for (Node c : n.children.values()) {
-            print(sb, c, depth + 1, ctx, rootTable, runtimeVariant,
-                    showLabels);
+            // the 'root' spelling binds the ROOT ROW — only the root
+            // node's direct children label against it; deeper hops spell
+            // the source table by NAME (Inheritance_2's nested Person:
+            // equal_PersonID_Bicycleb_PersonID, not rootID)
+            print(sb, c, depth + 1, ctx,
+                    n.joinName == null && n.labelOverride == null
+                            ? rootTable : null,
+                    runtimeVariant, showLabels);
         }
         if (vd != null) {
             // a VIEW EXPANDS: a nested 'root' subtree of its underlying
@@ -1440,6 +1446,80 @@ public final class ScanRelations {
         return sb.toString();
     }
 
+    /** The SOURCE-side union label — the mirror of {@link #orUnionLabel}
+     * for a hop departing FROM a union member (the union subselect is the
+     * join's LEFT side): arm k's label is {@code or_} over member arms j
+     * of {@code equal_} + (j==k ? {@code unionBase<srcCol_j>_<j>} :
+     * {@code SQLNull}) + {@code _<tgtTable><tgtCol_j>}; arm ordinals from
+     * the Union operation's memberSetIds (testUnionViewOnView pins it).
+     * Null when the source class carries no Union operation with declared
+     * members, or a member lacks a Join PM for the property. */
+    private static @com.legend.Nullable String srcUnionLabel(ModelContext ctx,
+            LegacyMappingDefinition md, ClassMapping.Relational cm,
+            String propName) {
+        List<String> members = null;
+        for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
+            for (ClassMapping c : m.classMappings()) {
+                if (c instanceof ClassMapping.Union u
+                        && typeMatches(u.className(), cm.className())
+                        && !u.memberSetIds().isEmpty()) {
+                    members = u.memberSetIds();
+                    break;
+                }
+            }
+        }
+        if (members == null || members.size() < 2
+                || !members.contains(cm.setId())) {
+            return null;
+        }
+        int k = members.indexOf(cm.setId());
+        StringBuilder sb = new StringBuilder("or");
+        for (int jx = 0; jx < members.size(); jx++) {
+            ClassMapping.Relational ms;
+            try {
+                ms = classMappingFor(ctx, md, null, members.get(jx));
+            } catch (NotImplementedException e) {
+                return null;
+            }
+            PropertyMapping.Join mj = null;
+            for (PropertyMapping pm : pmsFor(ctx, md, ms, propName)) {
+                if (pm instanceof PropertyMapping.Join pj
+                        && !pj.joins().isEmpty()) {
+                    mj = pj;
+                    break;
+                }
+            }
+            if (mj == null) {
+                return null;
+            }
+            JoinChainElement last = mj.joins().get(mj.joins().size() - 1);
+            DatabaseDefinition.JoinDefinition jd = joinDef(ctx,
+                    last.databaseName() != null ? last.databaseName()
+                            : mj.database(), last.joinName());
+            String srcMain = mainTableOf(ms);
+            List<RelationalOperation.ColumnRef> refs = new ArrayList<>();
+            columnRefs(jd.operation(), refs);
+            String sCol = null;
+            String tCol = null;
+            String tTab = null;
+            for (RelationalOperation.ColumnRef r : refs) {
+                if (java.util.Objects.equals(bare(r.table()), srcMain)) {
+                    sCol = r.column();
+                } else {
+                    tCol = r.column();
+                    tTab = bare(r.table());
+                }
+            }
+            if (sCol == null || tCol == null || tTab == null) {
+                return null;
+            }
+            sb.append("_equal_");
+            sb.append(jx == k ? "unionBase" + sCol + "_" + jx : "SQLNull");
+            sb.append('_').append(tTab).append(tCol);
+        }
+        return sb.toString();
+    }
+
     /** Whether the mapping closure carries an OPERATION mapping (union
      * or inheritance) for {@code classFqn} — an UN-NARROWED hop to such a
      * target rides the union subselect and labels with the suffixed-OR
@@ -1549,10 +1629,18 @@ public final class ScanRelations {
                     ClassMapping.Relational target = targetCm(ctx, md, j,
                             node.table, propertyTargetClass(ctx, cm,
                                     prop.name()));
-                    // EVERY subtype set's join edge emits (the engine
-                    // fetches all sets' keys — testSelectOnLeftSide pins
-                    // Bicycle(PersonBicycle) [b_PersonID] though only Car
-                    // is navigated); subType narrows the CONTINUATION.
+                    // STATIC: EVERY subtype set's join edge emits (the
+                    // engine fetches all sets' keys — testSelectOnLeftSide
+                    // pins Bicycle(PersonBicycle) [b_PersonID] though only
+                    // Car is navigated) and subType narrows the
+                    // CONTINUATION. RUNTIME: a narrowed hop PRUNES the
+                    // non-matching arm entirely (the same test's runtime
+                    // assert carries no Bicycle node).
+                    if (runtimeScan && st != null
+                            && !typeMatches(target.className(),
+                                    st.classFqn())) {
+                        continue;
+                    }
                     Node child = joinChain(ctx, md, node, j.database(),
                             j.joins());
                     // a UNION-OPERATION target's runtime label is the
@@ -1564,6 +1652,9 @@ public final class ScanRelations {
                         String lbl = orUnionLabel(ctx, md, cm, node,
                                 propertyTargetClass(ctx, cm, prop.name()),
                                 pms, j);
+                        if (lbl == null) {
+                            lbl = srcUnionLabel(ctx, md, cm, prop.name());
+                        }
                         if (lbl != null) {
                             child.labelOverride = lbl;
                         }
