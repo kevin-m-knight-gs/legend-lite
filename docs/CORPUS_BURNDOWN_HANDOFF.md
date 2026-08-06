@@ -16,6 +16,21 @@
 > exceptions), (5) the explanation-coverage gate (fails any
 > non-passing row lacking a verdict — makes 'done' mechanical:
 > 2793 = passed + explained), (6) the list-encoding leg last.
+> **getAllForEachDate REOPENED with ground truth (2026-08-06,
+> `07bc2799`).** The 9 TypedMatchRuntime walls that HID this family
+> are dead (MatchFold: static-dispatch fold in scalar lowering —
+> first conforming arm by primitive FQN + temporal/numeric ladders).
+> +4 rows converted outright; the remaining 5 now show the REAL
+> semantics: expected output fans one row PER DATE in the range
+> (2020-01-03, 2020-01-04) with `$x.processingDate` reading THE
+> CONTEXT DATE COLUMN; we return the entity's own window values
+> (in_z) with no fan-out. This is design #2a exactly: cross-join the
+> extent against the dates subselect, milestoning window correlated
+> to the date column, generated-date reads resolve to it. Two more
+> rows wall at 'outer milestoning date column businessDate is not on
+> the join source row'. A dedicated TemporalFrame stretch (budget the
+> 2-3 iterations).
+>
 > **AGG-JOIN-SHAPE NEGATIVE RESULT (2026-08-06, measured then
 > reverted).** Rerouting the simple equi case of `corrAggSubSource`
 > through the parent-copy shape (the engine's owner-anchored grouped
