@@ -343,6 +343,8 @@ public final class ScanRelations {
         }
         String[] l = null;
         String r = null;
+        String lAlias = null;
+        String rAlias = null;
         for (ValueSpecification side : eq.parameters()) {
             String[] read = tdsColRead(side);
             if (read == null) {
@@ -351,6 +353,7 @@ public final class ScanRelations {
             }
             if (read[0].equals(leftVar)) {
                 l = aliases.get(read[1]);
+                lAlias = read[1];
                 if (l == null) {
                     throw new NotImplementedException("scanRelations:"
                             + " tableToTDS join alias '" + read[1]
@@ -359,6 +362,7 @@ public final class ScanRelations {
             } else {
                 // the right side reads ITS OWN projected alias
                 String[] own = rightSrc.own().get(read[1]);
+                rAlias = read[1];
                 r = own != null ? own[1] : read[1];
             }
         }
@@ -374,6 +378,11 @@ public final class ScanRelations {
                 new RelationalOperation.ColumnRef(null, l[0], l[1]),
                 com.legend.model.ComparisonOp.EQ,
                 new RelationalOperation.TargetColumnRef(r));
+        // the engine's tds-join label: the SYNTHETIC side aliases quoted
+        // (joinleft_/joinright_ + breadcrumb) with the PROJECTED tds
+        // column names quoted (testTableToTdsWithJoin's golden)
+        right.labelOverride = "equal_\"joinleft_\"\"" + lAlias
+                + "\"_\"joinright_\"\"" + rAlias + "\"";
         parent.children.put(right.table + "(tds_join_"
                 + parent.children.size() + ")", right);
     }
@@ -797,7 +806,7 @@ public final class ScanRelations {
         for (List<Seg> p : paths) {
             for (int i = 0; i < rootCms.size(); i++) {
                 walk(ctx, md, rootCms.get(i), roots.get(i), p, 0, tdgMode,
-                        extentRoots && !tdgMode);
+                        extentRoots && !tdgMode, paths.indexOf(p));
             }
         }
         return roots;
@@ -1185,7 +1194,7 @@ public final class ScanRelations {
 
     private static void walk(ModelContext ctx, LegacyMappingDefinition md,
             ClassMapping.Relational cm, Node node, List<Seg> path, int i,
-            boolean tdgMode, boolean runtimeScan) {
+            boolean tdgMode, boolean runtimeScan, int pathIdx) {
         if (i >= path.size()) {
             return;
         }
@@ -1219,10 +1228,10 @@ public final class ScanRelations {
                 for (List<Seg> sub : expanded.results()) {
                     List<Seg> spliced = new ArrayList<>(sub);
                     spliced.addAll(path.subList(next, path.size()));
-                    walk(ctx, md, cm, node, spliced, 0, tdgMode, runtimeScan);
+                    walk(ctx, md, cm, node, spliced, 0, tdgMode, runtimeScan, pathIdx);
                 }
                 for (List<Seg> side : expanded.sides()) {
-                    walk(ctx, md, cm, node, side, 0, tdgMode, runtimeScan);
+                    walk(ctx, md, cm, node, side, 0, tdgMode, runtimeScan, pathIdx);
                 }
                 return;
             }
@@ -1251,12 +1260,12 @@ public final class ScanRelations {
             List<ClassMapping.Relational> tsets = tgtCls == null
                     ? List.<ClassMapping.Relational>of() : unionSets(ctx, md, tgtCls);
             if (tsets.size() > 1) {
-                unionNavigate(ctx, md, cm, node, prop, tsets, path, next);
+                unionNavigate(ctx, md, cm, node, prop, tsets, path, next, pathIdx);
                 return;
             }
         }
         dispatchPms(ctx, md, cm, node, prop, st, pms, path, next, tdgMode,
-                runtimeScan);
+                runtimeScan, pathIdx);
     }
 
     private static List<ClassMapping.Relational> unionSets(ModelContext ctx,
@@ -1283,7 +1292,7 @@ public final class ScanRelations {
     private static void unionNavigate(ModelContext ctx,
             LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
             Seg.Prop prop, List<ClassMapping.Relational> targetSets,
-            List<Seg> path, int next) {
+            List<Seg> path, int next, int pathIdx) {
         List<ClassMapping.Relational> srcSets = unionSets(ctx, md, cm.className());
         if (srcSets.isEmpty()) {
             srcSets = List.of(cm);
@@ -1372,7 +1381,7 @@ public final class ScanRelations {
                     }
                 }
             }
-            walk(ctx, md, ts, child, path, next, false, true);
+            walk(ctx, md, ts, child, path, next, false, true, pathIdx);
         }
     }
 
@@ -1596,7 +1605,8 @@ public final class ScanRelations {
     private static void dispatchPms(ModelContext ctx,
             LegacyMappingDefinition md, ClassMapping.Relational cm, Node node,
             Seg.Prop prop, Seg.@com.legend.Nullable SubType st, List<PropertyMapping> pms,
-            List<Seg> path, int next, boolean tdgMode, boolean runtimeScan) {
+            List<Seg> path, int next, boolean tdgMode, boolean runtimeScan,
+            int pathIdx) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.Column c -> {
@@ -1641,8 +1651,15 @@ public final class ScanRelations {
                                     st.classFqn())) {
                         continue;
                     }
+                    // the RUNTIME scan keys a chain by its FULL identity:
+                    // the SAME chain read from many paths SHARES one
+                    // thread (Qualifier/TwoFilters), but chains differing
+                    // ANYWHERE never share a prefix hop (SameRelations
+                    // AtSameLevel: three @AB-prefixed chains fork three
+                    // bTable1 instances). The STATIC scan merges per hop.
                     Node child = joinChain(ctx, md, node, j.database(),
-                            j.joins());
+                            j.joins(), runtimeScan
+                                    ? "#c" + chainKey(j.joins()) : "");
                     // a UNION-OPERATION target's runtime label is the
                     // arm's SLICE of the union join condition (suffixed-OR
                     // grammar; other arms read SQLNull) — plain multi-set
@@ -1663,7 +1680,7 @@ public final class ScanRelations {
                             st.classFqn())) {
                         continue;
                     }
-                    walk(ctx, md, target, child, path, next, tdgMode, runtimeScan);
+                    walk(ctx, md, target, child, path, next, tdgMode, runtimeScan, pathIdx);
                     if (tdgMode) {
                         unionSiblings(ctx, md, node, child, target, st,
                                 path, next);
@@ -1671,7 +1688,8 @@ public final class ScanRelations {
                 }
                 case PropertyMapping.JoinTerminalColumn jt -> {
                     Node child = joinChain(ctx, md, node, jt.database(),
-                            jt.joins());
+                            jt.joins(), runtimeScan
+                                    ? "#c" + chainKey(jt.joins()) : "");
                     if (jt.terminalColumn()
                             instanceof RelationalOperation.ColumnRef cr) {
                         child.cols.add(cr.column());
@@ -1711,7 +1729,7 @@ public final class ScanRelations {
                                 + prop.name() + "'");
                     }
                     dispatchPms(ctx, md, cm, node, nprop, nst, sub, path,
-                            nnext, tdgMode, runtimeScan);
+                            nnext, tdgMode, runtimeScan, pathIdx);
                 }
                 default -> throw new NotImplementedException("scanRelations: "
                         + pm.getClass().getSimpleName()
@@ -1763,7 +1781,7 @@ public final class ScanRelations {
                     x -> new Node(child.db, child.table, child.joinName));
             dup.cols.addAll(child.cols);
             dup.cond = child.cond;
-            walk(ctx, md, cm2, dup, path, next, true, false);
+            walk(ctx, md, cm2, dup, path, next, true, false, 0);
         }
     }
 
@@ -1959,6 +1977,16 @@ public final class ScanRelations {
             }
         }
         return out;
+    }
+
+    /** The chain's identity for runtime-scan thread keying — the full
+     * ordered join-name list. */
+    private static String chainKey(List<JoinChainElement> joins) {
+        StringBuilder sb = new StringBuilder();
+        for (JoinChainElement el : joins) {
+            sb.append(el.joinName()).append('>');
+        }
+        return sb.toString();
     }
 
     /** Fold a join chain under {@code parent}, assigning each side's

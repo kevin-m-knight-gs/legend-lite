@@ -45,7 +45,7 @@ shared source registered by several families cannot double-count. Run with
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
-| lineage/scanRelations | 49 | 41 | 4 | 0 | 4 | 0 |
+| lineage/scanRelations | 49 | 45 | 0 | 0 | 4 | 0 |
 | milestoning/tests | 224 | 210 | 10 | 1 | 3 | 34 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2276** | 107 | 93 | 94 | 244 |
+| **total** | 2570 | **2280** | 103 | 93 | 94 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1264,12 +1264,8 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE dropAndCreateTempTable [helperFunctions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - SHAPE testCreateTempTableStatement [helperFunctions/tests]: no execute(|...) call — wall: unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - SHAPE testNonDataTypeProperty [lineage/scanColumns]: scanColumns query: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
-- FAIL testSameRelationsAtSameLevel [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) aTable1 [fk, pk]\n    ------> (t) bTable1(equal_rootfk_bTable1_d#2_d_m2_m1fk) [fk]\n      ------> (t) cTable1(and_equal_bTable1_d#2fk_cTable1_d#2_lfk_equal_cTable1_d#2_lfk_8) [c1, fk]\n    ------> (t) bTable1(equal_rootfk_bTable1_d#2_d_m3_m1fk) [fk]\n      ------> (t) cTable1(and_equal_bTable1_d#2fk_cTable1_d#2_lfk_equal_cTable1_d#2_lfk_9) [c2, fk]\n    ------> (t) bTable1(equal_rootfk_bTable1_d#4_d#2_m1#2fk) [fk]\n      ------> (t) cTable1(and_equal_bTable1_d#4fk_cTable1_d#4_lfk_equal_cTable1_d#4_lfk_9) [fk]\n        ------> (t) dTable1(equal_cTable1_d#4_lfk_dTable1_d#4_l#2fk) [fk, pk]\n  ------> (t) aTable2 [fk, pk]\n    ------> (t) bTable2(equal_rootfk_bTable2_d#2_d_m2_m1fk) [fk]\n      ------> (t) cTable2(and_equal_bTable2_d#2fk_cTable2_d#2_lfk_equal_cTable2_d#2_lfk_8) [c1, fk]\n    ------> (t) bTable2(equal_rootfk_bTable2_d#2_d_m3_m1fk) [fk]\n      ------> (t) cTable2(and_equal_bTable2_d#2fk_cTable2_d#2_lfk_equal_cTable2_d#2_lfk_9) [c2, fk]\n    ------> (t) bTable2(equal_rootfk_bTable2_d#4_d#2_m1#2fk) [fk]\n      ------> (t) cTable2(and_equal_bTable2_d#4fk_cTable2_d#4_lfk_equal_cTable2_d#4_lfk_9) [fk]\n        ------> (t) dTable2(equal_cTable2_d#4_lfk_dTable2_d#4_l#2fk) [fk, pk]\ngot\nroot\n  ------> (t) aTable1 [fk, pk]\n    ------> (t) bTable1(equal_rootfk_bTable1fk) [fk]\n      ------> (t) cTable1(and_equal_bTable1fk_cTable1fk_equal_cTable1fk_8) [c1, fk]\n      ------> (t) cTable1(and_equal_bTable1fk_cTable1fk_equal_cTable1fk_9) [c2, fk]\n        ------> (t) dTable1(equal_cTable1fk_dTable1fk) [fk, pk]\n  ------> (t) aTable2 [fk, pk]\n    ------> (t) bTable2(equal_rootfk_bTable2fk) [fk]\n      ------> (t) cTable2(and_equal_bTable2fk_cTable2fk_equal_cTable2fk_8) [c1, fk]\n      ------> (t) cTable2(and_equal_bTable2fk_cTable2fk_equal_cTable2fk_9) [c2, fk]\n        ------> (t) dTable2(equal_cTable2fk_dTable2fk) [fk, pk]\n
 - SHAPE testTableToTdsWithCrossJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join condition beyond a single equality pending
-- FAIL testTableToTdsWithJoin [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) personTable [ID]\n    ------> (t) firmTable(equal_"joinleft_"_d"eID"_"joinright_"_d"ID") [ADDRESSID, CEOID, ID, LEGALNAME]\ngot\nroot\n  ------> (t) personTable [ID]\n    ------> (t) firmTable [ADDRESSID, CEOID, ID, LEGALNAME]\n
 - SHAPE testTableToTdsWithJoinAndUnion [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
-- FAIL testTableToTdsWithJoinToSameTable [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) personTable [ID]\n    ------> (t) personTable(equal_"joinleft_"_d"personID"_"joinright_"_d"ID") [ADDRESSID, AGE, FIRMID, FIRSTNAME, ID, LASTNAME, MANAGERID]\ngot\nroot\n  ------> (t) personTable [ID]\n    ------> (t) personTable [ADDRESSID, AGE, FIRMID, FIRSTNAME, ID, LASTNAME, MANAGERID]\n
-- FAIL testTableToTdsWithOLAPGroupBy [lineage/scanRelations]: scanRelations: expected\nroot\n  ------> (t) personTable [ADDRESSID, AGE, FIRMID, FIRSTNAME, ID, LASTNAME, MANAGERID]\n    ------> (t) firmTable(equal_"joinleft_"_d#3"ID"_"joinright_"_d#3"firmID") [CEOID, ID]\ngot\nroot\n  ------> (t) personTable [ADDRESSID, AGE, FIRMID, FIRSTNAME, ID, LASTNAME, MANAGERID]\n    ------> (t) firmTable [CEOID, ID]\n
 - SHAPE testTdsJoinConcatenateAndJoin [lineage/scanRelations]: scanRelations: scanRelations: tableToTDS join side is not a single table source
 - SHAPE testUnionWithJoinToOneTable [lineage/scanRelations]: scanRelations: scanRelations: property 'employees' has no property mapping in set 'meta::relational::tests::model::simple::Firm'
 - SHAPE testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements [milestoning/tests]: no execute(|...) call [calls meta::relational::extension] — wall: Unknown type: 'Operation' is not a known primitive, class, or enum
