@@ -16,6 +16,24 @@
 > exceptions), (5) the explanation-coverage gate (fails any
 > non-passing row lacking a verdict — makes 'done' mechanical:
 > 2793 = passed + explained), (6) the list-encoding leg last.
+> **executionPlan per-row findings (2026-08-06, in flight):** the
+> FilterEquals cluster CONVERTED (+13, 49 → 62/109, `e80c3482`) — the
+> plan-surface null-safe doctrine, kind-split (DATE + two-optional
+> DATETIME stay on the legacy selector) and dialect-split (DB2
+> OR-expansion via `nullSafeEq`). Studied and PARKED with causes:
+> `testMapWithOpenVariable*`/`testGroupByWithOpenVariable*` (~4) — our
+> Allocation nodes and scalar select are RIGHT but the agg-join SHAPE
+> diverges (engine anchors count on the firm side grouped by ID with
+> aggCol; we group the person side + case-coalesce) — needs the
+> agg-join-shape lowering alignment, plus the scalar-map type block
+> (`type = Integer`, resultColumns = the sql expr) in PlanText;
+> `testDatabaseConnectionSQLPopulation(+Legacy)` (2) — needs
+> `connection: DatabaseConnection[1]` on SQLExecutionNode + the
+> engine's testDataSetupSqls POPULATION flow (Ddl generators exist);
+> temp-table FreeMarker block nodes (~4 In-collection rows) +
+> model-connection SHAPEs (4) — §4.4 plan-emulation candidates for
+> the classification sweep.
+>
 > **Fresh-ledger family ranking (post-lineage, `c0ff1f1e`):**
 > executionPlan/tests 60 (top template: 10× plan-TEXT
 > `Sequence(type = Class[impls=…` asserts — §1 forbids
