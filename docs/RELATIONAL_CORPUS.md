@@ -11,8 +11,8 @@ in-process Alloy-shaped path).
 
 | | count |
 |---|---:|
-| **total `<<test.Test>>` functions** | **2793** |
-| runnable (this scoreboard) | 2570 |
+| **total `<<test.Test>>` functions** | **2798** |
+| runnable (this scoreboard) | 2575 |
 | excluded by stereotype | 223 |
 | …`<<test.ExcludeAlloy>>` | 96 |
 | …`<<test.ToFix>>` | 127 |
@@ -41,12 +41,12 @@ shared source registered by several families cannot double-count. Run with
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 155 | 137 | 6 | 11 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
-| graphFetch/tests | 143 | 136 | 3 | 2 | 2 | 0 |
+| graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 |
 | graphFetch/tests/union | 15 | 13 | 1 | 1 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
 | lineage/scanRelations | 49 | 45 | 0 | 0 | 4 | 0 |
-| milestoning/tests | 224 | 210 | 10 | 1 | 3 | 34 |
+| milestoning/tests | 228 | 214 | 10 | 1 | 3 | 34 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 0 | 2 | 0 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2294** | 89 | 93 | 94 | 244 |
+| **total** | 2575 | **2298** | 89 | 93 | 95 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1242,6 +1242,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: from() argument 2 must be a mapping or runtime reference, got TypedCopyInstance
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
+- SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - FAIL testMilestonedProperty [graphFetch/tests]: assertEquals: expected PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classificationTypeStr()}}}#)\n  (\n    StoreMappingGlobalGraphFetch\n    (\n      type = PartialClass[impls=[(meta::relational::tests::milestoning::Order | milestoningmap.meta_relational_tests_milestoning_Order)], propertiesWithParameters = [id, product(2015-10-16)]]\n      resultSizeRange = *\n      store = meta::relational::tests::milestoning::db\n      localGraphFetchExecutionNode = \n         RelationalGraphFetch\n         (\n           type = PartialClass[impls=[(meta::relational::tests::milestoning::Order | milestoningmap.meta_relational_tests_milestoning_Order)], propertiesWithParameters = [id, product(2015-10-16)]]\n           nodeIndex = 0\n           relationalNode = \n              SQL\n              (\n                type = meta::pure::metamodel::type::Any\n                resultColumns = [("pk_0", INT), ("id", INT)]\n                sql = select "root".id as "pk_0", "root".id as "id" from OrderTable as "root"\n                connection = TestDatabaseConnection(type = "H2")\n              )\n           children = [\n              RelationalGraphFetch\n              (\n                type = PartialClass[impls=[(meta::relational::tests::milestoning::Product | milestoningmap.meta_relational_tests_milestoning_Product)], propertiesWithParameters = [classificationTypeStr(), name, type]]\n                nodeIndex = 2\n                relationalNode = \n                   SQL\n                   (\n                     type = meta::pure::metamodel::type::Any\n                     resultColumns = [("parent_key_gen_0", INT), ("pk_0", INT), ("pk_1", VARCHAR(200)), ("name", VARCHAR(200)), ("type", VARCHAR(200)), ("k_businessDate", VARCHAR(10))]\n                     sql = select distinct "temp_table_node_0_0".pk_0 as "parent_key_gen_0", "producttable_0".id as "pk_0", "producttable_0".name as "pk_1", "producttable_0".name as "name", "producttable_0".type as "type", '2015-10-16' as "k_businessDate" from (select * from (${temp_table_node_0}) as "root") as "temp_table_node_0_0" inner join OrderTable as "root" on ("temp_table_node_0_0".pk_0 = "root".id) left outer join ProductTable as "producttable_0" on ("root".prodFk = "producttable_0".id and "producttable_0".from_z <= DATE'2015-10-16' and "producttable_0".thru_z > DATE'2015-10-16') where "producttable_0".name is not null and "producttable_0".id is not null and "producttable_0".from_z <= DATE'2015-10-16' and "producttable_0".thru_z > DATE'2015-10-16'\n                     connection = TestDatabaseConnection(type = "H2")\n                   )\n                children = [\n                   RelationalGraphFetch\n                   (\n                     type = String\n                     nodeIndex = 5\n                     relationalNode = \n                        SQL\n                        (\n                          type = meta::pure::metamodel::type::Any\n                          resultColumns = [("parent_key_gen_0", INT), ("parent_key_gen_1", VARCHAR(200)), ("node_5_result", VARCHAR(200))]\n                          sql = select distinct "temp_table_node_2_0".pk_0 as "parent_key_gen_0", "temp_table_node_2_0".pk_1 as "parent_key_gen_1", "productclassificationtable_0".type as "node_5_result" from (select * from (${temp_table_node_2}) as "root") as "temp_table_node_2_0" inner join ProductTable as "root" on ("temp_table_node_2_0".pk_1 = "root".name and "temp_table_node_2_0".pk_0 = "root".id) left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type) where "productclassificationtable_0".type is not null and "productclassificationtable_0".from_z <= DATE'2015-10-16' and "productclassificationtable_0".thru_z > DATE'2015-10-16'\n                          connection = TestDatabaseConnection(type = "H2")\n                        )\n          
 - FAIL testCheckedWithCircularConstraints [graphFetch/tests]: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0 | expected [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[{path=[{propertyNam..., got [{defects=[], value={firstName=Peter, firm={legalName=Firm Y}}}, {defects=[], value={firstName=John, firm={legalName=Firm Y}}}, {defects=[], value={firstName...

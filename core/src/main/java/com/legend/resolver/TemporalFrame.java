@@ -903,6 +903,15 @@ final class TemporalFrame {
                         com.legend.compiler.spec.typed.TypedVariable) {
             return pb.property();
         }
+        // FOR-EACH-DATE: a generated-date hop arg reads THE DATES
+        // COLUMN on the source row (the per-row calendar date IS the
+        // hop's context — temporalDateProjectionQuery's qualified
+        // chains pick the version live AT that date)
+        if ((pa.property().equals("businessDate")
+                        || pa.property().equals("processingDate"))
+                && b == null && forEachDateColumn != null) {
+            return forEachDateColumn;
+        }
         // VERSION SWEEP: a GENERATED-date hop arg ($this.businessDate
         // under allVersions/allVersionsInRange — the root context has no
         // point date, or normalizeContextDate would have replaced the
