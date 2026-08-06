@@ -18,16 +18,37 @@ wrong.** Speed is one of five reasons and not the strongest. Measured on the bra
 
 ### 0.1 Memory — the strongest argument, and it is not close
 
+> **Re-measured 2026-08-05 at `266fe1d5`.** The ratio below is stale — **legend-lite has
+> regressed, the engine has not.** Same methodology (`getThreadAllocatedBytes`, best-of-5 after
+> 4 warm-ups, one JVM, both parsers, files both accept):
+>
+> | 662 `###Pure` files, 3,000,092 chars | allocated | per source char | this doc |
+> |---|---:|---:|---:|
+> | legend-engine (ANTLR) | 3,844,197,608 | **1,281.4 B/char** | 1,287 — **reproduces to 0.4%** |
+> | legend-lite | 116,825,984 | **38.9 B/char** | 25 — **off by +55%** |
+> | | | **32.9× less garbage** | 52× |
+>
+> Because the engine baseline reproduces almost exactly, this is a genuine regression since
+> 2026-08-04, not a measurement difference. Most plausible cause — *inferred, not profiled* —
+> is the per-token position cache (`TokenStream.tokenPositions():155-186`, four `int[count]`
+> arrays per stream) and the per-node `SourceInfo` (`ElementParser.span:2392-2396`). §2.3 of
+> the plan predicted exactly this: *"Adding SourceInformation to legend-lite would add cost to
+> the 10% side."*
+>
+> **The argument survives; the numbers do not.** Either re-measure and restate, or stop quoting
+> a fixed figure. Over a wider population (4,005 files, 13.3 M chars) the ratio is 41.6×.
+
 | parsing 298 `###Pure` files, 2,834,368 chars | allocated | per source char |
 |---|---:|---:|
 | legend-engine (ANTLR) | **3,647,679,648 bytes** | **1,287 B/char** |
-| legend-lite | 70,049,608 bytes | 25 B/char |
-| | | **52× less garbage** |
+| legend-lite | 70,049,608 bytes | ~~25 B/char~~ → **38.9** |
+| | | ~~**52×**~~ → **32.9× less garbage** |
 
 **3.6 GB of allocation to parse 2.8 MB of source — roughly 1,287× the input size.** Plus **+31.5 MB
-retained heap** simply from warming the parser (serialized ATN tables and DFA caches). On a
-multi-tenant engine server this is GC pressure, not microseconds, and it is the reason to care even
-if parse time is invisible in a request trace.
+retained heap** simply from warming the parser (serialized ATN tables and DFA caches) — *retained
+heap was not re-measured; only allocation rate was.* On a multi-tenant engine server this is GC
+pressure, not microseconds, and it is the reason to care even if parse time is invisible in a
+request trace.
 
 ### 0.2 Generated code — 46% of the jar's bytes
 
@@ -120,7 +141,7 @@ the parser prepending a synthetic section header. With `returnSourceInformation=
 erases the field entirely and the problem collapses to structural fidelity — which is exactly the
 mode upstream's own 359-test round-trip suite runs in.
 
-**The case rests on §0, not on speed.** 52× less allocation, 46% of the grammar jar deleted, a
+**The case rests on §0, not on speed.** ~~52×~~ **32.9×** less allocation (§0.1), 46% of the grammar jar deleted, a
 build stage removed, and an ANTLR 4.8-1 pin dropped. The 54.5× speedup (§2) is real and survives
 every methodological attack I could mount at it, but it is the *weakest* of the five reasons.
 Parsing's share of request latency (§7) is a sizing input, **not** a kill gate.
