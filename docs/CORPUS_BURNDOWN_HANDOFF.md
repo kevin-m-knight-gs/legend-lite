@@ -14,13 +14,24 @@
 > no-arg/true show, false hides; label CONTENT is the variant's
 > (static=join names, runtime=condition mangle, breadcrumbs stripped
 > both sides at compare). testConstant + testUnion pin all cells of
-> this matrix. **10 rows remain** (diffs in scratchpad lineage9.log):
-> testUnionToUnionMultiple/-Levels + testUnionViewOnView (deeper union
-> shapes), per-occurrence join forks (testSameRelationsAtSameLevel:
-> engine re-walks a shared join per DEMAND SITE; we dedup on chain
-> identity), subtype branch pruning (testSelectOnLeftSide), tableToTDS
-> labels (quoted `"joinleft_"` grammar) ×3, testTableTreeMultiJoin,
-> testTableTree_Inheritance_2.
+> this matrix. Batch 4 (+2, 35 → 37): union-arm PK projects where an
+> INSTANCE MATERIALIZES (derived-property evaluation on the arm, or a
+> root extent) — plain-column leaves do NOT (testUnionToUnion vs
+> …MultipleLevels pin the split); and `unionNavigate` children
+> `computeIfAbsent` so repeated paths accumulate demand (a plain `put`
+> silently DROPPED the earlier path's columns). **8 rows remain**
+> (diffs in scratchpad lineage11.log). The big unlock, fully derived
+> from the MultiJoin/UnionViewOnView diffs: the **suffixed-OR union
+> label grammar** — a union-OPERATION target's runtime join condition
+> is `or_` over arms j of `equal_root<srcCol>_` + (j==k ?
+> `unionAlias<tgtCol_j>_<j>` : `SQLNull`) when scanning arm k (the
+> other arms' key columns read SQLNull in this arm). Covers
+> testTableTreeMultiJoin, testUnionViewOnView, and (with per-DEMAND-
+> SITE forks) testSameRelationsAtSameLevel. NOTE: plain multi-set
+> INHERITANCE mappings keep PLAIN labels (testTableTree_Inheritance_2's
+> golden) — the OR grammar fires only for union operations. Still
+> open besides: subtype branch pruning under ->select()
+> (testSelectOnLeftSide), tableToTDS quoted-`"joinleft_"` labels ×3.
 
 > **THIRD-SESSION DELTA (2026-08-06).** Next-designs #1 and #4 are
 > LANDED: views as join targets (`HopTarget` carries the view identity;

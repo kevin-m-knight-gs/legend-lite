@@ -787,6 +787,12 @@ public final class ScanRelations {
                     mainTableOf(cm), null);
             roots.add(r);
             foldClassFilter(ctx, r, cm);
+            // a UNION-mapped ROOT's arms project their PK for instance
+            // identity under the runtime scan (same rule as union
+            // navigation targets — testUnionToUnionMultiple)
+            if (extentRoots && rootCms.size() > 1) {
+                r.cols.addAll(pkCols(ctx, r.db, r.table));
+            }
         }
         for (List<Seg> p : paths) {
             for (int i = 0; i < rootCms.size(); i++) {
@@ -1192,6 +1198,14 @@ public final class ScanRelations {
             // way
             Derived expanded = derivedChains(ctx, cm, prop.name());
             if (expanded != null) {
+                // evaluating a DERIVED property on a UNION arm
+                // materializes the instance — the arm projects its PK for
+                // identity (engine <pk>_N; plain-column leaves do NOT —
+                // testUnionToUnion vs testUnionToUnionMultipleLevels)
+                if (runtimeScan
+                        && unionSets(ctx, md, cm.className()).size() > 1) {
+                    node.cols.addAll(pkCols(ctx, node.db, node.table));
+                }
                 // only the RESULT chain continues the outer path; the
                 // body's predicate reads are self-contained leaf demands
                 // (splicing them mid-chained 'type' into the tail was the
@@ -1328,9 +1342,13 @@ public final class ScanRelations {
             mergedName = name;
         }
         for (ClassMapping.Relational ts : targetSets) {
-            Node child = new Node(java.util.Objects.requireNonNull(
-                    mainDbOf(ts), "union member set without a main db"),
-                    mainTableOf(ts), null);
+            // repeated paths REUSE the member child (put would overwrite
+            // the earlier path's demand — the MultipleLevels name loss)
+            Node child = node.children.computeIfAbsent(
+                    "union#" + ts.setId(),
+                    x -> new Node(java.util.Objects.requireNonNull(
+                            mainDbOf(ts), "union member set without a main db"),
+                            mainTableOf(ts), null));
             child.labelOverride = merged
                     ? "equal_unionAlias" + mergedName + "_root"
                             + routes.get(0).srcCol()
@@ -1347,12 +1365,7 @@ public final class ScanRelations {
                         child.cols.add(r.tgtCol());
                     }
                 }
-                // the union subselect projects each member's PRIMARY KEY
-                // for instance identity (engine <pk>_N columns) — the
-                // member's own PK demands on its arm
-                child.cols.addAll(pkCols(ctx, child.db, child.table));
             }
-            node.children.put("union#" + ts.setId(), child);
             walk(ctx, md, ts, child, path, next, false, true);
         }
     }
@@ -1457,13 +1470,6 @@ public final class ScanRelations {
                         continue;
                     }
                     walk(ctx, md, target, child, path, next, tdgMode, runtimeScan);
-                    if (runtimeScan && unionSets(ctx, md,
-                            target.className()).size() > 1) {
-                        // a UNION-mapped target's arm projects its PK for
-                        // instance identity (engine <pk>_N columns) —
-                        // the per-PM dispatch route (embedded bridges)
-                        child.cols.addAll(pkCols(ctx, child.db, child.table));
-                    }
                     if (tdgMode) {
                         unionSiblings(ctx, md, node, child, target, st,
                                 path, next);
