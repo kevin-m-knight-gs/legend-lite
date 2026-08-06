@@ -16,6 +16,14 @@
 > exceptions), (5) the explanation-coverage gate (fails any
 > non-passing row lacking a verdict — makes 'done' mechanical:
 > 2793 = passed + explained), (6) the list-encoding leg last.
+> **Fresh-ledger family ranking (post-lineage, `c0ff1f1e`):**
+> executionPlan/tests 60 (top template: 10× plan-TEXT
+> `Sequence(type = Class[impls=…` asserts — §1 forbids
+> template-counting; per-row study needed, and §4.4 says part is
+> plan-shape emulation = ledger verdicts), functions/tests 44,
+> milestoning 37, tds/tests 32, projection 29. getAllForEachDate rows
+> = ZERO in the fresh ledger (design #2's target already consumed —
+> verify before building anything from that design).
 
 > **LINEAGE LEG IN FLIGHT (2026-08-06, fourth stretch).** scanRelations
 > **19 → 35 honest** across three gated batches. The load-bearing
