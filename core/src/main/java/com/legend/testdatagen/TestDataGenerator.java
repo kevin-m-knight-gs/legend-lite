@@ -172,14 +172,10 @@ public final class TestDataGenerator {
             boolean hashStrings, Connection conn) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
-        // a VIEW-backed root generates for its UNDERLYING tree (engine
-        // generateTestDataForNestedViewTree): the view's seed table is
-        // the row-identifier target and its join web fetches as children
-        roots = roots.stream().map(r -> expandIfView(ctx, r, null))
-                .toList();
         // engine generateRelationColumnMap: column demand merges PER
         // TABLE across ALL tree nodes (a self-join's two fetches of one
-        // table share one column set)
+        // table share one column set). fetchRoot expands views itself
+        // (it must KEEP the view identity to emit the view fetch).
         Map<String, List<String>> colMap = new LinkedHashMap<>();
         for (ScanRelations.Rel r : roots) {
             collectColMap(ctx, r, colMap, null);
@@ -242,6 +238,15 @@ public final class TestDataGenerator {
             Map<String, Fetched> fetched, List<String> temps,
             Map<String, List<String>> colMap, @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
+        // a VIEW-backed root generates for its UNDERLYING tree (engine
+        // generateTestDataForNestedViewTree): the view's seed table is
+        // the row-identifier target, its join web fetches as children,
+        // and the group closes with the VIEW's OWN fetch over the temps
+        // (one per view layer, inner-first — §8.2)
+        String viewDb = rel.db();
+        String viewName = ScanRelations.isView(ctx, rel.db(), rel.table())
+                ? rel.table() : null;
+        rel = expandIfView(ctx, rel, null);
         Located loc = locate(ctx, rel.db(), rel.table());
         String tbl = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
         List<String> cols = java.util.Objects.requireNonNull(
@@ -259,6 +264,28 @@ public final class TestDataGenerator {
                     + " identifiers for root table '" + loc.schema() + "."
                     + rel.table() + "' (generateWithDefaultPKs pending)");
         }
+        String where = rowIdWhere(ids, loc.def());
+        String mf = milestoningFilter(loc.def(), "\"root\"", dates);
+        String sql = "select " + String.join(", ",
+                cols.stream().map(c -> "\"root\"." + q(c)).toList())
+                + " from " + qualify(loc.schema(), tbl)
+                + " as \"root\" where " + (mf == null ? where
+                        : "(" + where + ") and " + mf) + " limit 20";
+        String temp = materialize(st, sql, tbl, temps);
+        sqls.add(sql);
+        record(fetched, loc.schema(), tbl, cols, temp);
+        for (ScanRelations.Rel child : rel.children()) {
+            fetchChild(ctx, rel, temp, child, st, sqls, fetched, temps,
+                    colMap, rowIds, dates);
+        }
+        if (viewName != null) {
+            emitViewFetches(ctx, viewDb, viewName, st, sqls, fetched);
+        }
+    }
+
+    /** The OR-of-row-id equality WHERE ({@code (a and b) or (…)}). */
+    private static String rowIdWhere(TableRowIds ids,
+            DatabaseDefinition.TableDefinition def) {
         StringBuilder where = new StringBuilder();
         for (RowId id : ids.ids()) {
             if (where.length() > 0) {
@@ -271,38 +298,60 @@ public final class TestDataGenerator {
                 }
                 one.append("\"root\".").append(q(id.cols().get(i)))
                         .append(" = ").append(lit(id.values().get(i),
-                                column(loc.def(), id.cols().get(i))));
+                                column(def, id.cols().get(i))));
             }
             one.insert(0, "(").append(")");
             where.append(one);
         }
-        String mf = milestoningFilter(loc.def(), "\"root\"", dates);
-        String sql = "select " + String.join(", ",
-                cols.stream().map(c -> "\"root\"." + q(c)).toList())
-                + " from " + qualify(loc.schema(), tbl)
-                + " as \"root\" where " + (mf == null ? where.toString()
-                        : "(" + where + ") and " + mf) + " limit 20";
-        String temp = materialize(st, sql, tbl, temps);
-        sqls.add(sql);
-        record(fetched, loc.schema(), tbl, cols, temp);
-        for (ScanRelations.Rel child : rel.children()) {
-            fetchChild(ctx, rel, temp, child, st, sqls, fetched, temps,
-                    colMap, dates);
-        }
+        return where.toString();
     }
 
     private static void fetchChild(ModelContext ctx, ScanRelations.Rel parent,
             String parentTemp, ScanRelations.Rel child, Statement st,
             List<String> sqls, Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap,
-            @com.legend.Nullable MilestoningDates dates)
+            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
+        String viewDb = child.db();
+        String viewName = ScanRelations.isView(ctx, child.db(), child.table())
+                ? child.table() : null;
         child = expandIfView(ctx, child, parent.db());
         Located loc = locate(ctx, child.db(), child.table());
         String ct = java.util.Objects.requireNonNull(child.table(), "child.table()");
         List<String> cols = java.util.Objects.requireNonNull(
                 colMap.get(loc.schema() + "\n" + ct),
                 "no column map for " + ct);
+        // a VIEW child's SEED with EXPLICIT row identifiers fetches BY
+        // ITS IDS, not the parent join (engine
+        // generateTestDataStartingFromNode's isView arm: tablePk
+        // non-empty short-circuits the parent-derived ids —
+        // testViewEmbeddedInChainedJoin pins personTable 1,2,3,5 while
+        // the join reaches only 1,2). PLAIN table children stay
+        // join-derived (a self-join's manager fetch must follow the
+        // join even when the table's ROOT ids are configured).
+        for (TableRowIds t : viewName == null ? List.<TableRowIds>of()
+                : rowIds) {
+            if (t.table().equals(ct) && t.schema().equals(loc.schema())) {
+                String mfr = milestoningFilter(loc.def(), "\"root\"", dates);
+                String w = rowIdWhere(t, loc.def());
+                String idSql = "select " + String.join(", ",
+                        cols.stream().map(c -> "\"root\"." + q(c)).toList())
+                        + " from " + qualify(loc.schema(), ct)
+                        + " as \"root\" where " + (mfr == null ? w
+                                : "(" + w + ") and " + mfr) + " limit 20";
+                String idTemp = materialize(st, idSql, ct, temps);
+                sqls.add(idSql);
+                record(fetched, loc.schema(), ct, cols, idTemp);
+                for (ScanRelations.Rel sub : child.children()) {
+                    fetchChild(ctx, child, idTemp, sub, st, sqls, fetched,
+                            temps, colMap, rowIds, dates);
+                }
+                if (viewName != null) {
+                    emitViewFetches(ctx, viewDb, viewName, st, sqls, fetched);
+                }
+                return;
+            }
+        }
         RelationalOperation op = child.cond() != null ? child.cond()
                 : findJoin(ctx, child.joinName(), child.db(),
                         parent.db()).operation();
@@ -321,8 +370,219 @@ public final class TestDataGenerator {
         record(fetched, loc.schema(), child.table(), cols, temp);
         for (ScanRelations.Rel sub : child.children()) {
             fetchChild(ctx, child, temp, sub, st, sqls, fetched, temps,
-                    colMap, dates);
+                    colMap, rowIds, dates);
         }
+        if (viewName != null) {
+            emitViewFetches(ctx, viewDb, viewName, st, sqls, fetched);
+        }
+    }
+
+    // ===== the view fetch (engine generateTestDataForNestedViewTree) =====
+
+    /** After a view group's base fetches, the engine emits the VIEW's own
+     * query re-pointed at the fetched temp tables (fixTables oldToNew)
+     * and executes it — one per view layer, INNER-FIRST for view-on-view
+     * stacks. The view result pairs with a View (not a Table), so it
+     * adds no CSV block; the SQL and its execution are the contract. */
+    private static void emitViewFetches(ModelContext ctx, String db,
+            String viewName, Statement st, List<String> sqls,
+            Map<String, Fetched> fetched) throws SQLException {
+        List<String> chain = ScanRelations
+                .viewExpansion(ctx, db, viewName).viewChain();
+        for (int i = chain.size() - 1; i >= 0; i--) {
+            String sql = viewFetchSql(ctx, db, chain.get(i), fetched);
+            st.execute(sql);
+            sqls.add(sql);
+        }
+    }
+
+    /** The view's SELECT over the group's temps: plain columns off the
+     * seed, join-navigated columns off their chain terminals, the view
+     * ~filter as WHERE. A seed that is ITSELF a view nests as a
+     * subselect (the engine renders views expanded). Shapes beyond
+     * plain/nav columns and Direct filters wall loudly. */
+    private static String viewFetchSql(ModelContext ctx, String db,
+            String viewName, Map<String, Fetched> fetched)
+            throws SQLException {
+        DatabaseDefinition.ViewDefinition vd =
+                ScanRelations.viewDef(ctx, db, viewName);
+        // seed = the sole table plain columns read (expandView's rule)
+        String seed = null;
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
+                : vd.columnMappings()) {
+            if (cm.expression() instanceof RelationalOperation.ColumnRef r) {
+                seed = bare(r.table());
+                break;
+            }
+        }
+        if (seed == null) {
+            throw new NotImplementedException("testDataGen: view '"
+                    + viewName + "' has no plain column to seed its fetch");
+        }
+        // table -> SQL alias; the FROM/JOIN sources rename to the temps
+        // (unfetched tables stay real — engine fixTables maps only
+        // fetched ones)
+        Map<String, String> aliasOf = new LinkedHashMap<>();
+        aliasOf.put(seed, "root");
+        StringBuilder joins = new StringBuilder();
+        List<String> selects = new ArrayList<>();
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
+                : vd.columnMappings()) {
+            switch (cm.expression()) {
+                case RelationalOperation.ColumnRef r -> selects.add(
+                        "\"root\"." + q(r.column()) + " as " + q(cm.name()));
+                case RelationalOperation.JoinNavigation jn -> {
+                    String at = seed;
+                    for (com.legend.model.JoinChainElement hop : jn.chain()) {
+                        String hopDb = hop.databaseName() != null
+                                ? hop.databaseName() : db;
+                        var jd = findJoin(ctx, hop.joinName(), hopDb, db);
+                        String tgt = joinTarget(jd.operation(), at,
+                                hop.joinName());
+                        if (!aliasOf.containsKey(tgt)) {
+                            String alias = tgt.equals(at) ? "t_" + tgt : tgt;
+                            aliasOf.put(tgt, alias);
+                            joins.append(" left outer join ")
+                                    .append(tempOrReal(ctx, db, tgt, fetched))
+                                    .append(" as ").append(q(alias))
+                                    .append(" on (")
+                                    .append(renderOverAliases(jd.operation(),
+                                            aliasOf, hop.joinName()))
+                                    .append(")");
+                            at = tgt;
+                        } else {
+                            at = tgt;
+                        }
+                    }
+                    if (!(jn.terminal()
+                            instanceof RelationalOperation.ColumnRef tc)) {
+                        throw new NotImplementedException("testDataGen: view '"
+                                + viewName + "' nav column '" + cm.name()
+                                + "' has a non-column terminal");
+                    }
+                    selects.add(q(java.util.Objects.requireNonNull(
+                            aliasOf.get(at), "chain terminal alias"))
+                            + "." + q(tc.column()) + " as " + q(cm.name()));
+                }
+                default -> throw new NotImplementedException("testDataGen:"
+                        + " view '" + viewName + "' column '" + cm.name()
+                        + "' expression "
+                        + cm.expression().getClass().getSimpleName()
+                        + " pending");
+            }
+        }
+        String where = null;
+        com.legend.model.FilterMapping fm = vd.filter();
+        if (fm instanceof com.legend.model.FilterMapping.Direct d) {
+            String fdb = d.filter()
+                    instanceof com.legend.model.FilterPointer.Cross c
+                    ? c.db() : db;
+            var fd = ctx.findDatabase(fdb).stream()
+                    .flatMap(dd -> dd.filters().stream())
+                    .filter(f -> f.name().equals(d.filter().name()))
+                    .findFirst().orElseThrow(() ->
+                    new NotImplementedException("testDataGen: view filter '"
+                            + d.filter().name() + "' not found in '" + fdb
+                            + "'"));
+            where = renderOverAliases(fd.condition(), aliasOf,
+                    "~filter " + d.filter().name());
+        } else if (fm != null) {
+            throw new NotImplementedException("testDataGen: view '"
+                    + viewName + "' has a join-mediated ~filter; the view"
+                    + " fetch renders Direct filters only");
+        }
+        String groupBy = null;
+        if (!vd.groupByColumns().isEmpty()) {
+            List<String> keys = new ArrayList<>();
+            for (RelationalOperation g : vd.groupByColumns()) {
+                keys.add(renderOverAliases(g, aliasOf, "~groupBy"));
+            }
+            groupBy = String.join(", ", keys);
+        }
+        String from = ScanRelations.isView(ctx, db, seed)
+                ? "(" + viewFetchSql(ctx, db, seed, fetched) + ")"
+                : tempOrReal(ctx, db, seed, fetched);
+        return "select " + (vd.distinct() ? "distinct " : "")
+                + String.join(", ", selects) + " from " + from
+                + " as \"root\"" + joins
+                + (where == null ? "" : " where " + where)
+                + (groupBy == null ? "" : " group by " + groupBy);
+    }
+
+    /** The join's non-{@code from} table (single other table; multi-table
+     * conditions wall). */
+    private static String joinTarget(RelationalOperation op, String from,
+            String joinName) {
+        java.util.Set<String> tables = new java.util.LinkedHashSet<>();
+        collectTables(op, tables);
+        tables.remove(from);
+        if (tables.size() != 1) {
+            throw new NotImplementedException("testDataGen: join '"
+                    + joinName + "' references tables " + tables
+                    + " beyond '" + from + "' — view-fetch chains need a"
+                    + " sole target");
+        }
+        return tables.iterator().next();
+    }
+
+    private static void collectTables(RelationalOperation op,
+            java.util.Set<String> out) {
+        if (op instanceof RelationalOperation.ColumnRef r) {
+            out.add(bare(r.table()));
+        }
+        op.children().forEach(c -> collectTables(c, out));
+    }
+
+    /** The group's temp for {@code table} (LAST fetch wins — the group's
+     * own), or the real table when unfetched (engine fixTables maps only
+     * fetched tables). */
+    private static String tempOrReal(ModelContext ctx, String db,
+            String table, Map<String, Fetched> fetched) {
+        Located loc = locate(ctx, db, table);
+        Fetched f = fetched.get(loc.schema() + "\n" + table);
+        return f == null || f.temps().isEmpty()
+                ? qualify(loc.schema(), table)
+                : f.temps().get(f.temps().size() - 1);
+    }
+
+    /** Render a condition with every table ref resolved through the
+     * alias map (the view-fetch scope). */
+    private static String renderOverAliases(RelationalOperation op,
+            Map<String, String> aliasOf, String label) {
+        return switch (op) {
+            case RelationalOperation.ColumnRef cr -> {
+                String a = aliasOf.get(bare(cr.table()));
+                if (a == null) {
+                    throw new NotImplementedException("testDataGen: '"
+                            + label + "' references table '" + cr.table()
+                            + "' outside the view-fetch scope");
+                }
+                yield ("root".equals(a) ? "\"root\"" : q(a)) + "."
+                        + q(cr.column());
+            }
+            case RelationalOperation.Literal l -> lit(l.value(), null);
+            case RelationalOperation.Comparison c ->
+                    renderOverAliases(c.left(), aliasOf, label) + " "
+                    + c.op().symbol() + " "
+                    + renderOverAliases(c.right(), aliasOf, label);
+            case RelationalOperation.BooleanOp b ->
+                    renderOverAliases(b.left(), aliasOf, label)
+                    + (b.op() == com.legend.model.LogicalOp.AND ? " and "
+                            : " or ")
+                    + renderOverAliases(b.right(), aliasOf, label);
+            case RelationalOperation.Group g -> "("
+                    + renderOverAliases(g.inner(), aliasOf, label) + ")";
+            case RelationalOperation.IsNull n ->
+                    renderOverAliases(n.operand(), aliasOf, label)
+                    + " is null";
+            case RelationalOperation.IsNotNull n ->
+                    renderOverAliases(n.operand(), aliasOf, label)
+                    + " is not null";
+            default -> throw new NotImplementedException("testDataGen: '"
+                    + label + "' condition node "
+                    + op.getClass().getSimpleName() + " pending in the"
+                    + " view fetch");
+        };
     }
 
     /** The engine's getMilestoningFilter: forced temporal dates filter a

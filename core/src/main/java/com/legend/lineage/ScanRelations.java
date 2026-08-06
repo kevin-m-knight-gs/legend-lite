@@ -622,6 +622,18 @@ public final class ScanRelations {
         return db != null && findView(ctx, db, name) != null;
     }
 
+    /** The view definition, or a loud wall — the tdg view-fetch builder's
+     * accessor (the private lookup keeps its null-tolerant contract). */
+    public static DatabaseDefinition.ViewDefinition viewDef(ModelContext ctx,
+            String db, String name) {
+        DatabaseDefinition.ViewDefinition vd = findView(ctx, db, name);
+        if (vd == null) {
+            throw new NotImplementedException("scanRelations: view '" + name
+                    + "' not found in '" + db + "'");
+        }
+        return vd;
+    }
+
     /** The view's INTERNAL relation tree as a {@link Rel} (the tdg view
      * fetch): root = the view's seed table carrying every plain
      * column-mapped base column, with the view's own join web (column
@@ -634,11 +646,14 @@ public final class ScanRelations {
     }
 
     /** A view's tdg expansion: the internal tree plus the seed (main)
-     * table identity and the PLAIN column-mapped view-column &rarr;
-     * base-column map (join-navigated columns are absent). */
+     * table identity, the PLAIN column-mapped view-column &rarr;
+     * base-column map (join-navigated columns are absent), and the
+     * view-layer CHAIN outer-first (view-on-view stacks — the engine
+     * emits one view fetch PER LAYER, inner-first). */
     public record ViewExpansion(Rel tree, String db,
             @com.legend.Nullable String mainTable,
-            java.util.Map<String, String> colToBase) {
+            java.util.Map<String, String> colToBase,
+            java.util.List<String> viewChain) {
     }
 
     public static ViewExpansion viewExpansion(ModelContext ctx, String db,
@@ -649,7 +664,7 @@ public final class ScanRelations {
                     + viewName + "' not found in '" + db + "'");
         }
         Node root = java.util.Objects.requireNonNull(
-                expandView(ctx, db, vd, true),
+                expandView(ctx, db, vd),
                 "view '" + viewName + "' has no column-mapped seed table");
         java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
@@ -693,10 +708,14 @@ public final class ScanRelations {
             Rel merged = new Rel(inner.tree().db(), inner.tree().table(),
                     inner.tree().joinName(), inner.tree().cond(),
                     List.copyOf(cols), inner.tree().children());
+            List<String> chain = new ArrayList<>();
+            chain.add(java.util.Objects.requireNonNull(viewName, "viewName"));
+            chain.addAll(inner.viewChain());
             return new ViewExpansion(merged, inner.db(),
-                    inner.mainTable(), composed);
+                    inner.mainTable(), composed, List.copyOf(chain));
         }
-        return new ViewExpansion(toRel(root), root.db, root.table, m);
+        return new ViewExpansion(toRel(root), root.db, root.table, m,
+                List.of(java.util.Objects.requireNonNull(viewName, "viewName")));
     }
 
     private static Rel toRel(Node n) {
@@ -801,15 +820,6 @@ public final class ScanRelations {
      * ~filter fold their join chains off it. */
     private static @com.legend.Nullable Node expandView(ModelContext ctx, String dbName,
             DatabaseDefinition.ViewDefinition vd) {
-        return expandView(ctx, dbName, vd, false);
-    }
-
-    /** {@code perWebChildren}: each column mapping's join web builds its
-     * OWN child chain even when a prefix repeats (the engine's tdg
-     * nestedViewTree fetches per web — testSimpleViewRoot pins 5 sqls);
-     * the treeString printer keeps the merged form. */
-    private static @com.legend.Nullable Node expandView(ModelContext ctx, String dbName,
-            DatabaseDefinition.ViewDefinition vd, boolean perWebChildren) {
         Node root = null;
         List<RelationalOperation.ColumnRef> plainRefs = new ArrayList<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
@@ -839,18 +849,11 @@ public final class ScanRelations {
                 : vd.columnMappings()) {
             if (cm.expression()
                     instanceof RelationalOperation.JoinNavigation jn) {
-                // per-web fork key = the CHAIN IDENTITY: columns sharing
-                // one chain share one fetch, distinct chains fork even
-                // on a shared prefix (engine per-web fetch counts)
-                String suffix = "";
-                if (perWebChildren) {
-                    StringBuilder sb2 = new StringBuilder("#");
-                    for (JoinChainElement el : jn.chain()) {
-                        sb2.append(el.joinName()).append('>');
-                    }
-                    suffix = sb2.toString();
-                }
-                foldJoinNavigation(ctx, root, dbName, jn, suffix);
+                // webs MERGE by chain prefix (§8.2: the per-web fork
+                // compensated for the missing VIEW FETCH — retired in the
+                // same commit that emits it; the engine issues one merged
+                // base fetch plus the view's own SQL)
+                foldJoinNavigation(ctx, root, dbName, jn, "");
             }
         }
         com.legend.model.FilterMapping fm = vd.filter();

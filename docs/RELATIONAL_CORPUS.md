@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
 | tds/tests | 266 | 248 | 2 | 9 | 7 | 6 |
-| testDataGeneration/tests | 68 | 60 | 2 | 2 | 4 | 0 |
+| testDataGeneration/tests | 68 | 62 | 0 | 2 | 4 | 0 |
 | tests | 39 | 30 | 3 | 0 | 6 | 0 |
 | tests/advanced | 68 | 60 | 3 | 5 | 0 | 21 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 | 0 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2252** | 131 | 93 | 94 | 244 |
+| **total** | 2570 | **2254** | 129 | 93 | 94 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1363,8 +1363,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
 - SHAPE testTableToTdsWithJoinAndUnion [testDataGeneration/tests]: scanRelations: tableToTDS join side is not a single table source
 - ERROR testUnionToUnion [testDataGeneration/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
-- FAIL testUnionViewOnView [testDataGeneration/tests]: assertSize(sqls): expected 14, got 12
-- FAIL testViewEmbeddedInChainedJoin [testDataGeneration/tests]: assertSize(sqls): expected 5, got 4
 - FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", (select "t3".NAME as "name" from snDB.productSchemaNewDB.synonymTableNew as "t3" where "t3".ID is distinct from 1 and "t3".PRODID = "root".ID and "t3".TYPE = 'CUSIP') as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select distinct "synonymtablenew_1".PRODID from snDB.productSchemaNewDB.synonymTableNew as "synonymtablenew_1" where "synonymtablenew_1".ID is distinct from 1 and "synonymtablenew_1".TYPE = 'CUSIP' and "synonymtablenew_1".NAME = 'CUSIP1') as "synonymtablenew_0" on ("root".ID = "synonymtablenew_0".PRODID) where "synonymtablenew_0".PRODID is not null
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select (select "t2".NAME as "name" from snDBDefault.default.personTable as "t1" left outer join snDBDefault.default.addressTable as "t2" on ("t2".ID = "t1".ADDRESSID) where "root".ID = "t1".FIRMID and "t1".LASTNAME = 'Smith') as "address" from snDBDefault.default.firmTableNew as "root"
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
