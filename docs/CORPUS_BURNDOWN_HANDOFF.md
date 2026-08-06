@@ -34,7 +34,15 @@
 > Remaining toSQLString SHAPE arms: non-lambda-literal query (8 across
 > families) + mapping-argument-not-a-reference (3).
 >
-> **LANDED since:** the lineage advisory-arm deletion (§8.3) — the
+> **LANDED since:** #25 (the tdg VIEW FETCH + `perWebChildren`
+> retirement in one commit, `9d40e8fb` — the §8.2 trio converted, +2;
+> the extra rule found on the way: a VIEW child's seed with explicit
+> row identifiers fetches BY IDS, the engine's `tablePk`
+> short-circuit, but ONLY in the view arm — the blanket version broke
+> self-join/union children). 100% ledger after the batch: **2349/2793**
+> = 2368 − 21 (the lineage honesty drop below: 26 manufactured greens
+> are now real FAIL targets) + 2. Also the lineage advisory-arm
+> deletion (§8.3) — the
 > scoreboard-drop procedure that works: pre-edit the committed
 > baseline's ONE family cell to the honest count, then let gate 4
 > rewrite the whole file (the runner has no override flag).
