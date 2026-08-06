@@ -16,10 +16,31 @@
 > `LEGEND_ENGINE_ROOT`/`LEGEND_PURE_ROOT` every sweep reports phantom
 > regressions (families shrink, null-safe goldens flip legacy).**
 > Stale index entries verified consumed: the math-extension port, the
-> TIMESTAMP_NS literal, the TypedNewInstance fold arms. Still-open next
-> designs: getAllForEachDate residuals (#2), datatype metamodel leaves
-> (#3), the §5 structural pair / object-space TypedFilter arm (4 rows
-> now share that wall) / lineage advisory deletion (#5).
+> TIMESTAMP_NS literal, the TypedNewInstance fold arms, synthesis §2
+> #10 (LATEST_DATE fold) and #12 (the silent-sum guard is now a loud
+> fallthrough). Of the "object-space TypedFilter" 4-row bucket, THREE
+> are upstream ToFix/aspirational — one real row remains
+> (testVariableReferenceInMapWithNestedFilter, correlated-nav
+> machinery).
+>
+> **Masked-wall census re-run (2026-08-06, §7 discipline).** Milestoning
+> 17 → 5 (4× `toSQLString` non-lambda-literal query arg, 1 extension
+> typing). The NEW dominant cluster is ONE dialect leg: **the
+> EngineStyleH2 golden-re-render dialect has no list encoding** — 29
+> walls across functions/tests (16× collection membership, 2×
+> LIST_CONCAT, STRING_AGG, UNNEST, LIST_GET, 2× array literal) and
+> tds/tests (4× LIST_GET, LIST_BOOL_OR/AND). One dialect
+> list-encoding leg retires the whole cluster on the advisory channel.
+> Remaining toSQLString SHAPE arms: non-lambda-literal query (8 across
+> families) + mapping-argument-not-a-reference (3).
+>
+> **Still-open ranked work (synthesis §2, verified against code):**
+> #19/20 join-kind → cardinality-elision pair (`Pipelines.walk` still
+> cancels undemanded joins unconditionally — §3.6 row-dropping),
+> #25 test-data-gen view-node + `perWebChildren` retirement (one
+> commit), lineage advisory-arm deletion (§8.3: FIRST, and it is
+> baseline-NEGATIVE — needs a deliberate scoreboard-drop exception),
+> getAllForEachDate residuals (#2), datatype metamodel leaves (#3).
 >
 > **STATE AS OF `bc375a46` (2026-08-06, second session).** The ledger
 > moved **484 → 430 non-passing (2,363/2,793 pass)** across 24 gated
