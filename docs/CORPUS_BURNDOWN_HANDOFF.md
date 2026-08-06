@@ -1,5 +1,22 @@
 # Burn-down handoff — start here
 
+> **LEDGER 2375/2793 (418 non-passing) as of `c0ff1f1e`.** The lineage
+> leg is COMPLETE: scanRelations 19 honest → 45/49, ZERO FAILs, across
+> 7 gated batches; the 4 remaining rows are loud SHAPE walls
+> (tableToTDS cross-join/multi-source ×3, unmapped-property probe) —
+> ledger-verdict candidates, not diffs. **Priority note (goal = ledger
+> to zero):** the EngineStyleH2 list-encoding cluster (29 walls) is
+> ADVISORY-channel work — it raises sql-text verification, not pass
+> counts — so it ranks BELOW the verdict-moving legs. Next in order:
+> (1) getAllForEachDate residuals (11+ rows, temporal budget 2-3
+> iterations), (2) the datatype metamodel prelude tier, (3) the
+> #19/#20 demand-model design leg, (4) the CLASSIFICATION SWEEP (~110
+> not-our-work rows → evidence-backed BURNDOWN_EXPLANATIONS.md
+> verdicts, incl. the 2 no-marker wrong goldens needing scoreboard
+> exceptions), (5) the explanation-coverage gate (fails any
+> non-passing row lacking a verdict — makes 'done' mechanical:
+> 2793 = passed + explained), (6) the list-encoding leg last.
+
 > **LINEAGE LEG IN FLIGHT (2026-08-06, fourth stretch).** scanRelations
 > **19 → 35 honest** across three gated batches. The load-bearing
 > model, corrected mid-leg (batch 1 conflated it): TWO ORTHOGONAL
