@@ -61,6 +61,19 @@
 > getAllForEachDate residuals (#2), datatype metamodel leaves (#3),
 > the EngineStyleH2 list-encoding leg (census cluster, 29 walls).
 >
+> **#25 entry seams (scouted 2026-08-06):** the tdg view swap is
+> `TestDataGenerator.expandIfView:575` (view Rel → seed expansion via
+> `ScanRelations.viewExpansion:644`, which calls
+> `expandView(..., perWebChildren=true)` at `:652`; the fork suffix is
+> `ScanRelations.java:846-852`). The witness trio: `testSimpleViewRoot`
+> (passes BY CANCELLATION — will break if either half lands alone),
+> `testViewEmbeddedInChainedJoin` (assertSize 5, we emit 4 — the
+> missing one is the VIEW's own fetch; its CSV names only 4 base
+> tables, so the view fetch merges into a base table's rows),
+> `testUnionViewOnView` (14 vs 12, two view fetches missing across
+> arms). Ground the design in the engine's
+> `generateTestDataForNestedViewTree` before writing code.
+>
 > **STATE AS OF `bc375a46` (2026-08-06, second session).** The ledger
 > moved **484 → 430 non-passing (2,363/2,793 pass)** across 24 gated
 > commits. §4's Tier 1 is DONE; so are the null-safe MIR node (§4's
