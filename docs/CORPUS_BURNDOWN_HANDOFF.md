@@ -34,13 +34,32 @@
 > Remaining toSQLString SHAPE arms: non-lambda-literal query (8 across
 > families) + mapping-argument-not-a-reference (3).
 >
+> **LANDED since:** the lineage advisory-arm deletion (§8.3) — the
+> scoreboard-drop procedure that works: pre-edit the committed
+> baseline's ONE family cell to the honest count, then let gate 4
+> rewrite the whole file (the runner has no override flag).
+> scanRelations is now an honest 19/49 with 26 real FAILs for the
+> plan-derived-tree leg.
+>
+> **#20 NEGATIVE RESULT (2026-08-06, measured then reverted).** The
+> obvious implementation — `TypedJoinSlot.atMostOne` computed from PK
+> coverage in `JoinChecker.slot`, `Pipelines.walkJoinSlot` cancelling
+> only proven at-most-one joins — does NOT fix the witness
+> (`testMultipleJoinsInPropertyMappingWithDatesInClass` still returns 3
+> rows, not 6: its cancellation is NOT (only) `Pipelines.java:405`) and
+> costs the h2-exec advisory floor 318 → 239 (kept joins collide
+> duplicate column names on H2). The deeper truth: our normalizer
+> HOISTS join chains eagerly, so for hundreds of passing tests the
+> engine never emits the joins we elide — blanket keep is far wronger
+> than blanket cancel. #19/#20 are ONE design leg over the demand
+> model (which navigations are semantically demanded, incl. the
+> NavMaterializer demand-withholding pin at :181-188), not two patches.
+>
 > **Still-open ranked work (synthesis §2, verified against code):**
-> #19/20 join-kind → cardinality-elision pair (`Pipelines.walk` still
-> cancels undemanded joins unconditionally — §3.6 row-dropping),
-> #25 test-data-gen view-node + `perWebChildren` retirement (one
-> commit), lineage advisory-arm deletion (§8.3: FIRST, and it is
-> baseline-NEGATIVE — needs a deliberate scoreboard-drop exception),
-> getAllForEachDate residuals (#2), datatype metamodel leaves (#3).
+> #19/20 as the JOINT demand-model leg (above), #25 test-data-gen
+> view-node + `perWebChildren` retirement (one commit, §8.2 ledger),
+> getAllForEachDate residuals (#2), datatype metamodel leaves (#3),
+> the EngineStyleH2 list-encoding leg (census cluster, 29 walls).
 >
 > **STATE AS OF `bc375a46` (2026-08-06, second session).** The ledger
 > moved **484 → 430 non-passing (2,363/2,793 pass)** across 24 gated
