@@ -16,6 +16,17 @@
 > exceptions), (5) the explanation-coverage gate (fails any
 > non-passing row lacking a verdict — makes 'done' mechanical:
 > 2793 = passed + explained), (6) the list-encoding leg last.
+> **AGG-JOIN-SHAPE NEGATIVE RESULT (2026-08-06, measured then
+> reverted).** Rerouting the simple equi case of `corrAggSubSource`
+> through the parent-copy shape (the engine's owner-anchored grouped
+> subselect) converts ZERO rows and regresses one projection row: the
+> plan-text goldens need the FULL package (engine sub-alias naming,
+> count(*) spelling, shape) and most sql-text surfaces are advisory
+> anyway. The parent-copy machinery IS the right shape and already
+> serves correlated/filter-position/chained cases; a future text
+> alignment should be a NARROW application (plan-text channel rows
+> only) or ride a dialect rewrite, not a semantic reroute.
+>
 > **executionPlan per-row findings (2026-08-06, in flight):** the
 > FilterEquals cluster CONVERTED (+13, 49 → 62/109, `e80c3482`) — the
 > plan-surface null-safe doctrine, kind-split (DATE + two-optional
