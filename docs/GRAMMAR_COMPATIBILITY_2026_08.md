@@ -11,6 +11,11 @@ something, it is flagged in §9.
 > **Companion:** [`PARSER_DROP_IN_STATUS.md`](PARSER_DROP_IN_STATUS.md) is the `###Pure`
 > state of play and remains the architecture reference. **Its §3.1 snapshot is stale** —
 > see §7.
+>
+> **Prior art:** [`PARSER_DROP_IN_PLAN.md`](PARSER_DROP_IN_PLAN.md) **§4.2 and Phase 3
+> already carry a non-`Pure` section worklist.** This document was written without
+> consulting it; §10 reconciles the two. Several findings here are confirmations of items
+> the plan already listed — credited there — and two of the plan's items are now stale.
 
 ---
 
@@ -426,3 +431,71 @@ snippet-extraction artifacts that would vanish under reference adjudication.
 - **`###QueryPostProcessor`** — `RelationalGrammarParserExtension.java:103` registers a second
   section from the same module. Not inventoried.
 - **A fourth unhandled island tag `#qc {`** — 1 corpus occurrence, extension unidentified.
+
+---
+
+## §10 — Reconciliation with `PARSER_DROP_IN_PLAN.md`
+
+This document was produced by a fresh nine-agent sweep that did **not** consult the plan's
+§4.2 worklist or Phase 3 ordering. That was a process error; the reconciliation below is the
+correction. Where the plan got there first, it is credited.
+
+### 10.1 The plan already knew — this sweep confirms and quantifies
+
+| plan item | plan's statement | what this sweep adds |
+|---|---|---|
+| §4.2 **#1** | *"Fix the silent-drop lexer — prerequisite for everything. You cannot delegate a section you have already swallowed."* | Confirmed independently by four agents, and **quantified**: 1,363 of 7,211 sources (18.9%) yield zero verdicts; ~2,452 `###Pure` elements invisible. The plan's priority ranking was right. |
+| §4.2 **#10** | *"Delete `MappingGrammarParser.java:432-440` — it deliberately swallows the tail of an XStore block after a missing comma. Incompatible with any equivalence claim."* | Confirmed at `:430-457`, **and the justification is disproven**: the comment cites *"ENGINE PARITY (audit 21a §4b): the engine's XStore rule … no EOF anchor"*, but `XStoreAssociationMappingParserGrammar.g4:12-14` **has** `EOF`. The engine rejects; we reproduce *legend-pure's* behaviour. So it is a rejection-parity divergence too, not only a drop. |
+| §4.2 **#6** | `###Service` — *"the parser supports a construct the lexer never delivers."* | Confirmed exactly (`ElementKind.SERVICE` live and wired through `ModelBuilder`/`NameResolver`/`ModelNormalizer`; section not in `LEXABLE_SECTIONS`). **But see §10.3 — the plan's "cheapest real coverage win" does not survive measurement.** |
+| §4.2 **#11** | multi-line `'''…'''`, with the deliberate upstream tagged-value gap: *"Do not 'fix' it."* | Not re-examined here. Flagged so it is not lost. |
+| Phase 3 exit criteria | S1 100% on the slice; **100% of that section's `PARSER error at` pins reproduced including ranges**; no cross-section regression | This sweep found the pins exist and are ready: ~46 for Connection/Runtime, ~40 for Relational. The plan's criteria are the right ones and should govern. |
+
+### 10.2 Plan items now stale
+
+| plan item | status at `266fe1d5` |
+|---|---|
+| §4.2 **#2** — *"A line index in the lexer… today line/column is computed only when throwing, by an O(offset) rescan"* | **Appears done.** `PARSER_DROP_IN_STATUS.md` §3 lists `com.legend.lexer.TokenStream` as *"lazily-built line index, binary search."* Verify before re-doing. |
+| §4.2 **#7** — `###Connection` *"fails 0/3 today despite being whitelisted. A bug."* | **Understated.** Measured **17/56 sections parse (30.4%)**, and the shape is not a bug but a divergence: 1 of 8 connection types, 4 of 16 datasource specs, 3 of 12 auth strategies, with **invented keyword spellings** (`Static{database:}` vs engine `name:`; `UsernamePassword` vs `UserNamePassword`) that can never match. §5. |
+| §4.2 **#8** — `###Data` *"parses but produces 0/4 matching elements."* | **Framing is stale.** 48 of 57 `###Data` files parse cleanly, with **zero failures attributable to `###Data`** (all 9 are other sections). 42 single-section files need only embedded-data kinds legend-lite already emits. §5 ranks it the best cost/benefit in the worklist. |
+| Risk register line 411 — *"`MappingElementContext` shim fails → delegate `###Mapping` permanently"* | **Dead risk.** The shim was never needed: `LegendLiteSectionParser:150-155` emits JSON and hands it to the engine's own deserializer; no ANTLR context is constructed. `MappingParser`/`ConnectionParser`/`RuntimeParser` all return `ImportAwareCodeSection` — the exact type the bridge already builds. Only `###Relational` differs (`DefaultCodeSection`), a one-line change. **Strike this row.** |
+
+### 10.3 Direct conflicts — the plan's ordering vs this sweep's measurements
+
+**Phase 3 order.** The plan: **Connection → Diagram → Runtime → Relational → Mapping → Pure**,
+justifying Connection first on grammar size (*"39-line grammar, 105-line walker, and it
+inherits all 8 connection types plus 12 database datasource/auth modules free"*).
+
+This sweep measured: **Runtime → Connection → Relational → Mapping**, with **Diagram removed**.
+
+| point | evidence |
+|---|---|
+| **Diagram has no reference-adjudicable corpus** | Its 49 corpus files use legend-pure's **M3** dialect (`Diagram fqn(width=, height=) { TypeView … }`); the engine grammar demands the Legend one (`Diagram fqn { classView … }`). Different languages sharing a section name. This also resolves `PARSER_DROP_IN.md:713-716`'s *"genuinely unexplained"* zero. Diagram is the cheapest **lexing-coverage** win and a **byte-parity dead end** — both true, different questions. |
+| **Runtime is the smaller proof** | 46 elements, 8 wire discriminators, 33 field names — the smallest *complete* section, and it exercises the whole non-`Pure` loop end to end. Connection is 25 elements but drags in 16 datasource specs and 12 auth strategies, i.e. the plan's "free inheritance" is the part that is **not** built (4 of 16 and 3 of 12 today). |
+| **Relational must precede Mapping** | Relational **is** ~9 of Mapping's 52 wire discriminators and **8,620 of Mapping's node instances** (`Table`, `column`, `relational`, `elemtWithJoins`, `dynaFunc`, `literal`, …). Doing Mapping first means building that vocabulary twice. |
+
+**`###Service` priority.** The plan calls it the *"cheapest real coverage win"*. Measured: all
+**51** `###Service` corpus files are mixed-section — **none** is reachable by any byte-parity
+gate today, and 28 of them cluster in a service test-runner module legend-lite has no reason
+to consume. The cheap *lexer* win is real; the *parity* win is zero until §1's gates move.
+
+### 10.4 What this sweep adds that the plan does not cover
+
+- **The `###Pure` 100% has a hole** (§2). `#SQL{}`, `#TDS{}`, `#GQL{}` are the *same production*
+  as `#>{db.tbl}#`; we handle 2 of 5 island tags and `#TDS{}` emits the wrong wire shape
+  silently. This is inside the section the plan treats as finished.
+- **A second exclusion mechanism** (§1.4): the harness classpath carries three grammar modules,
+  so for other sections the *reference* parser throws first — byte parity is **undefined**, not
+  failing. Each section needs a pom line as well as a gate change.
+- **Per-section construct inventories** with corpus counts, parse rates, and cost.
+- **Eighteen silent drops** and **eight false comments** (§3, §4).
+
+### 10.5 Recommended resolution
+
+Adopt the plan's **§4.2 dependency ordering and Phase 3 exit criteria** — they are sound and
+this sweep did not improve on them. Replace only:
+
+1. **The Phase 3 section order** with `Runtime → Connection → Relational → Mapping`, per §10.3.
+2. **Strike** the `MappingElementContext` risk row.
+3. **Re-scope** items #7 and #8 to the measured findings.
+4. **Add** §1.4 (classpath) as a prerequisite beside §4.2 #1 (silent-drop lexer) — both gate
+   every section, and neither is grammar work.
