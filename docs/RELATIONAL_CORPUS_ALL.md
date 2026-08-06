@@ -12,8 +12,8 @@ in-process Alloy-shaped path) — BUT THIS RUN INCLUDED THEM
 
 | | count |
 |---|---:|
-| **total `<<test.Test>>` functions** | **2793** |
-| runnable (this scoreboard) | 2570 |
+| **total `<<test.Test>>` functions** | **2798** |
+| runnable (this scoreboard) | 2575 |
 | excluded by stereotype | 223 |
 | …`<<test.ExcludeAlloy>>` | 96 |
 | …`<<test.ToFix>>` | 127 |
@@ -42,12 +42,12 @@ shared source registered by several families cannot double-count. Run with
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 |
 | functions/tests/projection | 169 | 140 | 8 | 20 | 1 | 1 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 |
-| graphFetch/tests | 149 | 137 | 5 | 5 | 2 | 0 |
+| graphFetch/tests | 150 | 137 | 5 | 5 | 3 | 0 |
 | graphFetch/tests/union | 17 | 13 | 2 | 2 | 0 | 0 |
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 |
 | lineage/scanRelations | 49 | 45 | 0 | 0 | 4 | 0 |
-| milestoning/tests | 260 | 227 | 22 | 7 | 4 | 40 |
+| milestoning/tests | 264 | 232 | 17 | 11 | 4 | 40 |
 | modelJoins | 9 | 4 | 0 | 0 | 5 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 12 | 6 | 1 | 0 | 5 | 0 |
@@ -100,7 +100,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2793 | **2393** | 138 | 149 | 113 | 262 |
+| **total** | 2798 | **2398** | 133 | 153 | 114 | 262 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1115,6 +1115,7 @@ shared source registered by several families cannot double-count. Run with
 
 ### top error buckets
 
+- 4x outer milestoning date column 'calendarDate' is not on the join source row
 - 3x Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - 3x expected at most one value, got many ([*])
 - 3x in function 'meta::relational::tests::mapping::enumeration::model::mapping::employeeTestMappingWithTransposeFunction$class$meta::relational::tests::mapping::enumeration::model::domain::Employee': unknown function 'transpose' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
@@ -1144,7 +1145,6 @@ shared source registered by several families cannot double-count. Run with
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 1x aggregate reducer argument of kind TypedMap is not supported (literals only)
 - 1x class-typed property '$t.otherOrgEntity' used as a whole value is graph output (Phase H4)
-- 1x extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 
 ### per-test outcomes (non-passing)
 
@@ -1274,6 +1274,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testCrossMappingJsonToDBWithExplosion [graphFetch/tests]: class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::T_Trade' is not mapped in mapping 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5' (M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); ma
 - SHAPE testCrossStoreWithCSVDataSource [graphFetch/tests]: assert form 'assertEquals/2' is not supported yet — plan wall: from() argument 2 must be a mapping or runtime reference, got TypedCopyInstance
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
+- SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne [graphFetch/tests]: no execute(|...) call [calls meta::legend] — wall: [151:2] expected COLON but found VALID_STRING ('test')
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - ERROR testEmbeddedMappingQualifiedPropertyAccess2 [graphFetch/tests]: derived graph leaf 'maxEmployeesAge' body node TypedPropertyAccess referencing $this is not inlinable yet
 - ERROR testEmbeddedMappingQualifiedPropertyAccessWithArgs [graphFetch/tests]: derived graph leaf 'employeeByLastNameFirstName' body node TypedPropertyAccess referencing $this is not inlinable yet
@@ -1319,13 +1320,12 @@ shared source registered by several families cannot double-count. Run with
 - FAIL testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-text: expected select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", '9999-12-31T00:00:00.0000+0000' as "k_businessDate" from ProductTable as "root" where "root".type = 'STOCK' and "root".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000', got select "root".id as "pk_0", "root".name as "pk_1", "root".id as "id", "root".name as "name", "root".type as "type", "productdescriptiontable_0".description as "stockProductName", "productclassificationtable_0".type as "classificationType", TIMESTAMP'9999-12-31 00:00:00.0000' as "k_businessDate" from ProductTable as "root" left outer join StockProductTable as "stockproducttable_0" on ("root".id = "stockproducttable_0".id and "stockproducttable_0".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000') left outer join ProductDescriptionTable as "productdescriptiontable_0" on ("stockproducttable_0".id = "productdescriptiontable_0".id) left outer join ProductClassificationTable as "productclassificationtable_0" on ("root".type = "productclassificationtable_0".type and "productclassificationtable_0".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000') where "root".type = 'STOCK' and "root".thru_z = TIMESTAMP'9999-12-31 00:00:00.0000'
 - SHAPE testMileStoningWithNewTDSFilterAndPostProcessor [milestoning/tests]: assert form 'assertEqualsH2Compatible/3' is not supported yet — plan wall: Unknown type: 'Operation' is not a known primitive, class, or enum
 - ERROR testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunctionCallWithThisBusinessDateParameter [milestoning/tests]: Binder Error: Referenced table "t2" not found! | Candidate tables: "t0" |  | LINE 6: ...angeTable AS t2 ON t1.exchange = t2.name AND t2.from_z <= (t2.businessDate + to_days(1)) AND t2.thru_z > (t2.businessDate... |                                                                       ^
-- FAIL testProcessingTemporalModelOnPropertyWithPropogatedDate [milestoning/tests]: assertSameElements: expected kerberos,date\nggekko,2020-01-03\nggekko,2020-01-04\n, got [ggekko, 2020-01-02 00:00:00.0, ggekko, 2020-01-02 00:00:00.0]
-- FAIL testProcessingTemporalModelQueryOnRoot [milestoning/tests]: assertSameElements: expected name,date\nSRCE,2020-01-03\nSRCE,2020-01-04\n, got [SRCE, 2020-01-02 00:00:00.0, SRCE, 1987-01-01 00:00:00.0]
-- FAIL testProcessingTemporalQueryInPosition1InQualfiedPropertySequence [milestoning/tests]: assertSameElements: expected type,description,date\nLNSE,STOCK DESC-V1,2020-01-03\nLNSE,STOCK DESC-V4,2020-01-03\nLNSE,STOCK DESC-V1,2020-01-04\nLNSE,STOCK DESC-V4,2020-01-04\n, got [LNSE, STOCK DESC-V3, 2020-01-03, LNSE, STOCK DESC-V4, 2020-01-03, LNSE, STOCK DESC-V3, 2020-01-04, LNSE, STOCK DESC-V4, 2020-01-04]
-- FAIL testProcessingTemporalQueryMilestonedThisBusinessDatesInProject [milestoning/tests]: assertSameElements: expected type,description,date\nSTOCK,STOCK DESC-V1,2020-01-03\nSTOCK,STOCK DESC-V4,2020-01-03\nSTOCK,STOCK DESC-V1,2020-01-04\nSTOCK,STOCK DESC-V4,2020-01-04\n, got [STOCK, STOCK DESC-V3, 2020-01-03, STOCK, STOCK DESC-V4, 2020-01-03, STOCK, STOCK DESC-V3, 2020-01-04, STOCK, STOCK DESC-V4, 2020-01-04]
+- ERROR testProcessingTemporalModelOnPropertyWithPropogatedDate [milestoning/tests]: outer milestoning date column 'calendarDate' is not on the join source row
+- ERROR testProcessingTemporalQueryInPosition1InQualfiedPropertySequence [milestoning/tests]: outer milestoning date column 'calendarDate' is not on the join source row
+- ERROR testProcessingTemporalQueryMilestonedThisBusinessDatesInProject [milestoning/tests]: outer milestoning date column 'calendarDate' is not on the join source row
 - ERROR testProcessingTemporalQueryWithFilterInMapping [milestoning/tests]: outer milestoning date column 'businessDate' is not on the join source row
 - ERROR testProcessingTemporalQueryWithInnerQueryOnDeepProperty [milestoning/tests]: outer milestoning date column 'businessDate' is not on the join source row
-- FAIL testProcessingTemporalQueryWithInnerQueryWithQualifiedProperty [milestoning/tests]: assertSameElements: expected type,type_description,date\nSTOCK,STOCK DESC-V1,2020-01-03\nSTOCK,STOCK DESC-V1,2020-01-04\nSTOCK,STOCK DESC-V1,2020-01-08\nSTOCK,STOCK DESC-V1,2020-01-09\nSTOCK,STOCK DESC-V4,2020-01-03\nSTOCK,STOCK DESC-V4,2020-01-04\nSTOCK,STOCK DESC-V4,2020-01-08\nSTOCK,STOCK DESC-V4,2020-01-09\nSTOCK,STOCK DESC-V4,2020-01-10\nSTOCK,STOCK DESC-V4,2020-01-11\nSTOCK,STOCK DESC-V4,2020-01-30\nSTOCK,STOCK DESC-V4,2020-02-01\n, got [STOCK, STOCK DESC-V3, 2020-01-03, STOCK, STOCK DESC-V3, 2020-01-04, STOCK, STOCK DESC-V3, 2020-01-08, STOCK, STOCK DESC-V3, 2020-01-09, STOCK, STOCK DESC-V3, 2020-01-10, STOCK, STOCK DESC-V3, 2020-01-11, STOCK, STOCK DESC-V3, 2020-01-30, STOCK, STOCK DESC-V3, 2020-02-01, STOCK, STOCK DESC-V4, 2020-01-03, STOCK, STOCK DESC-V4, 2020-01-04, STOCK, STOCK DESC-V4, 2020-01-08, STOCK, STOCK DESC-V4, 2020-01-09, STOCK, STOCK DESC-V4, 2020-01-10, STOCK, STOCK DESC-V4, 2020-01-11]
+- ERROR testProcessingTemporalQueryWithInnerQueryWithQualifiedProperty [milestoning/tests]: outer milestoning date column 'calendarDate' is not on the join source row
 - ERROR testLatestTemporalMilestoningPostProcessor [milestoning/tests]: in call to 'meta::relational::milestoning::temporalpostprocessor::dateEqualityTemporalMilestoningProcessor', argument 4: expected meta::pure::extension::Extension, got meta::pure::metamodel::type::Any
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: assert form 'assertEquals/2' is not supported yet — plan wall: in function 'meta::external::store::relational::modelJoins::test::getNoStoreRuntime': class 'meta::core::runtime::EngineRuntime' has no property 'preprocessFunction'
 - SHAPE testPersonToFirmGraphUsingFetch [modelJoins]: no execute(|...) call [calls meta::relational::extension] — wall: no verifying assertions
@@ -1511,7 +1511,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
-- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
+- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
 - FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)
