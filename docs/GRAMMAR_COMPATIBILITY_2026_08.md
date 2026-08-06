@@ -24,9 +24,9 @@ something, it is flagged in §9.
 ### The gate, measured today
 
 ```
-corpus sources        : 7217
-verdicts              : 19269
-  MATCH               : 19269
+corpus sources        : 7219
+verdicts              : 19273
+  MATCH               : 19273
   DIFF                :     0
   WALL                :     0
   PARSE_FAIL          :     0
@@ -35,19 +35,43 @@ verdicts              : 19269
 
 `walls-detail.txt` and `parsefails-detail.txt` are both **0 bytes**.
 
-### But the suite is RED
+### The suite is GREEN — and the ratchet measures the wrong thing
+
+> **Corrected 2026-08-05** (re-measured, not quoted). This section previously reported the
+> suite RED on `SpiSeamProofTest` at `212 > 182`. **That was stale.** Commit `56d5449d`
+> ("Corpus burn-down Tier 1") drove the census **182 → 170** by rejecting the new `'''`
+> doc-string sugar loudly; `MAX_LENIENT_ACCEPTS` is now 170 and the measured census is
+> exactly 170. `mvn -o test -pl parser-equivalence` → **4 tests, 0 failures**.
 
 | test | status |
 |---|---|
-| `CorpusEquivalenceTest` | PASS — 19,269/19,269 |
-| `RejectionParityTest` | PASS — 43/43 pins |
-| `SectionParseSentinelTest` | **PASS by one** — 857 vs `MIN_FILES_PARSED = 856` |
-| `SpiSeamProofTest` | **FAIL** — `leniency census grew: 212 > 182` |
+| `CorpusEquivalenceTest` | PASS — 19,273/19,273 |
+| `RejectionParityTest` | PASS — 43/43 pins (error-**line** agreement 20/43 — asserted on nothing) |
+| `SectionParseSentinelTest` | PASS — 857 vs `MIN_FILES_PARSED = 857` |
+| `SpiSeamProofTest` | PASS — 170 vs `MAX_LENIENT_ACCEPTS = 170` |
 
-The SPI seam itself is clean (4,011 files byte-identical, 0 DIFF, 0 SPI-REJECTS). What
-broke is the **leniency ratchet**: 212 files vanilla engine rejects that we accept, against
-a bound set at `d0b4c3a2f68`. **Attribute the 30 new accepts and re-ratchet before landing
-anything else** — work on a red gate forfeits the signal.
+**The live problem is not the ratchet's value. It is what the ratchet measures.**
+
+`MAX_LENIENT_ACCEPTS` does not measure the parser — it measures the **bridge**.
+`LegendLiteSectionParser.parseSection:109-170` is a *site scanner*, not a section parser: it
+collects `topLevelIndexes` for five element kinds plus `measureSites`, parses those, and
+**silently ignores every other token in the section**. Measured over the whole corpus:
+
+```
+vanilla-rejected pure-only files    : 1830
+  legend-lite parseStrict ACCEPTS   :  742   (40.5%)
+  SPI bridge accepts                :  170
+```
+
+**legend-lite's own strict parser accepts 742 files vanilla rejects — 4.4× the bounded 170.**
+The bridge hides the difference by never looking. Attributed, of the 170: ~20 are genuinely
+benign (extension-less classpath, engine bugs), ~30 are real parser leniency
+(`allVersionsInRange`, `Primitive`, `enforcementLevel`), and **~120 are the bridge skipping
+tokens it does not recognise**. `56d5449d` is the failure mode in miniature — 182→170 was
+earned by adding a *token-scan guard*, not by fixing a parser defect.
+
+**Do not lower `MAX_LENIENT_ACCEPTS` further.** Add `MAX_PARSER_LENIENT_ACCEPTS` measured
+through `parseStrict` (baseline **742**); make the bridge total; then the two converge.
 
 ### Section coverage
 
@@ -71,6 +95,47 @@ Measured parse rates for the four other lexed sections:
 ## §1 — Three prerequisites that gate everything
 
 None is grammar work. All three were found independently by multiple agents.
+
+### 1.0 The denominator, measured exactly
+
+Added 2026-08-05 by re-implementing the gate's own predicates over `Corpus.all()`:
+
+```
+corpus sources           : 7219
+  skipped: not pure-only : 1370   (19.0%)   ← §1.1, the pureOnly regex
+  skipped: reference NULL: 1810   (25.1%)   ← whole file, silent, no verdict
+  IN SCOPE               : 4039   (55.9%)
+```
+
+**The gate adjudicates 55.9% of the corpus.** The second bucket is its own mechanism:
+`ParserEquivalence.java:170-172` catches `Throwable` from the reference parser and returns
+`null`; `:83-86` then returns zero verdicts for the whole file — not a `REFERENCE_REJECTED`
+verdict, not even a skip counter. **So the report's `REFERENCE_REJECTED: 0` is not evidence
+of anything**, and `0 WALL` means "no wall among the 4,039 files the engine parsed whole."
+
+That bucket is not randomly distributed: it holds **109 files containing `#TDS`, 33 with `#/`,
+and 8 with `#>{`** — precisely the island constructs whose span rules are weakest (§2).
+
+**A cheap, exact fix exists.** The comparator (`ParserEquivalence.compare:107-143`) iterates
+*legend-lite's* sites and looks each up in the reference's map; the opposite direction has no
+code path. Draining the map after the loop and emitting a `LITE_MISSED` verdict per leftover
+key converts today's silent skips into named worklist rows. Measured, that hole hides exactly
+two things:
+
+| hidden | count |
+|---|---:|
+| `SectionIndex` — one per accepted Pure-only file, never compared | **4,039** |
+| `Measure` — `ParserEquivalence:92-106` omits the site kind that `LegendLiteSectionParser:119` scans | **32** |
+
+Re-run excluding `SectionIndex` and adding `measureSites`: reference elements **19,305** =
+legend-lite sites **19,305**, zero files where reference > sites. The two front doors disagree
+about what an element is, and that is the whole of the discrepancy.
+
+> **This corrects `PARSER_DROP_IN_STATUS.md` §3.1**, which states *"Engine REJECTS native
+> functions and Measure in `###Pure` outright — both permanently out of comparable scope."*
+> Native is correctly out of scope. **Measure is not** — the reference emits 32 Measure
+> elements from Pure-only sources, and `Measure` appears in the engine's own
+> `Valid alternatives` list.
 
 ### 1.1 The `pureOnly` gate throws away whole files
 
@@ -400,6 +465,38 @@ these walls from the parser to the emitter.
 
 The remaining split: ~120 (47%) real grammar gaps — the honest burn-down list — and ~15 (6%)
 snippet-extraction artifacts that would vanish under reference adjudication.
+
+### 8.1 Adjudicated — the sentinel has no oracle, and 43% of its failures are legal
+
+**Corrected 2026-08-05.** The 257 failures were re-run with the reference parser adjudicating
+each one:
+
+```
+in scope 1114   lite failures 257
+  reference ACCEPTS (real drop-in defect) : 146   (57%)
+  reference also rejects (legal refusal)  : 111   (43%)
+exception types: ParseException 250, IllegalArgumentException 4, NullPointerException 3
+```
+
+The "~115 of 257 (45%)" above is confirmed to the file — the exact figure is **116**. What it
+did not know: **only 48 of the 116 are demonstrable defects today.** The other 68 sit on files
+the reference *also* rejects, mostly for want of the serviceStore / persistence /
+external-format grammar jars (§9). They are **unadjudicated, not innocent**.
+
+`SectionParseSentinelTest` ratchets `MIN_FILES_PARSED` on this mixed signal, so it cannot
+distinguish a fixed gap from an upstream file that got less legal. **Give it a reference
+oracle before trusting its floor.**
+
+Highest-value single fix by *proven* blast radius: **`MappingGrammarParser.java:505`**
+(`AggregationAware ~mainMapping kind 'Pure' is not supported`) — 20 files, **20/20**
+reference-accepted, one `if`.
+
+### 8.2 The mirror image, on the byte-parity path
+
+The closed-world walls have an opposite number that this section missed:
+`~enforcementLevel: <any identifier>` (`ElementParser.java:766` → `:809`) validates **nothing**,
+where the engine grammar closes the production to `('Error'|'Warn')`. Same defect class,
+opposite sign, and unlike the walls it is reachable from `at()` — the actual drop-in surface.
 
 ---
 
