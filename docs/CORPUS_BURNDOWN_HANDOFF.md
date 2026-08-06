@@ -1,5 +1,26 @@
 # Burn-down handoff — start here
 
+> **THIRD-SESSION DELTA (2026-08-06).** Next-designs #1 and #4 are
+> LANDED: views as join targets (`HopTarget` carries the view identity;
+> PASS-2 view landings expand as relation frames) took the view-to-view
+> (INNER) pair AND the milestoned depth-two nested row (the extra rungs:
+> `resolveViewRefsInJoin` now sees through STACKED views —
+> `viewChainReaches` + recursive substitution — and Expression PM bodies
+> rewrite through view columns on the fallback route);
+> `routedTargetSetOf` learned `Otherwise([setId])` fallback routing; and
+> `materializeInlineEmbedded` resolves set ids across the include
+> closure. Default scoreboard 2269 → 2273. **Trap that burned an hour:
+> the corpus/gate baselines are generated against
+> `/Users/neemsandv/legend/legend-engine` (+ `legend-pure`) — the
+> `$HOME/legend/legend-engine` default is a STALE July tag; without
+> `LEGEND_ENGINE_ROOT`/`LEGEND_PURE_ROOT` every sweep reports phantom
+> regressions (families shrink, null-safe goldens flip legacy).**
+> Stale index entries verified consumed: the math-extension port, the
+> TIMESTAMP_NS literal, the TypedNewInstance fold arms. Still-open next
+> designs: getAllForEachDate residuals (#2), datatype metamodel leaves
+> (#3), the §5 structural pair / object-space TypedFilter arm (4 rows
+> now share that wall) / lineage advisory deletion (#5).
+>
 > **STATE AS OF `bc375a46` (2026-08-06, second session).** The ledger
 > moved **484 → 430 non-passing (2,363/2,793 pass)** across 24 gated
 > commits. §4's Tier 1 is DONE; so are the null-safe MIR node (§4's

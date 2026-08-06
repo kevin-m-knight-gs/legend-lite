@@ -723,6 +723,14 @@ public final class ModelBuilder {
                             && j.targetSetId() != null) {
                         out.add(j.targetSetId());
                     }
+                    // Otherwise([setId]:@Join) — the fallback's slot routes
+                    // to the NAMED set (bondMapping1 maps 'type'; the root
+                    // set does not — dispatching class-level silently read
+                    // the wrong set)
+                    if (pm instanceof PropertyMapping.OtherwiseEmbedded oe
+                            && head.equals(oe.propertyName())) {
+                        out.add(oe.fallbackSetId());
+                    }
                 }
             }
             for (AssociationMapping am : m.associationMappings()) {

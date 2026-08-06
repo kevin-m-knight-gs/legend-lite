@@ -33,7 +33,7 @@ mvn -o -pl core install -DskipTests > /tmp/g2.out 2>&1
 echo "G2_EXIT=$?" >> "$L"
 
 g "GATE3 engine suite minus corpus"
-mvn "${SFLAG[@]}" -o -pl engine test "-Dtest=!RelationalCorpusRunner" "$R1" "$R2" > /tmp/g3.out 2>&1
+mvn ${SFLAG[@]+"${SFLAG[@]}"} -o -pl engine test "-Dtest=!RelationalCorpusRunner" "$R1" "$R2" > /tmp/g3.out 2>&1
 echo "G3_EXIT=$?" >> "$L"; grep -E "Tests run: [0-9]+, Fail" /tmp/g3.out | tail -1 >> "$L"
 
 g "GATE4 DuckDB corpus"
@@ -54,7 +54,7 @@ grep -qE "Tests run: 348, Failures: 1, Errors: 22" /tmp/g7.out
 echo "G7_EXIT=$?" >> "$L"; grep -E "Tests run: [0-9]+, Fail" /tmp/g7.out | tail -1 >> "$L"
 
 g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
-mvn "${SFLAG[@]}" -pl parser-equivalence test \
+mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence test \
     -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest' \
     -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > /tmp/g8.out 2>&1
 echo "G8_EXIT=$?" >> "$L"

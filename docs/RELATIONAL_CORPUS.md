@@ -68,10 +68,10 @@ shared source registered by several families cannot double-count. Run with
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 |
 | tests/mapping | 10 | 7 | 0 | 3 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 |
-| tests/mapping/embedded | 63 | 58 | 1 | 4 | 0 | 0 |
+| tests/mapping/embedded | 63 | 59 | 1 | 3 | 0 | 0 |
 | tests/mapping/enumeration | 26 | 18 | 3 | 2 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2269** | 105 | 97 | 99 | 243 |
+| **total** | 2570 | **2273** | 105 | 93 | 99 | 244 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1123,7 +1123,6 @@ shared source registered by several families cannot double-count. Run with
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
-- 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 2x in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE, multiplicity=Bounded[lower=0, upper=1]], ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]); [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=BOOLEAN, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=BOOLEAN, multiplicity=Bounded[lower=0, upper=1]]]
 - 1x No value present
@@ -1143,6 +1142,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - 1x no scalar lowering registered for resolved overload 'meta::pure::functions::collection::count' with 1 parameter(s)
 - 1x project expects ~[…] column specifications
+- 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
 
 ### per-test outcomes (non-passing)
 
@@ -1368,11 +1368,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testGet [tests/mapping]: Binder Error: Cannot compare values of type TIMESTAMP_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required |  | LINE 3: WHERE t0.settlementDateTime <= now() |                                     ^
 - ERROR testQuery [tests/mapping]: Binder Error: Cannot compare values of type TIMESTAMP_NS and type TIMESTAMP WITH TIME ZONE - an explicit cast is required |  | LINE 8: ... (t0.settlementDateTime IS NOT NULL AND t0.settlementDateTime <= now()) |                                                                          ^
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
-- ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::TemporalProduct' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' (Join 'ProductViewTrade_Join' references multiple non-sour
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
-- ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
-- ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
-- ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[bondDetails]; head subNavs=[holder]; head binding=TypedNativeCall]
 - ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: derived property 'isFirmX' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)

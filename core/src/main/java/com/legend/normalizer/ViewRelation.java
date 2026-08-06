@@ -266,6 +266,90 @@ final class ViewRelation {
         return src;
     }
 
+    /**
+     * Rewrite a PM whose column reference points at a view column
+     * into a PM that references the underlying physical expression
+     * (the MIGRATION fallback of {@code synthViewBackedMapping}).
+     * Unrelated PMs pass through unchanged.
+     */
+    static PropertyMapping rewritePmThroughView(PropertyMapping pm,
+                                                Map<String, RelationalOperation> viewCols,
+                                                String dbFqn, String mainTable,
+                                                String viewName) {
+        return switch (pm) {
+            case PropertyMapping.EnumeratedExpression ee -> ee;
+            case PropertyMapping.Column col when viewCols.containsKey(col.column()) ->
+                    rewriteColumnPmAsViewExpr(col, viewCols.get(col.column()), dbFqn, mainTable);
+            case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
+                    lp.propertyName(), lp.type(), lp.multiplicity(),
+                    rewritePmThroughView(lp.body(), viewCols, dbFqn, mainTable, viewName));
+            case PropertyMapping.Embedded emb -> {
+                List<PropertyMapping> rewrittenSubs = new ArrayList<>();
+                for (PropertyMapping sub : emb.propertyMappings()) {
+                    rewrittenSubs.add(rewritePmThroughView(sub, viewCols, dbFqn, mainTable, viewName));
+                }
+                yield new PropertyMapping.Embedded(emb.propertyName(), rewrittenSubs);
+            }
+            // an EXPRESSION body reads view columns by <view>.<col> —
+            // substitute each to the underlying expression (positionType:
+            // toString(ProductTableViewNested.id) on the fallback route;
+            // Column-granular rewriting missed nested refs)
+            case PropertyMapping.Expression expr -> new PropertyMapping.Expression(
+                    expr.propertyName(),
+                    rewriteOpThroughView(expr.expression(), viewCols, viewName));
+            // Non-view Column, Join, JoinTerminalColumn, EnumeratedColumn,
+            // InlineEmbedded, OtherwiseEmbedded: pass through
+            // unchanged (view rewriting is at column granularity).
+            case PropertyMapping.Column col -> col;
+            case PropertyMapping.Join j -> j;
+            case PropertyMapping.JoinTerminalColumn jtc -> jtc;
+            case PropertyMapping.EnumeratedColumn ec -> ec;
+            case PropertyMapping.InlineEmbedded ie -> ie;
+            case PropertyMapping.OtherwiseEmbedded oe -> oe;
+        };
+    }
+
+    /** Substitute {@code <viewName>.<col>} refs inside an expression body
+     * to the view column's underlying expression (structural walk). */
+    private static RelationalOperation rewriteOpThroughView(RelationalOperation op,
+            Map<String, RelationalOperation> viewCols, String viewName) {
+        if (op instanceof RelationalOperation.ColumnRef cr
+                && cr.table().equals(viewName)
+                && viewCols.containsKey(cr.column())) {
+            return viewCols.get(cr.column());
+        }
+        return op.mapChildren(x -> rewriteOpThroughView(x, viewCols, viewName));
+    }
+
+    /**
+     * Rewrite a {@code prop: V.col} PM as the underlying view-column
+     * expression. The expression can be a simple ColumnRef, a
+     * JoinNavigation, or a complex DynaFunction; each maps to a
+     * different PM kind.
+     */
+    private static PropertyMapping rewriteColumnPmAsViewExpr(PropertyMapping.Column col,
+                                                             RelationalOperation expr,
+                                                             String dbFqn,
+                                                             String mainTable) {
+        if (expr instanceof RelationalOperation.ColumnRef cr) {
+            return new PropertyMapping.Column(col.propertyName(),
+                    cr.databaseName() != null ? cr.databaseName() : dbFqn,
+                    cr.table(), cr.column());
+        }
+        if (expr instanceof RelationalOperation.JoinNavigation jn) {
+            if (jn.terminal() instanceof RelationalOperation.ColumnRef tcr) {
+                return new PropertyMapping.JoinTerminalColumn(col.propertyName(),
+                        jn.databaseName() != null ? jn.databaseName() : dbFqn,
+                        jn.chain(), tcr);
+            }
+            // JoinNav with non-column terminal becomes an Expression
+            // PM whose body is the JoinNav (will be hoisted).
+            return new PropertyMapping.Expression(col.propertyName(), jn);
+        }
+        // Complex expression: lift into an Expression PM.
+        return new PropertyMapping.Expression(col.propertyName(), expr);
+    }
+
     /** Whether a PLAIN view-backed class mapping can take the FRAME path
      * today: every property mapping reads a DECLARED view column (plain
      * Column / LocalProperty / enumerated-over-column) and the view's

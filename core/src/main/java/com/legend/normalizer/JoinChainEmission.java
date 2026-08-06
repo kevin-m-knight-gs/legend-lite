@@ -340,6 +340,7 @@ final class JoinChainEmission {
                     hop.joinName(), propName, i, p, model, md);
             joinCond = ht.cond();
             String targetTable = ht.table();
+            viewTarget = ht.view();
 
             Variable s = new Variable("s");
             Variable t = new Variable("t");
@@ -387,104 +388,11 @@ final class JoinChainEmission {
                     routes = null;
                 }
                 if (routes != null) {
-                    ValueSpecification orCond = null;
-                    // suffixed name -> [base column, its route's db, its
-                    // route's landing table] (the typing arg needs the kind)
-                    Map<String, String[]> keyCols = new LinkedHashMap<>();
-                    boolean perArm = !UnionSynthesis.uniformChainedRoutes(
-                            UnionSynthesis.memberJoins(routes));
-                    for (UnionSynthesis.UnionRoute route : routes) {
-                        // SHARED-PREFIX chains contribute their FINAL hop
-                        // sourced at the shared landing (prefix emitted as
-                        // physical joins above). PER-ARM chains contribute
-                        // their FIRST hop sourced at the main table — the
-                        // mids live INSIDE the owning member's thread
-                        // (push-into-arm) and the target side reads the
-                        // property-scoped chain keys that thread projects.
-                        List<JoinChainElement> rChain = route.join().joins();
-                        boolean rInArm = perArm && rChain.size() > 1;
-                        JoinChainElement rHop = rInArm ? rChain.get(0)
-                                : rChain.get(rChain.size() - 1);
-                        String rPrevTable = prevTable;
-                        String rPrevAlias = prevAlias;
-                        String rDb = rHop.databaseName() != null
-                                ? rHop.databaseName() : route.join().database();
-                        DatabaseDefinition.JoinDefinition rJd =
-                                model.findJoin(rDb, rHop.joinName()).orElseThrow(() ->
-                                        new ModelException(
-                                                LegendCompileException
-                                                        .Phase.NORMALIZE,
-                                                "Join '" + rHop.joinName()
-                                                + "' not found in db '" + rDb
-                                                + "'; PM='" + propName + "', mapping="
-                                                + md.qualifiedName()));
-                        Set<String> rCondTables = new LinkedHashSet<>();
-                        RelOpTranslator.collectTablesIn(rJd.operation(), rCondTables);
-                        rCondTables.remove(rPrevTable);
-                        String rTgt = rCondTables.size() == 1
-                                && model.findView(rDb, rCondTables.iterator().next()).isPresent()
-                                ? rCondTables.iterator().next()
-                                : MappingNormalizer.determineTargetTable(rJd.operation(),
-                                        rPrevTable, rHop.joinName(), propName,
-                                        rChain.size(), md.qualifiedName());
-                        Map<String, ValueSpecification> rScope = new LinkedHashMap<>();
-                        rScope.put(rPrevTable, rPrevAlias == null
-                                ? s : new AppliedProperty(s, rPrevAlias));
-                        if (!rTgt.equals(prevTable)) {
-                            rScope.put(rTgt, t);
-                        }
-                        ValueSpecification rCond = RelOpTranslator.translate(
-                                rJd.operation(), rScope, t, null,
-                                RelOpTranslator.PipelineView.NONE);
-                        Map<String, String> out = new LinkedHashMap<>();
-                        // in-arm chained routes read the PROPERTY-SCOPED
-                        // chain keys the member thread projects
-                        rCond = rInArm
-                                ? UnionSynthesis.suffixTargetReads(rCond, t,
-                                        "__" + propName + "_"
-                                                + route.targetOrdinal(), out)
-                                : UnionSynthesis.suffixTargetReads(rCond, t,
-                                        route.targetOrdinal(), out);
-                        for (var en : out.entrySet()) {
-                            keyCols.put(en.getValue(),
-                                    new String[]{en.getKey(), rDb, rTgt});
-                        }
-                        orCond = orCond == null ? rCond
-                                : new AppliedFunction("or", List.of(orCond, rCond));
-                    }
-                    navCond = new LambdaFunction(List.of(s, t), List.of(orCond));
-                    // typing arg: the suffixed key schema off the FIRST
-                    // landing table; a key whose base column is absent
-                    // there types as a NULL cast of ITS OWN landing
-                    // table's column kind (audit 11: heterogeneous target
-                    // key names across routed members)
-                    List<ColSpec> keySpecs = new ArrayList<>();
-                    for (var en : keyCols.entrySet()) {
-                        Variable kr = new Variable("kr");
-                        String base = en.getValue()[0];
-                        ValueSpecification read;
-                        if (relationHasColumn(hopDb, targetTable, base, model)) {
-                            read = new AppliedProperty(kr, base);
-                        } else {
-                            String kind = columnPureKind(en.getValue()[1],
-                                    en.getValue()[2], base, model);
-                            if (kind == null) {
-                                throw new NotImplementedException(
-                                        "routed union key column '" + base
-                                        + "' has no derivable pure kind on table '"
-                                        + en.getValue()[2] + "'; mapping="
-                                        + md.qualifiedName());
-                            }
-                            read = new AppliedFunction("cast", List.of(
-                                    new PureCollection(List.of()),
-                                    new TypeAnnotation.Named(
-                                            new TypeExpression.NameRef(kind))));
-                        }
-                        keySpecs.add(new ColSpec(en.getKey(),
-                                new LambdaFunction(List.of(kr), List.of(read)), null));
-                    }
-                    targetRows = new AppliedFunction("project",
-                            List.of(targetRows, new ColSpecArray(keySpecs)));
+                    RoutedNav rn = routedNavigation(routes, propName,
+                            prevTable, prevAlias, hopDb, targetTable,
+                            targetRows, s, t, model, md);
+                    navCond = rn.cond();
+                    targetRows = rn.rows();
                 }
                 p.expr = new AppliedFunction("legacyNavigate",
                         List.of(p.expr, slot, targetRows, navCond));
@@ -508,6 +416,117 @@ final class JoinChainEmission {
             prevTable = targetTable;
             prevAlias = slotAlias;
         }
+    }
+
+    /** The routed-union navigate pieces: the OR-of-member-routes condition
+     * and the target relation with the suffixed key columns projected. */
+    private record RoutedNav(LambdaFunction cond, ValueSpecification rows) {
+    }
+
+    private static RoutedNav routedNavigation(
+            List<UnionSynthesis.UnionRoute> routes, @com.legend.Nullable String propName,
+            @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
+            String hopDb, String targetTable, ValueSpecification targetRows,
+            Variable s, Variable t, ModelBuilder model,
+            LegacyMappingDefinition md) {
+        ValueSpecification orCond = null;
+        // suffixed name -> [base column, its route's db, its
+        // route's landing table] (the typing arg needs the kind)
+        Map<String, String[]> keyCols = new LinkedHashMap<>();
+        boolean perArm = !UnionSynthesis.uniformChainedRoutes(
+                UnionSynthesis.memberJoins(routes));
+        for (UnionSynthesis.UnionRoute route : routes) {
+            // SHARED-PREFIX chains contribute their FINAL hop
+            // sourced at the shared landing (prefix emitted as
+            // physical joins above). PER-ARM chains contribute
+            // their FIRST hop sourced at the main table — the
+            // mids live INSIDE the owning member's thread
+            // (push-into-arm) and the target side reads the
+            // property-scoped chain keys that thread projects.
+            List<JoinChainElement> rChain = route.join().joins();
+            boolean rInArm = perArm && rChain.size() > 1;
+            JoinChainElement rHop = rInArm ? rChain.get(0)
+                    : rChain.get(rChain.size() - 1);
+            String rPrevTable = prevTable;
+            String rPrevAlias = prevAlias;
+            String rDb = rHop.databaseName() != null
+                    ? rHop.databaseName() : route.join().database();
+            DatabaseDefinition.JoinDefinition rJd =
+                    model.findJoin(rDb, rHop.joinName()).orElseThrow(() ->
+                            new ModelException(
+                                    LegendCompileException
+                                            .Phase.NORMALIZE,
+                                    "Join '" + rHop.joinName()
+                                    + "' not found in db '" + rDb
+                                    + "'; PM='" + propName + "', mapping="
+                                    + md.qualifiedName()));
+            Set<String> rCondTables = new LinkedHashSet<>();
+            RelOpTranslator.collectTablesIn(rJd.operation(), rCondTables);
+            rCondTables.remove(rPrevTable);
+            String rTgt = rCondTables.size() == 1
+                    && model.findView(rDb, rCondTables.iterator().next()).isPresent()
+                    ? rCondTables.iterator().next()
+                    : MappingNormalizer.determineTargetTable(rJd.operation(),
+                            rPrevTable, rHop.joinName(), propName,
+                            rChain.size(), md.qualifiedName());
+            Map<String, ValueSpecification> rScope = new LinkedHashMap<>();
+            rScope.put(rPrevTable, rPrevAlias == null
+                    ? s : new AppliedProperty(s, rPrevAlias));
+            if (!rTgt.equals(prevTable)) {
+                rScope.put(rTgt, t);
+            }
+            ValueSpecification rCond = RelOpTranslator.translate(
+                    rJd.operation(), rScope, t, null,
+                    RelOpTranslator.PipelineView.NONE);
+            Map<String, String> out = new LinkedHashMap<>();
+            // in-arm chained routes read the PROPERTY-SCOPED
+            // chain keys the member thread projects
+            rCond = rInArm
+                    ? UnionSynthesis.suffixTargetReads(rCond, t,
+                            "__" + propName + "_"
+                                    + route.targetOrdinal(), out)
+                    : UnionSynthesis.suffixTargetReads(rCond, t,
+                            route.targetOrdinal(), out);
+            for (var en : out.entrySet()) {
+                keyCols.put(en.getValue(),
+                        new String[]{en.getKey(), rDb, rTgt});
+            }
+            orCond = orCond == null ? rCond
+                    : new AppliedFunction("or", List.of(orCond, rCond));
+        }
+        LambdaFunction navCond = new LambdaFunction(List.of(s, t), List.of(orCond));
+        // typing arg: the suffixed key schema off the FIRST
+        // landing table; a key whose base column is absent
+        // there types as a NULL cast of ITS OWN landing
+        // table's column kind (audit 11: heterogeneous target
+        // key names across routed members)
+        List<ColSpec> keySpecs = new ArrayList<>();
+        for (var en : keyCols.entrySet()) {
+            Variable kr = new Variable("kr");
+            String base = en.getValue()[0];
+            ValueSpecification read;
+            if (relationHasColumn(hopDb, targetTable, base, model)) {
+                read = new AppliedProperty(kr, base);
+            } else {
+                String kind = columnPureKind(en.getValue()[1],
+                        en.getValue()[2], base, model);
+                if (kind == null) {
+                    throw new NotImplementedException(
+                            "routed union key column '" + base
+                            + "' has no derivable pure kind on table '"
+                            + en.getValue()[2] + "'; mapping="
+                            + md.qualifiedName());
+                }
+                read = new AppliedFunction("cast", List.of(
+                        new PureCollection(List.of()),
+                        new TypeAnnotation.Named(
+                                new TypeExpression.NameRef(kind))));
+            }
+            keySpecs.add(new ColSpec(en.getKey(),
+                    new LambdaFunction(List.of(kr), List.of(read)), null));
+        }
+        return new RoutedNav(navCond, new AppliedFunction("project",
+                List.of(targetRows, new ColSpecArray(keySpecs))));
     }
 
     /**
@@ -701,10 +720,12 @@ final class JoinChainEmission {
             case RelationalOperation.TypeRef ignored -> { }
         }
     }
-    /** PASS-2 source-side substitution + target determination + the
-     * non-view wall (skipped when a view target was already detected —
-     * that path expands the view as a relation). */
-    private record HopTarget(RelationalOperation cond, String table) {
+    /** PASS-2 source-side substitution + target determination. A VIEW
+     * landing (detected up front OR determined after substitution) carries
+     * its identity in {@code view} — the emission arms expand it as the
+     * view's RELATION frame instead of a tableReference. */
+    private record HopTarget(RelationalOperation cond, String table,
+            @com.legend.Nullable String view) {
     }
 
     private static HopTarget hopTarget(RelationalOperation joinCond,
@@ -712,19 +733,22 @@ final class JoinChainEmission {
             String joinName, @com.legend.Nullable String propName, int i, Pipeline p,
             ModelBuilder model, LegacyMappingDefinition md) {
         if (viewTarget != null) {
-            return new HopTarget(joinCond, viewTarget);
+            return new HopTarget(joinCond, viewTarget, viewTarget);
         }
         // PASS 2: source-side view projections substitute (plain views
-        // only; non-plain non-backing stays a loud wall)
+        // only); target-side view refs stay VERBATIM, so a view landing
+        // is recognizable here too (the source-view + view-target pair —
+        // the early detection above only fires when the source side is
+        // the pipeline's own prevTable)
         joinCond = MappingNormalizer.resolveViewRefsInJoin(joinCond, hopDb,
                 prevTable, model, md, p.backingView, null);
         String targetTable = MappingNormalizer.determineTargetTable(
                 joinCond, prevTable, joinName,
                 propName == null ? "<nested>" : propName,
                 i + 1, md.qualifiedName());
-        MappingNormalizer.requireNonViewTarget(
-                targetTable, hopDb, joinName, model, md);
-        return new HopTarget(joinCond, targetTable);
+        String view = model.findView(hopDb, targetTable).isPresent()
+                ? targetTable : null;
+        return new HopTarget(joinCond, targetTable, view);
     }
 
     /** A CLASS-typed navigate re-roots at the TARGET CLASS's pipeline,

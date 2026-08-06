@@ -70,10 +70,10 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping | 11 | 8 | 0 | 3 | 0 | 0 |
 | tests/mapping/association | 24 | 23 | 1 | 0 | 0 | 0 |
 | tests/mapping/classMappingByClass | 3 | 0 | 0 | 0 | 3 | 0 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 28 | 0 | 4 | 0 | 11 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 |
 | tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 |
 | tests/mapping/dynaJoin | 8 | 5 | 3 | 0 | 0 | 2 |
-| tests/mapping/embedded | 76 | 62 | 4 | 9 | 1 | 0 |
+| tests/mapping/embedded | 76 | 64 | 4 | 7 | 1 | 0 |
 | tests/mapping/enumeration | 30 | 18 | 4 | 5 | 3 | 0 |
 | tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 |
@@ -100,7 +100,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2793 | **2363** | 149 | 163 | 118 | 261 |
+| **total** | 2793 | **2368** | 149 | 158 | 118 | 262 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1137,7 +1137,6 @@ shared source registered by several families cannot double-count. Run with
 - 2x class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded levels are a roadmap feature. Mapping=meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2)
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
-- 2x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping)
 - 2x in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE, multiplicity=Bounded[lower=0, upper=1]], ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]); [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=DATE, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=DATE, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=NUMBER, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=0, upper=1]]]; [TypedParameter[name=left, type=STRING, multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=right, type=STRING, multiplicity=Bounded[lower=1, upper=1]]]; [TypedParameter[name=left, type=BOOLEAN, multiplicity=Bounded[lower=0, upper=1]], TypedParameter[name=right, type=BOOLEAN, multiplicity=Bounded[lower=0, upper=1]]]
 - 1x No value present
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
@@ -1145,6 +1144,7 @@ shared source registered by several families cannot double-count. Run with
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
 - 1x aggregate reducer argument of kind TypedMap is not supported (literals only)
+- 1x class-typed property '$t.otherOrgEntity' used as a whole value is graph output (Phase H4)
 
 ### per-test outcomes (non-passing)
 
@@ -1218,7 +1218,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testObjectReferneceInWithMilestonedRootClass [functions/tests]: unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - FAIL testAggToManyWithAverageAndTimes [functions/tests]: assertEquals: expected [CITY, 7, 25, 60], got [CITY, 7, 257.14285714285717]
 - ERROR testAggToManyWithAverageAndTimes2 [functions/tests]: aggregate reducer argument of kind TypedMap is not supported (literals only)
-- FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME, "persontable_0".FIRSTNAME
+- FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME,"persontable_0".FIRSTNAME
 - ERROR testOrder [functions/tests]: expected at most one value, got many ([*])
 - FAIL testUsingSameAggFunctionTwiceWithExistsFilter [functions/tests]: assertEquals: expected [Firm X, 12.0], got [Firm X, 79]
 - FAIL testUsingSameAggFunctionTwiceWithFilter [functions/tests]: assertEquals: expected [Firm X, 34.0], got [Firm X, 158]
@@ -1466,16 +1466,11 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testCountClassMappingsForRedundantInclude [tests/mapping/classMappingByClass]: no execute(|...) call — wall: no scalar lowering registered for resolved overload 'meta::pure::mapping::_classMappingByClass' with 2 parameter(s)
 - SHAPE testRootClassMappingForRedundantInclude [tests/mapping/classMappingByClass]: no execute(|...) call — wall: unknown function 'classMappings' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testRootMappingForDifferentIncludeOrder [tests/mapping/classMappingByClass]: no execute(|...) call — wall: no scalar lowering registered for resolved overload 'meta::pure::mapping::rootClassMappingByClass' with 2 parameter(s)
-- ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::TemporalProduct' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' (Join 'ProductViewTrade_Join' references multiple non-sour
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
-- ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
-- ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - FAIL testGet [tests/mapping/dynaJoin]: assertSameElements: expected [2014-12-03, 2014-12-04], got 2014-12-03
 - FAIL testJoinWithAggregateFunctionQualifier [tests/mapping/dynaJoin]: assertSize(result.values): expected 2, got 1 (TDS = one carrier; collections splat)
 - FAIL testJoinWithAggregateFunctionQualifierWithAssociation [tests/mapping/dynaJoin]: assertSize(result.values): expected 2, got 1 (TDS = one carrier; collections splat)
-- ERROR testProjectionMappingIncludes [tests/mapping/embedded]: class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedTargetIdsWithIncludes' (InlineEmbedded PM 'issuer' references unknown setId 'issuer' in mapping=meta::relational
 - FAIL testSubTypeOnPropertyMappedToNonRootInlineSetImpl [tests/mapping/embedded]: assertEquals: expected type,h\n5 years,holder1\n5 years,holder2\n7 weeks,holder3\n, got [5 years, holder1, 5 years, holder1, 7 weeks, holder3]
-- ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
 - FAIL otherwiseTestGetter [tests/mapping/embedded]: assertEquals: expected P 1, got Bond 1
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[bondDetails]; head subNavs=[holder]; head binding=TypedNativeCall]
 - ERROR testProjectionWithMultipleRootMappings [tests/mapping/embedded]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::fail' with 0 parameter(s)
@@ -1541,7 +1536,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testBiTemporalUnionWithSelfJoin_duplicateColumnRegression [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::biTemporal::biTemporalUnionMapping$class$meta::relational::tests::mapping::union::biTemporal::BiTemporalPerson': no overload of 'meta::pure::functions::boolean::greaterThanEqual' structurally matches the argument types (ExprType[type=STRICT_DATE,
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
-- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
+- FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
 - FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)

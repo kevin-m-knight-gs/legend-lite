@@ -1865,7 +1865,8 @@ public final class MappingNormalizer {
         // expression behind it. PMs unrelated to the view pass through.
         List<PropertyMapping> rewrittenPms = new ArrayList<>(rcm.propertyMappings().size());
         for (PropertyMapping pm : rcm.propertyMappings()) {
-            rewrittenPms.add(rewritePmThroughView(pm, viewCols, mainDb, physicalTable));
+            rewrittenPms.add(ViewRelation.rewritePmThroughView(pm, viewCols,
+                    mainDb, physicalTable, rcm.mainTable().table()));
         }
         // Merge view-level directives with the mapping-level ones. View
         // filter sequences BEFORE the mapping filter; view ~distinct ORs
@@ -1898,70 +1899,6 @@ public final class MappingNormalizer {
             body = layerMappingFilterPreMap(body, rcm, physicalTable, model, md);
         }
         return body;
-    }
-
-    /**
-     * Rewrite a PM whose column reference points at a view column
-     * into a PM that references the underlying physical expression.
-     * Unrelated PMs pass through unchanged.
-     */
-    private static PropertyMapping rewritePmThroughView(PropertyMapping pm,
-                                                       Map<String, RelationalOperation> viewCols,
-                                                       String dbFqn, String mainTable) {
-        return switch (pm) {
-            case PropertyMapping.EnumeratedExpression ee -> ee;
-            case PropertyMapping.Column col when viewCols.containsKey(col.column()) ->
-                    rewriteColumnPmAsViewExpr(col, viewCols.get(col.column()), dbFqn, mainTable);
-            case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
-                    lp.propertyName(), lp.type(), lp.multiplicity(),
-                    rewritePmThroughView(lp.body(), viewCols, dbFqn, mainTable));
-            case PropertyMapping.Embedded emb -> {
-                List<PropertyMapping> rewrittenSubs = new ArrayList<>();
-                for (PropertyMapping sub : emb.propertyMappings()) {
-                    rewrittenSubs.add(rewritePmThroughView(sub, viewCols, dbFqn, mainTable));
-                }
-                yield new PropertyMapping.Embedded(emb.propertyName(), rewrittenSubs);
-            }
-            // Non-view Column, Join, JoinTerminalColumn, EnumeratedColumn,
-            // Expression, InlineEmbedded, OtherwiseEmbedded: pass through
-            // unchanged (view rewriting is at column granularity).
-            case PropertyMapping.Column col -> col;
-            case PropertyMapping.Join j -> j;
-            case PropertyMapping.JoinTerminalColumn jtc -> jtc;
-            case PropertyMapping.EnumeratedColumn ec -> ec;
-            case PropertyMapping.Expression expr -> expr;
-            case PropertyMapping.InlineEmbedded ie -> ie;
-            case PropertyMapping.OtherwiseEmbedded oe -> oe;
-        };
-    }
-
-    /**
-     * Rewrite a {@code prop: V.col} PM as the underlying view-column
-     * expression. The expression can be a simple ColumnRef, a
-     * JoinNavigation, or a complex DynaFunction; each maps to a
-     * different PM kind.
-     */
-    private static PropertyMapping rewriteColumnPmAsViewExpr(PropertyMapping.Column col,
-                                                            RelationalOperation expr,
-                                                            String dbFqn,
-                                                            String mainTable) {
-        if (expr instanceof RelationalOperation.ColumnRef cr) {
-            return new PropertyMapping.Column(col.propertyName(),
-                    cr.databaseName() != null ? cr.databaseName() : dbFqn,
-                    cr.table(), cr.column());
-        }
-        if (expr instanceof RelationalOperation.JoinNavigation jn) {
-            if (jn.terminal() instanceof RelationalOperation.ColumnRef tcr) {
-                return new PropertyMapping.JoinTerminalColumn(col.propertyName(),
-                        jn.databaseName() != null ? jn.databaseName() : dbFqn,
-                        jn.chain(), tcr);
-            }
-            // JoinNav with non-column terminal becomes an Expression
-            // PM whose body is the JoinNav (will be hoisted).
-            return new PropertyMapping.Expression(col.propertyName(), jn);
-        }
-        // Complex expression: lift into an Expression PM.
-        return new PropertyMapping.Expression(col.propertyName(), expr);
     }
 
     /**
@@ -2783,15 +2720,23 @@ public final class MappingNormalizer {
             Pipeline pipeline, String ownerClassFqn, LegacyMappingDefinition md,
             ModelBuilder model) {
         ClassMapping.Relational referenced = null;
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Relational rcm
-                    && Objects.equals(setIdOf(rcm), ie.setId())) {
-                referenced = rcm;
-                break;
+        // the referenced set may live in an INCLUDED mapping (engine
+        // resolves Inline set ids across the include closure —
+        // testMappingEmbeddedTargetIdsWithIncludes)
+        List<LegacyMappingDefinition> closure = new ArrayList<>();
+        collectMappingClosure(md, model, closure, new HashSet<>());
+        outer:
+        for (LegacyMappingDefinition m : closure) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm instanceof ClassMapping.Relational rcm
+                        && Objects.equals(setIdOf(rcm), ie.setId())) {
+                    referenced = rcm;
+                    break outer;
+                }
             }
         }
         if (referenced == null) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "InlineEmbedded PM '" + ie.propertyName()
                   + "' references unknown setId '" + ie.setId()
                   + "' in mapping=" + md.qualifiedName());
@@ -3180,13 +3125,13 @@ public final class MappingNormalizer {
                 if (view == null) {
                     yield cr;
                 }
-                String phys = ViewRelation.inferViewMainTable(view, cr.table(), md, model,
-                        cr.databaseName() != null ? cr.databaseName() : db);
+                String crDb = cr.databaseName() != null ? cr.databaseName() : db;
+                String phys = ViewRelation.inferViewMainTable(view, cr.table(), md, model, crDb);
                 if (anySide
                         ? (cr.table().equals(backingView)
                                 || cr.table().equals(sourceTable)
                                 || cr.table().equals(keepTargetView))
-                        : !phys.equals(sourceTable)) {
+                        : !viewChainReaches(phys, sourceTable, crDb, md, model)) {
                     yield cr;
                 }
                 if ((view.filter() != null || !view.groupByColumns().isEmpty()
@@ -3208,7 +3153,17 @@ public final class MappingNormalizer {
                 for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
                         : view.columnMappings()) {
                     if (vc.name().equals(cr.column())) {
-                        yield vc.expression();
+                        // a view-on-view column substitutes to ANOTHER view's
+                        // column (ProductTableViewNested.id -> ProductTableView
+                        // .id) — re-resolve so the chain flattens to the
+                        // physical root. Pass-1 (onlyView) stays one-layer:
+                        // its exact-name contract addresses the backing view
+                        // alone.
+                        yield onlyView == null
+                                ? resolveViewRefsInJoin(vc.expression(), db,
+                                        sourceTable, model, md, backingView,
+                                        null, keepTargetView, anySide)
+                                : vc.expression();
                     }
                 }
                 yield cr;
@@ -3233,6 +3188,30 @@ public final class MappingNormalizer {
                     sourceTable, model, md, backingView, onlyView,
                     keepTargetView, anySide));
         };
+    }
+
+    /** Whether {@code start} IS {@code sourceTable} or reaches it walking
+     * DOWN a view-on-view chain (each layer's inferred main table). The
+     * source-side test of {@link #resolveViewRefsInJoin} must see through
+     * stacked views — one-layer equality missed ProductTableViewNested
+     * (over ProductTableView over ProductTable) as the pipeline's own row. */
+    private static boolean viewChainReaches(String start,
+            @com.legend.Nullable String sourceTable, String db,
+            LegacyMappingDefinition md, ModelBuilder model) {
+        String walk = start;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (seen.add(walk)) {
+            if (walk.equals(sourceTable)) {
+                return true;
+            }
+            DatabaseDefinition.ViewDefinition v =
+                    model.findView(db, walk).orElse(null);
+            if (v == null) {
+                return false;
+            }
+            walk = ViewRelation.inferViewMainTable(v, walk, md, model, db);
+        }
+        return false;
     }
 
     /**
