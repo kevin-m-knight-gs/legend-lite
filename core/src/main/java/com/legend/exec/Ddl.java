@@ -164,6 +164,41 @@ public final class Ddl {
         return out;
     }
 
+    /** The RECORDS form (engine setUpDataSQLs(records:List<String>[*])):
+     *  pre-split cells, no CSV re-parsing — schema/table statements from
+     *  the string form with EMPTY data, inserts appended per record
+     *  block (blank single-cell records separate blocks). */
+    public static java.util.List<String> setUpDataSqlsTextFromRecords(
+            java.util.List<java.util.List<String>> records,
+            DatabaseDefinition db) {
+        java.util.List<String> out = setUpDataSqlsText("", db);
+        int i = 0;
+        while (i < records.size()) {
+            while (i < records.size() && blankRecord(records.get(i))) {
+                i++;
+            }
+            if (i + 2 >= records.size()) {
+                break;
+            }
+            String schema = records.get(i).get(0).strip();
+            String table = records.get(i + 1).get(0).strip();
+            java.util.List<String> header = records.get(i + 2);
+            DatabaseDefinition.TableDefinition def =
+                    findTable(db, schema, table);
+            i += 3;
+            while (i < records.size() && !blankRecord(records.get(i))) {
+                out.add(insertText(schema, table, def, header,
+                        records.get(i)));
+                i++;
+            }
+        }
+        return out;
+    }
+
+    private static boolean blankRecord(java.util.List<String> r) {
+        return r.isEmpty() || (r.size() == 1 && r.get(0).isBlank());
+    }
+
     private static DatabaseDefinition.@com.legend.Nullable TableDefinition
             findTable(DatabaseDefinition db, String schema, String table) {
         if (!"default".equals(schema)) {

@@ -33,6 +33,21 @@ final class SeedSqlForms {
     static ExecutionResult assertForm(java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall gen,
             StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+        java.util.List<java.util.List<String>> records =
+                recordsArg(gen.args().get(0));
+        if (records != null) {
+            String dbFqn2 = gen.args().get(1)
+                    instanceof com.legend.compiler.spec.typed.TypedPackageableRef p2
+                    ? p2.fullPath() : null;
+            var db2 = dbFqn2 == null ? null
+                    : env.ctx().findDatabase(dbFqn2).orElse(null);
+            if (db2 != null) {
+                return new ExecutionResult.Collection(new java.util.ArrayList<>(
+                        com.legend.exec.Ddl.setUpDataSqlsTextFromRecords(
+                                records, db2)),
+                        com.legend.compiler.element.type.Type.Primitive.STRING);
+            }
+        }
         String csv = StatementExecutor.evalStringArg(body, gen.args().get(0), env);
         String dbFqn = gen.args().get(1)
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
@@ -43,6 +58,38 @@ final class SeedSqlForms {
                 dbDef != null ? com.legend.exec.Ddl.setUpDataSqlsText(csv, dbDef)
                         : com.legend.exec.CsvSeed.sqls(csv, dbFqn, env.ctx())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The literal records shape — a collection of {@code list([...])}
+     *  calls over string literals; null for anything else (the string
+     *  form takes over). */
+    private static java.util.@com.legend.Nullable List<java.util.List<String>>
+            recordsArg(TypedSpec arg) {
+        java.util.List<TypedSpec> els =
+                arg instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                        ? tc.elements() : java.util.List.of(arg);
+        java.util.List<java.util.List<String>> out = new java.util.ArrayList<>();
+        for (TypedSpec el : els) {
+            if (!(el instanceof com.legend.compiler.spec.typed.TypedNativeCall lc)
+                    || !"meta::pure::functions::collection::list"
+                            .equals(lc.callee().qualifiedName())
+                    || lc.args().size() != 1) {
+                return null;
+            }
+            TypedSpec v = lc.args().get(0);
+            java.util.List<TypedSpec> cells =
+                    v instanceof com.legend.compiler.spec.typed.TypedCollection vc
+                            ? vc.elements() : java.util.List.of(v);
+            java.util.List<String> row = new java.util.ArrayList<>();
+            for (TypedSpec c : cells) {
+                if (!(c instanceof com.legend.compiler.spec.typed.TypedCString cs)) {
+                    return null;
+                }
+                row.add(cs.value());
+            }
+            out.add(row);
+        }
+        return out;
     }
 
     /** The EXECUTION form for a mapped {@code ->map(executeInDb)} source;

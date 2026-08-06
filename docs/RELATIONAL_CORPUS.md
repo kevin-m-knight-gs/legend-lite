@@ -56,7 +56,7 @@ shared source registered by several families cannot double-count. Run with
 | router/tests | 26 | 20 | 0 | 3 | 3 | 3 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 |
-| sqlQueryToString/DDL | 3 | 2 | 0 | 0 | 1 | 0 |
+| sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
@@ -98,7 +98,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2570 | **2266** | 105 | 99 | 100 | 243 |
+| **total** | 2570 | **2267** | 105 | 99 | 99 | 243 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1310,7 +1310,6 @@ shared source registered by several families cannot double-count. Run with
 - SHAPE testCompositionInMultiStatementPureExpressions [router/tests]: no execute(|...) call — wall: no overload of 'meta::relational::tests::query::routing::routeInternal' matches 1 argument(s) of these shapes — candidates: [meta::relational::tests::query::routing::routeInternal/1]
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: no overload of 'routeFunction' matches 6 argument(s) of these shapes (no candidates at all)
 - SHAPE testProcessIdentifierWithQuoteChar [sqlQueryToString]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::h2::v2_1_214] — wall: Unknown type: 'CoreDataType' is not a known primitive, class, or enum
-- SHAPE testSetupDataSqlGeneration [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution] — wall: Binder Error: Cannot deduce template type 'T' in function: 'list_value(T, [T...]) -> T[]' | Type 'T' was inferred to be: |  - 'VARCHAR[][]', from first occurrence |  - 'VARCHAR[]', which is incompatible with previously inferred ty
 - SHAPE testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

@@ -57,7 +57,7 @@ shared source registered by several families cannot double-count. Run with
 | router/tests | 38 | 26 | 2 | 5 | 5 | 4 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 |
-| sqlQueryToString/DDL | 3 | 2 | 0 | 0 | 1 | 0 |
+| sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 |
@@ -100,7 +100,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 |
-| **total** | 2793 | **2360** | 149 | 165 | 119 | 261 |
+| **total** | 2793 | **2361** | 149 | 165 | 118 | 261 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1386,7 +1386,6 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testRoutingTwoFindAllExpressionsWithVariable [router/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedGetAll[classFqn=meta::relational::tests::model::simple::Firm, milestoning=[], versionSweep=false, forEachDate=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Fir
 - FAIL testRoutingUseVariableBeforeAndAfterRelationalExecution [router/tests]: assertSize(result.values): expected 1, got 2 (TDS = one carrier; collections splat)
 - SHAPE testProcessIdentifierWithQuoteChar [sqlQueryToString]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::h2::v2_1_214] — wall: Unknown type: 'CoreDataType' is not a known primitive, class, or enum
-- SHAPE testSetupDataSqlGeneration [sqlQueryToString/DDL]: no execute(|...) call [calls meta::alloy::service::execution] — wall: in call to 'meta::alloy::service::execution::setUpDataSQLs', argument 1: expected String, got List<String>
 - SHAPE testTempTableSqlStatementsForH2 [sqlQueryToString/testSuite]: no execute(|...) call [calls meta::relational::functions::sqlQueryToString::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call [calls meta::relational::extension] — wall: 'TestClass' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -1540,7 +1539,7 @@ shared source registered by several families cannot double-count. Run with
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' has no binding in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties' (unmapped, o
 - FAIL testUnionWithPartialForeignKeyUsage1 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
-- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [202, 101]
+- FAIL testUnionWithPartialForeignKeyUsage2 [tests/mapping/union]: assertEquals: expected [], got [101, 202]
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins across embedded leve
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: assert form 'assertEquals/2' is not supported yet — plan wall: plan: alias 't2' not resolvable to a table (Subselect)
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: expected at most one value, got many ([*])
