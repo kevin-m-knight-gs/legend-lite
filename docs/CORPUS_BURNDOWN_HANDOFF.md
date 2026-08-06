@@ -1,5 +1,54 @@
 # Burn-down handoff — start here
 
+> **STATE AS OF `bc375a46` (2026-08-06, second session).** The ledger
+> moved **484 → 430 non-passing (2,363/2,793 pass)** across 24 gated
+> commits. §4's Tier 1 is DONE; so are the null-safe MIR node (§4's
+> largest lever — note upstream #5028 split the doctrine: in-flow
+> execute is LEGACY plain-equals, plan surfaces keep null-safe; the
+> 113-golden census is stale, now 38+30), the engine test-ORDER fix
+> (§5.1, +12), the ConnectionLets seed guard (§5.3, +4), the overload
+> retry (§5.4 — SchemaInvariantException must NOT retry), setUpDataSQLs
+> in all three faces (string/records/execution — the TEXT executes
+> nowhere; the shared DuckDB catalog makes its schema cascades
+> destructive), RelationReads expr-cols (+10, ledger-only rows),
+> GraphEmission childClass (+2) and the pkOrderKeys/user-sortBy
+> priority. **`BURNDOWN_EXPLANATIONS.md` is the per-test verdict
+> ledger** (43 impossible/infeasible with evidence; regenerate with
+> each 100%-ledger sweep).
+>
+> **The quick-win tier is exhausted. Next implementations, designs
+> ready:**
+> 1. **Views as join targets** (3 rows): reuse
+>    `ViewRelation.viewRelationExpr` as the hop's target frame —
+>    `hopTarget` (JoinChainEmission:710) has the seam; `HopTarget`
+>    needs a frame-expr variant; both `requireNonViewTarget` callers
+>    convert.
+> 2. **getAllForEachDate residuals** (the extent machinery WORKS):
+>    (a) ODC sentinel-defer — the generated-date outer reaches
+>    `outerDatedWindowCond` via THREE paths (hoist :582, deferred :660,
+>    direct :553); defer ALL context-date windows under for-each mode
+>    and replay over the joined row (a working `replayGeneratedOuter
+>    Windows` draft is described in the git history of this doc's
+>    session); (b) frame-read host channel — HostEval Tabular model +
+>    `evalWithValues`; the walls escape the EAGER let-frame (~:130) and
+>    preRoot-execute (~:330) executor arms, instrument those first.
+> 3. **Datatype metamodel leaves**: registration SHADOWS primitives via
+>    the PRELUDE_TYPES simple-name index; blanket exclusion breaks 20+
+>    tests — needs a prelude-exempt registration tier or curated
+>    PRELUDE_COLLISIONS entries.
+> 4. **fallbackSetId set-routing** (3 seams: Pass-1 hop → slot
+>    metadata → resolver set dispatch).
+> 5. §5's structural pair (join kinds → cardinality elision), the
+>    object-space TypedFilter arm, and the lineage advisory-arm
+>    deletion (baseline-negative: pair it with the plan-derived tree).
+>
+> **Traps re-earned this session**: temporal changes take 2-3 corpus
+> iterations — never attempt them without headroom; verify yield
+> claims against the INCLUDE-EXCLUDED sweep (default-sweep family
+> diffs miss ledger-only rows); the average to-one elision feeds an
+> UNNEST pattern-match (naive promotion breaks it); asin/acos guard
+> removal needs a PCT-vs-relational channel split.
+
 **Purpose.** You are picking up a burn-down of the relational corpus and/or the
 architecture work behind it. This is the entry point. Read this first, then the three
 documents it points at.
