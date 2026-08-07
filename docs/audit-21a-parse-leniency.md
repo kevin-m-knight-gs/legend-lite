@@ -1,3 +1,9 @@
+> ## Era note — banner added 2026-08-06
+>
+> A dated audit finding-set written against `engine/com.gs.legend`, which is
+> **frozen**. Kept as a record. For the live map see `AGENTS.md`; for the
+> current parse-leniency picture see `docs/PARSER_IMPLEMENTATION_AUDIT_2026_08.md`.
+
 # Audit 21a — Parse leniency / silent-drop risk (commits 71552b5d, 28245c49)
 
 ## Verdict
