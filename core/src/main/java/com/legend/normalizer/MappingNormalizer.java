@@ -1055,11 +1055,15 @@ public final class MappingNormalizer {
         List<Function> fns = model.findFunction(ref);
         if (fns.isEmpty()) {
             // the MANGLED spelling f__Relation_1_ encodes the signature in
-            // the name — strip the suffix and retry
-            Matcher mangled = Pattern
-                    .compile("^(.*?)__[A-Za-z0-9$]+_(?:\\d+|MANY)_$").matcher(ref);
-            if (mangled.matches()) {
-                fns = model.findFunction(mangled.group(1));
+            // the name — ONE grammar (SignatureMangle), and only zero-param
+            // functions can satisfy a ~func ref's single-segment tail
+            String base = com.legend.compiler.spec.SignatureMangle.stripTail(ref);
+            if (base != null) {
+                int arity = com.legend.compiler.spec.SignatureMangle.tailArity(ref);
+                fns = model.findFunction(base).stream()
+                        .filter(f -> f instanceof FunctionDefinition fd
+                                && fd.parameters().size() == arity)
+                        .toList();
             }
         }
         if (fns.size() != 1

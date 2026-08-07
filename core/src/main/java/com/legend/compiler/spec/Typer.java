@@ -2061,9 +2061,19 @@ final class Typer {
         if (!found.isEmpty()) {
             return found;
         }
-        java.util.regex.Matcher m = MANGLED_TAIL.matcher(name);
-        if (m.find()) {
-            return ctx.findFunction(name.substring(0, m.start()));
+        String base = SignatureMangle.stripTail(name);
+        if (base != null) {
+            // ARITY-VALIDATED: the tail encodes the parameter count, and a
+            // demangle that lands on a different-arity function is a
+            // MISS, not a redirect (compute_Step_2_ must never call
+            // compute() — text-surgery audit §1.1 #4)
+            int arity = SignatureMangle.tailArity(name);
+            String ret = SignatureMangle.tailReturnTypeName(name);
+            return ctx.findFunction(base).stream()
+                    .filter(f -> f.parameters().size() == arity
+                            && f.returnType().typeName().endsWith(
+                                    String.valueOf(ret)))
+                    .toList();
         }
         return found;
     }
@@ -2099,15 +2109,6 @@ final class Typer {
         }
         return union;
     }
-
-    /**
-     * {@code _Type_mult} segments (mult: digits, MANY, or {@code $a_b$}
-     * ranges) with a MANDATORY trailing underscore — engine manglings always
-     * end with one, and requiring it keeps ordinary snake-case user names
-     * ({@code transform_step_3}) from falsely demangling (audit).
-     */
-    private static final java.util.regex.Pattern MANGLED_TAIL = java.util.regex.Pattern
-            .compile("(?:_?_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$))+_$");
 
     /**
      * A packageable-element reference used as a value &mdash; currently a class
@@ -2165,16 +2166,8 @@ final class Typer {
             // a MANGLED id names ONE overload — the signature tail's
             // segment count (params + return) disambiguates (the corpus's
             // generateUsageFor metadata: groupBy_TabularDataSet_1__…_)
-            java.util.regex.Matcher mm = MANGLED_TAIL.matcher(ref.fullPath());
-            if (mm.find()) {
-                int segs = 0;
-                java.util.regex.Matcher seg = java.util.regex.Pattern
-                        .compile("_[A-Za-z][A-Za-z0-9]*_(?:\\d+|MANY|\\$[^$]*\\$)")
-                        .matcher(mm.group());
-                while (seg.find()) {
-                    segs++;
-                }
-                int arity = segs - 1;
+            int arity = SignatureMangle.tailArity(ref.fullPath());
+            if (arity >= 0) {
                 List<TypedFunction> byArity = fns.stream()
                         .filter(f2 -> f2.parameters().size() == arity)
                         .toList();
