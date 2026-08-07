@@ -51,7 +51,17 @@ public final class Protocol {
      *  are Pure cross-expression lambdas (probes include-and-assoc,
      *  xstore). */
     public sealed interface PAssociationMapping
-            permits PRelAssociationMapping, PXStoreAssociationMapping {
+            permits PRelAssociationMapping, PXStoreAssociationMapping,
+            PModelJoinAssociationMapping {
+    }
+
+    /** {@code assoc: ModelJoin { {x:T[1], y:U[1]|expr} }} — the join
+     *  condition is a TYPED ###Pure lambda via SpecParser; member span
+     *  target..outer brace (probe modeljoin). */
+    public record PModelJoinAssociationMapping(PPointer association,
+                                               com.legend.protocol.spec.ValueSpecification joinCondition,
+                                               com.legend.protocol.SourceInfo sourceInformation)
+            implements PAssociationMapping {
     }
 
     public record PRelAssociationMapping(PPointer association,
@@ -86,7 +96,28 @@ public final class Protocol {
     /** Class mappings emit in SOURCE ORDER — one sealed list. */
     public sealed interface PClassMapping
             permits PClassMappingRel, PClassMappingPure,
-            PClassMappingOperation {
+            PClassMappingOperation, PClassMappingRelation {
+    }
+
+    /** {@code _type:"relation"} class mapping (probe relation-fn):
+     *  NO classSourceInformation; {@code ~func} descriptor is a FUNCTION
+     *  pointer whose path is the CANONICAL descriptor text. */
+    public record PClassMappingRelation(String className,
+                                        @com.legend.Nullable String id,
+                                        List<PRelationFnPropertyMapping> propertyMappings,
+                                        String relationFunction,
+                                        com.legend.protocol.SourceInfo relationFunctionSourceInformation,
+                                        boolean root,
+                                        com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
+    }
+
+    /** {@code prop: col} inside a Relation mapping — span prop..col. */
+    public record PRelationFnPropertyMapping(String ownerClass, String property,
+                                             com.legend.protocol.SourceInfo propertySourceInformation,
+                                             String column,
+                                             @com.legend.Nullable String source,
+                                             com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     public record PMapping(String pkg, String name,

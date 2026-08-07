@@ -149,6 +149,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     targetSpan, id, root));
             return;
         }
+        if (peek() == TokenType.VALID_STRING && "ModelJoin".equals(text())) {
+            advance();
+            assocMappings.add(parseModelJoin(target, memberStart, targetSpan));
+            return;
+        }
+        if (peek() == TokenType.VALID_STRING && "Relation".equals(text())) {
+            advance();
+            classMappings.add(parseRelationClassMapping(target, memberStart,
+                    targetSpan, id, root));
+            return;
+        }
         if (peek() == TokenType.VALID_STRING && "Operation".equals(text())) {
             advance();
             classMappings.add(parseOperationClassMapping(target, memberStart,
@@ -818,6 +829,93 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             case Protocol.PRelLiteralList ll ->
                     new Protocol.PRelLiteralList(ll.values(), w);
         };
+    }
+
+    /** {@code assoc: ModelJoin { {x:T[1], y:U[1]|expr} }} — the inner
+     *  braces are ONE typed ###Pure lambda through SpecParser (probe
+     *  modeljoin); member span target..outer close. */
+    private Protocol.PModelJoinAssociationMapping parseModelJoin(
+            String target, int memberStart, SourceInfo targetSpan) {
+        expect(TokenType.BRACE_OPEN);
+        int lS = pos;
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.BRACE_CLOSE) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
+            advance();
+        }
+        List<com.legend.protocol.spec.ValueSpecification> body =
+                SpecParser.parseCodeBlock(tokens.slice(lS, pos));
+        if (body.size() != 1) {
+            throw error("ModelJoin body must be ONE lambda, got "
+                    + body.size());
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PModelJoinAssociationMapping(
+                new Protocol.PPointer("ASSOCIATION", target, targetSpan),
+                body.get(0), spanOf(memberStart, close));
+    }
+
+    /** {@code cls[id]: Relation { ~func <descriptor> prop: col, ... }} —
+     *  the descriptor pointer path is the CANONICAL text (tokens joined
+     *  with NO spaces); property lines map columns (probe relation-fn). */
+    private Protocol.PClassMappingRelation parseRelationClassMapping(
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id, boolean root) {
+        expect(TokenType.BRACE_OPEN);
+        if (!(peek() == TokenType.TILDE
+                && "func".equals(tokens.text(
+                        Math.min(pos + 1, tokens.count() - 1))))) {
+            throw error("Relation class mapping must open with ~func");
+        }
+        advance();
+        advance();                                  // func
+        int dS = pos;
+        StringBuilder desc = new StringBuilder();
+        int parens = 0;
+        int angles = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.PAREN_OPEN) {
+                parens++;
+            } else if (t == TokenType.PAREN_CLOSE) {
+                parens--;
+            } else if (t == TokenType.LESS_THAN) {
+                angles++;
+            } else if (t == TokenType.GREATER_THAN) {
+                angles--;
+            }
+            desc.append(text());
+            advance();
+            if (parens == 0 && angles == 0
+                    && tokens.type(pos - 1) == TokenType.BRACKET_CLOSE) {
+                break;                              // ...[m] descriptor end
+            }
+        }
+        SourceInfo fnSpan = spanOf(dS, pos - 1);
+        List<Protocol.PRelationFnPropertyMapping> props = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            int pS = pos;
+            String prop = parseIdentifier();
+            SourceInfo propSpan = spanOf(pS, pos - 1);
+            expect(TokenType.COLON);
+            String col = parseIdentifier();
+            props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
+                    propSpan, col, id, spanOf(pS, pos - 1)));
+            match(TokenType.COMMA);
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PClassMappingRelation(target, id, props,
+                desc.toString(), fnSpan, root, spanOf(memberStart, close));
     }
 
     /** One embedded op under the ACTIVE scope context (scope table >

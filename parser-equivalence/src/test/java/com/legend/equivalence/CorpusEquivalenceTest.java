@@ -128,9 +128,14 @@ class CorpusEquivalenceTest {
      * a KEYWORD token (batch-10 text check was dead), outer otherwise-PM
      * span = OTHERWISE..close (classMapping span stays paren..close),
      * otherwise/primaryKey ops inherit the scope db, include-mapping
-     * keyword vs path-head 'mapping' disambiguated. */
-    private static final int MIN_ELEMENTS_COMPARED = 24295;
-    private static final int MIN_MATCHES = 24295;
+     * keyword vs path-head 'mapping' disambiguated.
+     * 24,295 -> 24,352: ModelJoin (typed ###Pure lambda joinCondition via
+     * SpecParser, member span target..outer brace) + Relation function
+     * class mappings (_type relation, NO classSourceInformation, ~func
+     * descriptor pointer path = tokens joined with NO spaces,
+     * relationFunctionPropertyMapping column lines). */
+    private static final int MIN_ELEMENTS_COMPARED = 24352;
+    private static final int MIN_MATCHES = 24352;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

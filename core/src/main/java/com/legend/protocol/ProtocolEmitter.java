@@ -257,6 +257,15 @@ public final class ProtocolEmitter {
                     srcInfo(b, xa.sourceInformation());
                     b.append(",\"stores\":[]}");
                 }
+                case Protocol.PModelJoinAssociationMapping mj -> {
+                    b.append("{\"_type\":\"modelJoin\",\"association\":");
+                    pointer(b, mj.association());
+                    b.append(",\"joinCondition\":");
+                    valueSpec(b, mj.joinCondition());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, mj.sourceInformation());
+                    b.append(",\"stores\":[]}");
+                }
             }
         }
         b.append("],\"classMappings\":[");
@@ -267,6 +276,49 @@ public final class ProtocolEmitter {
             switch (m.classMappings().get(i)) {
                 case Protocol.PClassMappingRel r -> relClassMapping(b, r);
                 case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
+                case Protocol.PClassMappingRelation rf -> {
+                    b.append("{\"_type\":\"relation\",\"class\":");
+                    str(b, rf.className());
+                    if (rf.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, rf.id());
+                    }
+                    b.append(",\"primaryKey\":[],\"propertyMappings\":[");
+                    for (int j = 0; j < rf.propertyMappings().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PRelationFnPropertyMapping pm =
+                                rf.propertyMappings().get(j);
+                        b.append("{\"_type\":"
+                                + "\"relationFunctionPropertyMapping\","
+                                + "\"column\":");
+                        str(b, pm.column());
+                        b.append(",\"property\":{\"class\":");
+                        str(b, pm.ownerClass());
+                        b.append(",\"property\":");
+                        str(b, pm.property());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.propertySourceInformation());
+                        b.append('}');
+                        if (pm.source() != null) {
+                            b.append(",\"source\":");
+                            str(b, pm.source());
+                        }
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.sourceInformation());
+                        b.append('}');
+                    }
+                    b.append("],\"relationFunction\":{\"path\":");
+                    str(b, rf.relationFunction());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, rf.relationFunctionSourceInformation());
+                    b.append(",\"type\":\"FUNCTION\"},\"root\":")
+                            .append(rf.root());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, rf.sourceInformation());
+                    b.append('}');
+                }
                 case Protocol.PClassMappingOperation om -> {
                     b.append("{\"_type\":\"operation\",\"class\":");
                     str(b, om.className());

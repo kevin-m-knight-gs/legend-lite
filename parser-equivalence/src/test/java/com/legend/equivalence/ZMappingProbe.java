@@ -28,6 +28,51 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch12Shapes() throws Exception {
+        probe("modeljoin", """
+                ###Pure
+                Class my::F8 { id: Integer[1]; legalName: String[1]; }
+                Class my::P8 { firmId: Integer[1]; lastName: String[1]; }
+                Class my::SF8 { _id: Integer[1]; _legalName: String[1]; }
+                Class my::SP8 { _firmId: Integer[1]; _lastName: String[1]; }
+                Association my::FP8 { firm8: my::F8[1]; employees8: my::P8[*]; }
+
+                ###Mapping
+                Mapping my::M50
+                (
+                  my::F8[f1]: Pure { ~src my::SF8 id: $src._id, legalName: $src._legalName }
+                  my::P8[e]: Pure { ~src my::SP8 firmId: $src._firmId, lastName: $src._lastName }
+                  my::FP8: ModelJoin { {firm8:my::F8[1], employees8:my::P8[1]|$firm8.id == $employees8.firmId} }
+                )
+                """);
+        probe("relation-fn", """
+                ###Relational
+                Database my::DB9
+                (
+                  Table t9 ( name VARCHAR(20), id INT )
+                )
+
+                ###Pure
+                Class my::P9 { name: String[1]; id: Integer[1]; }
+                function my::rel9(): meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::DB9.t9}#->select()
+                }
+
+                ###Mapping
+                Mapping my::M51
+                (
+                  *my::P9[p9]: Relation
+                  {
+                    ~func my::rel9():Relation<Any>[1]
+                    name: name,
+                    id: id
+                  }
+                )
+                """);
+    }
+
+    @Test
     void batch11Shapes() throws Exception {
         String db = """
                 ###Relational
