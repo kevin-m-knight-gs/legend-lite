@@ -52,9 +52,13 @@ class CorpusEquivalenceTest {
      * Test, DelegatedKerberos), spec/auth/mappings spans INCLUDE the
      * trailing ';' (probe); embedded runtime islands reuse the ONE
      * connection grammar, converting 14 runtime walls. 20 walls remain:
-     * testDataSetupCSV, postProcessors, UserNamePassword. */
-    private static final int MIN_ELEMENTS_COMPARED = 22854;
-    private static final int MIN_MATCHES = 22854;
+     * testDataSetupCSV, postProcessors, UserNamePassword.
+     * 22,854 -> 22,864: the last Connection shapes (testDataSetupCsv,
+     * mapper postProcessors, userNamePassword vault refs, optional store:,
+     * empty Test body, quote-keeping timeZone) — ###Runtime AND
+     * ###Connection at ZERO walls, every element byte-identical. */
+    private static final int MIN_ELEMENTS_COMPARED = 22864;
+    private static final int MIN_MATCHES = 22864;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

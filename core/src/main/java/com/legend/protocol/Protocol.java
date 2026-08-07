@@ -153,18 +153,38 @@ public final class Protocol {
             PAuthStrategy authenticationStrategy,
             String databaseType,
             PDatasourceSpec datasourceSpecification,
-            String element,
-            com.legend.protocol.SourceInfo elementSourceInformation,
+            @com.legend.Nullable String element,
+            @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+            List<PMapperPostProcessor> postProcessors,
+            @com.legend.Nullable String timeZone,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
+    }
+
+    /** {@code _type:"mapper"} post-processor: table/schema mappers; a table
+     *  mapper's schemaFrom/schemaTo synthesize a NESTED schema object on the
+     *  wire; mappers carry no sourceInformation (probe post-processors). */
+    public record PMapperPostProcessor(List<PMapper> mappers) {
+    }
+
+    public sealed interface PMapper permits PTableMapper, PSchemaMapper {
+    }
+
+    public record PTableMapper(String from, String to, String schemaFrom,
+                               String schemaTo) implements PMapper {
+    }
+
+    public record PSchemaMapper(String from, String to) implements PMapper {
     }
 
     /** Datasource specifications the corpus actually uses. */
     public sealed interface PDatasourceSpec permits PH2Local, PStaticSpec {
     }
 
-    /** {@code _type:"h2Local"}; testDataSetupSqls omitted when absent. */
-    public record PH2Local(@com.legend.Nullable List<String> testDataSetupSqls,
+    /** {@code _type:"h2Local"}; testDataSetupCsv/Sqls omitted when absent
+     *  (source key testDataSetupCSV spells testDataSetupCsv on the wire). */
+    public record PH2Local(@com.legend.Nullable String testDataSetupCsv,
+                           @com.legend.Nullable List<String> testDataSetupSqls,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -177,7 +197,16 @@ public final class Protocol {
 
     /** Authentication strategies the corpus actually uses. */
     public sealed interface PAuthStrategy
-            permits PH2Default, PTestAuth, PDelegatedKerberos {
+            permits PH2Default, PTestAuth, PDelegatedKerberos,
+            PUserNamePassword {
+    }
+
+    /** {@code _type:"userNamePassword"} — vault references, base optional. */
+    public record PUserNamePassword(@com.legend.Nullable String baseVaultReference,
+                                    String userNameVaultReference,
+                                    String passwordVaultReference,
+                                    com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
     }
 
     /** {@code _type:"h2Default"}. */

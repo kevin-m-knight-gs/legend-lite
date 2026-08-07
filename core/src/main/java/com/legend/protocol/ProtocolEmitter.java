@@ -225,13 +225,38 @@ public final class ProtocolEmitter {
                 str(b, rc.databaseType());
                 b.append(",\"datasourceSpecification\":");
                 datasourceSpec(b, rc.datasourceSpecification());
-                b.append(",\"element\":");
-                str(b, rc.element());
-                b.append(",\"elementSourceInformation\":");
-                srcInfo(b, rc.elementSourceInformation());
-                b.append(",\"postProcessorWithParameter\":[]"
-                        + ",\"sourceInformation\":");
+                if (rc.element() != null && rc.elementSourceInformation() != null) {
+                    b.append(",\"element\":");
+                    str(b, rc.element());
+                    b.append(",\"elementSourceInformation\":");
+                    srcInfo(b, rc.elementSourceInformation());
+                }
+                b.append(",\"postProcessorWithParameter\":[]");
+                if (!rc.postProcessors().isEmpty()) {
+                    b.append(",\"postProcessors\":[");
+                    for (int i = 0; i < rc.postProcessors().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        b.append("{\"_type\":\"mapper\",\"mappers\":[");
+                        List<Protocol.PMapper> ms =
+                                rc.postProcessors().get(i).mappers();
+                        for (int j = 0; j < ms.size(); j++) {
+                            if (j > 0) {
+                                b.append(',');
+                            }
+                            mapper(b, ms.get(j));
+                        }
+                        b.append("]}");
+                    }
+                    b.append(']');
+                }
+                b.append(",\"sourceInformation\":");
                 srcInfo(b, rc.sourceInformation());
+                if (rc.timeZone() != null) {
+                    b.append(",\"timeZone\":");
+                    str(b, rc.timeZone());
+                }
                 b.append(",\"type\":");
                 str(b, rc.databaseType());
                 b.append('}');
@@ -269,6 +294,20 @@ public final class ProtocolEmitter {
                 srcInfo(b, t.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PUserNamePassword u -> {
+                b.append("{\"_type\":\"userNamePassword\"");
+                if (u.baseVaultReference() != null) {
+                    b.append(",\"baseVaultReference\":");
+                    str(b, u.baseVaultReference());
+                }
+                b.append(",\"passwordVaultReference\":");
+                str(b, u.passwordVaultReference());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, u.sourceInformation());
+                b.append(",\"userNameVaultReference\":");
+                str(b, u.userNameVaultReference());
+                b.append('}');
+            }
             case Protocol.PDelegatedKerberos k -> {
                 b.append("{\"_type\":\"delegatedKerberos\"");
                 if (k.serverPrincipal() != null) {
@@ -282,11 +321,38 @@ public final class ProtocolEmitter {
         }
     }
 
+    private static void mapper(StringBuilder b, Protocol.PMapper m) {
+        switch (m) {
+            case Protocol.PTableMapper t -> {
+                b.append("{\"_type\":\"table\",\"from\":");
+                str(b, t.from());
+                b.append(",\"schema\":{\"_type\":\"schema\",\"from\":");
+                str(b, t.schemaFrom());
+                b.append(",\"to\":");
+                str(b, t.schemaTo());
+                b.append("},\"to\":");
+                str(b, t.to());
+                b.append('}');
+            }
+            case Protocol.PSchemaMapper sm -> {
+                b.append("{\"_type\":\"schema\",\"from\":");
+                str(b, sm.from());
+                b.append(",\"to\":");
+                str(b, sm.to());
+                b.append('}');
+            }
+        }
+    }
+
     private static void datasourceSpec(StringBuilder b, Protocol.PDatasourceSpec d) {
         switch (d) {
             case Protocol.PH2Local h -> {
                 b.append("{\"_type\":\"h2Local\",\"sourceInformation\":");
                 srcInfo(b, h.sourceInformation());
+                if (h.testDataSetupCsv() != null) {
+                    b.append(",\"testDataSetupCsv\":");
+                    str(b, h.testDataSetupCsv());
+                }
                 if (h.testDataSetupSqls() != null) {
                     b.append(",\"testDataSetupSqls\":[");
                     for (int i = 0; i < h.testDataSetupSqls().size(); i++) {
