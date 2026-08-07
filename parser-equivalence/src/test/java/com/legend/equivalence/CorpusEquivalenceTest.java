@@ -95,9 +95,12 @@ class CorpusEquivalenceTest {
      * 23,476 -> 23,484: PURE (M2M) class mappings — transforms are the
      * ###Pure ValueSpecification wire, parsed by SpecParser over token
      * slices and emitted by the SAME spec arms; pm.source = enclosing
-     * set id (empty string when none). */
-    private static final int MIN_ELEMENTS_COMPARED = 23484;
-    private static final int MIN_MATCHES = 23484;
+     * set id (empty string when none).
+     * 23,484 -> 23,506: OPERATION class mappings (EXACT-FQN discriminator
+     * mapping, bare set-id parameters) and class mappings unified into ONE
+     * sealed SOURCE-ORDERED list. */
+    private static final int MIN_ELEMENTS_COMPARED = 23506;
+    private static final int MIN_MATCHES = 23506;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

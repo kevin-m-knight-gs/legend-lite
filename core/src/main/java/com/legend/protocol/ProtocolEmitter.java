@@ -172,20 +172,37 @@ public final class ProtocolEmitter {
     private static void mapping(StringBuilder b, Protocol.PMapping m) {
         b.append("{\"_type\":\"mapping\",\"associationMappings\":[]"
                 + ",\"classMappings\":[");
-        boolean firstCm = true;
         for (int i = 0; i < m.classMappings().size(); i++) {
-            if (!firstCm) {
+            if (i > 0) {
                 b.append(',');
             }
-            firstCm = false;
-            relClassMapping(b, m.classMappings().get(i));
-        }
-        for (int i = 0; i < m.pureClassMappings().size(); i++) {
-            if (!firstCm) {
-                b.append(',');
+            switch (m.classMappings().get(i)) {
+                case Protocol.PClassMappingRel r -> relClassMapping(b, r);
+                case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
+                case Protocol.PClassMappingOperation om -> {
+                    b.append("{\"_type\":\"operation\",\"class\":");
+                    str(b, om.className());
+                    b.append(",\"classSourceInformation\":");
+                    srcInfo(b, om.classSourceInformation());
+                    if (om.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, om.id());
+                    }
+                    b.append(",\"operation\":");
+                    str(b, om.operation());
+                    b.append(",\"parameters\":[");
+                    for (int j = 0; j < om.parameters().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        str(b, om.parameters().get(j));
+                    }
+                    b.append("],\"root\":").append(om.root());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, om.sourceInformation());
+                    b.append('}');
+                }
             }
-            firstCm = false;
-            pureClassMapping(b, m.pureClassMappings().get(i));
         }
         b.append("],\"enumerationMappings\":[");
         for (int i = 0; i < m.enumerationMappings().size(); i++) {

@@ -55,20 +55,18 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         expect(TokenType.PAREN_OPEN);
-        List<Protocol.PClassMappingRel> classMappings = new ArrayList<>();
-        List<Protocol.PClassMappingPure> pureMappings = new ArrayList<>();
+        List<Protocol.PClassMapping> classMappings = new ArrayList<>();
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
         List<Protocol.PMappingInclude> includes = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            parseMember(classMappings, pureMappings, enums, includes);
+            parseMember(classMappings, enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
-        return new Protocol.PMapping(pkg, name, classMappings, pureMappings,
-                enums, includes, spanOf(declStart, pos - 1));
+        return new Protocol.PMapping(pkg, name, classMappings, enums,
+                includes, spanOf(declStart, pos - 1));
     }
 
-    private void parseMember(List<Protocol.PClassMappingRel> classMappings,
-            List<Protocol.PClassMappingPure> pureMappings,
+    private void parseMember(List<Protocol.PClassMapping> classMappings,
             List<Protocol.PEnumerationMapping> enums,
             List<Protocol.PMappingInclude> includes) {
         if (peek() == TokenType.INCLUDE) {
@@ -110,7 +108,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.PURE_MAPPING) {
             advance();
-            pureMappings.add(parsePureClassMapping(target, memberStart,
+            classMappings.add(parsePureClassMapping(target, memberStart,
+                    targetSpan, id, root));
+            return;
+        }
+        if (peek() == TokenType.VALID_STRING && "Operation".equals(text())) {
+            advance();
+            classMappings.add(parseOperationClassMapping(target, memberStart,
                     targetSpan, id, root));
             return;
         }
@@ -261,6 +265,39 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingPure(target, targetSpan, id, root,
                 srcClass, srcSpan, props, spanOf(memberStart, close));
+    }
+
+    /** {@code cls[id]: Operation { fqn(p1, p2) }} — the called FQN maps to
+     *  the operation discriminator by EXACT FQN; identification is never
+     *  by suffix (probe operation; STORE_UNION vs ROUTER_UNION semantics
+     *  differ, a contains-match would run the wrong one). */
+    private Protocol.PClassMappingOperation parseOperationClassMapping(
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id, boolean root) {
+        expect(TokenType.BRACE_OPEN);
+        String fqn = Protocol.unquotePath(parseQualifiedName());
+        String operation = switch (fqn) {
+            case "meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_" ->
+                    "STORE_UNION";
+            case "meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_" ->
+                    "ROUTER_UNION";
+            case "meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_" ->
+                    "INHERITANCE";
+            case "meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_" ->
+                    "MERGE";
+            default -> throw error("unsupported operation function: " + fqn);
+        };
+        expect(TokenType.PAREN_OPEN);
+        List<String> params = new ArrayList<>();
+        while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
+            params.add(parseIdentifier());
+            match(TokenType.COMMA);
+        }
+        expect(TokenType.PAREN_CLOSE);
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PClassMappingOperation(target, targetSpan, id,
+                root, operation, params, spanOf(memberStart, close));
     }
 
     /** One embedded relational operation via THE relational op grammar. */

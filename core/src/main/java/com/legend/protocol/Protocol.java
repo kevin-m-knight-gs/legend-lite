@@ -47,9 +47,14 @@ public final class Protocol {
      *  envelope {associationMappings, classMappings, enumerationMappings,
      *  includedMappings, name, package, sourceInformation, tests}. Class
      *  mapping families land probe-by-probe; unbuilt ones WALL. */
+    /** Class mappings emit in SOURCE ORDER — one sealed list. */
+    public sealed interface PClassMapping
+            permits PClassMappingRel, PClassMappingPure,
+            PClassMappingOperation {
+    }
+
     public record PMapping(String pkg, String name,
-                           List<PClassMappingRel> classMappings,
-                           List<PClassMappingPure> pureClassMappings,
+                           List<PClassMapping> classMappings,
                            List<PEnumerationMapping> enumerationMappings,
                            List<PMappingInclude> includedMappings,
                            com.legend.protocol.SourceInfo sourceInformation)
@@ -73,7 +78,21 @@ public final class Protocol {
                                    @com.legend.Nullable PTablePtr mainTable,
                                    List<PRelOp> primaryKey,
                                    List<PRelPropertyMapping> propertyMappings,
-                                   com.legend.protocol.SourceInfo sourceInformation) {
+                                   com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
+    }
+
+    /** {@code _type:"operation"} class mapping: the called FQN maps to the
+     *  operation discriminator by EXACT FQN (union_*=STORE_UNION etc.);
+     *  parameters are bare set ids (probe operation). */
+    public record PClassMappingOperation(String className,
+                                         com.legend.protocol.SourceInfo classSourceInformation,
+                                         @com.legend.Nullable String id,
+                                         boolean root,
+                                         String operation,
+                                         List<String> parameters,
+                                         com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
     }
 
     /** {@code _type:"pureInstance"} class mapping (probe pure-m2m):
@@ -86,7 +105,8 @@ public final class Protocol {
                                     @com.legend.Nullable String srcClass,
                                     @com.legend.Nullable com.legend.protocol.SourceInfo sourceClassSourceInformation,
                                     List<PPurePropertyMapping> propertyMappings,
-                                    com.legend.protocol.SourceInfo sourceInformation) {
+                                    com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
     }
 
     public record PPurePropertyMapping(String ownerClass, String property,
