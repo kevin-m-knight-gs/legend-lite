@@ -116,7 +116,12 @@ G7_MIN_RUN=348; G7_MAX_FAIL=1; G7_MAX_ERR=22
 if want 7; then
   g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"
   ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn "${OFF[@]}" test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 ) > "$OUT/g7.out" 2>&1
-  G7_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" "$OUT/g7.out" | tail -1)
+  # Anchor on the SUITE line, not `tail -1`. Surefire prints a trailing
+  # "Tests run: 1, Failures: 0, Errors: 1" summarising failing CLASSES, and
+  # taking the last match picks that instead of the 348-test result — which
+  # reported a false RED on a genuinely ledgered run.
+  G7_LINE=$(grep -E "Tests run: .*Test_LegendLite_RelationFunctions_PCT" "$OUT/g7.out" | tail -1)
+  [ -z "$G7_LINE" ] && G7_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" "$OUT/g7.out" | tail -1)
   G7=1
   if [[ "$G7_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
     R=${BASH_REMATCH[1]}; F=${BASH_REMATCH[2]}; E=${BASH_REMATCH[3]}
