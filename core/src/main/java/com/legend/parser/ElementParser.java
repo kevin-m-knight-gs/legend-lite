@@ -2257,6 +2257,274 @@ public final class ElementParser implements TokenStreamCursor {
         match(TokenType.SEMI_COLON);
     }
 
+    /**
+     * PROTOCOL-path ###Connection element parse (section-parity leg 2):
+     * {@code <Flavor> qn { body }} — the BODY grammar is shared with
+     * embedded runtime islands ({@link #parseConnectionValue}), so there is
+     * one connection grammar. Envelope and value share one span
+     * (ZConnectionProbe).
+     */
+    public com.legend.protocol.Protocol.PConnection parseConnectionProtocol() {
+        int declStart = pos;
+        String flavor = safeText();
+        advance();
+        String qn = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
+        int cut = qn.lastIndexOf("::");
+        String pkg = cut < 0 ? "" : qn.substring(0, cut);
+        String name = cut < 0 ? qn : qn.substring(cut + 2);
+        com.legend.protocol.Protocol.PConnectionValue value =
+                parseConnectionValue(flavor, declStart, true);
+        return new com.legend.protocol.Protocol.PConnection(pkg, name, value,
+                spanOf(declStart, pos - 1));
+    }
+
+    /**
+     * One connection VALUE body {@code { key: ...; }} for {@code flavor}.
+     * {@code standalone} controls the model-connection {@code element}
+     * field ({@code "ModelStore"} for section elements, absent embedded).
+     * Corpus-censused shapes only; anything else refuses loudly.
+     */
+    com.legend.protocol.Protocol.PConnectionValue parseConnectionValue(
+            String flavor, int declStart, boolean standalone) {
+        return switch (flavor) {
+            case "JsonModelConnection", "XmlModelConnection" -> {
+                ModelConnBody body = parseModelConnectionBody();
+                com.legend.protocol.SourceInfo span =
+                        spanOf(declStart, pos - 1);
+                yield "JsonModelConnection".equals(flavor)
+                        ? new com.legend.protocol.Protocol.PJsonModelConnection(
+                                body.cls(), body.clsSpan(),
+                                standalone ? "ModelStore" : null, body.url(), span)
+                        : new com.legend.protocol.Protocol.PXmlModelConnection(
+                                body.cls(), body.clsSpan(),
+                                standalone ? "ModelStore" : null, body.url(), span);
+            }
+            case "ModelChainConnection" -> parseModelChainBody(declStart,
+                    standalone);
+            case "RelationalDatabaseConnection" ->
+                    parseRelationalConnectionBody(declStart);
+            default -> throw error("unsupported connection flavor: " + flavor);
+        };
+    }
+
+    private record ModelConnBody(String cls,
+            com.legend.protocol.SourceInfo clsSpan, String url) {
+    }
+
+    private ModelConnBody parseModelConnectionBody() {
+        expect(TokenType.BRACE_OPEN);
+        String cls = null;
+        com.legend.protocol.SourceInfo clsSpan = null;
+        String url = null;
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            String key = parseIdentifier();
+            expect(TokenType.COLON);
+            if ("class".equals(key)) {
+                int cS = pos;
+                cls = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
+                clsSpan = spanOf(cS, pos - 1);
+            } else if ("url".equals(key)) {
+                String quoted = text();
+                expect(TokenType.STRING);
+                url = TokenStreamCursor.unquoteAndUnescape(quoted, this);
+            } else {
+                throw error("unknown model-connection key: " + key);
+            }
+            expect(TokenType.SEMI_COLON);
+        }
+        expect(TokenType.BRACE_CLOSE);
+        if (cls == null || clsSpan == null || url == null) {
+            throw error("model connection needs class and url");
+        }
+        return new ModelConnBody(cls, clsSpan, url);
+    }
+
+    private com.legend.protocol.Protocol.PModelChainConnection
+            parseModelChainBody(int declStart, boolean standalone) {
+        expect(TokenType.BRACE_OPEN);
+        List<String> mappings = new ArrayList<>();
+        com.legend.protocol.SourceInfo mapSpan = null;
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            int kS = pos;
+            String key = safeText();
+            if (peek() != TokenType.MAPPINGS) {
+                throw error("unknown ModelChainConnection key: " + key);
+            }
+            advance();
+            expect(TokenType.COLON);
+            expect(TokenType.BRACKET_OPEN);
+            while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                mappings.add(com.legend.protocol.Protocol
+                        .unquotePath(parseQualifiedName()));
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.BRACKET_CLOSE);
+            match(TokenType.SEMI_COLON);        // span INCLUDES the ';' (probe)
+            mapSpan = spanOf(kS, pos - 1);
+        }
+        expect(TokenType.BRACE_CLOSE);
+        if (mapSpan == null) {
+            throw error("ModelChainConnection needs mappings");
+        }
+        return new com.legend.protocol.Protocol.PModelChainConnection(
+                standalone ? "ModelStore" : null, mappings, mapSpan,
+                spanOf(declStart, pos - 1));
+    }
+
+    private com.legend.protocol.Protocol.PRelationalDatabaseConnection
+            parseRelationalConnectionBody(int declStart) {
+        expect(TokenType.BRACE_OPEN);
+        String element = null;
+        com.legend.protocol.SourceInfo elementSpan = null;
+        String dbType = null;
+        com.legend.protocol.Protocol.PDatasourceSpec spec = null;
+        com.legend.protocol.Protocol.PAuthStrategy auth = null;
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            int kS = pos;
+            String key = parseIdentifier();
+            expect(TokenType.COLON);
+            switch (key) {
+                case "store" -> {
+                    int eS = pos;
+                    element = com.legend.protocol.Protocol
+                            .unquotePath(parseQualifiedName());
+                    elementSpan = spanOf(eS, pos - 1);
+                    expect(TokenType.SEMI_COLON);
+                }
+                case "type" -> {
+                    dbType = parseIdentifier();
+                    expect(TokenType.SEMI_COLON);
+                }
+                case "specification" -> spec = parseDatasourceSpec(kS);
+                case "auth" -> auth = parseAuthStrategy(kS);
+                default -> throw error(
+                        "unknown RelationalDatabaseConnection key: " + key);
+            }
+        }
+        expect(TokenType.BRACE_CLOSE);
+        if (element == null || elementSpan == null || dbType == null
+                || spec == null || auth == null) {
+            throw error("RelationalDatabaseConnection needs store, type,"
+                    + " specification and auth");
+        }
+        return new com.legend.protocol.Protocol.PRelationalDatabaseConnection(
+                auth, dbType, spec, element, elementSpan,
+                spanOf(declStart, pos - 1));
+    }
+
+    /** Spec span runs the {@code specification} KEYWORD through the closing
+     *  token of the body (probes: LocalH2 one-line and Static multi-line). */
+    private com.legend.protocol.Protocol.PDatasourceSpec parseDatasourceSpec(
+            int keywordTok) {
+        String kind = parseIdentifier();
+        return switch (kind) {
+            case "LocalH2" -> {
+                List<String> sqls = null;
+                expect(TokenType.BRACE_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                    String key = parseIdentifier();
+                    expect(TokenType.COLON);
+                    if (!"testDataSetupSqls".equals(key)) {
+                        throw error("unknown LocalH2 key: " + key);
+                    }
+                    sqls = new ArrayList<>();
+                    expect(TokenType.BRACKET_OPEN);
+                    while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                        String quoted = text();
+                        expect(TokenType.STRING);
+                        sqls.add(TokenStreamCursor.unquoteAndUnescape(quoted, this));
+                        match(TokenType.COMMA);
+                    }
+                    expect(TokenType.BRACKET_CLOSE);
+                    match(TokenType.SEMI_COLON);
+                }
+                expect(TokenType.BRACE_CLOSE);
+                expect(TokenType.SEMI_COLON);   // span INCLUDES the ';' (probe)
+                yield new com.legend.protocol.Protocol.PH2Local(sqls,
+                        spanOf(keywordTok, pos - 1));
+            }
+            case "Static" -> {
+                expect(TokenType.BRACE_OPEN);
+                String name = null;
+                String host = null;
+                Long port = null;
+                while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                    String key = parseIdentifier();
+                    expect(TokenType.COLON);
+                    switch (key) {
+                        case "name" -> {
+                            String quoted = text();
+                            expect(TokenType.STRING);
+                            name = TokenStreamCursor.unquoteAndUnescape(quoted, this);
+                        }
+                        case "host" -> {
+                            String quoted = text();
+                            expect(TokenType.STRING);
+                            host = TokenStreamCursor.unquoteAndUnescape(quoted, this);
+                        }
+                        case "port" -> {
+                            port = Long.parseLong(text());
+                            expect(TokenType.INTEGER);
+                        }
+                        default -> throw error("unknown Static key: " + key);
+                    }
+                    expect(TokenType.SEMI_COLON);
+                }
+                expect(TokenType.BRACE_CLOSE);
+                expect(TokenType.SEMI_COLON);   // span INCLUDES the ';' (probe)
+                if (name == null || host == null || port == null) {
+                    throw error("Static needs name, host and port");
+                }
+                yield new com.legend.protocol.Protocol.PStaticSpec(name, host,
+                        port, spanOf(keywordTok, pos - 1));
+            }
+            default -> throw error("unsupported datasource specification: "
+                    + kind + " (corpus-censused shapes only)");
+        };
+    }
+
+    /** Auth span runs the {@code auth} KEYWORD through the last body token
+     *  (bodyless: through the kind identifier). */
+    private com.legend.protocol.Protocol.PAuthStrategy parseAuthStrategy(
+            int keywordTok) {
+        String kind = parseIdentifier();
+        return switch (kind) {
+            case "DefaultH2" -> {
+                expect(TokenType.SEMI_COLON);   // span INCLUDES the ';' (probe)
+                yield new com.legend.protocol.Protocol.PH2Default(
+                        spanOf(keywordTok, pos - 1));
+            }
+            case "Test" -> {
+                expect(TokenType.SEMI_COLON);
+                yield new com.legend.protocol.Protocol.PTestAuth(
+                        spanOf(keywordTok, pos - 1));
+            }
+            case "DelegatedKerberos" -> {
+                String principal = null;
+                if (peek() == TokenType.BRACE_OPEN) {
+                    advance();
+                    while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                        String key = parseIdentifier();
+                        expect(TokenType.COLON);
+                        if (!"serverPrincipal".equals(key)) {
+                            throw error("unknown DelegatedKerberos key: " + key);
+                        }
+                        String quoted = text();
+                        expect(TokenType.STRING);
+                        principal = TokenStreamCursor.unquoteAndUnescape(quoted, this);
+                        expect(TokenType.SEMI_COLON);
+                    }
+                    expect(TokenType.BRACE_CLOSE);
+                }
+                expect(TokenType.SEMI_COLON);
+                yield new com.legend.protocol.Protocol.PDelegatedKerberos(
+                        principal, spanOf(keywordTok, pos - 1));
+            }
+            default -> throw error("unsupported auth strategy: " + kind
+                    + " (corpus-censused shapes only)");
+        };
+    }
+
     /** Embedded {@code #{ JsonModelConnection {...} }#} island — the engine
      *  reparses the content through the Connection grammar with walker
      *  offsets, so spans stay file-absolute. Only JsonModelConnection has a
@@ -2279,41 +2547,9 @@ public final class ElementParser implements TokenStreamCursor {
         ElementParser p = new ElementParser(Lexer.tokenize(emb),
                 baseLine - 1, baseCol - 1);
         String flavor = p.safeText();
-        if (!"JsonModelConnection".equals(flavor)) {
-            throw error("unsupported embedded connection flavor (only"
-                    + " JsonModelConnection is supported): " + flavor);
-        }
         int fStart = p.pos;
         p.advance();
-        p.expect(TokenType.BRACE_OPEN);
-        String cls = null;
-        com.legend.protocol.SourceInfo clsSpan = null;
-        String url = null;
-        while (!p.atEnd() && p.peek() != TokenType.BRACE_CLOSE) {
-            String key = p.parseIdentifier();
-            p.expect(TokenType.COLON);
-            if ("class".equals(key)) {
-                int cS = p.pos;
-                cls = com.legend.protocol.Protocol
-                        .unquotePath(p.parseQualifiedName());
-                clsSpan = p.spanOf(cS, p.pos - 1);
-            } else if ("url".equals(key)) {
-                String quoted = p.text();
-                p.expect(TokenType.STRING);
-                url = TokenStreamCursor.unquoteAndUnescape(quoted, p);
-            } else {
-                throw p.error("unknown JsonModelConnection key: " + key);
-            }
-            p.expect(TokenType.SEMI_COLON);
-        }
-        int bodyEnd = p.pos;
-        p.expect(TokenType.BRACE_CLOSE);
-        if (cls == null || clsSpan == null || url == null) {
-            throw p.error("malformed JsonModelConnection (class and url"
-                    + " are both required)");
-        }
-        return new com.legend.protocol.Protocol.PJsonModelConnection(
-                cls, clsSpan, url, p.spanOf(fStart, bodyEnd));
+        return p.parseConnectionValue(flavor, fStart, false);
     }
 
     private RuntimeDefinition parseRuntime() {

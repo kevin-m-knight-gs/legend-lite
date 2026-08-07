@@ -75,6 +75,7 @@ public final class ProtocolEmitter {
             case Protocol.PProfile pr -> profile(b, pr);
             case PSectionIndex s -> sectionIndex(b, s);
             case Protocol.PRuntime r -> runtime(b, r);
+            case Protocol.PConnection c -> connection(b, c);
         }
     }
 
@@ -165,6 +166,20 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
+    /** {@code _type:"connection"} envelope — element and value share one
+     *  span (ZConnectionProbe). */
+    private static void connection(StringBuilder b, Protocol.PConnection c) {
+        b.append("{\"_type\":\"connection\",\"connectionValue\":");
+        connectionValue(b, c.value());
+        b.append(",\"name\":");
+        str(b, c.name());
+        b.append(",\"package\":");
+        str(b, c.pkg());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, c.sourceInformation());
+        b.append('}');
+    }
+
     private static void connectionValue(StringBuilder b,
             Protocol.PConnectionValue v) {
         switch (v) {
@@ -175,15 +190,123 @@ public final class ProtocolEmitter {
                 srcInfo(b, cp.sourceInformation());
                 b.append('}');
             }
-            case Protocol.PJsonModelConnection jc -> {
-                b.append("{\"_type\":\"JsonModelConnection\",\"class\":");
-                str(b, jc.className());
-                b.append(",\"classSourceInformation\":");
-                srcInfo(b, jc.classSourceInformation());
+            case Protocol.PJsonModelConnection jc -> modelConnection(b,
+                    "JsonModelConnection", jc.className(),
+                    jc.classSourceInformation(), jc.element(), jc.url(),
+                    jc.sourceInformation());
+            case Protocol.PXmlModelConnection xc -> modelConnection(b,
+                    "XmlModelConnection", xc.className(),
+                    xc.classSourceInformation(), xc.element(), xc.url(),
+                    xc.sourceInformation());
+            case Protocol.PModelChainConnection mc -> {
+                b.append("{\"_type\":\"ModelChainConnection\"");
+                if (mc.element() != null) {
+                    b.append(",\"element\":");
+                    str(b, mc.element());
+                }
+                b.append(",\"mappings\":[");
+                for (int i = 0; i < mc.mappings().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    str(b, mc.mappings().get(i));
+                }
+                b.append("],\"mappingsSourceInformation\":");
+                srcInfo(b, mc.mappingsSourceInformation());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, jc.sourceInformation());
-                b.append(",\"url\":");
-                str(b, jc.url());
+                srcInfo(b, mc.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PRelationalDatabaseConnection rc -> {
+                b.append("{\"_type\":\"RelationalDatabaseConnection\","
+                        + "\"authenticationStrategy\":");
+                authStrategy(b, rc.authenticationStrategy());
+                b.append(",\"databaseType\":");
+                str(b, rc.databaseType());
+                b.append(",\"datasourceSpecification\":");
+                datasourceSpec(b, rc.datasourceSpecification());
+                b.append(",\"element\":");
+                str(b, rc.element());
+                b.append(",\"elementSourceInformation\":");
+                srcInfo(b, rc.elementSourceInformation());
+                b.append(",\"postProcessorWithParameter\":[]"
+                        + ",\"sourceInformation\":");
+                srcInfo(b, rc.sourceInformation());
+                b.append(",\"type\":");
+                str(b, rc.databaseType());
+                b.append('}');
+            }
+        }
+    }
+
+    private static void modelConnection(StringBuilder b, String type,
+            String className, SourceInfo classSpan,
+            @com.legend.Nullable String element, String url, SourceInfo span) {
+        b.append("{\"_type\":\"").append(type).append("\",\"class\":");
+        str(b, className);
+        b.append(",\"classSourceInformation\":");
+        srcInfo(b, classSpan);
+        if (element != null) {
+            b.append(",\"element\":");
+            str(b, element);
+        }
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, span);
+        b.append(",\"url\":");
+        str(b, url);
+        b.append('}');
+    }
+
+    private static void authStrategy(StringBuilder b, Protocol.PAuthStrategy a) {
+        switch (a) {
+            case Protocol.PH2Default h -> {
+                b.append("{\"_type\":\"h2Default\",\"sourceInformation\":");
+                srcInfo(b, h.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PTestAuth t -> {
+                b.append("{\"_type\":\"test\",\"sourceInformation\":");
+                srcInfo(b, t.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PDelegatedKerberos k -> {
+                b.append("{\"_type\":\"delegatedKerberos\"");
+                if (k.serverPrincipal() != null) {
+                    b.append(",\"serverPrincipal\":");
+                    str(b, k.serverPrincipal());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, k.sourceInformation());
+                b.append('}');
+            }
+        }
+    }
+
+    private static void datasourceSpec(StringBuilder b, Protocol.PDatasourceSpec d) {
+        switch (d) {
+            case Protocol.PH2Local h -> {
+                b.append("{\"_type\":\"h2Local\",\"sourceInformation\":");
+                srcInfo(b, h.sourceInformation());
+                if (h.testDataSetupSqls() != null) {
+                    b.append(",\"testDataSetupSqls\":[");
+                    for (int i = 0; i < h.testDataSetupSqls().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        str(b, h.testDataSetupSqls().get(i));
+                    }
+                    b.append(']');
+                }
+                b.append('}');
+            }
+            case Protocol.PStaticSpec st -> {
+                b.append("{\"_type\":\"static\",\"databaseName\":");
+                str(b, st.databaseName());
+                b.append(",\"host\":");
+                str(b, st.host());
+                b.append(",\"port\":").append(st.port());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, st.sourceInformation());
                 b.append('}');
             }
         }

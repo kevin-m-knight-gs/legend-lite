@@ -46,9 +46,15 @@ class CorpusEquivalenceTest {
      * records + emitter, connection IDs and order kept, embedded
      * JsonModelConnection islands re-lexed under walker offsets; the 18
      * remaining Runtime rows WALL on embedded RelationalDatabaseConnection,
-     * which is the Connection leg's grammar. */
-    private static final int MIN_ELEMENTS_COMPARED = 22792;
-    private static final int MIN_MATCHES = 22792;
+     * which is the Connection leg's grammar.
+     * 22,792 -> 22,854: ###Connection byte parity — PConnection + 4 value
+     * flavors, corpus-censused specs/auths (LocalH2, Static, DefaultH2,
+     * Test, DelegatedKerberos), spec/auth/mappings spans INCLUDE the
+     * trailing ';' (probe); embedded runtime islands reuse the ONE
+     * connection grammar, converting 14 runtime walls. 20 walls remain:
+     * testDataSetupCSV, postProcessors, UserNamePassword. */
+    private static final int MIN_ELEMENTS_COMPARED = 22854;
+    private static final int MIN_MATCHES = 22854;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

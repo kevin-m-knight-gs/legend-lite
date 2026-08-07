@@ -87,6 +87,7 @@ public final class ParserEquivalence {
         // come from the same line-anchored ### rule it applies).
         List<long[]> pureRanges = sectionRanges(src.text(), "Pure", true);
         List<long[]> runtimeRanges = sectionRanges(src.text(), "Runtime", false);
+        List<long[]> connectionRanges = sectionRanges(src.text(), "Connection", false);
 
         Ref ref;
         try {
@@ -104,7 +105,9 @@ public final class ParserEquivalence {
         com.legend.lexer.TokenStream ts = Lexer.tokenize(src.text());
         java.util.List<int[]> sites = pureSites(ts, pureRanges);
         sites.addAll(runtimeSites(ts, runtimeRanges));
+        sites.addAll(connectionSites(ts, connectionRanges));
         boolean runtimeWalled = false;
+        boolean connectionWalled = false;
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -133,6 +136,10 @@ public final class ParserEquivalence {
                     Protocol.PRuntime rt = ElementParser.at(ts, site[0]).parseRuntimeProtocol();
                     el = rt;
                     fqn = rt.qualifiedName();
+                } else if (site[1] == 7) {
+                    Protocol.PConnection cn = ElementParser.at(ts, site[0]).parseConnectionProtocol();
+                    el = cn;
+                    fqn = cn.qualifiedName();
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -149,6 +156,10 @@ public final class ParserEquivalence {
                     runtimeWalled = true;
                     out.add(new Verdict(Kind.WALL, src.id(), "?",
                             "runtime: " + root(t)));
+                } else if (site[1] == 7) {
+                    connectionWalled = true;
+                    out.add(new Verdict(Kind.WALL, src.id(), "?",
+                            "connection: " + root(t)));
                 } else {
                     out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 }
@@ -163,7 +174,7 @@ public final class ParserEquivalence {
                 String prefix = "{\"_type\":\""
                         + new String[]{"class", "Enumeration", "profile",
                                 "association", "function", "measure",
-                                "runtime"}[site[1]]
+                                "runtime", "connection"}[site[1]]
                         + "\"";
                 int pick = 0;
                 for (int q = 0; q < queue.size(); q++) {
@@ -201,7 +212,8 @@ public final class ParserEquivalence {
                 // same path in two sections (Class X + Mapping X)
                 boolean pureKind = false;
                 for (String t : new String[]{"class", "Enumeration", "profile",
-                        "association", "function", "measure", "runtime"}) {
+                        "association", "function", "measure", "runtime",
+                        "connection"}) {
                     if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
                         pureKind = true;
                         break;
@@ -211,6 +223,12 @@ public final class ParserEquivalence {
                         && leftover.startsWith("{\"_type\":\"runtime\"")) {
                     out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
                             "runtime: unbuilt sub-grammar (walled site)"));
+                    continue;
+                }
+                if (pureKind && connectionWalled
+                        && leftover.startsWith("{\"_type\":\"connection\"")) {
+                    out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
+                            "connection: unbuilt sub-grammar (walled site)"));
                     continue;
                 }
                 String sec = ref.sectionOf().getOrDefault(e.getKey(), "?");
@@ -299,6 +317,41 @@ public final class ParserEquivalence {
             ranges.add(new long[]{start, text.length()});
         }
         return ranges;
+    }
+
+    /** Connection-section declaration sites: kind 7 — flavor keywords lex
+     *  as identifiers (except RelationalDatabaseConnection's own token), so
+     *  match by TEXT at declaration positions. */
+    private static java.util.List<int[]> connectionSites(
+            com.legend.lexer.TokenStream ts, List<long[]> ranges) {
+        java.util.List<int[]> sites = new ArrayList<>();
+        java.util.Set<String> flavors = java.util.Set.of("JsonModelConnection",
+                "XmlModelConnection", "ModelChainConnection",
+                "RelationalDatabaseConnection");
+        int cursor = 0;
+        for (long[] r : ranges) {
+            while (cursor < ts.count() && ts.start(cursor) < r[0]) {
+                cursor++;
+            }
+            int depth = 0;
+            boolean declPos = true;
+            for (; cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
+                com.legend.lexer.TokenType t = ts.type(cursor);
+                switch (t) {
+                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                    default -> {
+                        if (depth == 0 && declPos
+                                && flavors.contains(ts.text(cursor))) {
+                            sites.add(new int[]{cursor, 7});
+                        }
+                    }
+                }
+                declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
+                        || t == com.legend.lexer.TokenType.SEMI_COLON;
+            }
+        }
+        return sites;
     }
 
     /** Runtime-section declaration sites: kind 6, same per-range depth

@@ -39,7 +39,18 @@ public final class Protocol {
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
-            PProfile, PSectionIndex, PMeasure, PRuntime {
+            PProfile, PSectionIndex, PMeasure, PRuntime, PConnection {
+    }
+
+    /** {@code _type:"connection"} — a ###Connection element: envelope
+     *  {name, package, connectionValue, sourceInformation}; element and
+     *  value share ONE span (ZConnectionProbe). */
+    public record PConnection(String pkg, String name, PConnectionValue value,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
     }
 
     /**
@@ -90,9 +101,12 @@ public final class Protocol {
                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    /** A connection VALUE inside a runtime: a pointer or an embedded island. */
+    /** A connection VALUE: a pointer, or a concrete connection (standalone
+     *  ###Connection element or embedded runtime island). */
     public sealed interface PConnectionValue
-            permits PConnectionPointer, PJsonModelConnection {
+            permits PConnectionPointer, PJsonModelConnection,
+            PXmlModelConnection, PModelChainConnection,
+            PRelationalDatabaseConnection {
     }
 
     /** {@code _type:"connectionPointer"}. */
@@ -102,12 +116,84 @@ public final class Protocol {
     }
 
     /** {@code _type:"JsonModelConnection"} — class + classSourceInformation
-     *  + url (probe embedded-json). */
+     *  + url; {@code element} is {@code "ModelStore"} for STANDALONE
+     *  connection elements and null when embedded in a runtime (probes
+     *  embedded-json vs json). */
     public record PJsonModelConnection(String className,
                                        com.legend.protocol.SourceInfo classSourceInformation,
+                                       @com.legend.Nullable String element,
                                        String url,
                                        com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
+    }
+
+    /** {@code _type:"XmlModelConnection"} — same shape as Json (probe xml). */
+    public record PXmlModelConnection(String className,
+                                      com.legend.protocol.SourceInfo classSourceInformation,
+                                      @com.legend.Nullable String element,
+                                      String url,
+                                      com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
+    }
+
+    /** {@code _type:"ModelChainConnection"} — mappings as STRINGS + one
+     *  mappingsSourceInformation (probe model-chain). */
+    public record PModelChainConnection(@com.legend.Nullable String element,
+                                        List<String> mappings,
+                                        com.legend.protocol.SourceInfo mappingsSourceInformation,
+                                        com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
+    }
+
+    /** {@code _type:"RelationalDatabaseConnection"} — databaseType AND type
+     *  both spelled; spec/auth spans run keyword..close (probes
+     *  relational-*). Only corpus-censused spec/auth shapes exist; the
+     *  parser WALLS the rest loudly. */
+    public record PRelationalDatabaseConnection(
+            PAuthStrategy authenticationStrategy,
+            String databaseType,
+            PDatasourceSpec datasourceSpecification,
+            String element,
+            com.legend.protocol.SourceInfo elementSourceInformation,
+            com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
+    }
+
+    /** Datasource specifications the corpus actually uses. */
+    public sealed interface PDatasourceSpec permits PH2Local, PStaticSpec {
+    }
+
+    /** {@code _type:"h2Local"}; testDataSetupSqls omitted when absent. */
+    public record PH2Local(@com.legend.Nullable List<String> testDataSetupSqls,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"static"} — name: spells databaseName on the wire. */
+    public record PStaticSpec(String databaseName, String host, long port,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** Authentication strategies the corpus actually uses. */
+    public sealed interface PAuthStrategy
+            permits PH2Default, PTestAuth, PDelegatedKerberos {
+    }
+
+    /** {@code _type:"h2Default"}. */
+    public record PH2Default(com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
+    /** {@code _type:"test"}. */
+    public record PTestAuth(com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
+    }
+
+    /** {@code _type:"delegatedKerberos"}; serverPrincipal optional. */
+    public record PDelegatedKerberos(@com.legend.Nullable String serverPrincipal,
+                                     com.legend.protocol.SourceInfo sourceInformation)
+            implements PAuthStrategy {
     }
 
     /**
