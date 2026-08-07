@@ -55,6 +55,7 @@ public final class Protocol {
     }
 
     public record PRelAssociationMapping(PPointer association,
+                                         @com.legend.Nullable String id,
                                          List<PRelAssocPropertyMapping> propertyMappings,
                                          List<String> stores,
                                          com.legend.protocol.SourceInfo sourceInformation)
@@ -64,6 +65,8 @@ public final class Protocol {
     public record PRelAssocPropertyMapping(String property,
                                            com.legend.protocol.SourceInfo propertySourceInformation,
                                            PRelOp relationalOperation,
+                                           @com.legend.Nullable String source,
+                                           @com.legend.Nullable String target,
                                            com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -108,10 +111,11 @@ public final class Protocol {
                                    boolean root,
                                    boolean distinct,
                                    @com.legend.Nullable String extendsClassMappingId,
+                                   @com.legend.Nullable PFilterMapping filter,
                                    List<PRelOp> groupBy,
                                    @com.legend.Nullable PTablePtr mainTable,
                                    List<PRelOp> primaryKey,
-                                   List<PRelPropertyMapping> propertyMappings,
+                                   List<PPropertyMapping> propertyMappings,
                                    com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
     }
@@ -138,6 +142,7 @@ public final class Protocol {
                                     boolean root,
                                     @com.legend.Nullable String srcClass,
                                     @com.legend.Nullable com.legend.protocol.SourceInfo sourceClassSourceInformation,
+                                    @com.legend.Nullable List<com.legend.protocol.spec.ValueSpecification> filter,
                                     List<PPurePropertyMapping> propertyMappings,
                                     com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
@@ -150,13 +155,51 @@ public final class Protocol {
                                        com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    public record PRelPropertyMapping(String ownerClass, String property,
+    /** A relational class-mapping property line — plain column/nav lines
+     *  and embedded blocks ({@code emb[k] ( ... )}) share the list. */
+    public sealed interface PPropertyMapping
+            permits PRelPropertyMapping, PEmbeddedPropertyMapping {
+    }
+
+    public record PRelPropertyMapping(@com.legend.Nullable String ownerClass,
+                                      String property,
                                       com.legend.protocol.SourceInfo propertySourceInformation,
                                       @com.legend.Nullable String enumMappingId,
+                                      @com.legend.Nullable PLocalProp localMappingProperty,
                                       PRelOp relationalOperation,
                                       @com.legend.Nullable String source,
                                       @com.legend.Nullable String target,
-                                      com.legend.protocol.SourceInfo sourceInformation) {
+                                      com.legend.protocol.SourceInfo sourceInformation)
+            implements PPropertyMapping {
+    }
+
+    /** {@code +prop: Type[m]: <op>} — a mapping-local property; the span
+     *  runs the FIRST colon through the multiplicity bracket (probe
+     *  local-prop). */
+    public record PLocalProp(String type, long lowerBound,
+                             @com.legend.Nullable Long upperBound,
+                             com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code prop[k] ( lines... )} — {@code _type:
+     *  "embeddedPropertyMapping"}; the OUTER span and the nested
+     *  {@code _type:"embedded"} class mapping's span are BOTH the paren
+     *  region; the single bracket id rides id AND target AND the nested
+     *  mapping's id (probe embedded-plain/embedded-id-and-milestoning). */
+    public record PEmbeddedPropertyMapping(@com.legend.Nullable String ownerClass,
+                                           String property,
+                                           com.legend.protocol.SourceInfo propertySourceInformation,
+                                           @com.legend.Nullable String id,
+                                           List<PPropertyMapping> propertyMappings,
+                                           com.legend.protocol.SourceInfo sourceInformation)
+            implements PPropertyMapping {
+    }
+
+    /** {@code ~filter [db] NAME} / {@code ~filter [db]@J | [db2]NAME} —
+     *  span '~' through the name (probe rel-filter/rel-filter-joined). */
+    public record PFilterMapping(String db, String name,
+                                 List<PJoinPtr> joins,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code include [mapping] my::Other} — {@code _type:

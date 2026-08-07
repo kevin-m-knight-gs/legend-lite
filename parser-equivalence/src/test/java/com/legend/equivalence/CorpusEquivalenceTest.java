@@ -107,9 +107,14 @@ class CorpusEquivalenceTest {
      * TARGET, two = source,target), scope() flattening (header-table spans),
      * extends [id], include [src->tgt] substitution, inline
      * EnumerationMapping transforms, ~src as SRC_CMD token, merge_ op
-     * (NO discriminator on the wire). */
-    private static final int MIN_ELEMENTS_COMPARED = 23948;
-    private static final int MIN_MATCHES = 23948;
+     * (NO discriminator on the wire).
+     * 23,948 -> 24,108: batch 9 — ~filter (named + joined dialects), pure
+     * ~filter lambdas, embedded property mappings (recursive, paren-region
+     * spans), local +props (source=enclosing, walker:1241), association
+     * set-ids + member id, per-step [db] nav re-anchor; single bracket id
+     * is the TARGET, source stays the enclosing id (walker:1211-1216). */
+    private static final int MIN_ELEMENTS_COMPARED = 24108;
+    private static final int MIN_MATCHES = 24108;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

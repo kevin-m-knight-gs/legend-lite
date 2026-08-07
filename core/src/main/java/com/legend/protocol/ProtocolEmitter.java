@@ -179,6 +179,10 @@ public final class ProtocolEmitter {
                 case Protocol.PRelAssociationMapping ra -> {
                     b.append("{\"_type\":\"relational\",\"association\":");
                     pointer(b, ra.association());
+                    if (ra.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, ra.id());
+                    }
                     b.append(",\"propertyMappings\":[");
                     for (int j = 0; j < ra.propertyMappings().size(); j++) {
                         if (j > 0) {
@@ -193,8 +197,16 @@ public final class ProtocolEmitter {
                         srcInfo(b, pm.propertySourceInformation());
                         b.append("},\"relationalOperation\":");
                         relOp(b, pm.relationalOperation());
+                        if (pm.source() != null) {
+                            b.append(",\"source\":");
+                            str(b, pm.source());
+                        }
                         b.append(",\"sourceInformation\":");
                         srcInfo(b, pm.sourceInformation());
+                        if (pm.target() != null) {
+                            b.append(",\"target\":");
+                            str(b, pm.target());
+                        }
                         b.append('}');
                     }
                     b.append("],\"sourceInformation\":");
@@ -354,6 +366,19 @@ public final class ProtocolEmitter {
         str(b, cm.className());
         b.append(",\"classSourceInformation\":");
         srcInfo(b, cm.classSourceInformation());
+        if (cm.filter() != null) {
+            // ~filter lambda rides between the class span and id
+            // (probe pure-filter)
+            b.append(",\"filter\":{\"_type\":\"lambda\",\"body\":[");
+            List<com.legend.protocol.spec.ValueSpecification> fb = cm.filter();
+            for (int i = 0; i < fb.size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                valueSpec(b, fb.get(i));
+            }
+            b.append("],\"parameters\":[]}");
+        }
         if (cm.id() != null) {
             b.append(",\"id\":");
             str(b, cm.id());
@@ -412,6 +437,10 @@ public final class ProtocolEmitter {
             b.append(",\"extendsClassMappingId\":");
             str(b, cm.extendsClassMappingId());
         }
+        if (cm.filter() != null) {
+            b.append(",\"filter\":");
+            filterMapping(b, cm.filter());
+        }
         b.append(",\"groupBy\":[");
         for (int i = 0; i < cm.groupBy().size(); i++) {
             if (i > 0) {
@@ -440,36 +469,141 @@ public final class ProtocolEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            Protocol.PRelPropertyMapping pm = cm.propertyMappings().get(i);
-            b.append("{\"_type\":\"relationalPropertyMapping\",");
-            if (pm.enumMappingId() != null) {
-                b.append("\"enumMappingId\":");
-                str(b, pm.enumMappingId());
-                b.append(',');
-            }
-            b.append("\"property\":{\"class\":");
-            str(b, pm.ownerClass());
-            b.append(",\"property\":");
-            str(b, pm.property());
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, pm.propertySourceInformation());
-            b.append("},\"relationalOperation\":");
-            relOp(b, pm.relationalOperation());
-            if (pm.source() != null) {
-                b.append(",\"source\":");
-                str(b, pm.source());
-            }
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, pm.sourceInformation());
-            if (pm.target() != null) {
-                b.append(",\"target\":");
-                str(b, pm.target());
-            }
-            b.append('}');
+            relPropertyMapping(b, cm.propertyMappings().get(i));
         }
         b.append("],\"root\":").append(cm.root());
         b.append(",\"sourceInformation\":");
         srcInfo(b, cm.sourceInformation());
+        b.append('}');
+    }
+
+    private static void relPropertyMapping(StringBuilder b,
+            Protocol.PPropertyMapping pmi) {
+        switch (pmi) {
+            case Protocol.PRelPropertyMapping pm -> {
+                b.append("{\"_type\":\"relationalPropertyMapping\",");
+                if (pm.enumMappingId() != null) {
+                    b.append("\"enumMappingId\":");
+                    str(b, pm.enumMappingId());
+                    b.append(',');
+                }
+                if (pm.localMappingProperty() != null) {
+                    Protocol.PLocalProp lp = pm.localMappingProperty();
+                    b.append("\"localMappingProperty\":{\"multiplicity\":"
+                            + "{\"lowerBound\":");
+                    b.append(lp.lowerBound());
+                    if (lp.upperBound() != null) {
+                        b.append(",\"upperBound\":").append(lp.upperBound());
+                    }
+                    b.append("},\"sourceInformation\":");
+                    srcInfo(b, lp.sourceInformation());
+                    b.append(",\"type\":");
+                    str(b, lp.type());
+                    b.append("},");
+                }
+                b.append("\"property\":{");
+                if (pm.ownerClass() != null) {
+                    b.append("\"class\":");
+                    str(b, pm.ownerClass());
+                    b.append(',');
+                }
+                b.append("\"property\":");
+                str(b, pm.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, pm.propertySourceInformation());
+                b.append("},\"relationalOperation\":");
+                relOp(b, pm.relationalOperation());
+                if (pm.source() != null) {
+                    b.append(",\"source\":");
+                    str(b, pm.source());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, pm.sourceInformation());
+                if (pm.target() != null) {
+                    b.append(",\"target\":");
+                    str(b, pm.target());
+                }
+                b.append('}');
+            }
+            case Protocol.PEmbeddedPropertyMapping em -> {
+                b.append("{\"_type\":\"embeddedPropertyMapping\","
+                        + "\"classMapping\":{\"_type\":\"embedded\"");
+                if (em.id() != null) {
+                    b.append(",\"id\":");
+                    str(b, em.id());
+                }
+                b.append(",\"primaryKey\":[],\"propertyMappings\":[");
+                for (int i = 0; i < em.propertyMappings().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relPropertyMapping(b, em.propertyMappings().get(i));
+                }
+                b.append("],\"root\":false,\"sourceInformation\":");
+                srcInfo(b, em.sourceInformation());
+                b.append('}');
+                if (em.id() != null) {
+                    b.append(",\"id\":");
+                    str(b, em.id());
+                }
+                b.append(",\"property\":{");
+                if (em.ownerClass() != null) {
+                    b.append("\"class\":");
+                    str(b, em.ownerClass());
+                    b.append(',');
+                }
+                b.append("\"property\":");
+                str(b, em.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, em.propertySourceInformation());
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, em.sourceInformation());
+                if (em.id() != null) {
+                    b.append(",\"target\":");
+                    str(b, em.id());
+                }
+                b.append('}');
+            }
+        }
+    }
+
+    private static void joinPtr(StringBuilder b, Protocol.PJoinPtr jp) {
+        b.append('{');
+        String jdb = jp.db();
+        if (jdb != null) {
+            // bare @Join with NO db anywhere omits the key
+            // (probe bare-no-db, island TestSimpleGrammar#218)
+            b.append("\"db\":");
+            str(b, jdb);
+            b.append(',');
+        }
+        if (jp.joinType() != null) {
+            b.append("\"joinType\":");
+            str(b, jp.joinType());
+            b.append(',');
+        }
+        b.append("\"name\":");
+        str(b, jp.name());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, jp.sourceInformation());
+        b.append('}');
+    }
+
+    private static void filterMapping(StringBuilder b,
+            Protocol.PFilterMapping f) {
+        b.append("{\"filter\":{\"db\":");
+        str(b, f.db());
+        b.append(",\"name\":");
+        str(b, f.name());
+        b.append("},\"joins\":[");
+        for (int i = 0; i < f.joins().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            joinPtr(b, f.joins().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, f.sourceInformation());
         b.append('}');
     }
 
@@ -814,26 +948,7 @@ public final class ProtocolEmitter {
                     if (i > 0) {
                         b.append(',');
                     }
-                    Protocol.PJoinPtr jp = ej.joins().get(i);
-                    b.append('{');
-                    String jdb = jp.db();
-                    if (jdb != null) {
-                        // bare @Join with NO db anywhere omits the key
-                        // (probe bare-no-db, island TestSimpleGrammar#218)
-                        b.append("\"db\":");
-                        str(b, jdb);
-                        b.append(',');
-                    }
-                    if (jp.joinType() != null) {
-                        b.append("\"joinType\":");
-                        str(b, jp.joinType());
-                        b.append(',');
-                    }
-                    b.append("\"name\":");
-                    str(b, jp.name());
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, jp.sourceInformation());
-                    b.append('}');
+                    joinPtr(b, ej.joins().get(i));
                 }
                 b.append(']');
                 if (ej.relationalElement() != null) {

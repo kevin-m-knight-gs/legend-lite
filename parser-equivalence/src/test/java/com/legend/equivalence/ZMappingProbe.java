@@ -28,6 +28,162 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch8Shapes() throws Exception {
+        String db = """
+                ###Relational
+                Database my::DB
+                (
+                  Table t ( name VARCHAR(20), fid INT, from_z DATE, thru_z DATE )
+                  Table f ( id INT )
+                  Join J ( t.fid = f.id )
+                  Filter FLT ( t.fid > 0 )
+                )
+                """;
+        probe("assoc-set-ids", db + """
+                ###Mapping
+                Mapping my::M20
+                (
+                  my::A2: Relational
+                  {
+                    AssociationMapping
+                    (
+                      a[e1, a1] : [my::DB]@J,
+                      e[a1, e1] : [my::DB]@J
+                    )
+                  }
+                )
+                """);
+        probe("rel-filter", db + """
+                ###Mapping
+                Mapping my::M21
+                (
+                  my::S: Relational
+                  {
+                    ~filter [my::DB] FLT
+                    v: [my::DB]t.name
+                  }
+                )
+                """);
+        probe("rel-filter-joined", db + """
+                ###Mapping
+                Mapping my::M22
+                (
+                  my::S: Relational
+                  {
+                    ~filter [my::DB]@J | [my::DB]FLT
+                    v: [my::DB]t.name
+                  }
+                )
+                """);
+        probe("pure-filter", """
+                ###Pure
+                Class my::S2 { v: String[1]; }
+
+                ###Mapping
+                Mapping my::M23
+                (
+                  my::S2: Pure
+                  {
+                    ~src my::S2
+                    ~filter $src.v == 'x'
+                    v: $src.v
+                  }
+                )
+                """);
+        probe("embedded-plain", db + """
+                ###Mapping
+                Mapping my::M24
+                (
+                  my::S: Relational
+                  {
+                    v: [my::DB]t.name,
+                    emb
+                    (
+                      w: [my::DB]t.fid
+                    )
+                  }
+                )
+                """);
+        probe("embedded-id-and-milestoning", db + """
+                ###Mapping
+                Mapping my::M25
+                (
+                  my::S[s1] extends [s0]: Relational
+                  {
+                    milestoning[s1_m]
+                    (
+                      from: [my::DB]t.from_z,
+                      thru: [my::DB]t.thru_z
+                    ),
+                    emb[k]
+                    (
+                      w: [my::DB]t.fid
+                    )
+                  }
+                )
+                """);
+        probe("local-prop", db + """
+                ###Mapping
+                Mapping my::M26
+                (
+                  my::S: Relational
+                  {
+                    +localName: String[0..1]: [my::DB]t.name
+                  }
+                )
+                """);
+        probe("test-suites", """
+                ###Pure
+                Class my::P2 { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M27
+                (
+                  my::P2: Pure { ~src my::P2 n: $src.n }
+
+                  testSuites:
+                  [
+                    suite1:
+                    {
+                      function: |my::P2.all()->graphFetch(#{my::P2{n}}#)->serialize(#{my::P2{n}}#);
+                      tests:
+                      [
+                        test1:
+                        {
+                          data:
+                          [
+                            ModelStore: ModelStore
+                              #{
+                                my::P2:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '{"n": "x"}';
+                                  }#
+                              }#
+                          ];
+                          asserts:
+                          [
+                            expected:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '{"n": "x"}';
+                                  }#;
+                              }#
+                          ];
+                        }
+                      ];
+                    }
+                  ]
+                )
+                """);
+    }
+
+    @Test
     void batch7Shapes() throws Exception {
         String db = """
                 ###Relational
