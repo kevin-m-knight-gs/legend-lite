@@ -133,9 +133,17 @@ class CorpusEquivalenceTest {
      * SpecParser, member span target..outer brace) + Relation function
      * class mappings (_type relation, NO classSourceInformation, ~func
      * descriptor pointer path = tokens joined with NO spaces,
-     * relationFunctionPropertyMapping column lines). */
-    private static final int MIN_ELEMENTS_COMPARED = 24352;
-    private static final int MIN_MATCHES = 24352;
+     * relationFunctionPropertyMapping column lines).
+     * 24,352 -> 24,417: batch 13 — Relation extras (~primaryKey string
+     * list, +local props with class KEPT), merge bracket form (_type
+     * mergeOperation + MERGE + validationFunction whose spans emulate the
+     * engine's getText() CONCAT reparse anchored at the merge FQN token),
+     * enum source enum-refs, multi-substitution includes DROP both keys,
+     * trailing semicolons on operations, dotted refs under two-seg scope
+     * headers (table span stretches header-schema..local-table for 2-part
+     * refs, fully local for 3-part), extends on Pure mappings. */
+    private static final int MIN_ELEMENTS_COMPARED = 24417;
+    private static final int MIN_MATCHES = 24417;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

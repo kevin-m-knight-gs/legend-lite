@@ -28,6 +28,131 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch13Shapes() throws Exception {
+        probe("relation-extras", """
+                ###Relational
+                Database my::DBA
+                (
+                  Table ta ( FIRSTNAME VARCHAR(20), AGE INT, ID INT )
+                )
+
+                ###Pure
+                Class my::PA { firstName: String[1]; age: Integer[1]; }
+                function my::fnA(): meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::DBA.ta}#->select()
+                }
+
+                ###Mapping
+                Mapping my::M60
+                (
+                  *my::PA[pa]: Relation
+                  {
+                    ~func my::fnA():Relation<Any>[1]
+                    ~primaryKey: [FIRSTNAME]
+                    firstName: FIRSTNAME,
+                    +localAge: Integer[0..1]: AGE
+                  }
+                )
+                """);
+        probe("merge-params-lambda", """
+                ###Pure
+                Class my::PB { id: Integer[1]; }
+                Class my::SB1 { id: Integer[1]; }
+
+                ###Mapping
+                Mapping my::M61
+                (
+                  *my::PB : Operation
+                  {
+                    meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_([p1,p2],{s1:my::SB1[1], s2:my::SB1[1] | $s1.id == $s2.id })
+                  }
+                  my::PB[p1]: Pure { ~src my::SB1 id: $src.id }
+                  my::PB[p2]: Pure { ~src my::SB1 id: $src.id }
+                )
+                """);
+        probe("enum-source-enumref", """
+                ###Pure
+                Enum my::EC { CORP, LLC }
+                Enum my::Other { bla, blb }
+
+                ###Mapping
+                Mapping my::M62
+                (
+                  my::EC : EnumerationMapping a
+                  {
+                    CORP : [my::Other.bla],
+                    LLC : [my::Other.bla, my::Other.blb]
+                  }
+                )
+                """);
+        probe("include-multi-subst", """
+                ###Relational
+                Database my::DB1 ( Table t1 ( id INT ) )
+                Database my::DB2 ( Table t2 ( id INT ) )
+                Database my::DB3 ( include my::DB1 include my::DB2 )
+
+                ###Mapping
+                Mapping my::Base2 ()
+
+                Mapping my::M63
+                (
+                  include my::Base2[my::DB1 -> my::DB3, my::DB2 -> my::DB3]
+                )
+                """);
+        probe("op-trailing-semi", """
+                ###Pure
+                Class my::PD { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M64
+                (
+                  *my::PD : Operation
+                  {
+                    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(q1, q2);
+                  }
+                  my::PD[q1]: Pure { ~src my::PD n: $src.n }
+                  my::PD[q2]: Pure { ~src my::PD n: $src.n }
+                )
+                """);
+        probe("scope-dotted", """
+                ###Relational
+                Database my::DBE
+                (
+                  Table te ( FULL VARCHAR(20), P2 VARCHAR(20) )
+                  Table tx ( X VARCHAR(20) )
+                  Join JE ( te.FULL = tx.X )
+                )
+
+                ###Mapping
+                Mapping my::M65
+                (
+                  my::S: Relational
+                  {
+                    scope([my::DBE]default.te)
+                    (
+                      v : substring(FULL, 0, 1),
+                      w : tx.X,
+                      u : concat(FULL, @JE|tx.X)
+                    )
+                  }
+                )
+                """);
+        probe("extends-pure", """
+                ###Pure
+                Class my::SF { v: String[1]; }
+                Class my::TF extends my::SF { w: String[1]; }
+
+                ###Mapping
+                Mapping my::M66
+                (
+                  my::SF[sf]: Pure { ~src my::SF v: $src.v }
+                  my::TF[tf] extends [sf]: Pure { ~src my::SF w: $src.v }
+                )
+                """);
+    }
+
+    @Test
     void batch12Shapes() throws Exception {
         probe("modeljoin", """
                 ###Pure

@@ -37,7 +37,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  parse. Only headers WITH a table segment build one; db-only scopes
      *  just re-anchor {@code dbFqn}. */
     record ScopeCtx(String db, String schema, String table,
-            SourceInfo tableSpan) { }
+            SourceInfo tableSpan, boolean singleSeg) { }
 
     private final @com.legend.Nullable ScopeCtx scope;
 
@@ -630,7 +630,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return parseAtom(schemaCtx);
         }
         DatabaseProtocolParser p =
-                new DatabaseProtocolParser(tokens, pos, db);
+                new DatabaseProtocolParser(tokens, pos, db, scope);
         Protocol.PRelOp e = p.parseAtom(schemaCtx);
         this.pos = p.pos;
         return e;
@@ -893,10 +893,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         // A.col | S.T.col — schema-qualified when two dots; the TABLE
         // pointer's span runs through the TABLE token (probe: 'S.T1' 11-14)
-        if (scope != null && peek() == TokenType.DOT) {
-            // the engine treats the header segment as a SCHEMA prefix for
-            // dotted refs — span shape unprobed; refuse until probed
-            throw error("dotted ref under a table-scoped scope() header"
+        if (scope != null && scope.singleSeg() && peek() == TokenType.DOT) {
+            // a SINGLE-segment header acts as a SCHEMA prefix for dotted
+            // refs — span shape unprobed; two-segment headers parse
+            // dotted refs plainly (probe scope-dotted)
+            throw error("dotted ref under a single-segment scope() header"
                     + " is unprobed");
         }
         expect(TokenType.DOT);
@@ -905,16 +906,27 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         String schema = schemaCtx;
         String table = first;
         String column = second;
+        boolean explicitSchema = false;
         if (peek() == TokenType.DOT) {
             advance();
             schema = first;
             table = second;
             tblEnd = pos - 2;                       // through the table ident
             column = parseIdentifier();
+            explicitSchema = true;
         }
         SourceInfo span = spanOf(s, pos - 1);
+        SourceInfo tblSpan = spanOf(s, tblEnd);
+        if (scope != null && !scope.singleSeg() && !explicitSchema) {
+            // under a schema.table scope header, a dotted ref's TABLE
+            // pointer span STRETCHES from the header's schema through the
+            // LOCAL table token (probe scope-dotted w; chainedJoinsInner)
+            tblSpan = new SourceInfo("", scope.tableSpan().startLine(),
+                    scope.tableSpan().startColumn(), tblSpan.endLine(),
+                    tblSpan.endColumn());
+        }
         return new Protocol.PColumnRef(column, new Protocol.PTablePtr(
-                dbOrNull(), dbOrNull(), schema, table, spanOf(s, tblEnd)),
+                dbOrNull(), dbOrNull(), schema, table, tblSpan),
                 table, span);
     }
 }

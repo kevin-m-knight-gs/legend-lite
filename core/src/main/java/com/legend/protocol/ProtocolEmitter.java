@@ -276,6 +276,30 @@ public final class ProtocolEmitter {
             switch (m.classMappings().get(i)) {
                 case Protocol.PClassMappingRel r -> relClassMapping(b, r);
                 case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
+                case Protocol.PClassMappingMergeOperation mo -> {
+                    b.append("{\"_type\":\"mergeOperation\",\"class\":");
+                    str(b, mo.className());
+                    b.append(",\"classSourceInformation\":");
+                    srcInfo(b, mo.classSourceInformation());
+                    if (mo.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, mo.id());
+                    }
+                    b.append(",\"operation\":\"MERGE\",\"parameters\":[");
+                    for (int j = 0; j < mo.parameters().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        str(b, mo.parameters().get(j));
+                    }
+                    b.append("],\"root\":").append(mo.root());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, mo.sourceInformation());
+                    b.append(",\"validationFunction\":"
+                            + "{\"_type\":\"lambda\",\"body\":[");
+                    valueSpec(b, mo.validationLambda());
+                    b.append("],\"parameters\":[]}}");
+                }
                 case Protocol.PClassMappingRelation rf -> {
                     b.append("{\"_type\":\"relation\",\"class\":");
                     str(b, rf.className());
@@ -283,7 +307,14 @@ public final class ProtocolEmitter {
                         b.append(",\"id\":");
                         str(b, rf.id());
                     }
-                    b.append(",\"primaryKey\":[],\"propertyMappings\":[");
+                    b.append(",\"primaryKey\":[");
+                    for (int j = 0; j < rf.primaryKey().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        str(b, rf.primaryKey().get(j));
+                    }
+                    b.append("],\"propertyMappings\":[");
                     for (int j = 0; j < rf.propertyMappings().size(); j++) {
                         if (j > 0) {
                             b.append(',');
@@ -294,6 +325,21 @@ public final class ProtocolEmitter {
                                 + "\"relationFunctionPropertyMapping\","
                                 + "\"column\":");
                         str(b, pm.column());
+                        if (pm.localMappingProperty() != null) {
+                            Protocol.PLocalProp lp = pm.localMappingProperty();
+                            b.append(",\"localMappingProperty\":"
+                                    + "{\"multiplicity\":{\"lowerBound\":");
+                            b.append(lp.lowerBound());
+                            if (lp.upperBound() != null) {
+                                b.append(",\"upperBound\":")
+                                        .append(lp.upperBound());
+                            }
+                            b.append("},\"sourceInformation\":");
+                            srcInfo(b, lp.sourceInformation());
+                            b.append(",\"type\":");
+                            str(b, lp.type());
+                            b.append('}');
+                        }
                         b.append(",\"property\":{\"class\":");
                         str(b, pm.ownerClass());
                         b.append(",\"property\":");
@@ -352,62 +398,14 @@ public final class ProtocolEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            Protocol.PEnumerationMapping em = m.enumerationMappings().get(i);
-            b.append("{\"enumValueMappings\":[");
-            for (int j = 0; j < em.enumValueMappings().size(); j++) {
-                if (j > 0) {
-                    b.append(',');
-                }
-                Protocol.PEnumValueMapping vm = em.enumValueMappings().get(j);
-                b.append("{\"enumValue\":");
-                str(b, vm.enumValue());
-                b.append(",\"sourceValues\":[");
-                for (int k = 0; k < vm.sourceValues().size(); k++) {
-                    if (k > 0) {
-                        b.append(',');
-                    }
-                    Object v = vm.sourceValues().get(k).value();
-                    if (v instanceof String sv) {
-                        b.append("{\"_type\":\"stringSourceValue\",\"value\":");
-                        str(b, sv);
-                    } else {
-                        b.append("{\"_type\":\"integerSourceValue\",\"value\":")
-                                .append(v);
-                    }
-                    b.append('}');
-                }
-                b.append("]}");
-            }
-            b.append("],\"enumeration\":");
-            pointer(b, em.enumeration());
-            if (em.id() != null) {
-                b.append(",\"id\":");
-                str(b, em.id());
-            }
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, em.sourceInformation());
-            b.append('}');
+            enumerationMapping(b, m.enumerationMappings().get(i));
         }
         b.append("],\"includedMappings\":[");
         for (int i = 0; i < m.includedMappings().size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            Protocol.PMappingInclude inc = m.includedMappings().get(i);
-            b.append("{\"_type\":\"mappingIncludeMapping\","
-                    + "\"includedMapping\":");
-            str(b, inc.includedMapping());
-            if (inc.sourceDatabasePath() != null) {
-                b.append(",\"sourceDatabasePath\":");
-                str(b, inc.sourceDatabasePath());
-            }
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, inc.sourceInformation());
-            if (inc.targetDatabasePath() != null) {
-                b.append(",\"targetDatabasePath\":");
-                str(b, inc.targetDatabasePath());
-            }
-            b.append('}');
+            mappingInclude(b, m.includedMappings().get(i));
         }
         b.append("],\"name\":");
         str(b, m.name());
@@ -424,6 +422,10 @@ public final class ProtocolEmitter {
         str(b, cm.className());
         b.append(",\"classSourceInformation\":");
         srcInfo(b, cm.classSourceInformation());
+        if (cm.extendsClassMappingId() != null) {
+            b.append(",\"extendsClassMappingId\":");
+            str(b, cm.extendsClassMappingId());
+        }
         if (cm.filter() != null) {
             // ~filter lambda rides between the class span and id
             // (probe pure-filter)
@@ -511,6 +513,72 @@ public final class ProtocolEmitter {
         }
         b.append('}');
     }
+
+    private static void mappingInclude(StringBuilder b,
+            Protocol.PMappingInclude inc) {
+
+            b.append("{\"_type\":\"mappingIncludeMapping\","
+                    + "\"includedMapping\":");
+            str(b, inc.includedMapping());
+            if (inc.sourceDatabasePath() != null) {
+                b.append(",\"sourceDatabasePath\":");
+                str(b, inc.sourceDatabasePath());
+            }
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, inc.sourceInformation());
+            if (inc.targetDatabasePath() != null) {
+                b.append(",\"targetDatabasePath\":");
+                str(b, inc.targetDatabasePath());
+            }
+            b.append('}');
+            }
+
+    private static void enumerationMapping(StringBuilder b,
+            Protocol.PEnumerationMapping em) {
+
+            b.append("{\"enumValueMappings\":[");
+            for (int j = 0; j < em.enumValueMappings().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PEnumValueMapping vm = em.enumValueMappings().get(j);
+                b.append("{\"enumValue\":");
+                str(b, vm.enumValue());
+                b.append(",\"sourceValues\":[");
+                for (int k = 0; k < vm.sourceValues().size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PEnumSourceValue esv = vm.sourceValues().get(k);
+                    Object v = esv.value();
+                    if (esv.enumeration() != null) {
+                        // [my::Other.bla] (probe enum-source-enumref)
+                        b.append("{\"_type\":\"enumSourceValue\","
+                                + "\"enumeration\":");
+                        str(b, esv.enumeration());
+                        b.append(",\"value\":");
+                        str(b, (String) v);
+                    } else if (v instanceof String sv) {
+                        b.append("{\"_type\":\"stringSourceValue\",\"value\":");
+                        str(b, sv);
+                    } else {
+                        b.append("{\"_type\":\"integerSourceValue\",\"value\":")
+                                .append(v);
+                    }
+                    b.append('}');
+                }
+                b.append("]}");
+            }
+            b.append("],\"enumeration\":");
+            pointer(b, em.enumeration());
+            if (em.id() != null) {
+                b.append(",\"id\":");
+                str(b, em.id());
+            }
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, em.sourceInformation());
+            b.append('}');
+            }
 
     private static void relClassMapping(StringBuilder b,
             Protocol.PClassMappingRel cm) {

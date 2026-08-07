@@ -86,12 +86,22 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String srcDb = null;
             String tgtDb = null;
             if (peek() == TokenType.BRACKET_OPEN) {
-                // include m[srcDb->tgtDb] — store substitution
+                // include m[srcDb->tgtDb, ...] — MULTIPLE substitutions
+                // emit NEITHER key (probe include-multi-subst)
                 advance();
-                srcDb = Protocol.unquotePath(parseQualifiedName());
-                expect(TokenType.ARROW);
-                tgtDb = Protocol.unquotePath(parseQualifiedName());
+                int pairs = 0;
+                while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                    srcDb = Protocol.unquotePath(parseQualifiedName());
+                    expect(TokenType.ARROW);
+                    tgtDb = Protocol.unquotePath(parseQualifiedName());
+                    match(TokenType.COMMA);
+                    pairs++;
+                }
                 expect(TokenType.BRACKET_CLOSE);
+                if (pairs > 1) {
+                    srcDb = null;
+                    tgtDb = null;
+                }
             }
             includes.add(new Protocol.PMappingInclude(inc, srcDb, tgtDb,
                     spanOf(s, pos - 1)));
@@ -139,15 +149,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     memberStart, targetSpan));
             return;
         }
-        if (extendsId != null) {
-            throw error("'extends' on a non-relational class mapping"
-                    + " is unbuilt");
-        }
         if (peek() == TokenType.PURE_MAPPING) {
             advance();
             classMappings.add(parsePureClassMapping(target, memberStart,
-                    targetSpan, id, root));
+                    targetSpan, id, root, extendsId));
             return;
+        }
+        if (extendsId != null) {
+            throw error("'extends' on this class-mapping kind is unbuilt");
         }
         if (peek() == TokenType.VALID_STRING && "ModelJoin".equals(text())) {
             advance();
@@ -262,7 +271,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  absolute spans via token slices (probe pure-m2m). */
     private Protocol.PClassMappingPure parsePureClassMapping(String target,
             int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root) {
+            @com.legend.Nullable String id, boolean root,
+            @com.legend.Nullable String extendsId) {
         expect(TokenType.BRACE_OPEN);
         String srcClass = null;
         SourceInfo srcSpan = null;
@@ -400,8 +410,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PClassMappingPure(target, targetSpan, id, root,
-                srcClass, srcSpan, filterBody, props,
+        return new Protocol.PClassMappingPure(target, targetSpan, extendsId,
+                id, root, srcClass, srcSpan, filterBody, props,
                 spanOf(memberStart, close));
     }
 
@@ -527,10 +537,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  the operation discriminator by EXACT FQN; identification is never
      *  by suffix (probe operation; STORE_UNION vs ROUTER_UNION semantics
      *  differ, a contains-match would run the wrong one). */
-    private Protocol.PClassMappingOperation parseOperationClassMapping(
+    private Protocol.PClassMapping parseOperationClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
             @com.legend.Nullable String id, boolean root) {
         expect(TokenType.BRACE_OPEN);
+        int fqnTok = pos;
         String fqn = Protocol.unquotePath(parseQualifiedName());
         String operation = switch (fqn) {
             case "meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_" ->
@@ -548,11 +559,69 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         };
         expect(TokenType.PAREN_OPEN);
         List<String> params = new ArrayList<>();
+        if (peek() == TokenType.BRACKET_OPEN) {
+            // merge_...([p1,p2], {typed lambda}) — _type mergeOperation
+            // WITH MERGE + validationFunction (probe merge-params-lambda)
+            advance();
+            while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                params.add(parseSetId());
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.BRACKET_CLOSE);
+            expect(TokenType.COMMA);
+            int lS = pos;
+            expect(TokenType.BRACE_OPEN);
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.BRACE_CLOSE) {
+                    if (depth == 0) {
+                        break;
+                    }
+                    depth--;
+                }
+                advance();
+            }
+            int lEnd = pos;
+            expect(TokenType.BRACE_CLOSE);
+            // the engine reparses ANTLR getText() — the lambda's TOKEN
+            // TEXTS concatenated with NO whitespace — anchored at the
+            // merge FQN token's line:column
+            // (OperationClassMappingParseTreeWalker:86-93); emulate with
+            // a padded re-lex of the same concatenation
+            StringBuilder padded = new StringBuilder();
+            for (int i = 1; i < tokens.startLine(fqnTok); i++) {
+                padded.append('\n');
+            }
+            for (int i = 1; i < tokens.startColumn(fqnTok); i++) {
+                padded.append(' ');
+            }
+            for (int i = lS; i <= lEnd; i++) {
+                padded.append(tokens.text(i));
+            }
+            List<com.legend.protocol.spec.ValueSpecification> body =
+                    SpecParser.parseCodeBlock(
+                            com.legend.lexer.Lexer.tokenize(
+                                    padded.toString()));
+            if (body.size() != 1) {
+                throw error("merge validation must be ONE lambda");
+            }
+            expect(TokenType.PAREN_CLOSE);
+            match(TokenType.SEMI_COLON);
+            int close = pos;
+            expect(TokenType.BRACE_CLOSE);
+            return new Protocol.PClassMappingMergeOperation(target,
+                    targetSpan, id, root, params, body.get(0),
+                    spanOf(memberStart, close));
+        }
         while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-            params.add(parseIdentifier());
+            params.add(parseSetId());
             match(TokenType.COMMA);
         }
         expect(TokenType.PAREN_CLOSE);
+        match(TokenType.SEMI_COLON);                // trailing ';' legal
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingOperation(target, targetSpan, id,
@@ -795,10 +864,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 advance();
                 parseIdentifier();
                 scope = new DatabaseProtocolParser.ScopeCtx(db, seg1,
-                        tokens.text(pos - 1), spanOf(g1, pos - 1));
+                        tokens.text(pos - 1), spanOf(g1, pos - 1), false);
             } else {
                 scope = new DatabaseProtocolParser.ScopeCtx(db, "default",
-                        seg1, spanOf(g1, g1));
+                        seg1, spanOf(g1, g1), true);
             }
         }
         expect(TokenType.PAREN_CLOSE);
@@ -901,20 +970,65 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
         }
         SourceInfo fnSpan = spanOf(dS, pos - 1);
+        List<String> pk = new ArrayList<>();
+        if (peek() == TokenType.PRIMARY_KEY_CMD) {
+            // ~primaryKey: [COL, ...] — bare column names (probe
+            // relation-extras)
+            advance();
+            expect(TokenType.COLON);
+            expect(TokenType.BRACKET_OPEN);
+            while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                pk.add(parseIdentifier());
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.BRACKET_CLOSE);
+        }
         List<Protocol.PRelationFnPropertyMapping> props = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             int pS = pos;
+            boolean local = match(TokenType.PLUS);
+            int identTok = pos;
             String prop = parseIdentifier();
-            SourceInfo propSpan = spanOf(pS, pos - 1);
+            SourceInfo propSpan = spanOf(identTok, pos - 1);
             expect(TokenType.COLON);
+            Protocol.PLocalProp lp = null;
+            if (local) {
+                // +prop: Type[m]: COL — local SI = the IDENT, pm span
+                // includes the '+', class KEPT (probe relation-extras)
+                String type = Protocol.unquotePath(parseQualifiedName());
+                expect(TokenType.BRACKET_OPEN);
+                long lower;
+                Long upper = null;
+                if (peek() == TokenType.STAR) {
+                    advance();
+                    lower = 0L;
+                } else {
+                    lower = Long.parseLong(text());
+                    expect(TokenType.INTEGER);
+                    upper = lower;
+                }
+                if (peek() == TokenType.DOT_DOT) {
+                    advance();
+                    if (peek() == TokenType.STAR) {
+                        advance();
+                        upper = null;
+                    } else {
+                        upper = Long.parseLong(text());
+                        expect(TokenType.INTEGER);
+                    }
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                lp = new Protocol.PLocalProp(type, lower, upper, propSpan);
+                expect(TokenType.COLON);
+            }
             String col = parseIdentifier();
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
-                    propSpan, col, id, spanOf(pS, pos - 1)));
+                    propSpan, col, lp, id, spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PClassMappingRelation(target, id, props,
+        return new Protocol.PClassMappingRelation(target, id, pk, props,
                 desc.toString(), fnSpan, root, spanOf(memberStart, close));
     }
 
@@ -983,12 +1097,20 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (peek() == TokenType.STRING) {
             String v = TokenStreamCursor.unquoteAndUnescape(text(), this);
             advance();
-            return new Protocol.PEnumSourceValue(v);
+            return new Protocol.PEnumSourceValue(null, v);
         }
         if (peek() == TokenType.INTEGER) {
             long v = Long.parseLong(text());
             advance();
-            return new Protocol.PEnumSourceValue(v);
+            return new Protocol.PEnumSourceValue(null, v);
+        }
+        if (peek() == TokenType.VALID_STRING) {
+            // my::Other.bla — an enum VALUE reference (probe
+            // enum-source-enumref)
+            String enumPath = Protocol.unquotePath(parseQualifiedName());
+            expect(TokenType.DOT);
+            String v = parseIdentifier();
+            return new Protocol.PEnumSourceValue(enumPath, v);
         }
         throw error("unsupported enum source value: " + safeText());
     }

@@ -96,7 +96,23 @@ public final class Protocol {
     /** Class mappings emit in SOURCE ORDER — one sealed list. */
     public sealed interface PClassMapping
             permits PClassMappingRel, PClassMappingPure,
-            PClassMappingOperation, PClassMappingRelation {
+            PClassMappingOperation, PClassMappingRelation,
+            PClassMappingMergeOperation {
+    }
+
+    /** {@code merge_...([p1,p2], {typed lambda})} — {@code _type:
+     *  "mergeOperation"} WITH operation:"MERGE" and a validationFunction
+     *  lambda WRAPPING the typed inner lambda; the bare-paren merge form
+     *  stays a plain operation with NO discriminator (probes
+     *  merge-params-lambda vs merge-op). */
+    public record PClassMappingMergeOperation(String className,
+                                              com.legend.protocol.SourceInfo classSourceInformation,
+                                              @com.legend.Nullable String id,
+                                              boolean root,
+                                              List<String> parameters,
+                                              com.legend.protocol.spec.ValueSpecification validationLambda,
+                                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
     }
 
     /** {@code _type:"relation"} class mapping (probe relation-fn):
@@ -104,6 +120,7 @@ public final class Protocol {
      *  pointer whose path is the CANONICAL descriptor text. */
     public record PClassMappingRelation(String className,
                                         @com.legend.Nullable String id,
+                                        List<String> primaryKey,
                                         List<PRelationFnPropertyMapping> propertyMappings,
                                         String relationFunction,
                                         com.legend.protocol.SourceInfo relationFunctionSourceInformation,
@@ -116,6 +133,7 @@ public final class Protocol {
     public record PRelationFnPropertyMapping(String ownerClass, String property,
                                              com.legend.protocol.SourceInfo propertySourceInformation,
                                              String column,
+                                             @com.legend.Nullable PLocalProp localMappingProperty,
                                              @com.legend.Nullable String source,
                                              com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -170,6 +188,7 @@ public final class Protocol {
      *  wire, parsed by SpecParser and emitted by the SAME spec arms. */
     public record PClassMappingPure(String className,
                                     com.legend.protocol.SourceInfo classSourceInformation,
+                                    @com.legend.Nullable String extendsClassMappingId,
                                     @com.legend.Nullable String id,
                                     boolean root,
                                     @com.legend.Nullable String srcClass,
@@ -289,7 +308,10 @@ public final class Protocol {
     }
 
     /** {@code _type:"stringSourceValue"|"integerSourceValue"}. */
-    public record PEnumSourceValue(Object value) {
+    /** A source value: string/integer literal, or an ENUM VALUE reference
+     *  ({@code [my::Other.bla]} — probe enum-source-enumref). */
+    public record PEnumSourceValue(@com.legend.Nullable String enumeration,
+                                   Object value) {
     }
 
     /** {@code _type:"relational"} — a ###Relational Database element
