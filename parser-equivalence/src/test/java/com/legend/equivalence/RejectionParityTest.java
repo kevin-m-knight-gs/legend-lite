@@ -138,7 +138,16 @@ class RejectionParityTest {
         assertTrue(lineMatch >= MIN_LINE_AGREEMENT,
                 "error-line agreement with the engine's live position dropped: "
                         + lineMatch + " < " + MIN_LINE_AGREEMENT);
+        assertTrue(colMatch >= MIN_COLUMN_EXACT,
+                "exact column agreement with the engine dropped: " + colMatch
+                        + " < " + MIN_COLUMN_EXACT);
     }
+
+    /** After the 1-based column fix (audit §3.5 / Phase B): the 28 off-by-one
+     *  pins all became exact. The 12 line-agreeing, column-different pins are
+     *  genuinely different tokens — ours later, ANTLR's at the first token
+     *  that cannot start an alternative. */
+    private static final int MIN_COLUMN_EXACT = 28;
 
     /** Against the engine's LIVE thrown position (the scraped literals are 40%
      *  mispaired — audit §3.5). Bumped as error positioning improves. */

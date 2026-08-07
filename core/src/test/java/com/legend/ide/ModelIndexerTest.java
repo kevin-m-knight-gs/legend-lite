@@ -446,9 +446,11 @@ final class ModelIndexerTest {
         assertTrue(String.valueOf(ex.getMessage()).contains("unsupported"),
                 () -> "want unsupported-keyword error, got: " + ex.getMessage());
         // Indexer errors must carry line/column info, not just byte offsets:
-        // the offending token sits at line 1, column 0 (start of file).
+        // the offending token sits at line 1, column 1 — 1-based on BOTH axes,
+        // the engine's ANTLR convention (audit §3.5: the error path was the
+        // last renderer still 0-based)
         assertEquals(1, ex.line(), "unsupported keyword should be reported with line number");
-        assertEquals(0, ex.column(), "unsupported keyword starts at column 0");
+        assertEquals(1, ex.column(), "unsupported keyword starts at column 1");
     }
 
     @Test

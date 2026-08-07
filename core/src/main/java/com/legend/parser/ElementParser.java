@@ -8,10 +8,6 @@ import com.legend.model.ImportScope;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.model.AssociationDefinition;
-import com.legend.model.AssociationDefinition.AssociationEndDefinition;
-import com.legend.model.AssociationMapping;
-import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ClassDefinition;
 import com.legend.protocol.ConstraintDefinition;
@@ -19,33 +15,15 @@ import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.protocol.ParameterDefinition;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
-import com.legend.model.DatabaseDefinition;
-import com.legend.model.EnumDefinition;
-import com.legend.model.EnumerationMapping;
-import com.legend.model.ClassMapping;
-import com.legend.model.FilterMapping;
-import com.legend.model.FilterPointer;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.MappingDefinition;
 import com.legend.protocol.Realization;
-import com.legend.model.MappingInclude;
-import com.legend.model.PropertyMapping;
 import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.model.JsonModelConnection;
 import com.legend.model.PackageableElement;
-import com.legend.model.ComparisonOp;
-import com.legend.model.RelationalDataType;
-import com.legend.model.JoinChainElement;
-import com.legend.model.JoinType;
-import com.legend.model.LogicalOp;
-import com.legend.model.ProfileDefinition;
-import com.legend.model.RelationalOperation;
 import com.legend.model.RuntimeDefinition;
 import com.legend.model.ServiceDefinition;
-import com.legend.model.StereotypeApplication;
-import com.legend.model.TaggedValue;
 import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
@@ -464,18 +442,18 @@ public final class ElementParser implements TokenStreamCursor {
             String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
             return new com.legend.protocol.Protocol.PClass(pn[0], pn[1], typeParams, List.of(),
                     List.of(), List.of(), List.of(), stereotypes, taggedValues, isNative,
-                    span(classStartTok, pos - 1));
+                    spanOf(classStartTok, pos - 1));
         }
 
         List<com.legend.protocol.Protocol.PSuperType> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
             int stTok = pos;
             superClasses.add(new com.legend.protocol.Protocol.PSuperType(
-                    parseType(), span(stTok, pos - 1)));
+                    parseType(), spanOf(stTok, pos - 1)));
             while (match(TokenType.COMMA)) {
                 int nTok = pos;
                 superClasses.add(new com.legend.protocol.Protocol.PSuperType(
-                        parseType(), span(nTok, pos - 1)));
+                        parseType(), spanOf(nTok, pos - 1)));
             }
         }
 
@@ -508,7 +486,7 @@ public final class ElementParser implements TokenStreamCursor {
                 stereotypes,
                 taggedValues,
                 isNative,
-                span(classStartTok, pos - 1));
+                spanOf(classStartTok, pos - 1));
     }
 
     /** Optional generic type parameters: {@code <T>}, {@code <U, V>}, ... */
@@ -614,7 +592,7 @@ public final class ElementParser implements TokenStreamCursor {
         // running to the declaration's last token; the harness arbitrates).
         return new DerivedPropertyDefinition(
                 name, params, realizationOf(body), type, mult,
-                stereotypes, taggedValues, span(declStart, pos - 1));
+                stereotypes, taggedValues, spanOf(declStart, pos - 1));
     }
 
     /**
@@ -637,7 +615,7 @@ public final class ElementParser implements TokenStreamCursor {
         TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
         // Engine convention: a parameter's span covers its whole `name: Type[mult]` decl.
-        return new ParameterDefinition(name, type, mult, span(pStart, pos - 1));
+        return new ParameterDefinition(name, type, mult, spanOf(pStart, pos - 1));
     }
 
     // ============================================================
@@ -769,7 +747,7 @@ public final class ElementParser implements TokenStreamCursor {
             expect(TokenType.PAREN_CLOSE);
             // Engine convention: the span covers the whole `name ( ... )` block.
             return new ConstraintDefinition(name, realizationOf(List.of(fn)),
-                    message, level, externalId, owner, span(constraintStart, pos - 1));
+                    message, level, externalId, owner, spanOf(constraintStart, pos - 1));
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
             name = parseIdentifier();
@@ -800,7 +778,7 @@ public final class ElementParser implements TokenStreamCursor {
         // function; any other expression is the sugar (inline) predicate.
         // Engine convention: the span covers `name: expr`, name inclusive.
         return new ConstraintDefinition(name, realizationOf(List.of(expression)),
-                null, null, null, null, span(constraintStart, pos - 1));
+                null, null, null, null, spanOf(constraintStart, pos - 1));
     }
 
     /** The bare level name of a parsed ~enforcementLevel value —
@@ -918,7 +896,7 @@ public final class ElementParser implements TokenStreamCursor {
         // associations and serializes whatever it read (inline-snippet corpus)
         String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
         return new com.legend.protocol.Protocol.PAssociation(pn[0], pn[1], ends, derived,
-                stereotypes, taggedValues, span(declStart, pos - 1));
+                stereotypes, taggedValues, spanOf(declStart, pos - 1));
     }
 
     // ============================================================
@@ -950,7 +928,7 @@ public final class ElementParser implements TokenStreamCursor {
         // compiler's job (inline-snippet corpus)
         String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
         return new com.legend.protocol.Protocol.PEnumeration(pn[0], pn[1], values,
-                stereotypes, taggedValues, span(declStart, pos - 1));
+                stereotypes, taggedValues, spanOf(declStart, pos - 1));
     }
 
     private com.legend.protocol.Protocol.PEnumValue parseEnumValue() {
@@ -960,7 +938,7 @@ public final class ElementParser implements TokenStreamCursor {
         String value = parseIdentifier();
         // Engine convention: the entry span runs annotations..value name, comma excluded.
         return new com.legend.protocol.Protocol.PEnumValue(value, ss, ts,
-                span(entryStart, pos - 1));
+                spanOf(entryStart, pos - 1));
     }
 
     // ============================================================
@@ -1008,13 +986,13 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
         return new com.legend.protocol.Protocol.PProfile(pn[0], pn[1], stereotypes, tags,
-                span(declStart, pos - 1));
+                spanOf(declStart, pos - 1));
     }
 
     private com.legend.protocol.Protocol.PProfileEntry parseProfileEntry() {
         int nameTok = pos;
         String value = parseIdentifier();
-        return new com.legend.protocol.Protocol.PProfileEntry(value, span(nameTok, pos - 1));
+        return new com.legend.protocol.Protocol.PProfileEntry(value, spanOf(nameTok, pos - 1));
     }
 
     // ============================================================
@@ -1164,7 +1142,7 @@ public final class ElementParser implements TokenStreamCursor {
                 starredIdx = units.size();
             }
             units.add(new com.legend.protocol.Protocol.PUnit(unitName, measureFqn, param,
-                    body, span(unitStart, pos - 1)));
+                    body, spanOf(unitStart, pos - 1)));
         }
         if (units.isEmpty()) {
             throw error("measure requires at least one unit");
@@ -1180,7 +1158,7 @@ public final class ElementParser implements TokenStreamCursor {
         others.remove(canonicalIdx);
         String[] pn = com.legend.protocol.Protocol.splitFqn(qualifiedName);
         return new com.legend.protocol.Protocol.PMeasure(pn[0], pn[1], canonical, others,
-                span(declStart, pos - 1));
+                spanOf(declStart, pos - 1));
     }
 
     /** Parses one {@code function} declaration at the cursor into its protocol record —
@@ -1217,7 +1195,7 @@ public final class ElementParser implements TokenStreamCursor {
                 sig.typeParams(), sig.multParams(), sig.params(),
                 sig.returnType(), sig.returnMult(), body, constraints, suites,
                 sig.stereotypes(), sig.taggedValues(),
-                span(sig.declStart(), pos - 1));
+                spanOf(sig.declStart(), pos - 1));
     }
 
     /**
@@ -1245,7 +1223,7 @@ public final class ElementParser implements TokenStreamCursor {
                 }
                 expect(TokenType.PAREN_CLOSE);
                 suites.add(new com.legend.protocol.Protocol.PTestSuite(
-                        suiteId, span(suiteStart, pos - 1), data, tests));
+                        suiteId, spanOf(suiteStart, pos - 1), data, tests));
             } else {
                 parseSuiteEntry(sig, unnamedData, unnamed);
             }
@@ -1255,7 +1233,7 @@ public final class ElementParser implements TokenStreamCursor {
             // the DEFAULT (bare) suite serializes FIRST, then named suites in source
             // order (probe "pf mixed suites xml")
             suites.add(0, new com.legend.protocol.Protocol.PTestSuite(
-                    null, span(blockOpen, pos - 1), unnamedData, unnamed));
+                    null, spanOf(blockOpen, pos - 1), unnamedData, unnamed));
         }
         return suites;
     }
@@ -1286,8 +1264,8 @@ public final class ElementParser implements TokenStreamCursor {
                                 tokens.endLine(pos - 1), tokens.endColumn(pos - 1) + 2));
             }
             data.add(new com.legend.protocol.Protocol.PTestData(head,
-                    span(entryStart, headEnd), payload,
-                    span(entryStart, pos - 1)));
+                    spanOf(entryStart, headEnd), payload,
+                    spanOf(entryStart, pos - 1)));
             return;
         }
         tests.add(parseFunctionTest(sig, entryStart, head));
@@ -1310,14 +1288,14 @@ public final class ElementParser implements TokenStreamCursor {
             return new com.legend.protocol.Protocol.PTestPayload.ExternalFormat(
                     formatContentType(fmt),
                     TokenStreamCursor.unquoteAndUnescape(raw, this),
-                    span(fmtStart, pos - 1));
+                    spanOf(fmtStart, pos - 1));
         }
         if ("Relation".equals(text()) && peek(1) == TokenType.ISLAND_OPEN) {
             advance();                              // 'Relation'
             List<com.legend.protocol.Protocol.PTestPayload.RelationElement> els =
                     parseRelationIslandElements();
             com.legend.protocol.SourceInfo first = els.isEmpty()
-                    ? span(pos - 1, pos - 1) : els.get(0).sourceInformation();
+                    ? spanOf(pos - 1, pos - 1) : els.get(0).sourceInformation();
             return new com.legend.protocol.Protocol.PTestPayload.RelationElements(
                     els, first);
         }
@@ -1330,7 +1308,7 @@ public final class ElementParser implements TokenStreamCursor {
         int refStart = pos;
         String ref = parseQualifiedName();
         return new com.legend.protocol.Protocol.PTestPayload.Reference(
-                ref, span(refStart, pos - 1));
+                ref, spanOf(refStart, pos - 1));
     }
 
     /** Format keyword &rarr; contentType (probe "pf mixed suites xml": XML rides the
@@ -1413,7 +1391,7 @@ public final class ElementParser implements TokenStreamCursor {
         }
         expect(TokenType.ISLAND_END);
         return new com.legend.protocol.Protocol.PTestPayload.ModelStoreData(models,
-                span(kw, pos - 1));
+                spanOf(kw, pos - 1));
     }
 
     /** The first ':' that is NOT part of a '::' package separator, or -1. */
@@ -1556,7 +1534,7 @@ public final class ElementParser implements TokenStreamCursor {
                             tokens.lineOf(valEnd), tokens.columnOf(valEnd))));
         }
         return new com.legend.protocol.Protocol.PTestPayload.RelationalCsv(tables,
-                span(kw, pos - 1));
+                spanOf(kw, pos - 1));
     }
 
     /** {@code id | call(args) => expected;} — the call NAME is not on the wire; each
@@ -1599,7 +1577,7 @@ public final class ElementParser implements TokenStreamCursor {
             params.add(new com.legend.protocol.Protocol.PTestParam(
                     idx < sig.params().size() ? sig.params().get(idx).name() : null,
                     SpecParser.parse(tokens.slice(vStart, pos)),
-                    span(vStart, pos - 1)));
+                    spanOf(vStart, pos - 1)));
         }
         expect(TokenType.PAREN_CLOSE);
         expect(TokenType.EQUAL);
@@ -1623,7 +1601,7 @@ public final class ElementParser implements TokenStreamCursor {
                         + " got " + els.size());
             }
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualToRelation(
-                    els.get(0), span(relStart, pos - 1));
+                    els.get(0), spanOf(relStart, pos - 1));
         } else {
             int eStart = pos;
             int depth = 0;
@@ -1637,11 +1615,11 @@ public final class ElementParser implements TokenStreamCursor {
                 advance();
             }
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualTo(
-                    SpecParser.parse(tokens.slice(eStart, pos)), span(eStart, pos - 1));
+                    SpecParser.parse(tokens.slice(eStart, pos)), spanOf(eStart, pos - 1));
         }
         expect(TokenType.SEMI_COLON);
         return new com.legend.protocol.Protocol.PFunctionTest(testId,
-                span(testStart, pos - 1), params, assertion);
+                spanOf(testStart, pos - 1), params, assertion);
     }
 
     /**
@@ -1833,7 +1811,7 @@ public final class ElementParser implements TokenStreamCursor {
         Multiplicity mult = parseMultiplicity();
         // Engine convention: a parameter's span covers its whole `name: Type[mult]` decl.
         return new com.legend.protocol.ParameterDefinition(name, type, mult,
-                span(pStart, pos - 1));
+                spanOf(pStart, pos - 1));
     }
 
     /**
@@ -2403,22 +2381,16 @@ public final class ElementParser implements TokenStreamCursor {
                 value = null;   // parser stays total; the emitter walls on the null, loudly
             }
             defaultValue = new com.legend.protocol.Protocol.PDefaultValue(
-                    value, span(defStart, pos - 1));
+                    value, spanOf(defStart, pos - 1));
         }
         expect(TokenType.SEMI_COLON);
         // Positions are captured HERE, at construction, because this is the only point where the
         // token span of this property is in hand. No side table, no second pass.
         return new com.legend.protocol.Protocol.PProperty(
                 name, type, mult, stereotypes, taggedValues,
-                span(startTok, pos - 1), defaultValue, aggregation);
+                spanOf(startTok, pos - 1), defaultValue, aggregation);
     }
 
-    /** A {@link com.legend.protocol.SourceInfo} for an inclusive token range. */
-    private com.legend.protocol.SourceInfo span(int fromTok, int toTok) {
-        return new com.legend.protocol.SourceInfo("",
-                tokens.startLine(fromTok), tokens.startColumn(fromTok),
-                tokens.endLine(toTok), tokens.endColumn(toTok));
-    }
 
 
     // ============================================================
@@ -2480,7 +2452,7 @@ public final class ElementParser implements TokenStreamCursor {
         String name = parseIdentifier();
         // profileSourceInformation covers the profile FQN; sourceInformation the whole ptr.
         return new com.legend.protocol.Protocol.PStereotype(profile, name,
-                span(profStart, profEnd), span(profStart, pos - 1));
+                spanOf(profStart, profEnd), spanOf(profStart, pos - 1));
     }
 
     /** {@code { profile.tag = 'value', ... }}; returns empty list if not a tag block. */
@@ -2550,8 +2522,8 @@ public final class ElementParser implements TokenStreamCursor {
         // the tag name, while a STEREOTYPE's covers the whole profile.name.
         return new com.legend.protocol.Protocol.PTaggedValue(
                 new com.legend.protocol.Protocol.PTag(profile, tag,
-                        span(profStart, profEnd), span(tagStart, tagEnd)),
-                value, span(start, pos - 1));
+                        spanOf(profStart, profEnd), spanOf(tagStart, tagEnd)),
+                value, spanOf(start, pos - 1));
     }
 
     // ============================================================

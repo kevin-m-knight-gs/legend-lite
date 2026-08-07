@@ -115,9 +115,10 @@ class SectionParseSentinelTest {
     /** Failures on files the reference ACCEPTS — the honest defect count the
      *  coverage ratchet above cannot see (implementation audit §3.4). Ratcheted
      *  DOWN only; section parity burns it to zero. */
-    private static final int MAX_DROP_IN_DEFECTS = 146;
+    private static final int MAX_DROP_IN_DEFECTS = 126;   // 146 - 20 AggregationAware-Pure
 
     /** Baseline at introduction (2026-08-05). Bump when coverage grows; a drop is the
-     *  pull-drift signal this test exists for. */
-    private static final int MIN_FILES_PARSED = 857;
+     *  pull-drift signal this test exists for.
+     *  857 -> 877: AggregationAware ~mainMapping: Pure accepted (audit §3.4). */
+    private static final int MIN_FILES_PARSED = 877;
 }

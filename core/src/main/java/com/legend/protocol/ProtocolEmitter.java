@@ -1353,24 +1353,6 @@ public final class ProtocolEmitter {
             b.append("}}");
             return;
         }
-        // n-ary flatten applies to OPERATOR-SPELLED chains only: an arrow-spelled
-        // (10)->times(2) is a plain two-parameter call (inline corpus TestM3AntlrParser)
-        if (NARY_ARITHMETIC.contains(f.function()) && f.infix()) {
-            naryArithmetic(b, f, topSpanOverride);
-            return;
-        }
-        // (equal/and/or over a parenthesised arithmetic chain probed harmless: the inner
-        // func keeps its operator-run span, nothing special — ProbeWireShapes parenEq.)
-        if ("new".equals(f.function()) && !f.parameters().isEmpty()
-                && f.parameters().get(f.parameters().size() - 1)
-                        instanceof com.legend.protocol.spec.NewInstance ni) {
-            // The parser wraps ^X(...) as AppliedFunction("new", [receiver, NewInstance]);
-            // the wire's whole envelope comes from the NewInstance node alone and carries
-            // no spans anywhere STANDALONE — but the let rule still applies: a let-valued
-            // new takes the letFunction's span (harness DIFF on testFromJson2).
-            newInstance(b, ni, topSpanOverride);
-            return;
-        }
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, f.function());
         b.append(",\"parameters\":[");

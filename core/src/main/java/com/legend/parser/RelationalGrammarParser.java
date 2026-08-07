@@ -2,53 +2,19 @@
 
 package com.legend.parser;
 
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.model.AssociationDefinition;
-import com.legend.model.AssociationDefinition.AssociationEndDefinition;
-import com.legend.model.AssociationMapping;
-import com.legend.model.AssociationPropertyMapping;
-import com.legend.model.AuthenticationSpec;
-import com.legend.model.ClassDefinition;
-import com.legend.protocol.ConstraintDefinition;
-import com.legend.protocol.DerivedPropertyDefinition;
-import com.legend.protocol.ParameterDefinition;
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionSpecification;
 import com.legend.model.DatabaseDefinition;
-import com.legend.model.EnumDefinition;
-import com.legend.model.EnumerationMapping;
-import com.legend.model.ClassMapping;
 import com.legend.model.FilterMapping;
 import com.legend.model.FilterPointer;
-import com.legend.model.FunctionDefinition;
-import com.legend.model.NativeFunctionDefinition;
-import com.legend.model.LegacyMappingDefinition;
-import com.legend.model.MappingDefinition;
-import com.legend.protocol.Realization;
-import com.legend.model.MappingInclude;
-import com.legend.model.PropertyMapping;
-import com.legend.protocol.spec.PackageableElementPtr;
-import com.legend.model.JsonModelConnection;
-import com.legend.model.PackageableElement;
 import com.legend.model.ComparisonOp;
 import com.legend.model.RelationalDataType;
 import com.legend.model.JoinChainElement;
 import com.legend.model.JoinType;
 import com.legend.model.LogicalOp;
-import com.legend.model.ProfileDefinition;
 import com.legend.model.RelationalOperation;
-import com.legend.model.RuntimeDefinition;
-import com.legend.model.ServiceDefinition;
-import com.legend.model.StereotypeApplication;
-import com.legend.model.TaggedValue;
-import com.legend.protocol.spec.ValueSpecification;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Database-declaration and relational-expression sub-grammars, split

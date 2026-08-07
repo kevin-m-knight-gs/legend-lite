@@ -292,13 +292,10 @@ public interface TokenStreamCursor {
         } else {
             throw new ParseException(message);
         }
-        int line = 1, col = 0;
-        String src = tokens.source();
-        for (int i = 0; i < charPos && i < src.length(); i++) {
-            if (src.charAt(i) == '\n') { line++; col = 0; }
-            else col++;
-        }
-        throw new ParseException(message, line, col);
+        // the stream's cached line index: 1-based line AND column, same as the
+        // engine's ANTLR positions (audit §3.5: this was the only renderer
+        // still 0-based and the only one still rescanning the source)
+        throw new ParseException(message, tokens.lineOf(charPos), tokens.columnOf(charPos));
     }
 
     /**

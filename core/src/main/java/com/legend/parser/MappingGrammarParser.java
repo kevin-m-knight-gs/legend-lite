@@ -5,53 +5,25 @@ package com.legend.parser;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.TypeExpression;
 
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import com.legend.model.AssociationDefinition;
-import com.legend.model.AssociationDefinition.AssociationEndDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
-import com.legend.model.AuthenticationSpec;
-import com.legend.model.ClassDefinition;
-import com.legend.protocol.ConstraintDefinition;
-import com.legend.protocol.DerivedPropertyDefinition;
-import com.legend.protocol.ParameterDefinition;
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionSpecification;
-import com.legend.model.DatabaseDefinition;
-import com.legend.model.EnumDefinition;
 import com.legend.model.EnumerationMapping;
 import com.legend.model.ClassMapping;
 import com.legend.model.FilterMapping;
-import com.legend.model.FilterPointer;
-import com.legend.model.FunctionDefinition;
-import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
 import com.legend.protocol.Realization;
 import com.legend.model.MappingInclude;
 import com.legend.model.PropertyMapping;
 import com.legend.protocol.spec.PackageableElementPtr;
-import com.legend.model.JsonModelConnection;
 import com.legend.model.PackageableElement;
-import com.legend.model.ComparisonOp;
-import com.legend.model.RelationalDataType;
 import com.legend.model.JoinChainElement;
-import com.legend.model.JoinType;
-import com.legend.model.LogicalOp;
-import com.legend.model.ProfileDefinition;
 import com.legend.model.RelationalOperation;
-import com.legend.model.RuntimeDefinition;
-import com.legend.model.ServiceDefinition;
-import com.legend.model.StereotypeApplication;
-import com.legend.model.TaggedValue;
 import com.legend.protocol.spec.ValueSpecification;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Mapping-declaration grammar (B.4b — Relational class mappings), split
@@ -499,14 +471,23 @@ final class MappingGrammarParser {
                     if ("mainMapping".equals(kw)) {
                         p.expect(TokenType.COLON);
                         String kind = p.parseIdentifier();
-                        if (!"Relational".equals(kind)) {
+                        // the NO-REWRITE behavior serves the main mapping
+                        // whatever its store kind — a Pure (M2M) main is as
+                        // legal as a Relational one (engine
+                        // AggregationAwareMappingParseTreeWalker delegates to
+                        // the named parser; audit §3.4: 20/20 such files
+                        // reference-accepted)
+                        if (!"Relational".equals(kind) && !"Pure".equals(kind)) {
                             throw p.error("AggregationAware ~mainMapping"
                                     + " kind '" + kind
-                                    + "' is not supported (Relational only)");
+                                    + "' is not supported (Relational or Pure)");
                         }
                         p.expect(TokenType.BRACE_OPEN);
-                        aggMain = parseRelationalClassMappingBody(
-                                elementPath, setId, extendsSetId, root);
+                        aggMain = "Pure".equals(kind)
+                                ? parsePureClassMappingBody(
+                                        elementPath, setId, extendsSetId, root)
+                                : parseRelationalClassMappingBody(
+                                        elementPath, setId, extendsSetId, root);
                         p.expect(TokenType.BRACE_CLOSE);
                         continue;
                     }
@@ -527,12 +508,17 @@ final class MappingGrammarParser {
                 throw p.error("AggregationAware mapping for '" + elementPath
                         + "' has no ~mainMapping");
             }
-            var am = (ClassMapping.Relational) aggMain;
-            accum.classMappings.add(new ClassMapping.Relational(
-                    am.className(), am.setId(), am.extendsSetId(), am.root(),
-                    am.mainTable(), am.filter(), am.distinct(), am.groupBy(),
-                    am.primaryKey(), am.propertyMappings(), am.sourceUrl(),
-                    am.propertyTargetSets(), /* aggregationAwareMain */ true));
+            if (aggMain instanceof ClassMapping.Relational am) {
+                accum.classMappings.add(new ClassMapping.Relational(
+                        am.className(), am.setId(), am.extendsSetId(), am.root(),
+                        am.mainTable(), am.filter(), am.distinct(), am.groupBy(),
+                        am.primaryKey(), am.propertyMappings(), am.sourceUrl(),
+                        am.propertyTargetSets(), /* aggregationAwareMain */ true));
+            } else {
+                // Pure main: no rewrite machinery to flag — M2M rewrite
+                // activities are not a feature; the main serves as-is
+                accum.classMappings.add(aggMain);
+            }
             return;
         }
         throw p.error("unsupported class mapping type: '" + p.safeText() + "'");
