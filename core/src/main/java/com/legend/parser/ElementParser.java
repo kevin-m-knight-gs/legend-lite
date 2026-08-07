@@ -31,8 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Hand-rolled recursive-descent parser for Pure top-level element
@@ -2092,17 +2090,12 @@ public final class ElementParser implements TokenStreamCursor {
         match(TokenType.SEMI_COLON);
     }
 
-    // Compiled once, used by parseEmbeddedJsonModelConnection.
-    private static final Pattern JMC_CLASS_PATTERN =
-            Pattern.compile("class\\s*:\\s*([\\w:]+)\\s*;");
-    private static final Pattern JMC_URL_PATTERN =
-            Pattern.compile("url\\s*:\\s*'([^']*)'\\s*;");
-
     /**
      * Parse an embedded {@code JsonModelConnection { class: ...; url: '...'; }}
-     * block via regex against its raw source text. LOUD on anything else —
-     * only JsonModelConnection islands are supported, and a typo'd one must
-     * not vanish (audit H1; the old null-return silently dropped it).
+     * block by TOKENIZING it — no shadow grammar (text-rule gate). LOUD on
+     * anything else — only JsonModelConnection islands are supported, and a
+     * typo'd one must not vanish (audit H1; the old null-return silently
+     * dropped it). Keys parse in any order, both required.
      */
     private JsonModelConnection parseEmbeddedJsonModelConnection(String raw) {
         raw = raw.trim();
@@ -2111,13 +2104,30 @@ public final class ElementParser implements TokenStreamCursor {
                     + " JsonModelConnection is supported): "
                     + raw.substring(0, Math.min(40, raw.length())));
         }
-        Matcher cm = JMC_CLASS_PATTERN.matcher(raw);
-        Matcher um = JMC_URL_PATTERN.matcher(raw);
-        if (!cm.find() || !um.find()) {
-            throw error("malformed JsonModelConnection (expected class: ...;"
+        ElementParser p = new ElementParser(Lexer.tokenize(raw));
+        p.advance();                                // 'JsonModelConnection'
+        p.expect(TokenType.BRACE_OPEN);
+        String cls = null;
+        String url = null;
+        while (!p.atEnd() && p.peek() != TokenType.BRACE_CLOSE) {
+            String key = p.parseIdentifier();
+            p.expect(TokenType.COLON);
+            if ("class".equals(key)) {
+                cls = p.parseQualifiedName();
+            } else if ("url".equals(key)) {
+                String quoted = p.text();
+                p.expect(TokenType.STRING);
+                url = TokenStreamCursor.unquoteAndUnescape(quoted, p);
+            } else {
+                throw p.error("unknown JsonModelConnection key: " + key);
+            }
+            p.expect(TokenType.SEMI_COLON);
+        }
+        if (cls == null || url == null) {
+            throw p.error("malformed JsonModelConnection (expected class: ...;"
                     + " url: '...';): " + raw.substring(0, Math.min(60, raw.length())));
         }
-        return new JsonModelConnection(cm.group(1), um.group(1));
+        return new JsonModelConnection(cls, url);
     }
 
     // ============================================================

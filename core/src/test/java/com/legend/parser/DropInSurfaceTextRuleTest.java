@@ -54,7 +54,7 @@ class DropInSurfaceTextRuleTest {
     /** 2026-08-07 census — file -> allowed regex-family call sites. DOWN only;
      *  a new site in a clean file or a count above the frozen number fails. */
     private static final Map<String, Integer> REGEX_WHITELIST = Map.of(
-            "parser/ElementParser.java", 4,
+            "parser/ElementParser.java", 2,
             "parser/SpecParser.java", 5,
             "protocol/Protocol.java", 1,
             "protocol/ProtocolEmitter.java", 1);
