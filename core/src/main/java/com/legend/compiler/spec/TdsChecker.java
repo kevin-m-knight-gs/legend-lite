@@ -158,7 +158,7 @@ final class TdsChecker {
     }
 
     /** Infer an unannotated column's type from its first non-empty cell; an empty column is String. */
-    private static Type inferredType(List<List<String>> rows, int col) {
+    static Type inferredType(List<List<String>> rows, int col) {
         for (List<String> row : rows) {
             String v = row.get(col);
             // 'null' cells are NEUTRAL — they fit every type, so a later
@@ -169,16 +169,22 @@ final class TdsChecker {
             }
             if (v.matches("[+-]?\\d+")) {
                 // NUMERIC columns widen over the WHOLE column (Deephaven's
-                // int-unless-a-double-appears): 21, 41.14, 71 is Float.
+                // int-unless-a-double-appears): 21, 41.14, 71 is Float. A
+                // dotless scientific cell (1e5) is a DOUBLE to Deephaven's
+                // parser too — before this widened, the column stayed
+                // Integer and lowering's Long.parseLong("1e5") crashed
+                // (text-surgery audit §1.1 #7).
                 for (List<String> later : rows) {
                     String w = later.get(col);
-                    if (w.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")) {
+                    if (w.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")
+                            || w.matches("[+-]?\\d+[eE][+-]?\\d+")) {
                         return Type.Primitive.FLOAT;
                     }
                 }
                 return Type.Primitive.INTEGER;
             }
-            if (v.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")) {
+            if (v.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")
+                    || v.matches("[+-]?\\d+[eE][+-]?\\d+")) {
                 return Type.Primitive.FLOAT;
             }
             // pure DECIMAL-suffix cells (21d, 41.0d)
@@ -194,6 +200,9 @@ final class TdsChecker {
             // (2024-01-29T00:32:34.000000000+0000); no-zone or partial-time
             // strings stay String, date-only strings stay String, and the
             // mapped M3 type is Date, not DateTime (TDSExtension.convertType).
+            // (+05:30 colon-offset spellings stay String DELIBERATELY until
+            // the lowering preserves offsets — accepting them here before
+            // audit §1.1 #3 lands would mint mis-lowered instants)
             if (v.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?([+-]\\d{4}|Z)")) {
                 return Type.Primitive.DATE;
             }

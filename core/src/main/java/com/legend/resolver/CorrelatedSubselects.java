@@ -648,15 +648,25 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
                 out.add(k);
                 continue;
             }
-            List<String> split = row.columns().stream()
-                    .map(Type.Column::name)
-                    .filter(n -> n.matches(
-                            java.util.regex.Pattern.quote(k) + "_\\d+"))
-                    .toList();
-            if (split.isEmpty()) {
-                out.add(k);
-            } else {
+            // A REAL member split mints k_0..k_{n-1} for every union member
+            // — contiguous from 0, at least two. Any-digit-suffix matching
+            // absorbed a PHYSICAL column named ID_2 as a split key and
+            // grouped by it (text-surgery audit §1.1 #6); the shape check
+            // stands in for provenance until split names are threaded from
+            // UnionSynthesis's own mint.
+            List<String> split = new ArrayList<>();
+            for (int i = 0; ; i++) {
+                String cand = k + "_" + i;
+                if (row.columns().stream()
+                        .noneMatch(c -> c.name().equals(cand))) {
+                    break;
+                }
+                split.add(cand);
+            }
+            if (split.size() >= 2) {
                 out.addAll(split);
+            } else {
+                out.add(k);
             }
         }
         return out;
@@ -1662,14 +1672,27 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             String stPrefix = com.legend.model.ClassMapping.subTypeColumnPrefix(fqn);
             Map<String, TypedSpec> stBindings = new LinkedHashMap<>();
             for (Type.Column c : cs.rowType().columns()) {
+                // ANCHORED: bare marker or marker right after a slot-prefix
+                // boundary ("alias_") — indexOf-anywhere let the marker match
+                // mid-name (text-surgery audit §1.1 #5)
                 int at = c.name().indexOf(stPrefix);
-                if (at >= 0) {
-                    stBindings.put(c.name().substring(at + stPrefix.length()),
-                            new TypedPropertyAccess(
-                                    new TypedVariable(cs.rowVar(),
-                                            ExprType.one(cs.rowType())),
-                                    c.name(),
-                                    new ExprType(c.type(), c.multiplicity())));
+                if (at < 0 || (at > 0 && c.name().charAt(at - 1) != '_')) {
+                    continue;
+                }
+                String prop = c.name().substring(at + stPrefix.length());
+                TypedSpec prior = stBindings.put(prop,
+                        new TypedPropertyAccess(
+                                new TypedVariable(cs.rowVar(),
+                                        ExprType.one(cs.rowType())),
+                                c.name(),
+                                new ExprType(c.type(), c.multiplicity())));
+                if (prior != null) {
+                    // two hops carry the same subtype column: silently keeping
+                    // the LAST bound the cast leaf to the wrong hop — refuse
+                    // until per-hop disambiguation is designed
+                    throw new com.legend.error.NotImplementedException(
+                            "subtype column '" + prop + "' of " + fqn
+                                    + " rides more than one hop prefix");
                 }
             }
             if (!stBindings.isEmpty()) {
