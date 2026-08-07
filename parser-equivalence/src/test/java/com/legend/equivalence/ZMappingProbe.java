@@ -28,6 +28,57 @@ class ZMappingProbe {
     }
 
     @Test
+    void aggOffsetProbe() throws Exception {
+        String head = """
+                ###Relational
+                Database my::ADB
+                (
+                  Table SalesTable ( id INT, salesPerson VARCHAR(20) )
+                )
+
+                ###Pure
+                Class my::Sale { salesPerson: String[1]; }
+
+                ###Mapping
+                """;
+        String mappingA = """
+                Mapping my::M80
+                (
+                  *my::Sale: AggregationAware
+                  {
+                    Views:
+                    [
+                      (
+                        ~modelOperation:
+                        {
+                          ~canAggregate true,
+                          ~groupByFunctions
+                          (
+                            $this.salesPerson
+                          ),
+                          ~aggregateValues
+                          (
+                            ( ~mapFn: $this.salesPerson, ~aggregateFn: $mapped->joinStrings(',') )
+                          )
+                        },
+                        ~aggregateMapping: Relational
+                        {
+                          salesPerson: [my::ADB]SalesTable.salesPerson
+                        }
+                      )
+                    ],
+                    ~mainMapping: Relational
+                    {
+                      salesPerson: [my::ADB]SalesTable.salesPerson
+                    }
+                  }
+                )
+                """;
+        probe("agg-off-A", head + mappingA);
+        probe("agg-off-B", head + "\n\n\n" + mappingA);
+    }
+
+    @Test
     void batch15Shapes() throws Exception {
         probe("agg-aware", """
                 ###Relational
