@@ -47,6 +47,38 @@ public final class Protocol {
      *  envelope {associationMappings, classMappings, enumerationMappings,
      *  includedMappings, name, package, sourceInformation, tests}. Class
      *  mapping families land probe-by-probe; unbuilt ones WALL. */
+    /** Association mappings: relational sides are join navs; xStore sides
+     *  are Pure cross-expression lambdas (probes include-and-assoc,
+     *  xstore). */
+    public sealed interface PAssociationMapping
+            permits PRelAssociationMapping, PXStoreAssociationMapping {
+    }
+
+    public record PRelAssociationMapping(PPointer association,
+                                         List<PRelAssocPropertyMapping> propertyMappings,
+                                         List<String> stores,
+                                         com.legend.protocol.SourceInfo sourceInformation)
+            implements PAssociationMapping {
+    }
+
+    public record PRelAssocPropertyMapping(String property,
+                                           com.legend.protocol.SourceInfo propertySourceInformation,
+                                           PRelOp relationalOperation,
+                                           com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PXStoreAssociationMapping(PPointer association,
+                                            List<PXStorePropertyMapping> propertyMappings,
+                                            com.legend.protocol.SourceInfo sourceInformation)
+            implements PAssociationMapping {
+    }
+
+    public record PXStorePropertyMapping(String ownerClass, String property,
+                                         com.legend.protocol.SourceInfo propertySourceInformation,
+                                         List<com.legend.protocol.spec.ValueSpecification> crossExpression,
+                                         com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
     /** Class mappings emit in SOURCE ORDER — one sealed list. */
     public sealed interface PClassMapping
             permits PClassMappingRel, PClassMappingPure,
@@ -54,6 +86,7 @@ public final class Protocol {
     }
 
     public record PMapping(String pkg, String name,
+                           List<PAssociationMapping> associationMappings,
                            List<PClassMapping> classMappings,
                            List<PEnumerationMapping> enumerationMappings,
                            List<PMappingInclude> includedMappings,
@@ -253,14 +286,16 @@ public final class Protocol {
     }
 
     /** {@code @Join | expr} navigation — the wire _type is the engine's own
-     *  TYPO {@code "elemtWithJoins"}, preserved deliberately. */
+     *  TYPO {@code "elemtWithJoins"}, preserved deliberately. A join-only
+     *  nav ({@code [db]@J}, association sides) has NO element. */
     public record PElemtWithJoins(List<PJoinPtr> joins,
-                                  PRelOp relationalElement,
+                                  @com.legend.Nullable PRelOp relationalElement,
                                   com.legend.protocol.SourceInfo sourceInformation)
             implements PRelOp {
     }
 
-    public record PJoinPtr(String db, @com.legend.Nullable String joinType,
+    public record PJoinPtr(@com.legend.Nullable String db,
+                           @com.legend.Nullable String joinType,
                            String name,
                            com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -277,7 +312,8 @@ public final class Protocol {
             implements PRelOp {
     }
 
-    public record PTablePtr(String database, String mainTableDb, String schema,
+    public record PTablePtr(@com.legend.Nullable String database,
+                            @com.legend.Nullable String mainTableDb, String schema,
                             String table,
                             com.legend.protocol.SourceInfo sourceInformation) {
     }

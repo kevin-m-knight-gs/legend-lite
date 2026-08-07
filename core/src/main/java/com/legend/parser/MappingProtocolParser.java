@@ -55,18 +55,20 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         expect(TokenType.PAREN_OPEN);
+        List<Protocol.PAssociationMapping> assocMappings = new ArrayList<>();
         List<Protocol.PClassMapping> classMappings = new ArrayList<>();
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
         List<Protocol.PMappingInclude> includes = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            parseMember(classMappings, enums, includes);
+            parseMember(assocMappings, classMappings, enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
-        return new Protocol.PMapping(pkg, name, classMappings, enums,
-                includes, spanOf(declStart, pos - 1));
+        return new Protocol.PMapping(pkg, name, assocMappings, classMappings,
+                enums, includes, spanOf(declStart, pos - 1));
     }
 
-    private void parseMember(List<Protocol.PClassMapping> classMappings,
+    private void parseMember(List<Protocol.PAssociationMapping> assocMappings,
+            List<Protocol.PClassMapping> classMappings,
             List<Protocol.PEnumerationMapping> enums,
             List<Protocol.PMappingInclude> includes) {
         if (peek() == TokenType.INCLUDE) {
@@ -102,8 +104,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.RELATIONAL) {
             advance();
+            if (peekIsAssociationBody()) {
+                assocMappings.add(parseRelAssociationMapping(target,
+                        memberStart, targetSpan));
+                return;
+            }
             classMappings.add(parseRelationalClassMapping(target, memberStart,
                     targetSpan, id, root));
+            return;
+        }
+        if (peek() == TokenType.VALID_STRING && "XStore".equals(text())) {
+            advance();
+            assocMappings.add(parseXStoreAssociationMapping(target,
+                    memberStart, targetSpan));
             return;
         }
         if (peek() == TokenType.PURE_MAPPING) {
@@ -265,6 +278,93 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingPure(target, targetSpan, id, root,
                 srcClass, srcSpan, props, spanOf(memberStart, close));
+    }
+
+    /** Whether the {@code Relational} body opens with the
+     *  {@code AssociationMapping} keyword (association form). */
+    private boolean peekIsAssociationBody() {
+        return peek() == TokenType.BRACE_OPEN
+                && tokens.count() > pos + 1
+                && tokens.type(pos + 1) == TokenType.ASSOCIATION_MAPPING;
+    }
+
+    /** {@code assoc: Relational { AssociationMapping ( side: [db]@J, ... ) }}
+     *  — sides are join-only navs; stores = the [db] pointers in order of
+     *  first appearance (probe include-and-assoc). */
+    private Protocol.PRelAssociationMapping parseRelAssociationMapping(
+            String target, int memberStart, SourceInfo targetSpan) {
+        expect(TokenType.BRACE_OPEN);
+        expect(TokenType.ASSOCIATION_MAPPING);
+        expect(TokenType.PAREN_OPEN);
+        List<Protocol.PRelAssocPropertyMapping> props = new ArrayList<>();
+        List<String> stores = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            int pS = pos;
+            String prop = parseIdentifier();
+            SourceInfo propSpan = spanOf(pS, pos - 1);
+            expect(TokenType.COLON);
+            int oS = pos;
+            Protocol.PRelOp op = parseEmbeddedOperation();
+            if (op instanceof Protocol.PElemtWithJoins ej) {
+                for (Protocol.PJoinPtr jp : ej.joins()) {
+                    String jdb = jp.db();
+                    if (jdb != null && !stores.contains(jdb)) {
+                        stores.add(jdb);
+                    }
+                }
+            }
+            props.add(new Protocol.PRelAssocPropertyMapping(prop, propSpan,
+                    op, spanOf(oS - 1, pos - 1)));
+            match(TokenType.COMMA);
+        }
+        expect(TokenType.PAREN_CLOSE);
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PRelAssociationMapping(
+                new Protocol.PPointer("ASSOCIATION", target, targetSpan),
+                props, stores, spanOf(memberStart, close));
+    }
+
+    /** {@code assoc: XStore { side: <cross expr>, ... }} — cross
+     *  expressions are Pure lambdas via SpecParser (probe xstore). */
+    private Protocol.PXStoreAssociationMapping parseXStoreAssociationMapping(
+            String target, int memberStart, SourceInfo targetSpan) {
+        expect(TokenType.BRACE_OPEN);
+        List<Protocol.PXStorePropertyMapping> props = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            int pS = pos;
+            String prop = parseIdentifier();
+            SourceInfo propSpan = spanOf(pS, pos - 1);
+            expect(TokenType.COLON);
+            int exprStart = pos;
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (depth == 0 && (t == TokenType.COMMA
+                        || t == TokenType.BRACE_CLOSE)) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.PAREN_CLOSE
+                        || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                }
+                advance();
+            }
+            List<com.legend.protocol.spec.ValueSpecification> body =
+                    SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
+            props.add(new Protocol.PXStorePropertyMapping(target, prop,
+                    propSpan, body, spanOf(pS, pos - 1)));
+            match(TokenType.COMMA);
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PXStoreAssociationMapping(
+                new Protocol.PPointer("ASSOCIATION", target, targetSpan),
+                props, spanOf(memberStart, close));
     }
 
     /** {@code cls[id]: Operation { fqn(p1, p2) }} — the called FQN maps to

@@ -28,6 +28,29 @@ class ZMappingProbe {
     }
 
     @Test
+    void bareTableShapes() throws Exception {
+        probe("bare-no-db", """
+                ###Relational
+                Database my::DB
+                (
+                  Table t ( name VARCHAR(20), fid INT )
+                  Table f ( id INT )
+                  Join J ( t.fid = f.id )
+                )
+
+                ###Mapping
+                Mapping my::M9
+                (
+                  my::S: Relational
+                  {
+                    v: t.name,
+                    w: [my::DB]@J | f.id
+                  }
+                )
+                """);
+    }
+
+    @Test
     void srcIdShapes() throws Exception {
         probe("src-set-id", """
                 ###Pure

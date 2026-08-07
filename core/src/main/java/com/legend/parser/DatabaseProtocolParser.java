@@ -590,6 +590,83 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         return new Protocol.PDynaFunc(fn, List.of(left, right), compSpan);
     }
 
+    /** {@code null} when parsing OUTSIDE any database (mapping-embedded
+     *  bare refs) — the wire then omits both db keys (probe bare-no-db). */
+    private @com.legend.Nullable String dbOrNull() {
+        return dbFqn.isEmpty() ? null : dbFqn;
+    }
+
+    /** An atom resolved under {@code db} — a bracket-nav element inherits
+     *  the bracket's db even when the ambient parse has none. */
+    private Protocol.PRelOp atomUnder(String db, String schemaCtx) {
+        if (db.equals(dbFqn)) {
+            return parseAtom(schemaCtx);
+        }
+        DatabaseProtocolParser p =
+                new DatabaseProtocolParser(tokens, pos, db);
+        Protocol.PRelOp e = p.parseAtom(schemaCtx);
+        this.pos = p.pos;
+        return e;
+    }
+
+    /** {@code true} when the {@code [} opens a db pointer followed by an
+     *  {@code @}-navigation ({@code [db]@J} — association sides). */
+    private boolean bracketLeadsToAt() {
+        int i = pos + 1;
+        int depth = 1;
+        while (i < tokens.count() && depth > 0) {
+            TokenType t = tokens.type(i);
+            if (t == TokenType.BRACKET_OPEN) {
+                depth++;
+            } else if (t == TokenType.BRACKET_CLOSE) {
+                depth--;
+            }
+            i++;
+        }
+        return i < tokens.count() && tokens.type(i) == TokenType.AT;
+    }
+
+    /** {@code @J [> (TYPE) @K]* [| element]} — a join-only nav
+     *  (association sides) has NO element. */
+    private Protocol.PRelOp parseJoinNav(String db, String schemaCtx,
+            int s) {
+        List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
+        String pendingType = null;
+        while (peek() == TokenType.AT) {
+            int jS = pos;                           // span INCLUDES the '@'
+            advance();
+            String jn = parseIdentifier();
+            joinPtrs.add(new Protocol.PJoinPtr(
+                    db.isEmpty() ? null : db, pendingType, jn,
+                    spanOf(jS, pos - 1)));
+            pendingType = null;
+            if (peek() == TokenType.GREATER_THAN) {
+                advance();
+                if (peek() == TokenType.PAREN_OPEN) {
+                    // > (INNER) @Next — the TYPE rides the NEXT pointer
+                    advance();
+                    pendingType = parseIdentifier();
+                    expect(TokenType.PAREN_CLOSE);
+                }
+            } else {
+                break;
+            }
+        }
+        Protocol.PRelOp elem = null;
+        if (peek() == TokenType.PIPE) {
+            advance();
+            elem = atomUnder(db, schemaCtx);
+            if (!"default".equals(schemaCtx)) {
+                // engine resolves non-default-schema nav tables against
+                // their DECLARATION (probe nav-spacing) — unbuilt
+                throw error("join-navigation inside schema '" + schemaCtx
+                        + "' needs declaration-site span resolution (unbuilt)");
+            }
+        }
+        return new Protocol.PElemtWithJoins(joinPtrs, elem,
+                spanOf(s, pos - 1));
+    }
+
     /** The node with its span's END replaced by {@code end}'s end. */
     private static Protocol.PRelOp withSpanEnd(Protocol.PRelOp op,
             SourceInfo end) {
@@ -666,9 +743,20 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             expect(TokenType.DOT);
             String col = parseIdentifier();
             SourceInfo span = spanOf(s, pos - 1);
-            return new Protocol.PColumnRef(col, new Protocol.PTablePtr(dbFqn,
-                    dbFqn, schemaCtx, "{target}", spanOf(s, s)), "{target}",
+            return new Protocol.PColumnRef(col, new Protocol.PTablePtr(
+                    dbOrNull(), dbOrNull(), schemaCtx, "{target}",
+                    spanOf(s, s)), "{target}",
                     span);
+        }
+        if (peek() == TokenType.BRACKET_OPEN && !looksLikeLiteralList()
+                && bracketLeadsToAt()) {
+            // [db]@Join — bracket-qualified join nav; span INCLUDES the db
+            // pointer (probe assoc-spans E=16 at the '[')
+            int bS = pos;
+            advance();
+            String db = Protocol.unquotePath(parseQualifiedName());
+            expect(TokenType.BRACKET_CLOSE);
+            return parseJoinNav(db, schemaCtx, bS);
         }
         if (peek() == TokenType.BRACKET_OPEN && !looksLikeLiteralList()) {
             // [db]table.col — bracket-qualified ref: the bracket db becomes
@@ -719,40 +807,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return new Protocol.PRelLiteralList(items, spanOf(lS, pos - 1));
         }
         if (peek() == TokenType.AT) {
-            // @Join | expr  (also @J1 > @J2 | expr chains)
-            List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
-            String pendingType = null;
-            while (peek() == TokenType.AT) {
-                int jS = pos;                       // span INCLUDES the '@'
-                advance();
-                String jn = parseIdentifier();
-                joinPtrs.add(new Protocol.PJoinPtr(dbFqn, pendingType, jn,
-                        spanOf(jS, pos - 1)));
-                pendingType = null;
-                if (peek() == TokenType.GREATER_THAN) {
-                    advance();
-                    if (peek() == TokenType.PAREN_OPEN) {
-                        // > (INNER) @Next — the TYPE rides the NEXT pointer
-                        advance();
-                        pendingType = parseIdentifier();
-                        expect(TokenType.PAREN_CLOSE);
-                    }
-                } else {
-                    break;
-                }
-            }
-            expect(TokenType.PIPE);
-            Protocol.PRelOp elem = parseAtom(schemaCtx);
-            if (!"default".equals(schemaCtx)) {
-                // the engine resolves a NON-default-schema view's nav table
-                // against its DECLARATION and stamps declaration-side spans
-                // (probe nav-spacing: table span points at the Table line) —
-                // needs two-pass declaration tracking; refuse until built
-                throw error("join-navigation inside schema '" + schemaCtx
-                        + "' needs declaration-site span resolution (unbuilt)");
-            }
-            return new Protocol.PElemtWithJoins(joinPtrs, elem,
-                    spanOf(s, pos - 1));
+            return parseJoinNav(dbFqn, schemaCtx, pos);
         }
         // identifier: function call, or dotted column ref
         String first = parseIdentifier();
@@ -782,7 +837,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             column = parseIdentifier();
         }
         SourceInfo span = spanOf(s, pos - 1);
-        return new Protocol.PColumnRef(column, new Protocol.PTablePtr(dbFqn,
-                dbFqn, schema, table, spanOf(s, tblEnd)), table, span);
+        return new Protocol.PColumnRef(column, new Protocol.PTablePtr(
+                dbOrNull(), dbOrNull(), schema, table, spanOf(s, tblEnd)),
+                table, span);
     }
 }

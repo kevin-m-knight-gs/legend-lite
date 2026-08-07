@@ -98,9 +98,13 @@ class CorpusEquivalenceTest {
      * set id (empty string when none).
      * 23,484 -> 23,506: OPERATION class mappings (EXACT-FQN discriminator
      * mapping, bare set-id parameters) and class mappings unified into ONE
-     * sealed SOURCE-ORDERED list. */
-    private static final int MIN_ELEMENTS_COMPARED = 23506;
-    private static final int MIN_MATCHES = 23506;
+     * sealed SOURCE-ORDERED list.
+     * 23,506 -> 23,570: ASSOCIATION mappings (Relational AssociationMapping
+     * + XStore cross-expressions) and the [db]@Join bracket-nav form; nav
+     * elements inherit the bracket db; bare embedded refs (no db anywhere)
+     * OMIT database/mainTableDb/join db keys (probe bare-no-db). */
+    private static final int MIN_ELEMENTS_COMPARED = 23570;
+    private static final int MIN_MATCHES = 23570;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

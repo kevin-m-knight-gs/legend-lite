@@ -170,8 +170,80 @@ public final class ProtocolEmitter {
 
     /** {@code _type:"mapping"} envelope (ZMappingProbe). */
     private static void mapping(StringBuilder b, Protocol.PMapping m) {
-        b.append("{\"_type\":\"mapping\",\"associationMappings\":[]"
-                + ",\"classMappings\":[");
+        b.append("{\"_type\":\"mapping\",\"associationMappings\":[");
+        for (int i = 0; i < m.associationMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            switch (m.associationMappings().get(i)) {
+                case Protocol.PRelAssociationMapping ra -> {
+                    b.append("{\"_type\":\"relational\",\"association\":");
+                    pointer(b, ra.association());
+                    b.append(",\"propertyMappings\":[");
+                    for (int j = 0; j < ra.propertyMappings().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PRelAssocPropertyMapping pm =
+                                ra.propertyMappings().get(j);
+                        b.append("{\"_type\":\"relationalPropertyMapping\","
+                                + "\"property\":{\"property\":");
+                        str(b, pm.property());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.propertySourceInformation());
+                        b.append("},\"relationalOperation\":");
+                        relOp(b, pm.relationalOperation());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.sourceInformation());
+                        b.append('}');
+                    }
+                    b.append("],\"sourceInformation\":");
+                    srcInfo(b, ra.sourceInformation());
+                    b.append(",\"stores\":[");
+                    for (int j = 0; j < ra.stores().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        str(b, ra.stores().get(j));
+                    }
+                    b.append("]}");
+                }
+                case Protocol.PXStoreAssociationMapping xa -> {
+                    b.append("{\"_type\":\"xStore\",\"association\":");
+                    pointer(b, xa.association());
+                    b.append(",\"propertyMappings\":[");
+                    for (int j = 0; j < xa.propertyMappings().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PXStorePropertyMapping pm =
+                                xa.propertyMappings().get(j);
+                        b.append("{\"_type\":\"xStorePropertyMapping\","
+                                + "\"crossExpression\":{\"_type\":\"lambda\","
+                                + "\"body\":[");
+                        for (int k = 0; k < pm.crossExpression().size(); k++) {
+                            if (k > 0) {
+                                b.append(',');
+                            }
+                            valueSpec(b, pm.crossExpression().get(k));
+                        }
+                        b.append("],\"parameters\":[]},\"property\":{\"class\":");
+                        str(b, pm.ownerClass());
+                        b.append(",\"property\":");
+                        str(b, pm.property());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.propertySourceInformation());
+                        b.append("},\"source\":\"\",\"sourceInformation\":");
+                        srcInfo(b, pm.sourceInformation());
+                        b.append(",\"target\":\"\"}");
+                    }
+                    b.append("],\"sourceInformation\":");
+                    srcInfo(b, xa.sourceInformation());
+                    b.append(",\"stores\":[]}");
+                }
+            }
+        }
+        b.append("],\"classMappings\":[");
         for (int i = 0; i < m.classMappings().size(); i++) {
             if (i > 0) {
                 b.append(',');
@@ -378,10 +450,17 @@ public final class ProtocolEmitter {
     }
 
     private static void tablePtr(StringBuilder b, Protocol.PTablePtr t) {
-        b.append("{\"_type\":\"Table\",\"database\":");
-        str(b, t.database());
-        b.append(",\"mainTableDb\":");
-        str(b, t.mainTableDb());
+        b.append("{\"_type\":\"Table\"");
+        String db = t.database();
+        String mainDb = t.mainTableDb();
+        if (db != null && mainDb != null) {
+            // a table ref with NO db anywhere (bare mapping-embedded op)
+            // OMITS both db keys (probe bare-no-db)
+            b.append(",\"database\":");
+            str(b, db);
+            b.append(",\"mainTableDb\":");
+            str(b, mainDb);
+        }
         b.append(",\"schema\":");
         str(b, t.schema());
         b.append(",\"sourceInformation\":");
@@ -699,17 +778,9 @@ public final class ProtocolEmitter {
                 str(b, c.column());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, c.sourceInformation());
-                b.append(",\"table\":{\"_type\":\"Table\",\"database\":");
-                str(b, c.table().database());
-                b.append(",\"mainTableDb\":");
-                str(b, c.table().mainTableDb());
-                b.append(",\"schema\":");
-                str(b, c.table().schema());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, c.table().sourceInformation());
                 b.append(",\"table\":");
-                str(b, c.table().table());
-                b.append("},\"tableAlias\":");
+                tablePtr(b, c.table());
+                b.append(",\"tableAlias\":");
                 str(b, c.tableAlias());
                 b.append('}');
             }
@@ -720,20 +791,31 @@ public final class ProtocolEmitter {
                         b.append(',');
                     }
                     Protocol.PJoinPtr jp = ej.joins().get(i);
-                    b.append("{\"db\":");
-                    str(b, jp.db());
-                    if (jp.joinType() != null) {
-                        b.append(",\"joinType\":");
-                        str(b, jp.joinType());
+                    b.append('{');
+                    String jdb = jp.db();
+                    if (jdb != null) {
+                        // bare @Join with NO db anywhere omits the key
+                        // (probe bare-no-db, island TestSimpleGrammar#218)
+                        b.append("\"db\":");
+                        str(b, jdb);
+                        b.append(',');
                     }
-                    b.append(",\"name\":");
+                    if (jp.joinType() != null) {
+                        b.append("\"joinType\":");
+                        str(b, jp.joinType());
+                        b.append(',');
+                    }
+                    b.append("\"name\":");
                     str(b, jp.name());
                     b.append(",\"sourceInformation\":");
                     srcInfo(b, jp.sourceInformation());
                     b.append('}');
                 }
-                b.append("],\"relationalElement\":");
-                relOp(b, ej.relationalElement());
+                b.append(']');
+                if (ej.relationalElement() != null) {
+                    b.append(",\"relationalElement\":");
+                    relOp(b, ej.relationalElement());
+                }
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, ej.sourceInformation());
                 b.append('}');
