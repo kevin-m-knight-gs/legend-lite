@@ -1750,6 +1750,34 @@ public final class ElementParser implements TokenStreamCursor {
         return new com.legend.protocol.SourceInfo("", line, col + 2, eLine, eCol);
     }
 
+
+    /** The block's PATH separator colon, or -1 when the block has no path
+     *  part. A bare {@code indexOf(':')} found a colon ANYWHERE — a data
+     *  cell containing {@code 10:30} silently garbled path, columns and
+     *  rows (text-surgery audit §1.1 #2). The engine's grammar admits a
+     *  path only as leading {@code ident(.ident)*:}, so the colon counts
+     *  only when UNQUOTED and its prefix is one dotted name — no newline,
+     *  comma or quote before it. */
+    static int pathColonOf(String body) {
+        boolean inQuotes = false;
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (c == ':' && !inQuotes) {
+                String prefix = body.substring(0, i);
+                for (int j = 0; j < prefix.length(); j++) {
+                    char pc = prefix.charAt(j);
+                    if (pc == '\n' || pc == ',' || pc == '"' || pc == '\'') {
+                        return -1;      // rows/columns before the colon: no path
+                    }
+                }
+                return prefix.strip().isEmpty() ? -1 : i;
+            }
+        }
+        return -1;
+    }
+
     /** Quote-aware cell split: commas inside double-quotes do not split; every cell
      *  keeps its RAW spelling, quotes and all (probe "pf csv cells"). */
     private static List<String> csvCells(String line) {
@@ -1776,7 +1804,7 @@ public final class ElementParser implements TokenStreamCursor {
             @com.legend.Nullable com.legend.protocol.SourceInfo assertSpan) {
         String body = source.substring(a, semi);
         List<String> paths = new ArrayList<>();
-        int colon = body.indexOf(':');
+        int colon = pathColonOf(body);
         if (colon >= 0) {
             String pathPart = body.substring(0, colon).trim();
             int segStart = 0;

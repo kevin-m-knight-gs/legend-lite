@@ -487,9 +487,9 @@ public final class StoreResolver {
                     structural(tc, context);
             case TypedPropertyAccess vpa   // genericType().rawType (M3)
                     when GenericTypeReflection.matches(vpa) ->
-                    GenericTypeReflection.resolve(vpa,
-                            x -> resolveNode(x, context), f -> sources
-                                    .get(dispatch(context, f), f).pipeline());
+                    GenericTypeReflection.resolve(vpa, x -> resolveNode(x, context),
+                            f -> sources.get(dispatch(context, f), f).pipeline(),
+                            ctx.elementFqns());
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
                 TypedSpec am = Pipelines.autoMapRead(vpa);

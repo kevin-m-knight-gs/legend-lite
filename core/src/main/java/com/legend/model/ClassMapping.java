@@ -63,6 +63,22 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         return col.startsWith("stc_") && col.contains("___");
     }
 
+    /** The class whose {@link #subTypeColumnPrefix} minted {@code pfx},
+     * chosen from {@code candidates} by EXACT re-mangling. The
+     * {@code ::}&rarr;{@code __} encoding is LOSSY for names containing
+     * {@code __} (my::A__B and my::A::B mint the same prefix), so the
+     * inverse is a lookup against the model, never string surgery
+     * (text-surgery audit §1.1 #1). Null when no candidate matches. */
+    static @com.legend.Nullable String classOfWitnessPrefix(
+            String pfx, java.util.Collection<String> candidates) {
+        for (String fqn : candidates) {
+            if (subTypeColumnPrefix(fqn).equals(pfx)) {
+                return fqn;
+            }
+        }
+        return null;
+    }
+
     /**
      * Pseudo-prop of the MEMBERSHIP WITNESS column (emitted only for cast
      * targets with PARTIAL membership; never a real property name).

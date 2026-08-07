@@ -51,7 +51,8 @@ final class GenericTypeReflection {
      * undemanded slots stripped (nothing else is read here). */
     static TypedSpec resolve(TypedPropertyAccess vpa,
             java.util.function.UnaryOperator<TypedSpec> resolver,
-            java.util.function.Function<String, TypedSpec> bareExtent) {
+            java.util.function.Function<String, TypedSpec> bareExtent,
+            java.util.Set<String> modelFqns) {
         var gt = (com.legend.compiler.spec.typed.TypedNativeCall)
                 Pipelines.unwrapToOne(vpa.source());
         String fqn = ((Type.ClassType) gt.args().get(0).info().type()).fqn();
@@ -60,13 +61,14 @@ final class GenericTypeReflection {
             rel = Pipelines.materialize(bareExtent.apply(fqn),
                     java.util.Set.of(), fqn).pipeline();
         }
-        return rawTypeProjection(rel, fqn);
+        return rawTypeProjection(rel, fqn, modelFqns);
     }
 
     /** The resolved relation wrapped with a one-column projection of the
      * instance's raw-type NAME (engine assert formatting compares by the
      * element's name). */
-    static TypedSpec rawTypeProjection(TypedSpec rel, String baseClassFqn) {
+    static TypedSpec rawTypeProjection(TypedSpec rel, String baseClassFqn,
+            java.util.Set<String> modelFqns) {
         if (!(rel.info().type() instanceof Type.RelationType row)) {
             throw new NotImplementedException("genericType().rawType over a"
                     + " non-relation resolution ("
@@ -83,9 +85,22 @@ final class GenericTypeReflection {
             if (pfx == null) {
                 continue;
             }
-            String fqn = pfx.substring("stc_".length(),
-                            pfx.length() - "___".length())
-                    .replace("__", "::");
+            // EXACT inverse via the model — the __ encoding is lossy, so
+            // demangling by string surgery corrupted any class whose NAME
+            // contains __ (text-surgery audit §1.1 #1). elementFqns() is a
+            // DEFAULT-empty surface, so a context that does not expose it
+            // falls back to the demangle rather than regressing.
+            String fqn = com.legend.model.ClassMapping
+                    .classOfWitnessPrefix(pfx, modelFqns);
+            if (fqn == null && !modelFqns.isEmpty()) {
+                throw new NotImplementedException("membership witness '"
+                        + c.name() + "' matches no model class by exact"
+                        + " re-mangling");
+            }
+            if (fqn == null) {
+                fqn = pfx.substring("stc_".length(),
+                        pfx.length() - "___".length()).replace("__", "::");
+            }
             TypedSpec read = new TypedPropertyAccess(rowVar, c.name(),
                     new ExprType(c.type(), c.multiplicity()));
             TypedSpec name = new TypedCString(simpleName(fqn), str1);
