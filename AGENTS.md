@@ -10,8 +10,11 @@
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
 > contracts, open decisions. This file is the short form.
 >
-> Layer plans: `docs/pipeline-architecture.md` (backend, HIR → MIR → SQL),
-> `docs/frontend-architecture.md` (frontend, text → HIR).
+> Layer design rationale: `docs/pipeline-architecture.md` (backend, HIR → MIR
+> → SQL) and `docs/frontend-architecture.md` (frontend, text → HIR). **Both
+> were written against the frozen `engine/` tree** — their reasoning governs,
+> their type names do not. Each carries a name-mapping banner. Take names from
+> here and from `core/README.md`.
 
 ## Read this first: there are two trees, and you almost certainly want `core/`
 

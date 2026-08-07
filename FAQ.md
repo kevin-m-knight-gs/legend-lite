@@ -14,7 +14,7 @@ Legend Lite is a **clean-room reimplementation** of the [FINOS Legend](https://l
 | **Execution** | Mixed SQL + in-memory Java | 100% SQL push-down |
 | **Build** | 15–30 minutes | 19 seconds (clean + 955 tests) |
 | **Java** | Java 11, classes, visitors | Java 21, records, sealed interfaces, pattern matching |
-| **Dependencies** | Hundreds of JARs | DuckDB, ANTLR, JUnit |
+| **Dependencies** | Hundreds of JARs | DuckDB, H2, JUnit — **no ANTLR** |
 | **Databases** | Postgres, Databricks, Snowflake, etc. | DuckDB (primary), SQLite |
 | **Pure coverage** | Full language | Relational subset (growing) |
 
@@ -78,38 +78,58 @@ return switch (vs) {
 
 ### Why a hand-written parser instead of ANTLR?
 
-The engine actually uses **both**:
+**There is no ANTLR anywhere in Legend Lite** — not in any pom, not in any
+module. Both halves are hand-written recursive descent in `core/parser/`:
+`ElementParser` for definitions (classes, mappings, databases, runtimes) and
+`SpecParser` for expressions (value specifications, lambda bodies,
+applications).
 
-- **ANTLR** — parses Pure *expressions* (value specifications, lambda bodies, function applications). The grammar is in `PureLexer.g4` and `PureParser.g4`.
-- **Hand-written** — parses Pure *definitions* (classes, mappings, databases, runtimes). The recursive descent parser in `PureParser.java` handles the structural elements.
+Upstream legend-engine uses ANTLR for both. The measured reasons for not
+following it (`docs/PARSER_DROP_IN.md` §0):
 
-The hand-written parser was chosen for definitions because:
-1. Pure's definition syntax is context-sensitive in ways that make ANTLR grammar rules awkward
-2. No additional generated code for the definition layer
-3. Easier to debug and extend
-4. GraalVM native-image compatibility (ANTLR runtime uses reflection)
+1. **Memory** — 1,281 bytes allocated per source character vs ~39. That is
+   3.6 GB to parse 2.8 MB of source, plus ~31 MB retained just to warm the
+   parser. The strongest reason by a distance.
+2. **Generated code** — 156 `.g4` files, 14,568 generated lines, 46% of the
+   grammar jar's bytes.
+3. **Build** — an `antlr4-maven-plugin` bound to `generate-sources` in 41 modules.
+4. **Currency** — upstream is pinned to ANTLR 4.8-1 (2020) and can only move
+   in lockstep with all generated code.
+5. **Debuggability** — stepping recursive descent versus an ATN simulator.
+6. Speed — ~54× on parse, and explicitly the *weakest* of the six. There is no
+   latency gate; the project is justified at 0% speedup.
 
-### What is the "side-table metadata" pattern?
+The parser is a byte-for-byte drop-in candidate for upstream's: 22,725/22,725
+elements currently emit identical protocol JSON, checked against legend-engine
+running live in-process (gate 8).
 
-The `TypeChecker` annotates every AST node with a `TypeInfo` record containing:
-- Scalar type and multiplicity
-- Relation columns (for tabular operations)
-- Inlined body expressions (for compiler desugaring like `fold→concatenate`)
-- Join path metadata
+### How does type information flow to the backend?
 
-This metadata is stored in a `Map<ValueSpecification, TypeInfo>` (the "side table") rather than mutating the AST. The `PlanGenerator` reads it during SQL emission without re-walking the model. This keeps the AST immutable while still propagating rich type information.
+**Through the tree, not beside it.** Phase G (`compiler/spec/SpecCompiler`,
+`Typer`, `InferenceKernel`) consumes the untyped `protocol.spec.ValueSpecification`
+and produces a *different*, typed tree: `compiler.spec.typed.TypedSpec`, a
+sealed hierarchy of ~70 variants carrying type, multiplicity, relation columns
+and resolved callee signatures on the nodes themselves.
+
+> **The legacy engine used a side table** — a `Map<ValueSpecification, TypeInfo>`
+> threaded alongside the AST. Core deliberately does not: `core/README.md`
+> invariant 8 forbids mutable sidecar state across passes. Each phase takes
+> input and returns output. If you find yourself wanting an
+> `IdentityHashMap<TypedSpec, ?>` spanning a phase boundary, that is the smell
+> the invariant names.
 
 ### What is the dialect abstraction layer?
 
-The `PlanGenerator` never emits raw SQL strings. Instead, it builds a structural `SqlExpr` tree using semantic names:
+The Lowerer (`lowering/Lowerer`, phase I) never emits raw SQL. It builds a
+sealed, dialect-free MIR under `sql/` — `SqlQuery`, `SqlSource`, `SqlExpr`,
+`SqlAgg` — which the dialect then renders through a single entry point,
+`SqlDialect.render(SqlQuery)`.
 
-```java
-// PlanGenerator emits this:
-new SqlExpr.FunctionCall("listTransform", List.of(list, lambda))
-
-// DuckDB dialect renders it as:
-"LIST_TRANSFORM(list, lambda)"
-```
+Crucially, **there is no `FunctionCall(String name, args)` catch-all in the
+MIR**. Every operation is its own typed record, so adding a Pure native means
+adding a variant *and* a render arm — and because render methods are switch
+expressions with no `default ->`, javac fails the build until you do. That is
+`AGENTS.md` invariant 3a.
 
 This means adding a new database dialect only requires implementing the rendering layer — the compilation logic is shared.
 
@@ -289,45 +309,47 @@ These annotations are indexed by the semantic retrieval stage and included in LL
 
 | Command | Time | What it does |
 |---------|------|-------------|
-| `mvn clean install -DskipTests` | ~8s | ANTLR generate + compile all modules |
+| `mvn clean install -DskipTests` | ~8s | compile all modules |
 | `mvn clean test -pl engine` | ~19s | Clean compile + 955 tests |
 | `mvn test -pl engine` | ~8s | Incremental (tests only) |
 
 ### Why is the build so fast?
 
-1. **3 modules** instead of 400+ — minimal Maven overhead
-2. **Zero heavyweight dependencies** — no Spring, no Guice, no ORM
+1. **5 modules** instead of 400+ — minimal Maven overhead
+2. **Zero heavyweight dependencies** — no Spring, no Guice, no ORM, no ANTLR
 3. **In-memory DuckDB** — tests create/destroy databases in microseconds
 4. **No network I/O in tests** — everything runs locally
-5. **Small codebase** — ~25K LOC compiles in seconds
+5. **No code generation step** — the parser is hand-written
 
 ### How do I run a single test?
 
 ```bash
 mvn test -pl engine -Dtest="DuckDBIntegrationTest"
-mvn test -pl engine -Dtest="TypeCheckerTest#testFilterWithAssociation"
+mvn -pl core test -Dtest="TyperTest"     # core is where the compiler lives
 ```
 
 ### How is the project structured?
 
 ```
-engine/
-├── src/main/java/com/gs/legend/
-│   ├── ast/          28 record types (ValueSpecification hierarchy)
-│   ├── antlr/        ANTLR visitors → AST
-│   ├── parser/       Pure definition parser
-│   ├── compiler/     TypeChecker + TypeInfo
-│   ├── model/        PureModelBuilder + ModelContext
-│   ├── plan/         PlanGenerator + ExecutionNode
-│   ├── sql/          SqlBuilder (structural SQL AST)
-│   ├── sqlgen/       SqlDialect → SQL text
-│   ├── exec/         PlanExecutor + ExecutionResult
-│   ├── serial/       JSON/CSV serializers
-│   ├── server/       LegendHttpServer
-│   └── service/      QueryService orchestration
-├── src/main/antlr4/  ANTLR grammars (PureLexer.g4, PureParser.g4)
-└── src/test/java/    41 test files, 955 tests
+core/    the compiler — 418 files, ~120K LOC. THIS is where work happens.
+  lexer/ parser/ protocol/ model/          text → parsed → wire records
+  compiler/  NameResolver, element/ (F), spec/ (G — Typer, checkers)
+  normalizer/ resolver/ lowering/           E, H, I
+  sql/ + sql/dialect/                       MIR (sealed, pure data) → SQL
+  exec/                                     JDBC → ExecutionResult
+  Compiler.java                             the one driver
+
+engine/  FROZEN legacy + the still-live wire layer:
+  server/ (HTTP, LSP, diagrams)  service/  serial/  util/Json
+  everything else is superseded by core/
+
+nlq/     natural language → Pure (LLM pipeline, optional)
+pct/     legend-pure's own PCT suite, run against legend-lite
+parser-equivalence/  byte-equivalence vs legend-engine's parser
 ```
+
+See `AGENTS.md` for the layer contract and `core/README.md` for per-package detail.
+
 
 ---
 

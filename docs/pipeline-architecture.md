@@ -1,10 +1,29 @@
 ---
-description: Holistic pipeline architecture — closed typed MIR, sharp layer boundaries
-status: active
-supersedes:
-  - docs/native-dispatch-llvm-style.md
-  - ~/.windsurf/plans/native-dispatch-table-v6_1-992f1a.md (archived)
+description: Backend architecture — HIR → MIR → SQL, sealed MIR, dialect-owned rendering
+status: design rationale (written against the legacy tree)
+companion: frontend-architecture.md
 ---
+
+> ## ⚠ Read this first — 2026-08-06
+>
+> **This document was written against `engine/com.gs.legend`, which is frozen.**
+> Its *rules* — a sealed, dialect-free MIR; exhaustive switch expressions with
+> no `default ->`; all SQL syntax confined to the dialect — are live and are
+> the ones `AGENTS.md` invariants 3 and 3a state. Its **MIR type names are
+> legacy and do not exist in core.**
+>
+> | this doc says | the live code has |
+> |---|---|
+> | three render entry points: `render(SqlExpr)`, `render(SqlAggregate, distinct)`, `render(SqlRelation)` | **ONE**: `SqlDialect.render(SqlQuery)` (`sql/dialect/SqlDialect.java:14`) |
+> | `SqlAggregate` | `SqlAgg` (carries `enum Fn` + `Reducer`) |
+> | `SqlRelation` | `SqlQuery` (`permits SqlSelect, SqlUnion`) + `SqlSource` (8 variants) |
+> | `SQLDialect` | `SqlDialect` |
+> | `WindowAggregate` | **does not exist in either tree** |
+> | `sqlgen/` | `sql/` (MIR) + `sql/dialect/` (rendering) |
+> | `PlanGenerator` | `lowering/Lowerer` (phase I) + `sql/dialect` (phase J) |
+> | `LambdaExpr`, `ListReduce`, `ListTransform`, `RawCast`, `ToVariant`, `VariantTextExtract`, `JsonAccess` | **none exist in core.** The lambda carrier is `SqlExpr.Lambda`. |
+>
+> Read it for the *why*. Take names from `AGENTS.md` §3/§3a and `core/README.md`.
 
 # Pipeline Architecture — closed typed MIR
 

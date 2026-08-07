@@ -1,8 +1,28 @@
 ---
 description: Frontend architecture — two compilers, six phases, typed HIR as the output contract
-status: active
+status: design rationale (written against the legacy tree)
 companion: pipeline-architecture.md
 ---
+
+> ## ⚠ Read this first — 2026-08-06
+>
+> **This document was written against `engine/com.gs.legend`, which is frozen.**
+> Its *reasoning* — the two-compiler split, why element and expression
+> compilation are recursive, what the typed-HIR output contract buys — is
+> sound and still governs. Its **type names and paths are legacy**. The live
+> implementation is `core/com.legend`; see `AGENTS.md` for the current map.
+>
+> | this doc says | the live code has |
+> |---|---|
+> | `PureModelBuilder` | `compiler/element/PureModelContext.from` (phase F), with `compiler/ModelBuilder` and `element/{ClassCompiler,FunctionCompiler,StoreCompiler}` |
+> | `TypeChecker` | `compiler/spec/SpecCompiler` + `Typer` + `InferenceKernel` (phase G) |
+> | `MappingNormalizer` as a compiler step | `normalizer/ModelNormalizer.normalize` (phase E); `MappingNormalizer` is sub-slice E.1 |
+> | `MappingResolver` | `resolver/StoreResolver` (phase H) |
+> | `CompiledElement` / `CompiledClass` | `compiler/element/TypedElement` / `TypedClass` |
+> | `NameResolver [parser/*]` | `compiler/NameResolver` |
+> | `ValueSpecification` in `parser/spec/` | `protocol/spec/` |
+>
+> Read it for the *why*. Take names from `AGENTS.md` and `core/README.md`.
 
 # Frontend Architecture
 
