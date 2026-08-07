@@ -57,7 +57,16 @@ class DropInSurfaceTextRuleTest {
     // is at ZERO regex-family call sites — the rule is now unconditional.
     private static final Map<String, Integer> REGEX_WHITELIST = Map.of();
 
-    /** 2026-08-07 census — parser files allowed to read raw source chars. */
+    /** 2026-08-07 census — parser files allowed to read raw source chars.
+     *  PERMANENT, not debt (adjudicated per audit §5.5 after the depth-aware
+     *  island-scan fix): every remaining site is either engine-mechanism
+     *  emulation (the engine ALSO extracts island text and reparses raw
+     *  chars — assertion-island spans, ExternalFormat/CSV island bodies) or
+     *  coarse-chunk necessity (the island lexer emits content as chunks;
+     *  names live INSIDE chunk strings, so graph-fetch span scanning must
+     *  walk chars between token-true bounds). What burned was the DEFECT:
+     *  flat island scans that a nested #{ }# truncated. New sites still
+     *  need a whitelist edit — and this comment's justification. */
     private static final Map<String, Integer> SOURCE_WHITELIST = Map.of(
             "parser/ElementParser.java", 5,
             "parser/SpecParser.java", 1);
