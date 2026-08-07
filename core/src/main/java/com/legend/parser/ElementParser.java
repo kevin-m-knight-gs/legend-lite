@@ -1748,15 +1748,23 @@ public final class ElementParser implements TokenStreamCursor {
         List<String> paths = new ArrayList<>();
         int colon = body.indexOf(':');
         if (colon >= 0) {
-            for (String seg : body.substring(0, colon).trim().split("\\.")) {
-                paths.add(seg.trim());
+            String pathPart = body.substring(0, colon).trim();
+            int segStart = 0;
+            while (segStart <= pathPart.length()) {
+                int dot = pathPart.indexOf('.', segStart);
+                paths.add(pathPart.substring(segStart,
+                        dot < 0 ? pathPart.length() : dot).trim());
+                if (dot < 0) {
+                    break;
+                }
+                segStart = dot + 1;
             }
             body = body.substring(colon + 1);
         }
         List<String> columns = new ArrayList<>();
         List<List<String>> rows = new ArrayList<>();
         boolean first = true;
-        for (String line : body.split("\\n")) {
+        for (String line : body.lines().toList()) {
             if (line.isBlank()) {
                 continue;
             }

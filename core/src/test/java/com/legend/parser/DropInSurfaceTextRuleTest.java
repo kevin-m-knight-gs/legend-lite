@@ -53,10 +53,9 @@ class DropInSurfaceTextRuleTest {
 
     /** 2026-08-07 census — file -> allowed regex-family call sites. DOWN only;
      *  a new site in a clean file or a count above the frozen number fails. */
-    private static final Map<String, Integer> REGEX_WHITELIST = Map.of(
-            "parser/ElementParser.java", 2,
-            "parser/SpecParser.java", 5);
-    // com.legend.protocol reached ZERO 2026-08-07 — absent = unconditional
+    // EMPTY 2026-08-07: the whole drop-in surface {lexer, parser, protocol}
+    // is at ZERO regex-family call sites — the rule is now unconditional.
+    private static final Map<String, Integer> REGEX_WHITELIST = Map.of();
 
     /** 2026-08-07 census — parser files allowed to read raw source chars. */
     private static final Map<String, Integer> SOURCE_WHITELIST = Map.of(

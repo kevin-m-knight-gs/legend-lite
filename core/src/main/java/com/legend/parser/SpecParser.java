@@ -2459,12 +2459,59 @@ public final class SpecParser implements TokenStreamCursor {
      * property chain); richer path features (parameterized segments,
      * subtype casts {@code @X}, indices) are LOUD until built.
      */
+    /** All chars in the date-literal class {@code [0-9T:.Z+-]}, non-empty. */
+    private static boolean isDateBody(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isDigit(c) && "T:.Z+-".indexOf(c) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** All chars word-class ({@code \w}: letter/digit/_), non-empty. */
+    private static boolean isWord(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isLetterOrDigit(c) && c != '_') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Split on EVERY occurrence of {@code sep} (trailing empties kept —
+     *  the split() this replaces used the default limit over single chars
+     *  where no trailing empties arise in practice; the text-rule gate
+     *  bans the regex form). */
+    private static List<String> splitChar(String s, char sep) {
+        List<String> out = new ArrayList<>();
+        int start = 0;
+        while (true) {
+            int i = s.indexOf(sep, start);
+            if (i < 0) {
+                out.add(s.substring(start));
+                return out;
+            }
+            out.add(s.substring(start, i));
+            start = i + 1;
+        }
+    }
+
     private ValueSpecification parsePathLiteral() {
         String text = text();
         int litTok = pos;
         pos++;
         String inner = text.substring(2, text.length() - 1);   // strip '#/' and '#'
-        String[] segs = inner.split("/");
+        List<String> segList = splitChar(inner, '/');
+        String[] segs = segList.toArray(new String[0]);
         // a SEGMENT-LESS path (#/Person#) is legal: path [] + startType on the wire
         // (probe "pf path exotic")
         // Track each PLAIN segment's 0-based char range inside the literal text — the
@@ -2481,21 +2528,27 @@ public final class SpecParser implements TokenStreamCursor {
             int lead = rawSeg.indexOf(seg.isEmpty() ? "" : seg.substring(0, 1));
             // real pure: the LAST segment may carry '!alias' — the Path's
             // NAME (buildColumnNameOutOfPath uses it for the column)
-            if (i == segs.length - 1 && seg.matches("\\w+!\\w+")) {
-                int bang = seg.indexOf('!');
+            int bang = seg.indexOf('!');
+            if (i == segs.length - 1 && bang > 0
+                    && isWord(seg.substring(0, bang)) && isWord(seg.substring(bang + 1))) {
                 alias = seg.substring(bang + 1);
                 seg = seg.substring(0, bang);
             }
             // DATED segment prop(%d) / prop(%d1, %d2) / prop(%latest):
             // desugars to the milestoned property-FUNCTION call the Typer
             // already handles ($x.prop(%d)) — args re-parse as expressions
-            var dated = java.util.regex.Pattern
-                    .compile("(\\w+)\\(([^)]*)\\)").matcher(seg);
-            if (dated.matches()) {
+            // dated segment prop(args): whole seg = word '(' no-')' ')'
+            int open = seg.indexOf('(');
+            boolean isDatedSeg = open > 0 && seg.endsWith(")")
+                    && isWord(seg.substring(0, open))
+                    && seg.indexOf(')') == seg.length() - 1;
+            if (isDatedSeg) {
+                String datedName = seg.substring(0, open);
+                String datedArgs = seg.substring(open + 1, seg.length() - 1);
                 hasDated = true;
                 List<ValueSpecification> args = new ArrayList<>();
                 args.add(body);
-                for (String arg : splitTopLevel(dated.group(2))) {
+                for (String arg : splitTopLevel(datedArgs)) {
                     args.add(SpecParser.parse("|" + arg.strip())
                             instanceof LambdaFunction lf && lf.body().size() == 1
                             ? lf.body().get(0)
@@ -2510,12 +2563,12 @@ public final class SpecParser implements TokenStreamCursor {
                         cursor + lead, wireArgs, unsupportedFlag, false);
                 boolean unsupported = unsupportedFlag[0];
                 pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
-                        dated.group(1), cursor + lead, cursor + lead + seg.length() - 1,
+                        datedName, cursor + lead, cursor + lead + seg.length() - 1,
                         wireArgs, unsupported));
-                body = new AppliedFunction(dated.group(1), args);
+                body = new AppliedFunction(datedName, args);
                 continue;
             }
-            if (!seg.matches("\\w+")) {
+            if (!isWord(seg)) {
                 throw error("navigation path segment '" + seg
                         + "' uses an unsupported path feature (only plain"
                         + " property segments desugar): " + text);
@@ -2681,7 +2734,7 @@ public final class SpecParser implements TokenStreamCursor {
                 case LATEST -> out.add(new com.legend.protocol.spec.PathLiteral
                         .PathArg.Latest(base + sc.s(), base + sc.e()));
                 case DATE -> {
-                    if (sc.a().matches("[0-9T:.Z+\\-]+")) {
+                    if (isDateBody(sc.a())) {
                         out.add(new com.legend.protocol.spec.PathLiteral
                                 .PathArg.DateArg(sc.a(), base + sc.s(), base + sc.e()));
                     } else {
