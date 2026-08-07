@@ -1,3 +1,11 @@
+> ## Era note — banner added 2026-08-06
+>
+> Written against `engine/com.gs.legend`, which is **frozen** (last substantive
+> change 2026-07-18). Class names here — `PureModelBuilder`, `TypeChecker`,
+> `MappingResolver`, `SqlAggregate`, `SqlRelation`, `SQLDialect` — do not exist
+> in the live tree. The reasoning is kept as a record; for the current map see
+> `AGENTS.md` and `core/README.md`.
+
 # Deep Dive: M2M Mappings in legend-engine/legend-pure vs legend-lite
 
 > Research doc for M2M2J (JSON-source M2M) feature.  

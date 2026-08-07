@@ -1,3 +1,11 @@
+> ## Era note — banner added 2026-08-06
+>
+> Written against `engine/com.gs.legend`, which is **frozen** (last substantive
+> change 2026-07-18). Class names here — `PureModelBuilder`, `TypeChecker`,
+> `MappingResolver`, `SqlAggregate`, `SqlRelation`, `SQLDialect` — do not exist
+> in the live tree. The reasoning is kept as a record; for the current map see
+> `AGENTS.md` and `core/README.md`.
+
 # Cross-Project Joins in Legend: Includes vs Model Joins
 
 Cross-project joins — where one team's query needs to join data from another team's tables — are the #1 source of leaky abstraction in Legend's dependency model. This document compares the two approaches, explains why the current engine forces unnecessary compile-time dependencies, and describes how legend-lite can fix this.

@@ -25,7 +25,7 @@
 | **T3.1** do-alongside | ✅ (this session) | All four smaller same-pattern items: ONE shadowing-aware `VarUse.reads` (5 copies → 1; three were shadow-blind); `PureDateLiteral.Precision` (the two incompatible integer scales in Scalars both derive from it; Typer.dateType reads it); `RelationalDataType` switches exhaustive (TestDataGenerator's silent `default -> VARCHAR` gone; Ddl/PlanText default-throws are explicit walls); `WindowFrame` classified at OverChecker (`Frames.classify`, boundary validation at Phase.TYPE like the engine's ExtendChecker; Lowerer maps 1:1 — the 110-line literal-sign re-derivation deleted). |
 | **T3.1** Space core + determinism | ✅ (this session) | B1: `Anchors` owns all three reaches (memoized `anchored`, static `containsGetAll`, navigate-exempt `anchoredInFlow` — the silent disagreement is now two NAMED semantics). B2a: `Space` (OBJECT/ANCHORED/INERT) decided once per node — one classifier over checked types, memoized; `isObjectSpace` deleted. B2b: `resolveNode` is a TWO-LEVEL dispatch (space-independent normalizations → exhaustive space switch → variant arms); the silent default pass-through is the INERT level; ANCHORED's only default is the named wall; guard order became structure. O(n) resolution. B3: determinism census found the audit's `inQueryReads` attribution WRONG (identity maps are looked up, never iterated; no identity-keyed structure is iterated anywhere in core; `Map.of` salted iterations are registration-only); the historical bistability no longer reproduces after the T2.1/T3.1 arc — 12/12 fresh-JVM runs; the T1.9 pin is tightened to ROWS-ONLY and ResolveNestedTemporalFrameTest held single-outcome. Deliberate deltas from the audit's text: stamp-from-`Application.chosen()` rejected (layering/drift — classifier over checked types instead); bottom-up anchor-driven inversion an explicit NON-GOAL (chain-as-rewrite-unit is the better architecture — user-ratified). |
 | **T3.2** rewrite-then-render | ✅ COMPLETE | Landed: `Lexicon` (Sqlite class DELETED — a keyword list is a data row, not a backend), `TypeNames` (scalar cast leaves data; composite rules structural + `structSupport` capability), `Spellings` (77 pure fn names data; 163 SqlFns classified data-vs-coded, pinned by `SpellingsTest`; writer default = loud wall), `opSpelling` walk-owned composite parens (T1.6 class dead structurally), `SqlRewriter` (the SQL-layer `mapChildren`), the render-entry `passes()` slot, and all four audit-named in-renderer rewrites as passes: `QualifyToSubselect` (writer WALLS on unspelled QUALIFY; H2 opts out keeping its no-golden wall), `UnqualifyPivotArgs` + `FoldToListReduce` (+`unwrapElemRefs` riding; moved VERBATIM — their stop rules are semantic). Renderer ctor = (Lexicon, TypeNames, Spellings): three data rows. RE-SCOPED (deliberate deltas from the audit text): (1) full `SqlPlan` parallel IR REJECTED — a clause-free algebra layer would re-litigate the corpus-proven Fold clause-placement design the audits themselves praise; the same neutrality lands per-construct via the established capability+pass+wall pattern (remaining candidates, by divergence risk: STRFTIME C-format interchange → typed format codec; Pivot/ASOF/StarExcept capability treatment for non-DuckDB backends). (2) `ValueCodec` NOT built: `normalize` has identity default and ZERO overrides — a codec table with no rows is dead structure; materializes with the first real backend codec row. |
-| T4 | pending | T4.1 F1/F2 split, T4.2 execution subsystem, T4.4 engine-module disposition, T4.5 AGENTS.md. |
+| T4 | pending | T4.1 F1/F2 split, T4.2 execution subsystem, T4.4 engine-module disposition. **T4.5 (governing docs) DONE 2026-08-06.** |
 
 > (34 agent reports; stage-by-stage reading of all 68,263 lines of `core/src/main/java`).
 > **Scope:** `core/` only. `engine/` is on death row and is addressed once, in T4.4.
@@ -402,7 +402,31 @@ Good news: **`rcorpus/` is already pure core code** — all 1,662 lines have zer
 coverage) → kill the live double-parse → port the ~46.5K lines → retarget `pct`/`nlq` →
 delete.
 
-### T4.5 — Fix the governing documents
+### T4.5 — Fix the governing documents ✅ **DONE 2026-08-06**
+
+> Landed in `c36d8baa`, `6b74a065`, `668dee85`, `44225dd4`, `d46dd04f` and
+> the banner sweep. Specifically:
+> - `AGENTS.md` rewritten against `core/` — real pipeline A–K, real layer
+>   table, MIR corrected to the ONE `SqlDialect.render(SqlQuery)` entry point.
+>   **Invariant numbering deliberately preserved**: 31 javadoc sites cite it by
+>   number ("invariant 4" ×15), so new rules were appended as 6–8, never
+>   inserted. Enforcement is now marked `[ENFORCED]` vs `[CONVENTION]` — of
+>   `core/README.md`'s 12, four are enforced, one half, seven convention only.
+> - `README.md` rewritten: real package tree, and every number re-derived
+>   (it claimed ~35K LOC / 3 modules against an actual ~171K / 5).
+> - `FAQ.md` — the `SqlExpr.FunctionCall("listTransform", …)` stop-sign example
+>   removed, along with the "engine uses ANTLR" answer (there is no ANTLR in
+>   any pom) and the side-table pattern (core forbids it, invariant 8).
+> - `pipeline-architecture.md` / `frontend-architecture.md` re-labelled
+>   *design rationale* with legacy→live name-mapping tables, and `AGENTS.md`
+>   now says their reasoning governs but their names do not.
+> - `core/README.md` and `docs/GATES.md` linked from `AGENTS.md` via a new
+>   Standing Documents block — the live process layer previously had **zero**
+>   inbound links from anything a session loads by default.
+>
+> **Still open from this item:** the vacuous verification greps inside the two
+> architecture plans are not fixed — they still target `engine/` paths.
+
 - **`AGENTS.md`** — its layer table names `PureModelBuilder`, `TypeChecker`,
   `MappingResolver`, `SQLDialect`, `NormalizedMapping`; **8 of 10 have zero occurrences in
   `core/`** and `NativeBindingTable` exists in neither module. Rewrite against `core/`.
