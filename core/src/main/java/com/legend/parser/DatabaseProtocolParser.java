@@ -41,6 +41,15 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     private final @com.legend.Nullable ScopeCtx scope;
 
+    /** The CURRENT named schema's declaration-name span — nav ELEMENTS
+     *  inside a non-default schema stretch their table pointer span from
+     *  the SCHEMA DECLARATION to the local table token (probe
+     *  cross-schema-nav). Set by parseSchema. */
+    private @com.legend.Nullable SourceInfo currentSchemaDeclSpan;
+
+    /** Stretch anchor handed to the NESTED nav-element parser. */
+    private @com.legend.Nullable SourceInfo schemaStretchSpan;
+
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn) {
         this(tokens, pos, dbFqn, null);
     }
@@ -236,7 +245,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         int s = pos;
         expect(TokenType.SCHEMA);
         Decorations dec = parseDecorations();
+        int nameTok = pos;
         String name = parseIdentifier();
+        currentSchemaDeclSpan = spanOf(nameTok, nameTok);
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PDbTable> tables = new ArrayList<>();
         List<Protocol.PDbView> views = new ArrayList<>();
@@ -626,11 +637,15 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** An atom resolved under {@code db} — a bracket-nav element inherits
      *  the bracket's db even when the ambient parse has none. */
     private Protocol.PRelOp atomUnder(String db, String schemaCtx) {
-        if (db.equals(dbFqn)) {
+        SourceInfo stretch = "default".equals(schemaCtx) ? null
+                : currentSchemaDeclSpan;
+        if (db.equals(dbFqn) && stretch == null) {
             return parseAtom(schemaCtx);
         }
         DatabaseProtocolParser p =
                 new DatabaseProtocolParser(tokens, pos, db, scope);
+        p.schemaStretchSpan = stretch;
+        p.currentSchemaDeclSpan = currentSchemaDeclSpan;
         Protocol.PRelOp e = p.parseAtom(schemaCtx);
         this.pos = p.pos;
         return e;
@@ -690,14 +705,10 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         Protocol.PRelOp elem = null;
         if (peek() == TokenType.PIPE) {
             advance();
-            // the element resolves under the LAST join's (re-anchored) db
+            // the element resolves under the LAST join's (re-anchored)
+            // db; inside a NAMED schema its table span stretches from the
+            // SCHEMA DECLARATION (probe cross-schema-nav)
             elem = atomUnder(curDb, schemaCtx);
-            if (!"default".equals(schemaCtx)) {
-                // engine resolves non-default-schema nav tables against
-                // their DECLARATION (probe nav-spacing) — unbuilt
-                throw error("join-navigation inside schema '" + schemaCtx
-                        + "' needs declaration-site span resolution (unbuilt)");
-            }
         }
         return new Protocol.PElemtWithJoins(joinPtrs, elem,
                 spanOf(s, pos - 1));
@@ -808,6 +819,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 // db-dynafunc)
                 DatabaseProtocolParser p =
                         new DatabaseProtocolParser(tokens, pos, db, scope);
+                p.currentSchemaDeclSpan = currentSchemaDeclSpan;
+                p.schemaStretchSpan = schemaStretchSpan;
                 Protocol.PDynaFunc f =
                         (Protocol.PDynaFunc) p.parseAtom(schemaCtx);
                 this.pos = p.pos;
@@ -918,7 +931,18 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         SourceInfo span = spanOf(s, pos - 1);
         SourceInfo tblSpan = spanOf(s, tblEnd);
-        if (scope != null && !explicitSchema) {
+        SourceInfo declAnchor = schemaStretchSpan != null
+                ? schemaStretchSpan
+                : (!"default".equals(schemaCtx) ? currentSchemaDeclSpan
+                        : null);
+        if (declAnchor != null && !explicitSchema) {
+            // dotted refs inside a NAMED schema: span = schema
+            // declaration name .. local table end (probes
+            // cross-schema-nav + testGrammarSerializationExtension)
+            tblSpan = new SourceInfo("", declAnchor.startLine(),
+                    declAnchor.startColumn(), tblSpan.endLine(),
+                    tblSpan.endColumn());
+        } else if (scope != null && !explicitSchema) {
             // under a schema.table scope header, a dotted ref's TABLE
             // pointer span STRETCHES from the header's schema through the
             // LOCAL table token (probe scope-dotted w; chainedJoinsInner)

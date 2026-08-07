@@ -183,9 +183,15 @@ class CorpusEquivalenceTest {
      * _type relational with database key).
      * 24,508 -> 24,510: Relation-CM embedded blocks (prop ( street: COL )
      * -> relationFunctionEmbeddedPropertyMapping with NESTED classless
-     * pms; span prop..close paren). */
-    private static final int MIN_ELEMENTS_COMPARED = 24510;
-    private static final int MIN_MATCHES = 24510;
+     * pms; span prop..close paren).
+     * 24,510 -> 24,513: ZERO WALLS — the designed cross-schema tail:
+     * dotted refs inside a NAMED schema (nav elements AND plain view
+     * columns, non-explicit-schema) stretch their table pointer span
+     * from the SCHEMA DECLARATION NAME to the local table token (probes
+     * cross-schema-nav + testGrammarSerializationExtension). Every
+     * comparable element in the corpus is now byte-exact. */
+    private static final int MIN_ELEMENTS_COMPARED = 24513;
+    private static final int MIN_MATCHES = 24513;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

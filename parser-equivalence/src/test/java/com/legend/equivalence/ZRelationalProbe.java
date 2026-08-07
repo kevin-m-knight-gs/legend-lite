@@ -25,6 +25,26 @@ class ZRelationalProbe {
     }
 
     @Test
+    void crossSchemaNavProbe() throws Exception {
+        probe("cross-schema-nav", """
+                ###Relational
+                Database my::XDB
+                (
+                  Schema MySchema
+                  (
+                    Table T1 ( id INT PRIMARY KEY, fid INT )
+                    Table T2 ( id INT PRIMARY KEY, name VARCHAR(20) )
+                    View V1
+                    (
+                      nm: @J1 | T2.name
+                    )
+                  )
+                  Join J1 ( MySchema.T1.fid = MySchema.T2.id )
+                )
+                """);
+    }
+
+    @Test
     void shapes() throws Exception {
         probe("minimal", """
                 ###Relational
