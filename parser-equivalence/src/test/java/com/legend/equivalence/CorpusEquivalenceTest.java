@@ -56,9 +56,15 @@ class CorpusEquivalenceTest {
      * 22,854 -> 22,864: the last Connection shapes (testDataSetupCsv,
      * mapper postProcessors, userNamePassword vault refs, optional store:,
      * empty Test body, quote-keeping timeZone) — ###Runtime AND
-     * ###Connection at ZERO walls, every element byte-identical. */
-    private static final int MIN_ELEMENTS_COMPARED = 22864;
-    private static final int MIN_MATCHES = 22864;
+     * ###Connection at ZERO walls, every element byte-identical.
+     * 22,864 -> 23,266: ###Relational core (leg 3a) — PDatabase family,
+     * schemas/tables/columns/datatypes/milestoning/joins/filters/views/
+     * includes at byte parity: n-ary and/or chains, operator-anchored
+     * spans, left-operand stretch, qualified table pointers, dimension
+     * reparse +1-column quirk, default schema LAST, strictDate infinity.
+     * 90 walls remain (quoted identifiers, TabularFunction, tail). */
+    private static final int MIN_ELEMENTS_COMPARED = 23266;
+    private static final int MIN_MATCHES = 23266;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

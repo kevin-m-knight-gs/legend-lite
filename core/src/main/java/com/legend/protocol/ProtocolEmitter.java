@@ -76,6 +76,7 @@ public final class ProtocolEmitter {
             case PSectionIndex s -> sectionIndex(b, s);
             case Protocol.PRuntime r -> runtime(b, r);
             case Protocol.PConnection c -> connection(b, c);
+            case Protocol.PDatabase d -> database(b, d);
         }
     }
 
@@ -164,6 +165,295 @@ public final class ProtocolEmitter {
         b.append(",\"type\":");
         str(b, p.type());
         b.append('}');
+    }
+
+    /** {@code _type:"relational"} — Database element (ZRelationalProbe). */
+    private static void database(StringBuilder b, Protocol.PDatabase d) {
+        b.append("{\"_type\":\"relational\",\"filters\":[");
+        for (int i = 0; i < d.filters().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PDbFilter f = d.filters().get(i);
+            b.append("{\"_type\":\"").append(f.filterType())
+                    .append("\",\"name\":");
+            str(b, f.name());
+            b.append(",\"operation\":");
+            relOp(b, f.operation());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, f.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"includedStores\":[");
+        for (int i = 0; i < d.includedStores().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            pointer(b, d.includedStores().get(i));
+        }
+        b.append("],\"joins\":[");
+        for (int i = 0; i < d.joins().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PDbJoin j = d.joins().get(i);
+            b.append("{\"name\":");
+            str(b, j.name());
+            b.append(",\"operation\":");
+            relOp(b, j.operation());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, j.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"name\":");
+        str(b, d.name());
+        b.append(",\"package\":");
+        str(b, d.pkg());
+        b.append(",\"schemas\":[");
+        for (int i = 0; i < d.schemas().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            dbSchema(b, d.schemas().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, d.sourceInformation());
+        b.append(",\"stereotypes\":[]}");
+    }
+
+    private static void dbSchema(StringBuilder b, Protocol.PDbSchema sc) {
+        b.append("{\"name\":");
+        str(b, sc.name());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, sc.sourceInformation());
+        if (!sc.stereotypes().isEmpty()) {
+            b.append(",\"stereotypes\":");
+            stereotypes(b, sc.stereotypes());
+        }
+        b.append(",\"tables\":[");
+        for (int i = 0; i < sc.tables().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            dbTable(b, sc.tables().get(i));
+        }
+        b.append("],\"tabularFunctions\":[]");
+        if (!sc.taggedValues().isEmpty()) {
+            b.append(",\"taggedValues\":");
+            taggedValues(b, sc.taggedValues());
+        }
+        b.append(",\"views\":[");
+        for (int i = 0; i < sc.views().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            dbView(b, sc.views().get(i));
+        }
+        b.append("]}");
+    }
+
+    private static void dbTable(StringBuilder b, Protocol.PDbTable t) {
+        b.append("{\"columns\":[");
+        for (int i = 0; i < t.columns().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PDbColumn c = t.columns().get(i);
+            b.append("{\"name\":");
+            str(b, c.name());
+            b.append(",\"nullable\":").append(c.nullable());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, c.sourceInformation());
+            if (!c.stereotypes().isEmpty()) {
+                b.append(",\"stereotypes\":");
+                stereotypes(b, c.stereotypes());
+            }
+            b.append(",\"type\":{\"_type\":\"").append(c.type().kind())
+                    .append('\"');
+            if (c.type().precision() != null) {
+                b.append(",\"precision\":").append(c.type().precision());
+            }
+            if (c.type().scale() != null) {
+                b.append(",\"scale\":").append(c.type().scale());
+            }
+            if (c.type().size() != null) {
+                b.append(",\"size\":").append(c.type().size());
+            }
+            b.append("}}");
+        }
+        b.append("],\"milestoning\":[");
+        for (int i = 0; i < t.milestoning().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            milestoning(b, t.milestoning().get(i));
+        }
+        b.append("],\"name\":");
+        str(b, t.name());
+        b.append(",\"primaryKey\":[");
+        for (int i = 0; i < t.primaryKey().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, t.primaryKey().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, t.sourceInformation());
+        if (!t.stereotypes().isEmpty()) {
+            b.append(",\"stereotypes\":");
+            stereotypes(b, t.stereotypes());
+        }
+        if (!t.taggedValues().isEmpty()) {
+            b.append(",\"taggedValues\":");
+            taggedValues(b, t.taggedValues());
+        }
+        b.append('}');
+    }
+
+    private static void milestoning(StringBuilder b, Protocol.PMilestoning m) {
+        switch (m) {
+            case Protocol.PBusinessMilestoning bm -> {
+                b.append("{\"_type\":\"businessMilestoning\",\"from\":");
+                str(b, bm.from());
+                if (bm.infinityDate() != null) {
+                    b.append(",\"infinityDate\":");
+                    dateTimeLit(b, bm.infinityDate());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, bm.sourceInformation());
+                b.append(",\"thru\":");
+                str(b, bm.thru());
+                b.append(",\"thruIsInclusive\":").append(bm.thruIsInclusive());
+                b.append('}');
+            }
+            case Protocol.PProcessingMilestoning pm -> {
+                b.append("{\"_type\":\"processingMilestoning\",\"in\":");
+                str(b, pm.in());
+                if (pm.infinityDate() != null) {
+                    b.append(",\"infinityDate\":");
+                    dateTimeLit(b, pm.infinityDate());
+                }
+                b.append(",\"out\":");
+                str(b, pm.out());
+                b.append(",\"outIsInclusive\":").append(pm.outIsInclusive());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, pm.sourceInformation());
+                b.append('}');
+            }
+        }
+    }
+
+    private static void dateTimeLit(StringBuilder b, Protocol.PDateTimeLit d) {
+        b.append("{\"_type\":\"").append(d.wireType())
+                .append("\",\"sourceInformation\":");
+        srcInfo(b, d.sourceInformation());
+        b.append(",\"value\":");
+        str(b, d.value());
+        b.append('}');
+    }
+
+    private static void dbView(StringBuilder b, Protocol.PDbView v) {
+        b.append("{\"columnMappings\":[");
+        for (int i = 0; i < v.columnMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PViewColumnMapping cm = v.columnMappings().get(i);
+            b.append("{\"name\":");
+            str(b, cm.name());
+            b.append(",\"operation\":");
+            relOp(b, cm.operation());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, cm.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"distinct\":").append(v.distinct());
+        if (v.filter() != null) {
+            b.append(",\"filter\":{\"filter\":{\"name\":");
+            str(b, v.filter().name());
+            b.append("},\"joins\":[],\"sourceInformation\":");
+            srcInfo(b, v.filter().sourceInformation());
+            b.append('}');
+        }
+        b.append(",\"groupBy\":[");
+        if (v.groupBy() != null) {
+            for (int i = 0; i < v.groupBy().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                relOp(b, v.groupBy().get(i));
+            }
+        }
+        b.append(']');
+        b.append(",\"name\":");
+        str(b, v.name());
+        b.append(",\"primaryKey\":[");
+        for (int i = 0; i < v.primaryKey().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, v.primaryKey().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, v.sourceInformation());
+        if (!v.stereotypes().isEmpty()) {
+            b.append(",\"stereotypes\":");
+            stereotypes(b, v.stereotypes());
+        }
+        if (!v.taggedValues().isEmpty()) {
+            b.append(",\"taggedValues\":");
+            taggedValues(b, v.taggedValues());
+        }
+        b.append('}');
+    }
+
+    private static void relOp(StringBuilder b, Protocol.PRelOp op) {
+        switch (op) {
+            case Protocol.PDynaFunc f -> {
+                b.append("{\"_type\":\"dynaFunc\",\"funcName\":");
+                str(b, f.funcName());
+                b.append(",\"parameters\":[");
+                for (int i = 0; i < f.parameters().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relOp(b, f.parameters().get(i));
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, f.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PColumnRef c -> {
+                b.append("{\"_type\":\"column\",\"column\":");
+                str(b, c.column());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, c.sourceInformation());
+                b.append(",\"table\":{\"_type\":\"Table\",\"database\":");
+                str(b, c.table().database());
+                b.append(",\"mainTableDb\":");
+                str(b, c.table().mainTableDb());
+                b.append(",\"schema\":");
+                str(b, c.table().schema());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, c.table().sourceInformation());
+                b.append(",\"table\":");
+                str(b, c.table().table());
+                b.append("},\"tableAlias\":");
+                str(b, c.tableAlias());
+                b.append('}');
+            }
+            case Protocol.PRelLiteral l -> {
+                b.append("{\"_type\":\"literal\",\"sourceInformation\":");
+                srcInfo(b, l.sourceInformation());
+                b.append(",\"value\":");
+                if (l.value() instanceof String sv) {
+                    str(b, sv);
+                } else {
+                    b.append(l.value());
+                }
+                b.append('}');
+            }
+        }
     }
 
     /** {@code _type:"connection"} envelope — element and value share one

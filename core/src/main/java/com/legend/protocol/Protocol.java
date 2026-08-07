@@ -39,7 +39,135 @@ public final class Protocol {
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
-            PProfile, PSectionIndex, PMeasure, PRuntime, PConnection {
+            PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase {
+    }
+
+    /** {@code _type:"relational"} — a ###Relational Database element
+     *  (ZRelationalProbe shapes). Implicit default schema takes the WHOLE
+     *  database's span. */
+    public record PDatabase(String pkg, String name,
+                            List<PPointer> includedStores,
+                            List<PDbSchema> schemas,
+                            List<PDbJoin> joins,
+                            List<PDbFilter> filters,
+                            com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    public record PDbSchema(String name, List<PDbTable> tables,
+                            List<PDbView> views,
+                            List<PStereotype> stereotypes,
+                            List<PTaggedValue> taggedValues,
+                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PDbTable(String name, List<PDbColumn> columns,
+                           List<PMilestoning> milestoning,
+                           List<String> primaryKey,
+                           List<PStereotype> stereotypes,
+                           List<PTaggedValue> taggedValues,
+                           com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PDbColumn(String name, boolean nullable, PDbType type,
+                            List<PStereotype> stereotypes,
+                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** Column datatype: {@code _type} spelling + optional size/precision
+     *  fields (probe TYPES). */
+    public record PDbType(String kind, @com.legend.Nullable Long size,
+                          @com.legend.Nullable Long precision,
+                          @com.legend.Nullable Long scale) {
+    }
+
+    /** {@code businessMilestoning} / {@code processingMilestoning}; the
+     *  optional infinityDate nests a dateTime literal node. */
+    public sealed interface PMilestoning
+            permits PBusinessMilestoning, PProcessingMilestoning {
+    }
+
+    public record PBusinessMilestoning(String from, String thru,
+                                       boolean thruIsInclusive,
+                                       @com.legend.Nullable PDateTimeLit infinityDate,
+                                       com.legend.protocol.SourceInfo sourceInformation)
+            implements PMilestoning {
+    }
+
+    public record PProcessingMilestoning(String in, String out,
+                                         boolean outIsInclusive,
+                                         @com.legend.Nullable PDateTimeLit infinityDate,
+                                         com.legend.protocol.SourceInfo sourceInformation)
+            implements PMilestoning {
+    }
+
+    /** {@code _type} discriminates on the spelling: a time part makes it
+     *  dateTime, date-only is strictDate. */
+    public record PDateTimeLit(String value,
+                               com.legend.protocol.SourceInfo sourceInformation) {
+        public String wireType() {
+            return value.contains("T") ? "dateTime" : "strictDate";
+        }
+    }
+
+    public record PDbJoin(String name, PRelOp operation,
+                          com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code _type:"filter"} (or multigrain) named filter. */
+    public record PDbFilter(String filterType, String name, PRelOp operation,
+                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A relational OPERATION node (join/filter/view expressions). */
+    public sealed interface PRelOp
+            permits PDynaFunc, PColumnRef, PRelLiteral {
+    }
+
+    public record PDynaFunc(String funcName, List<PRelOp> parameters,
+                            com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
+    }
+
+    /** {@code _type:"column"} — a table-qualified column read; the self-join
+     *  target spells {@code {target}} for BOTH table and alias. */
+    public record PColumnRef(String column, PTablePtr table, String tableAlias,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
+    }
+
+    public record PTablePtr(String database, String mainTableDb, String schema,
+                            String table,
+                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code _type:"literal"} — value is a string or a number. */
+    public record PRelLiteral(Object value,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
+    }
+
+    public record PDbView(String name,
+                          List<PViewColumnMapping> columnMappings,
+                          List<PStereotype> stereotypes,
+                          List<PTaggedValue> taggedValues,
+                          boolean distinct,
+                          @com.legend.Nullable PViewFilter filter,
+                          @com.legend.Nullable List<PRelOp> groupBy,
+                          List<String> primaryKey,
+                          com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PViewColumnMapping(String name, PRelOp operation,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ~filter F} on a view: {filter:{name}, joins:[], srcInfo}. */
+    public record PViewFilter(String name,
+                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code _type:"connection"} — a ###Connection element: envelope
