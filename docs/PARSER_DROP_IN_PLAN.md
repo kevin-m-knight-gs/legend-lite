@@ -392,6 +392,34 @@ must be bit-identical to no-jar. Proves deployment, rollback and packaging in is
 correctness. `PureGrammarParser.visitSection` consults extension `SectionParser`s **before** the four
 hard-wired legacy ones, so a jar claiming `"Pure"` wins over `DomainParser` — no fork.
 
+### Phase 2.5 — modularize the parser (added 2026-08-06; spec: `GRAMMAR_EXTENSIBILITY.md`)
+
+Before building the remaining sections, restructure so every section grammar is a
+**pluggable module** — the internal-overlay requirement (closed-source jars adding
+sections not available open source) and the engine's own architecture. Steps, in
+`GRAMMAR_EXTENSIBILITY.md` Consequence-2 order:
+
+1. **`SectionGrammarRegistry`** — section name -> grammar module; built-ins register
+   through the SAME registry as third parties (dogfooding keeps the plug-in path
+   honest). Unknown section stops being lexer raw-skip and becomes "no grammar
+   registered" — explicit and reportable (this also lands the loud-miss lexer fix).
+2. **`legend-lite-spi` artifact** — `SectionGrammar { name(); parse(SectionSource,
+   ElementSink); }`, raw text + offsets in (foreign grammars never adopt our lexer),
+   protocol elements out; `ServiceLoader` discovery; small and stable, no core
+   internals.
+3. **Opaque-element carrier** — ONE new variant of sealed `Protocol.Element` holding a
+   foreign section's protocol JSON; core indexes/names/routes it, never looks inside.
+   The plug-in unit is a language module (parser + compiler hook), not a grammar.
+4. **Embedded registries** — island/test-data seams, only when an overlay needs them.
+
+Shadowing policy: extensions win over built-ins (that is what makes the drop-in work);
+tests, not policy, catch abuse. **Gate:** all existing parity ratchets hold with
+built-ins routed through the registry, and a proof-of-seam test registers a toy
+`###` section from a test-only jar and sees it parse + report.
+
+**Every Phase 3 section below lands as a registry module from day one** — no
+retrofitting.
+
 ### Phase 3 — sections, in this order
 
 > **Superseded 2026-08-05** by measurement — see `GRAMMAR_COMPATIBILITY_2026_08.md` §10.3.

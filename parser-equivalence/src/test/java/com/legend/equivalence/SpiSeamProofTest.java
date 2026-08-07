@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,6 +40,8 @@ class SpiSeamProofTest {
 
         int match = 0;
         int bothReject = 0;
+        int strictLenient = 0;
+        List<String> strictLenientIds = new ArrayList<>();
         List<String> diffs = new ArrayList<>();
         List<String> engineAsymmetry = new ArrayList<>();
         List<String> asymmetric = new ArrayList<>();
@@ -51,6 +55,21 @@ class SpiSeamProofTest {
                 PureModelContextData v = vanilla.parseModel(src.text());
                 vanillaJson = mapper.writeValueAsString(v);
             } catch (Throwable t) {
+                // THE PARSER leniency census (implementation audit §3.3): the
+                // bridge ratchet below bounds what the SPI seam lets through,
+                // but the raw parseStrict surface is ~4x as lenient — measure
+                // it HERE, on the same vanilla verdict, scoped to Pure-only
+                // files (mixed-file leniency is the section-parity worklist)
+                if (pureOnly(src.text())) {
+                    try {
+                        com.legend.parser.ElementParser.parseStrict(src.text());
+                        strictLenient++;
+                        strictLenientIds.add(src.id() + " :: vanilla: "
+                                + trim(t.getMessage()));
+                    } catch (Throwable ignored) {
+                        // strict agrees with vanilla — the honest outcome
+                    }
+                }
                 try {
                     spi.parseModel(src.text());
                     asymmetric.add("SPI-ACCEPTS " + src.id() + " :: vanilla: "
@@ -88,7 +107,9 @@ class SpiSeamProofTest {
                 .append(String.format("both reject           : %d%n", bothReject))
                 .append(String.format("engine JSON-asymmetry : %d%n", engineAsymmetry.size()))
                 .append(String.format("DIFF (BUG)            : %d%n", diffs.size()))
-                .append(String.format("asymmetric rejects    : %d%n", asymmetric.size()));
+                .append(String.format("asymmetric rejects    : %d%n", asymmetric.size()))
+                .append(String.format("parseStrict lenient   : %d (Pure-only files vanilla rejects)%n",
+                        strictLenient));
         report.append(String.format("  (SPI-ACCEPTS %d / SPI-REJECTS %d)%n",
                 asymmetric.stream().filter(a -> a.startsWith("SPI-ACCEPTS")).count(),
                 asymmetric.stream().filter(a -> a.startsWith("SPI-REJECTS")).count()));
@@ -99,6 +120,9 @@ class SpiSeamProofTest {
                 .forEach(d -> report.append("  ").append(d).append('\n'));
         asymmetric.stream().filter(a -> a.startsWith("SPI-ACCEPTS")).limit(200)
                 .forEach(d -> report.append("  ").append(d).append('\n'));
+        StringBuilder lense = new StringBuilder();
+        strictLenientIds.forEach(d -> lense.append(d).append('\n'));
+        Files.writeString(Path.of("target", "parser-leniency.txt"), lense.toString());
         Files.writeString(Path.of("target", "spi-seam-report.txt"), report.toString());
         System.out.println(report);
 
@@ -115,6 +139,23 @@ class SpiSeamProofTest {
         assertTrue(engineAsymmetry.size() <= MAX_ENGINE_JSON_ASYMMETRY,
                 "engine JSON-asymmetry bucket grew: " + engineAsymmetry.size()
                         + " — see target/spi-seam-report.txt");
+        assertTrue(strictLenient <= MAX_PARSER_LENIENT_ACCEPTS,
+                "parseStrict leniency census grew: " + strictLenient + " > "
+                        + MAX_PARSER_LENIENT_ACCEPTS
+                        + " — see target/parser-leniency.txt");
+    }
+
+    /** The census scope — vanilla-rejected files whose every section is Pure. */
+    private static final Pattern SECTION = Pattern.compile("(?m)^###(\\w+)");
+
+    private static boolean pureOnly(String text) {
+        Matcher m = SECTION.matcher(text);
+        while (m.find()) {
+            if (!"Pure".equals(m.group(1))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Bumped deliberately as coverage grows.
@@ -132,6 +173,14 @@ class SpiSeamProofTest {
      *  can be stored through a vanilla engine, so accepting them cannot change drop-in
      *  behavior. Ratcheted DOWN only. */
     private static final int MAX_LENIENT_ACCEPTS = 170;
+
+    /** THE PARSER'S OWN leniency bound (implementation audit §3.3) — files the
+     *  extension-less vanilla engine rejects that raw {@code parseStrict}
+     *  accepts. Distinct from {@code MAX_LENIENT_ACCEPTS}: that bounds the SPI
+     *  BRIDGE (a site scanner that skips unrecognised tokens); this bounds the
+     *  strict parser surface itself. Ratcheted DOWN only; the two converge as
+     *  the bridge goes total. */
+    private static final int MAX_PARSER_LENIENT_ACCEPTS = 742;
 
     /** Files where the delta is the engine's OWN serialize-only field (proven: the
      *  engine's readTree -> protocol -> serialize round-trip of ITS OWN output equals

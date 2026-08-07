@@ -1,6 +1,7 @@
 package com.legend.equivalence;
 
 import com.legend.parser.ElementParser;
+import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +43,9 @@ class SectionParseSentinelTest {
 
         int inScope = 0;
         int parsed = 0;
+        int defects = 0;
+        int legalRefusals = 0;
+        PureGrammarParser reference = PureGrammarParser.newInstance();
         List<String> failures = new ArrayList<>();
         Map<String, Integer> byMessage = new TreeMap<>();
         for (Corpus.Source src : sources) {
@@ -54,10 +58,24 @@ class SectionParseSentinelTest {
                 ElementParser.parse(src.text());
                 parsed++;
             } catch (Throwable t) {
+                // THE ORACLE (implementation audit §3.4): a failure only counts
+                // as a drop-in DEFECT when the reference parser ACCEPTS the
+                // file — a file the reference also rejects is a legal refusal,
+                // not a gap. Without this split the ratchet cannot tell a
+                // fixed defect from an upstream file that got less legal.
+                String kind;
+                try {
+                    reference.parseModel(src.text());
+                    defects++;
+                    kind = "DEFECT";
+                } catch (Throwable alsoRejected) {
+                    legalRefusals++;
+                    kind = "LEGAL-REFUSAL";
+                }
                 String msg = String.valueOf(t.getMessage()).replaceAll("\\s+", " ");
                 msg = msg.substring(0, Math.min(120, msg.length()));
-                failures.add(src.id() + " :: " + msg);
-                byMessage.merge(msg, 1, Integer::sum);
+                failures.add(kind + " " + src.id() + " :: " + msg);
+                byMessage.merge(kind + " :: " + msg, 1, Integer::sum);
             }
         }
 
@@ -66,7 +84,10 @@ class SectionParseSentinelTest {
                 .append("=".repeat(72)).append('\n')
                 .append(String.format("files in scope        : %d%n", inScope))
                 .append(String.format("parse cleanly         : %d%n", parsed))
-                .append(String.format("parse failures        : %d%n", failures.size()));
+                .append(String.format("parse failures        : %d%n", failures.size()))
+                .append(String.format("  reference ACCEPTS   : %d (drop-in DEFECTS)%n", defects))
+                .append(String.format("  reference rejects   : %d (legal refusals)%n",
+                        legalRefusals));
         report.append("\nFAILURES by message (a NEW message after a pull = the drift)\n")
                 .append("-".repeat(72)).append('\n');
         byMessage.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue())
@@ -85,7 +106,16 @@ class SectionParseSentinelTest {
                         + " — an upstream pull likely introduced new grammar; see"
                         + " target/section-sentinel-report.txt before running the"
                         + " corpus gates.");
+        assertTrue(defects <= MAX_DROP_IN_DEFECTS,
+                "reference-accepted files we fail to parse GREW: " + defects + " > "
+                        + MAX_DROP_IN_DEFECTS + " — a real drop-in gap opened; see"
+                        + " target/section-sentinel-report.txt");
     }
+
+    /** Failures on files the reference ACCEPTS — the honest defect count the
+     *  coverage ratchet above cannot see (implementation audit §3.4). Ratcheted
+     *  DOWN only; section parity burns it to zero. */
+    private static final int MAX_DROP_IN_DEFECTS = 146;
 
     /** Baseline at introduction (2026-08-05). Bump when coverage grows; a drop is the
      *  pull-drift signal this test exists for. */

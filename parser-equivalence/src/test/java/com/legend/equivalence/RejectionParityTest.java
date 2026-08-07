@@ -51,24 +51,55 @@ class RejectionParityTest {
         int engineAccepts = 0;
         int rejectMatch = 0;
         int lineMatch = 0;
+        int colMatch = 0;
+        int colOffByOne = 0;
+        int mispairedPins = 0;
         List<String> misses = new ArrayList<>();
+        List<String> lineDiverges = new ArrayList<>();
         for (Pin p : pins) {
+            // THE LIVE ORACLE (implementation audit §3.5): the scraped literal
+            // only SELECTS the input — the position we hold ourselves to is the
+            // engine's ACTUAL thrown position, because the extractor pairs
+            // runs by adjacency and 17 of 43 scraped positions cannot exist in
+            // the snippet they ride with
+            int engineLine = -1;
+            int engineCol = -1;
             try {
                 reference.parseModel(p.input());
                 engineAccepts++;                    // stale pin — current engine accepts
                 continue;
             } catch (Throwable expected) {
-                // the pin holds: the engine rejects
+                if (expected instanceof org.finos.legend.engine.shared.core.operational
+                        .errorManagement.EngineException ee
+                        && ee.getSourceInformation() != null) {
+                    engineLine = ee.getSourceInformation().startLine;
+                    engineCol = ee.getSourceInformation().startColumn;
+                }
+            }
+            if (engineLine != p.line() || engineCol != p.col()) {
+                mispairedPins++;                    // the adjacency artifact, made visible
             }
             try {
                 parseStrict(p.input());
-                misses.add(p.id() + " [expected error at " + p.line() + ":" + p.col() + "]");
+                misses.add(p.id() + " [engine error at " + engineLine + ":" + engineCol + "]");
             } catch (Throwable t) {
                 rejectMatch++;
                 String m = String.valueOf(t.getMessage());
                 Matcher pos = Pattern.compile("\\[(\\d+):(\\d+)\\]").matcher(m);
-                if (pos.find() && Integer.parseInt(pos.group(1)) == p.line()) {
-                    lineMatch++;
+                if (pos.find() && engineLine > 0) {
+                    int ourLine = Integer.parseInt(pos.group(1));
+                    int ourCol = Integer.parseInt(pos.group(2));
+                    if (ourLine == engineLine) {
+                        lineMatch++;
+                        if (ourCol == engineCol) {
+                            colMatch++;
+                        } else if (ourCol == engineCol - 1) {
+                            colOffByOne++;          // TokenStreamCursor 0-base (Phase B)
+                        }
+                    } else {
+                        lineDiverges.add(p.id() + " engine " + engineLine + ":" + engineCol
+                                + " ours " + ourLine + ":" + ourCol);
+                    }
                 }
             }
         }
@@ -80,9 +111,17 @@ class RejectionParityTest {
                 .append(String.format("stale (engine accepts): %d%n", engineAccepts))
                 .append(String.format("REJECT_MATCH          : %d%n", rejectMatch))
                 .append(String.format("REJECT_MISS (BUG)     : %d%n", misses.size()))
-                .append(String.format("error-line agreement  : %d of %d%n", lineMatch, rejectMatch))
+                .append(String.format("error-line agreement  : %d of %d (vs the engine's LIVE position)%n",
+                        lineMatch, rejectMatch))
+                .append(String.format("  column exact        : %d%n", colMatch))
+                .append(String.format("  column engine-1     : %d (TokenStreamCursor 0-base)%n",
+                        colOffByOne))
+                .append(String.format("scraped pin mispaired : %d (adjacency artifact, not parser signal)%n",
+                        mispairedPins))
                 .append(String.format("non-Pure pins skipped : %d (section-parity worklist)%n",
                         skippedNonPure));
+        lineDiverges.stream().limit(10)
+                .forEach(d -> report.append("  LINE-DIVERGE ").append(d).append('\n'));
         if (!misses.isEmpty()) {
             report.append("\nMISSES — we accept what the engine refuses\n")
                     .append("-".repeat(72)).append('\n');
@@ -96,7 +135,14 @@ class RejectionParityTest {
         assertEquals(0, misses.size(),
                 "inputs the engine parser rejects were ACCEPTED here:\n"
                         + String.join("\n", misses.subList(0, Math.min(10, misses.size()))));
+        assertTrue(lineMatch >= MIN_LINE_AGREEMENT,
+                "error-line agreement with the engine's live position dropped: "
+                        + lineMatch + " < " + MIN_LINE_AGREEMENT);
     }
+
+    /** Against the engine's LIVE thrown position (the scraped literals are 40%
+     *  mispaired — audit §3.5). Bumped as error positioning improves. */
+    private static final int MIN_LINE_AGREEMENT = 40;
 
     /** The STRICT drop-in surface: the full parse plus every element site through the
      *  same {@code ElementParser.at} path the byte-comparison uses (protocol-only
