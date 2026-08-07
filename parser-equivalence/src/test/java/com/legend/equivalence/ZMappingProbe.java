@@ -28,6 +28,136 @@ class ZMappingProbe {
     }
 
     @Test
+    void relationRowsProbe() throws Exception {
+        String head = """
+                ###Relational
+                Database my::db
+                (
+                  Table personTable(ID INTEGER PRIMARY KEY, FIRSTNAME VARCHAR(100) NOT NULL)
+                )
+                ###Pure
+                Class my::Person { firstName: String[1]; }
+                ###Pure
+                function my::personFunc():meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::db.personTable}#->filter(x | $x.ID > 0)
+                }
+                ###Mapping
+                Mapping my::testMapping
+                (
+                  *my::Person[person]: Relation
+                  {
+                    ~func my::personFunc():Relation<Any>[1]
+                    firstName: FIRSTNAME
+                  }
+                  testSuites:
+                  [
+                    s1:
+                    {
+                      function: |my::Person.all();
+                      tests:
+                      [
+                        t1:
+                        {
+                          data:
+                          [
+                            my::db:
+                              Relation
+                              #{
+                                default.personTable:
+                                  ID,FIRSTNAME
+                                  1,John
+                                  2,Jane
+                                  3,Jim;
+                              }#
+                          ];
+                          asserts:
+                          [
+                            a1:
+                              Relation
+                              #{
+                                First Name
+                                John
+                                Jane
+                                Jim;
+                              }#
+                          ];
+                        }
+                      ];
+                    }
+                  ]
+                )
+                """;
+        probe("relation-rows", head);
+    }
+
+    @Test
+    void relationDataProbe() throws Exception {
+        probe("relation-data-exact", """
+                ###Relational
+                Database my::db
+                (
+                  Table personTable(ID INTEGER PRIMARY KEY, FIRSTNAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL, FIRMID INTEGER NOT NULL)
+                )
+                ###Pure
+                Class my::Person
+                {
+                  firstName: String[1];
+                  age: Integer[1];
+                }
+                ###Pure
+                function my::personFunc():meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::db.personTable}#->filter(x | $x.AGE > 25)
+                }
+                ###Mapping
+                Mapping my::testMapping
+                (
+                  *my::Person[person]: Relation
+                  {
+                    ~func my::personFunc():Relation<Any>[1]
+                    ~primaryKey: [FIRSTNAME]
+                    firstName: FIRSTNAME,
+                    age: AGE
+                  }
+                  testSuites:
+                  [
+                    personSuite:
+                    {
+                      function: |my::Person.all()->project(~['First Name': x|$x.firstName, 'Age': x|$x.age]);
+                      tests:
+                      [
+                        test1:
+                        {
+                          data:
+                          [
+                            my::db:
+                              Relation
+                              #{
+                                default.personTable:
+                                  ID,FIRSTNAME,AGE,FIRMID
+                                  1,John,30,100
+                                  2,Jane,20,100;
+                              }#
+                          ];
+                          asserts:
+                          [
+                            shouldPass:
+                              Relation
+                              #{
+                                First Name, Age
+                                John      , 30;
+                              }#
+                          ];
+                        }
+                      ];
+                    }
+                  ]
+                )
+                """);
+    }
+
+    @Test
     void batch17Shapes() throws Exception {
         probe("agg-pure-nested", """
                 ###Pure

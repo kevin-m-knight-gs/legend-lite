@@ -171,9 +171,14 @@ class CorpusEquivalenceTest {
      * 24,483 -> 24,503: the Pure-nested-mapping sentinel collision
      * (mainBodyTok sign-encodes Pure as -pos; -1 'absent' sentinel
      * misfired) — 20 walls left, ALL the Relation-store test-data
-     * family. */
-    private static final int MIN_ELEMENTS_COMPARED = 24503;
-    private static final int MIN_MATCHES = 24503;
+     * family.
+     * 24,503 -> 24,506: Relation-island test data — CSV char sub-format
+     * (cells TRIM both sides) -> relationAccessor/relationElements;
+     * equalToRelation assertions whose expected span runs
+     * (braceLine, braceCol+2)..(semiLine-1, semiCol) while DATA elements
+     * span path..semi (probes relation-data-exact + relation-rows). */
+    private static final int MIN_ELEMENTS_COMPARED = 24506;
+    private static final int MIN_MATCHES = 24506;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

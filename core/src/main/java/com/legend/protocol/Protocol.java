@@ -199,6 +199,8 @@ public final class Protocol {
                                  @com.legend.Nullable List<PModelEmbeddedData> modelData,
                                  @com.legend.Nullable com.legend.protocol.SourceInfo modelStoreSourceInformation,
                                  @com.legend.Nullable PPointer dataElement,
+                                 @com.legend.Nullable List<PRelationElement> relationElements,
+                                 @com.legend.Nullable com.legend.protocol.SourceInfo relationAccessorSourceInformation,
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -221,12 +223,25 @@ public final class Protocol {
      *  span ExternalFormat..}# (probe test-suites). */
     public record PExternalFormatData(String contentType, String data,
                                       com.legend.protocol.SourceInfo sourceInformation)
-            implements PEmbeddedDataValue {
+            implements PEmbeddedDataValue, PAssertionValue {
     }
 
-    /** {@code id: EqualToJson #{ expected: ExternalFormat #{...}#; }#}. */
-    public record PTestAssertion(String id, PExternalFormatData expected,
+    /** {@code id: EqualToJson #{...}#} or {@code id: Relation #{...}#}
+     *  (probe relation-data-exact). */
+    public sealed interface PAssertionValue
+            permits PExternalFormatData, PRelationElement {
+    }
+
+    public record PTestAssertion(String id, PAssertionValue expected,
                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code schema.table: CSV...;} group inside a Relation island —
+     *  cells TRIMMED both sides; assertion islands have NO path line. */
+    public record PRelationElement(List<String> columns, List<String> paths,
+                                   List<List<String>> rows,
+                                   com.legend.protocol.SourceInfo sourceInformation)
+            implements PAssertionValue {
     }
 
     /** {@code MappingTests [ name ( query: |...; data: [<Object, JSON,

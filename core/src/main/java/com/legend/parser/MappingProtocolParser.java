@@ -1326,10 +1326,29 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                             refIsland.endColumn()));
             return new Protocol.PStoreTestData(
                     new Protocol.PPointer("STORE", storePath, storeSpan),
-                    null, null, de,
+                    null, null, de, null, null,
                     new SourceInfo("", storeSpan.startLine(),
                             storeSpan.startColumn(), refIsland.endLine(),
                             refIsland.endColumn()));
+        }
+        if (peek() == TokenType.VALID_STRING && "Relation".equals(text())) {
+            // Relation #{ schema.table: CSV rows...; }# (probe
+            // relation-data-exact); cells TRIM both sides
+            advance();
+            IslandBlock ri = readIsland();
+            List<Protocol.PRelationElement> rels =
+                    parseRelationElements(ri, true);
+            SourceInfo first = rels.isEmpty()
+                    ? spanOf(pos - 1, pos - 1)
+                    : rels.get(0).sourceInformation();
+            SourceInfo accessor = new SourceInfo("", first.startLine(),
+                    first.startColumn(), ri.endLine(), ri.endColumn() + 3);
+            return new Protocol.PStoreTestData(
+                    new Protocol.PPointer("STORE", storePath, storeSpan),
+                    null, null, null, rels, accessor,
+                    new SourceInfo("", storeSpan.startLine(),
+                            storeSpan.startColumn(), ri.endLine(),
+                            ri.endColumn()));
         }
         if (!(peek() == TokenType.VALID_STRING
                 && "ModelStore".equals(text()))) {
@@ -1389,7 +1408,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 island.endLine(), island.endColumn());
         return new Protocol.PStoreTestData(
                 new Protocol.PPointer("STORE", storePath, storeSpan),
-                modelData, msSpan, null,
+                modelData, msSpan, null, null, null,
                 new SourceInfo("", storeSpan.startLine(),
                         storeSpan.startColumn(), island.endLine(),
                         island.endColumn()));
@@ -1400,6 +1419,33 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int aS = pos;
         String assertId = parseIdentifier();
         expect(TokenType.COLON);
+        if (peek() == TokenType.VALID_STRING && "Relation".equals(text())) {
+            int rTok = pos;
+            advance();
+            int braceTok = pos;                     // the ISLAND_OPEN '#{'
+            IslandBlock ri = readIsland();
+            List<Protocol.PRelationElement> rels =
+                    parseRelationElements(ri, false);
+            if (rels.size() != 1) {
+                throw error("Relation assertion must be ONE element");
+            }
+            match(TokenType.SEMI_COLON);
+            // assertion expected spans run (braceLine, braceCol+2) ..
+            // (semiLine-1, semiCol) — probe relation-rows; DATA elements
+            // keep path..semi
+            Protocol.PRelationElement re = rels.get(0);
+            SourceInfo es = re.sourceInformation();
+            Protocol.PRelationElement shifted =
+                    new Protocol.PRelationElement(re.columns(), re.paths(),
+                            re.rows(), new SourceInfo("",
+                                    tokens.startLine(braceTok),
+                                    tokens.startColumn(braceTok) + 2,
+                                    es.endLine() - 1, es.endColumn()));
+            return new Protocol.PTestAssertion(assertId, shifted,
+                    new SourceInfo("", tokens.startLine(rTok),
+                            tokens.startColumn(rTok), ri.endLine(),
+                            ri.endColumn()));
+        }
         if (!(peek() == TokenType.VALID_STRING
                 && "EqualToJson".equals(text()))) {
             throw error("test assertion kind '" + safeText()
@@ -1471,7 +1517,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  reparse). Nested islands re-lex recursively through the SAME
      *  machinery. */
     private record IslandBlock(TokenStream tokens, int endLine,
-            int endColumn) { }
+            int endColumn, int contentStart, int contentEnd) { }
 
     private IslandBlock readIsland() {
         expect(TokenType.ISLAND_OPEN);
@@ -1511,7 +1557,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         padded.append(source, contentStart, contentEnd);
         return new IslandBlock(
                 com.legend.lexer.Lexer.tokenize(padded.toString()),
-                tokens.endLine(endTok), tokens.endColumn(endTok));
+                tokens.endLine(endTok), tokens.endColumn(endTok),
+                contentStart, contentEnd);
     }
 
     /** {@code cls[id]: AggregationAware { Views: [...] , ~mainMapping:
@@ -1777,6 +1824,92 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             return raw;
         }
         return parseIdentifier();
+    }
+
+    /** {@code [schema.table:]\n HEADER \n ROWS... ;} groups inside a
+     *  Relation island — a CSV sub-format the engine parses from raw
+     *  chars; cells TRIM both sides (probe relation-data-exact). */
+    private List<Protocol.PRelationElement> parseRelationElements(
+            IslandBlock island, boolean withPaths) {
+        String src = tokens.source();
+        int p = island.contentStart();
+        int end = island.contentEnd();
+        List<Protocol.PRelationElement> out = new ArrayList<>();
+        while (true) {
+            while (p < end && Character.isWhitespace(src.charAt(p))) {
+                p++;
+            }
+            if (p >= end) {
+                break;
+            }
+            int elemStart = p;
+            List<String> paths = new ArrayList<>();
+            if (withPaths) {
+                int eol = lineEnd(src, p, end);
+                String line = src.substring(p, eol).strip();
+                if (!line.endsWith(":")) {
+                    throw error("relation data path line must end ':'");
+                }
+                splitOn(line.substring(0, line.length() - 1), '.', paths);
+                p = eol + 1;
+                while (p < end && Character.isWhitespace(src.charAt(p))) {
+                    p++;
+                }
+            }
+            int eol = lineEnd(src, p, end);
+            List<String> columns = new ArrayList<>();
+            splitOn(src.substring(p, eol).strip(), ',', columns);
+            p = eol + 1;
+            List<List<String>> rows = new ArrayList<>();
+            int semiPos = -1;
+            while (p < end) {
+                int rEol = lineEnd(src, p, end);
+                String line = src.substring(p, rEol).strip();
+                if (line.isEmpty()) {
+                    p = rEol + 1;
+                    continue;
+                }
+                boolean last = line.endsWith(";");
+                if (last) {
+                    semiPos = p + src.substring(p, rEol).lastIndexOf(';');
+                    line = line.substring(0, line.length() - 1);
+                }
+                List<String> row = new ArrayList<>();
+                splitOn(line, ',', row);
+                rows.add(row);
+                p = rEol + 1;
+                if (last) {
+                    break;
+                }
+            }
+            if (semiPos < 0) {
+                throw error("relation data rows must end with ';'");
+            }
+            out.add(new Protocol.PRelationElement(columns, paths, rows,
+                    new SourceInfo("", tokens.lineOf(elemStart),
+                            tokens.columnOf(elemStart),
+                            tokens.lineOf(semiPos),
+                            tokens.columnOf(semiPos))));
+        }
+        return out;
+    }
+
+    private static int lineEnd(String src, int from, int end) {
+        int i = from;
+        while (i < end && src.charAt(i) != '\n') {
+            i++;
+        }
+        return i;
+    }
+
+    private static void splitOn(String s, char sep, List<String> out) {
+        int start = 0;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i == s.length() || s.charAt(i) == sep) {
+                out.add(s.substring(start, i).strip());
+                start = i + 1;
+            }
+        }
     }
 
     private void expectText(String want) {

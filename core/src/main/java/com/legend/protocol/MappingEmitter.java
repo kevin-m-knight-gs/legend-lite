@@ -657,8 +657,18 @@ final class MappingEmitter {
                     b.append(',');
                 }
                 Protocol.PTestAssertion a = t.assertions().get(j);
-                b.append("{\"_type\":\"equalToJson\",\"expected\":");
-                externalFormatData(b, a.expected());
+                switch (a.expected()) {
+                    case Protocol.PExternalFormatData ef -> {
+                        b.append("{\"_type\":\"equalToJson\","
+                                + "\"expected\":");
+                        externalFormatData(b, ef);
+                    }
+                    case Protocol.PRelationElement re -> {
+                        b.append("{\"_type\":\"equalToRelation\","
+                                + "\"expected\":");
+                        relationElement(b, re);
+                    }
+                }
                 b.append(",\"id\":");
                 str(b, a.id());
                 b.append(",\"sourceInformation\":");
@@ -680,6 +690,29 @@ final class MappingEmitter {
                     b.append(',');
                 }
                 Protocol.PStoreTestData sd = t.storeTestData().get(j);
+                if (sd.relationElements() != null) {
+                    // Relation #{ schema.table: CSV...; }# (probe
+                    // relation-data-exact)
+                    b.append("{\"data\":{\"_type\":\"relationAccessor\","
+                            + "\"relationElements\":[");
+                    List<Protocol.PRelationElement> rels =
+                            sd.relationElements();
+                    for (int k = 0; k < rels.size(); k++) {
+                        if (k > 0) {
+                            b.append(',');
+                        }
+                        relationElement(b, rels.get(k));
+                    }
+                    b.append("],\"sourceInformation\":");
+                    srcInfo(b, java.util.Objects.requireNonNull(
+                            sd.relationAccessorSourceInformation()));
+                    b.append("},\"sourceInformation\":");
+                    srcInfo(b, sd.sourceInformation());
+                    b.append(",\"store\":");
+                    pointer(b, sd.store());
+                    b.append('}');
+                    continue;
+                }
                 if (sd.dataElement() != null) {
                     // Reference #{ path }# (probe reference-data)
                     b.append("{\"data\":{\"_type\":\"reference\","
@@ -735,6 +768,42 @@ final class MappingEmitter {
             default -> throw new IllegalStateException(
                     "nested class-mapping kind unbuilt: " + cm.getClass());
         }
+    }
+
+    static void relationElement(StringBuilder b,
+            Protocol.PRelationElement re) {
+        b.append("{\"columns\":[");
+        for (int i = 0; i < re.columns().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, re.columns().get(i));
+        }
+        b.append("],\"paths\":[");
+        for (int i = 0; i < re.paths().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            str(b, re.paths().get(i));
+        }
+        b.append("],\"rows\":[");
+        for (int i = 0; i < re.rows().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            b.append("{\"values\":[");
+            List<String> row = re.rows().get(i);
+            for (int j = 0; j < row.size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                str(b, row.get(j));
+            }
+            b.append("]}");
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, re.sourceInformation());
+        b.append('}');
     }
 
     static void embeddedDataValue(StringBuilder b,
