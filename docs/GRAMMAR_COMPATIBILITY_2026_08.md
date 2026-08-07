@@ -23,6 +23,16 @@ something, it is flagged in §9.
 
 ### The gate, measured today
 
+> **Superseded 2026-08-06.** Every number in this §0 is the pre-Phase-A state.
+> Phase A has since landed (`fa2bf6e7`, `e0ef958d`, `467c27b1`): the `pureOnly`
+> gate is deleted, the comparator is bidirectional, and comparable elements went
+> **19,273 → 22,725**. Current: **22,725/22,725** MATCH, 0 DIFF, `REFERENCE_REJECTED`
+> a counted 2,270 files, `OUT_OF_SCOPE` an itemized 1,875-element worklist.
+> Rejection parity is **43/43 with 40 line-exact and 28 column-exact** — the
+> "20/43" below was a measurement artifact (17 pins were mispaired by the
+> adjacency extractor), corrected in `PARSER_IMPLEMENTATION_AUDIT_2026_08.md` §3.5.
+> **The analysis in §1–§10 stands; only these counts moved.**
+
 ```
 corpus sources        : 7219
 verdicts              : 19273
@@ -47,7 +57,7 @@ verdicts              : 19273
 |---|---|
 | `CorpusEquivalenceTest` | PASS — 19,273/19,273 |
 | `RejectionParityTest` | PASS — 43/43 pins (error-**line** agreement 20/43 — asserted on nothing) |
-| `SectionParseSentinelTest` | PASS — 857 vs `MIN_FILES_PARSED = 877` |
+| `SectionParseSentinelTest` | PASS — 857 vs `MIN_FILES_PARSED = 857` *(floor is now 877)* |
 | `SpiSeamProofTest` | PASS — 170 vs `MAX_LENIENT_ACCEPTS = 170` |
 
 **The live problem is not the ratchet's value. It is what the ratchet measures.**
@@ -355,6 +365,15 @@ Engine `###Mapping` = 481 lines (g4 + walker) → legend-lite's parser = 1,595 l
 ---
 
 ## §6 — The plan
+
+> **Progress 2026-08-06.** Phase A items **1–5 are DONE** — `fa2bf6e7`
+> (bidirectional comparator), `e0ef958d` (`pureOnly` deleted everywhere,
+> 19,305 → 22,725), `467c27b1` ("Phase A complete"). Items **6 (loud-miss
+> lexer) and 7 (fifth verdict) remain open** — the raw-skip at
+> `Lexer.java:287-296` is still live. Phases B and C are partly landed
+> (`333dab8e` columns 1-based + AggregationAware Pure mains; `d17d0a7e` one
+> scalar scanner + one escape decoder). §1.1's `pureOnly` gate no longer
+> exists: `ParserEquivalence.java:82` now reads *"The pureOnly gate is DEAD"*.
 
 ### Phase A — make the instrument section-agnostic (no new grammar)
 
