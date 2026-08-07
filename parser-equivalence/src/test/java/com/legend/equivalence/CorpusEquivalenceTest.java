@@ -87,9 +87,13 @@ class CorpusEquivalenceTest {
      * mappings at byte parity; class-mapping families walled by name;
      * the wall ranking IS the leg's worklist.
      * 23,375 -> 23,395: mapping includes (mappingIncludeMapping, both
-     * spellings; dataspace includes wall). */
-    private static final int MIN_ELEMENTS_COMPARED = 23395;
-    private static final int MIN_MATCHES = 23395;
+     * spellings; dataspace includes wall).
+     * 23,395 -> 23,476: RELATIONAL CLASS MAPPINGS — the leg's biggest
+     * family: star-anchored spans, first-ident table anchors (mainTable
+     * AND bracket-qualified op refs), colon..op property spans, source =
+     * enclosing set id, ops through THE relational operation grammar. */
+    private static final int MIN_ELEMENTS_COMPARED = 23476;
+    private static final int MIN_MATCHES = 23476;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

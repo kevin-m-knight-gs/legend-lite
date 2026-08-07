@@ -48,6 +48,7 @@ public final class Protocol {
      *  includedMappings, name, package, sourceInformation, tests}. Class
      *  mapping families land probe-by-probe; unbuilt ones WALL. */
     public record PMapping(String pkg, String name,
+                           List<PClassMappingRel> classMappings,
                            List<PEnumerationMapping> enumerationMappings,
                            List<PMappingInclude> includedMappings,
                            com.legend.protocol.SourceInfo sourceInformation)
@@ -59,6 +60,28 @@ public final class Protocol {
 
     /** One enumeration mapping: id + typed enumeration pointer + value rows
      *  (probe enum-mapping). */
+    /** {@code _type:"relational"} class mapping (probe
+     *  relational-class-mapping): id omitted when unset; root from the
+     *  {@code *} marker; propertyMapping spans run COLON..operation end. */
+    public record PClassMappingRel(String className,
+                                   com.legend.protocol.SourceInfo classSourceInformation,
+                                   @com.legend.Nullable String id,
+                                   boolean root,
+                                   boolean distinct,
+                                   List<PRelOp> groupBy,
+                                   @com.legend.Nullable PTablePtr mainTable,
+                                   List<PRelOp> primaryKey,
+                                   List<PRelPropertyMapping> propertyMappings,
+                                   com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PRelPropertyMapping(String ownerClass, String property,
+                                      com.legend.protocol.SourceInfo propertySourceInformation,
+                                      PRelOp relationalOperation,
+                                      @com.legend.Nullable String source,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
     /** {@code include [mapping] my::Other} — {@code _type:
      *  "mappingIncludeMapping"}, span keyword..path (probe include-plain). */
     public record PMappingInclude(String includedMapping,

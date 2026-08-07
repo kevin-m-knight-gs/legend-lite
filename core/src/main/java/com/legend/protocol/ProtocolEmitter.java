@@ -171,7 +171,14 @@ public final class ProtocolEmitter {
     /** {@code _type:"mapping"} envelope (ZMappingProbe). */
     private static void mapping(StringBuilder b, Protocol.PMapping m) {
         b.append("{\"_type\":\"mapping\",\"associationMappings\":[]"
-                + ",\"classMappings\":[],\"enumerationMappings\":[");
+                + ",\"classMappings\":[");
+        for (int i = 0; i < m.classMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            relClassMapping(b, m.classMappings().get(i));
+        }
+        b.append("],\"enumerationMappings\":[");
         for (int i = 0; i < m.enumerationMappings().size(); i++) {
             if (i > 0) {
                 b.append(',');
@@ -230,6 +237,79 @@ public final class ProtocolEmitter {
         b.append(",\"sourceInformation\":");
         srcInfo(b, m.sourceInformation());
         b.append(",\"tests\":[]}");
+    }
+
+    private static void relClassMapping(StringBuilder b,
+            Protocol.PClassMappingRel cm) {
+        b.append("{\"_type\":\"relational\",\"class\":");
+        str(b, cm.className());
+        b.append(",\"classSourceInformation\":");
+        srcInfo(b, cm.classSourceInformation());
+        b.append(",\"distinct\":").append(cm.distinct());
+        b.append(",\"groupBy\":[");
+        for (int i = 0; i < cm.groupBy().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            relOp(b, cm.groupBy().get(i));
+        }
+        b.append(']');
+        if (cm.id() != null) {
+            b.append(",\"id\":");
+            str(b, cm.id());
+        }
+        if (cm.mainTable() != null) {
+            b.append(",\"mainTable\":");
+            tablePtr(b, cm.mainTable());
+        }
+        b.append(",\"primaryKey\":[");
+        for (int i = 0; i < cm.primaryKey().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            relOp(b, cm.primaryKey().get(i));
+        }
+        b.append("],\"propertyMappings\":[");
+        for (int i = 0; i < cm.propertyMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PRelPropertyMapping pm = cm.propertyMappings().get(i);
+            b.append("{\"_type\":\"relationalPropertyMapping\","
+                    + "\"property\":{\"class\":");
+            str(b, pm.ownerClass());
+            b.append(",\"property\":");
+            str(b, pm.property());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, pm.propertySourceInformation());
+            b.append("},\"relationalOperation\":");
+            relOp(b, pm.relationalOperation());
+            if (pm.source() != null) {
+                b.append(",\"source\":");
+                str(b, pm.source());
+            }
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, pm.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"root\":").append(cm.root());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, cm.sourceInformation());
+        b.append('}');
+    }
+
+    private static void tablePtr(StringBuilder b, Protocol.PTablePtr t) {
+        b.append("{\"_type\":\"Table\",\"database\":");
+        str(b, t.database());
+        b.append(",\"mainTableDb\":");
+        str(b, t.mainTableDb());
+        b.append(",\"schema\":");
+        str(b, t.schema());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, t.sourceInformation());
+        b.append(",\"table\":");
+        str(b, t.table());
+        b.append('}');
     }
 
     /** {@code _type:"relational"} — Database element (ZRelationalProbe). */

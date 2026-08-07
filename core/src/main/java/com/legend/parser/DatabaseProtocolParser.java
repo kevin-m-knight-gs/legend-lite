@@ -64,6 +64,17 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         return TokenStreamCursor.super.parseIdentifier();
     }
 
+    /** Package entry for OTHER section grammars (Mapping property
+     *  mappings) that embed relational operations: parse one operation at
+     *  {@code start}; the advanced position lands in {@code posOut[0]}. */
+    static Protocol.PRelOp operationAt(TokenStream ts, int start,
+            String dbFqn, String schemaCtx, int[] posOut) {
+        DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start, dbFqn);
+        Protocol.PRelOp op = p.parseOperation(schemaCtx);
+        posOut[0] = p.pos;
+        return op;
+    }
+
     /** Parse one {@code Database qn ( ... )} at {@code tokenIndex}. */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex, "");
@@ -666,7 +677,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             advance();
             String db = Protocol.unquotePath(parseQualifiedName());
             expect(TokenType.BRACKET_CLOSE);
-            int tblTok = pos;
+            int firstTok = pos;                     // FIRST ident anchors
+            int tblEndTok = pos;
             String schema = "default";
             String table = parseIdentifier();
             expect(TokenType.DOT);
@@ -675,11 +687,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 advance();                          // [db]schema.table.col
                 schema = table;
                 table = column;
-                tblTok = pos - 2;
+                tblEndTok = pos - 2;
                 column = parseIdentifier();
             }
             return new Protocol.PColumnRef(column, new Protocol.PTablePtr(db,
-                    db, schema, table, spanOf(tblTok, tblTok)), table,
+                    db, schema, table, spanOf(firstTok, tblEndTok)), table,
                     spanOf(s, pos - 1));
         }
         if (peek() == TokenType.BRACKET_OPEN && looksLikeLiteralList()) {
