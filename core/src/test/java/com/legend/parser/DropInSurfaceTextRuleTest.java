@@ -55,9 +55,8 @@ class DropInSurfaceTextRuleTest {
      *  a new site in a clean file or a count above the frozen number fails. */
     private static final Map<String, Integer> REGEX_WHITELIST = Map.of(
             "parser/ElementParser.java", 2,
-            "parser/SpecParser.java", 5,
-            "protocol/Protocol.java", 1,
-            "protocol/ProtocolEmitter.java", 1);
+            "parser/SpecParser.java", 5);
+    // com.legend.protocol reached ZERO 2026-08-07 — absent = unconditional
 
     /** 2026-08-07 census — parser files allowed to read raw source chars. */
     private static final Map<String, Integer> SOURCE_WHITELIST = Map.of(

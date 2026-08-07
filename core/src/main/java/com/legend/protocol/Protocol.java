@@ -532,14 +532,20 @@ public final class Protocol {
             return path;
         }
         StringBuilder out = new StringBuilder();
-        String[] segs = path.split("::", -1);
-        for (int i = 0; i < segs.length; i++) {
-            if (i > 0) {
+        int start = 0;
+        while (start <= path.length()) {
+            int sep = path.indexOf("::", start);
+            int end = sep < 0 ? path.length() : sep;
+            if (start > 0) {
                 out.append("::");
             }
-            String s = segs[i];
+            String s = path.substring(start, end);
             out.append(s.length() >= 2 && s.startsWith("'") && s.endsWith("'")
                     ? s.substring(1, s.length() - 1) : s);
+            if (sep < 0) {
+                break;
+            }
+            start = sep + 2;
         }
         return out.toString();
     }

@@ -1289,9 +1289,16 @@ public final class ProtocolEmitter {
             srcInfo(b, span);
             b.append(",\"type\":\">\",\"value\":{\"path\":[");
             str(b, db.fullPath());
-            for (String piece : tbl.value().split("\\.")) {
+            String t = tbl.value();
+            int start = 0;
+            while (start <= t.length()) {
+                int dot = t.indexOf('.', start);
                 b.append(',');
-                str(b, piece);
+                str(b, t.substring(start, dot < 0 ? t.length() : dot));
+                if (dot < 0) {
+                    break;
+                }
+                start = dot + 1;
             }
             b.append("],\"sourceInformation\":");
             srcInfo(b, span);
