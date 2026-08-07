@@ -97,7 +97,31 @@ public final class Protocol {
     public sealed interface PClassMapping
             permits PClassMappingRel, PClassMappingPure,
             PClassMappingOperation, PClassMappingRelation,
-            PClassMappingMergeOperation {
+            PClassMappingMergeOperation, PClassMappingAggregationAware {
+    }
+
+    /** {@code cls[id]: AggregationAware { Views: [...], ~mainMapping:
+     *  Relational {...} }} — nested CM spans ride the ENGINE's sub-parse
+     *  shift (member-anchored spans +DELTA lines); aggregate lambdas ride
+     *  a CONSTANT -1 line shift (probes agg-off-A/B). */
+    public record PClassMappingAggregationAware(String className,
+                                                String id,
+                                                List<PAggregateSetImplementation> aggregateSetImplementations,
+                                                PClassMappingRel mainSetImplementation,
+                                                boolean root,
+                                                com.legend.protocol.SourceInfo sourceInformation)
+            implements PClassMapping {
+    }
+
+    public record PAggregateSetImplementation(boolean canAggregate,
+                                              List<com.legend.protocol.spec.ValueSpecification> groupByFunctions,
+                                              List<PAggregateValue> aggregateValues,
+                                              int index,
+                                              PClassMappingRel setImplementation) {
+    }
+
+    public record PAggregateValue(com.legend.protocol.spec.ValueSpecification mapFn,
+                                  com.legend.protocol.spec.ValueSpecification aggregateFn) {
     }
 
     /** {@code merge_...([p1,p2], {typed lambda})} — {@code _type:

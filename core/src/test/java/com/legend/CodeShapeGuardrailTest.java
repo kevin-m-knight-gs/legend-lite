@@ -58,6 +58,11 @@ class CodeShapeGuardrailTest {
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth
             "EngineStyleH2.anonDistinctDepth",
+            // mapping-section context for AggregationAware span-shift
+            // emulation: set once at parse entry / per ~modelOperation
+            // view — same lifecycle as a parser cursor
+            "MappingProtocolParser.sectionStartLine",
+            "MappingProtocolParser.aggLambdaShift",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",

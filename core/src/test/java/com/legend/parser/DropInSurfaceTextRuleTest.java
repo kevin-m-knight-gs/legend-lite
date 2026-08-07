@@ -78,8 +78,9 @@ class DropInSurfaceTextRuleTest {
             // arrive as RAW island chunks — the content is re-lexed with
             // position padding (the engine reparses the same text via its
             // data sub-parsers); same category as ElementParser's island
-            // reads
-            "parser/MappingProtocolParser.java", 1);
+            // reads; +1: aggregate-lambda padded re-lex (engine reparses
+            // the expr text standalone with the tilde-anchor quirk)
+            "parser/MappingProtocolParser.java", 2);
 
     @Test
     void regexFamilyIsConfinedToTheFrozenWhitelist() throws IOException {

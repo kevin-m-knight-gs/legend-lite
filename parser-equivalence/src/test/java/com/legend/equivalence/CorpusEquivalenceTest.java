@@ -151,9 +151,17 @@ class CorpusEquivalenceTest {
      * 24,426 -> 24,460: Reference test data — Store: Reference
      * #{ my::DataElement }# -> {_type reference, dataElement DATA
      * pointer} whose span runs the Reference KEYWORD through the island
-     * close, like ExternalFormat. */
-    private static final int MIN_ELEMENTS_COMPARED = 24460;
-    private static final int MIN_MATCHES = 24460;
+     * close, like ExternalFormat.
+     * 24,460 -> 24,466: AggregationAware — generated ids
+     * (sanitized-class or explicit, +_Aggregate_n/_Main), nested CM
+     * CONTENTS keep TRUE spans while classSourceInformation/CM-SI shift
+     * DOWN by DELTA = memberBraceLine - sectionStart + 1; aggregate
+     * lambdas shift UP by the ~modelOperation tilde-vs-brace line gap
+     * (engine anchors the spec sub-parse at the TILDE but slices after
+     * the BRACE); pm sources keep the EXPLICIT outer id or null (the
+     * engine suffixes ids only AFTER the sub-parse). */
+    private static final int MIN_ELEMENTS_COMPARED = 24466;
+    private static final int MIN_MATCHES = 24466;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

@@ -112,6 +112,19 @@ public final class ParserEquivalence {
                 com.legend.lexer.TokenType.DATABASE, 8));
         sites.addAll(markerSites(ts, mappingRanges,
                 com.legend.lexer.TokenType.MAPPING, 9));
+        // AggregationAware span emulation needs each mapping SECTION's
+        // first content line (probe agg-off-A/B)
+        for (int[] site : sites) {
+            if (site.length > 2 && site[1] == 9) {
+                for (long[] r : mappingRanges) {
+                    if (ts.start(site[0]) >= r[0]
+                            && ts.start(site[0]) < r[1]) {
+                        site[2] = ts.lineOf((int) r[0]) + 1;
+                        break;
+                    }
+                }
+            }
+        }
         boolean runtimeWalled = false;
         boolean connectionWalled = false;
         boolean relationalWalled = false;
@@ -155,7 +168,8 @@ public final class ParserEquivalence {
                     fqn = db.qualifiedName();
                 } else if (site[1] == 9) {
                     Protocol.PMapping mp = com.legend.parser
-                            .MappingProtocolParser.parse(ts, site[0]);
+                            .MappingProtocolParser.parse(ts, site[0],
+                                    site.length > 2 ? site[2] : -1);
                     el = mp;
                     fqn = mp.qualifiedName();
                 } else {
@@ -377,7 +391,7 @@ public final class ParserEquivalence {
                     case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
                     default -> {
                         if (depth == 0 && declPos && t == marker) {
-                            sites.add(new int[]{cursor, kind});
+                            sites.add(new int[]{cursor, kind, -1});
                         }
                     }
                 }

@@ -44,8 +44,25 @@ public final class MappingProtocolParser implements TokenStreamCursor {
 
     /** Parse one {@code Mapping qn ( ... )} at {@code tokenIndex}. */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex) {
-        return new MappingProtocolParser(ts, tokenIndex).parseMapping();
+        return parse(ts, tokenIndex, -1);
     }
+
+    /** As {@link #parse(TokenStream, int)} with the SECTION's first
+     *  content line — AggregationAware nested-CM spans shift by
+     *  {@code memberLine - sectionStartLine + 2} (probe agg-off-A/B). */
+    public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
+            int sectionStartLine) {
+        MappingProtocolParser p = new MappingProtocolParser(ts, tokenIndex);
+        p.sectionStartLine = sectionStartLine;
+        return p.parseMapping();
+    }
+
+    /** -1 = unknown (AggregationAware members then refuse loudly). */
+    private int sectionStartLine = -1;
+
+    /** Lines the CURRENT ~modelOperation block's content shifts UP —
+     *  braceLine minus tildeLine (engine anchor quirk). */
+    private int aggLambdaShift = 0;
 
     private Protocol.PMapping parseMapping() {
         int declStart = pos;
@@ -169,6 +186,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (extendsId != null) {
             throw error("'extends' on this class-mapping kind is unbuilt");
+        }
+        if (peek() == TokenType.VALID_STRING
+                && "AggregationAware".equals(text())) {
+            advance();
+            classMappings.add(parseAggregationAware(target, memberStart,
+                    targetSpan, id, root));
+            return;
         }
         if (peek() == TokenType.VALID_STRING && "ModelJoin".equals(text())) {
             advance();
@@ -1339,6 +1363,252 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return new IslandBlock(
                 com.legend.lexer.Lexer.tokenize(padded.toString()),
                 tokens.endLine(endTok), tokens.endColumn(endTok));
+    }
+
+    /** {@code cls[id]: AggregationAware { Views: [...] , ~mainMapping:
+     *  Relational {...} }} — see probes agg-off-A/B for the two span
+     *  shift rules (nested CMs +DELTA lines; lambdas -1 line). */
+    private Protocol.PClassMappingAggregationAware parseAggregationAware(
+            String target, int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id, boolean root) {
+        if (sectionStartLine < 0) {
+            throw error("AggregationAware needs the section start line"
+                    + " (span-shift emulation)");
+        }
+        String outerId = id != null ? id : target.replace("::", "_");
+        int braceOpenTok = pos;
+        expect(TokenType.BRACE_OPEN);
+        record AggView(boolean canAggregate, List<Object> groupBys,
+                List<long[]> aggValues, int relTok) { }
+        List<boolean[]> canAggs = new ArrayList<>();
+        List<List<com.legend.protocol.spec.ValueSpecification>> groupBys =
+                new ArrayList<>();
+        List<List<Protocol.PAggregateValue>> aggVals = new ArrayList<>();
+        List<Integer> aggBodyToks = new ArrayList<>();
+        int mainBodyTok = -1;
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            if (peek() == TokenType.VALID_STRING && "Views".equals(text())) {
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    expect(TokenType.PAREN_OPEN);
+                    int tildeTok = pos;
+                    expect(TokenType.TILDE);
+                    expectText("modelOperation");
+                    expect(TokenType.COLON);
+                    int braceTok = pos;
+                    expect(TokenType.BRACE_OPEN);
+                    // engine anchors the spec sub-parse at the TILDE line
+                    // but slices text after the BRACE — everything inside
+                    // shifts UP by the gap (AggregationAwareMapping
+                    // ParseTreeWalker.visitModelOperationContext)
+                    aggLambdaShift = tokens.startLine(braceTok)
+                            - tokens.startLine(tildeTok);
+                    boolean canAgg = false;
+                    List<com.legend.protocol.spec.ValueSpecification> gbs =
+                            new ArrayList<>();
+                    List<Protocol.PAggregateValue> avs = new ArrayList<>();
+                    while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+                        expect(TokenType.TILDE);
+                        String cmd = parseIdentifier();
+                        switch (cmd) {
+                            case "canAggregate" -> {
+                                canAgg = Boolean.parseBoolean(text());
+                                advance();
+                            }
+                            case "groupByFunctions" -> {
+                                expect(TokenType.PAREN_OPEN);
+                                while (peek() != TokenType.PAREN_CLOSE
+                                        && !atEnd()) {
+                                    gbs.add(parseAggLambda());
+                                    match(TokenType.COMMA);
+                                }
+                                expect(TokenType.PAREN_CLOSE);
+                            }
+                            case "aggregateValues" -> {
+                                expect(TokenType.PAREN_OPEN);
+                                while (peek() != TokenType.PAREN_CLOSE
+                                        && !atEnd()) {
+                                    expect(TokenType.PAREN_OPEN);
+                                    expect(TokenType.TILDE);
+                                    expectText("mapFn");
+                                    expect(TokenType.COLON);
+                                    com.legend.protocol.spec
+                                            .ValueSpecification mapFn =
+                                            parseAggLambda();
+                                    expect(TokenType.COMMA);
+                                    expect(TokenType.TILDE);
+                                    expectText("aggregateFn");
+                                    expect(TokenType.COLON);
+                                    com.legend.protocol.spec
+                                            .ValueSpecification aggFn =
+                                            parseAggLambda();
+                                    expect(TokenType.PAREN_CLOSE);
+                                    avs.add(new Protocol.PAggregateValue(
+                                            mapFn, aggFn));
+                                    match(TokenType.COMMA);
+                                }
+                                expect(TokenType.PAREN_CLOSE);
+                            }
+                            default -> throw error("modelOperation command"
+                                    + " '~" + cmd + "' is unbuilt");
+                        }
+                        match(TokenType.COMMA);
+                    }
+                    expect(TokenType.BRACE_CLOSE);
+                    match(TokenType.COMMA);
+                    expect(TokenType.TILDE);
+                    expectText("aggregateMapping");
+                    expect(TokenType.COLON);
+                    expect(TokenType.RELATIONAL);
+                    canAggs.add(new boolean[]{canAgg});
+                    groupBys.add(gbs);
+                    aggVals.add(avs);
+                    aggBodyToks.add(pos);
+                    skipBraceBlock();
+                    expect(TokenType.PAREN_CLOSE);
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                match(TokenType.COMMA);
+                continue;
+            }
+            if (peek() == TokenType.TILDE
+                    && "mainMapping".equals(tokens.text(
+                            Math.min(pos + 1, tokens.count() - 1)))) {
+                advance();
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.RELATIONAL);
+                mainBodyTok = pos;
+                skipBraceBlock();
+                match(TokenType.COMMA);
+                continue;
+            }
+            throw error("AggregationAware member '" + safeText()
+                    + "' is unbuilt");
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        if (mainBodyTok < 0) {
+            throw error("AggregationAware without ~mainMapping");
+        }
+        // engine sub-parse shift (probes agg-off-A/B + corpus
+        // mapping.pure/saleMapping): nested CM CONTENTS keep TRUE spans;
+        // ONLY classSourceInformation (= the outer target span) and the
+        // CM's sourceInformation (= the member span) shift DOWN by
+        // DELTA = memberIslandBraceLine - sectionStartLine + 1
+        int delta = tokens.startLine(braceOpenTok) - sectionStartLine + 1;
+        SourceInfo shiftedTarget = shiftLines(targetSpan, delta);
+        SourceInfo shiftedMember =
+                shiftLines(spanOf(memberStart, close), delta);
+        List<Protocol.PAggregateSetImplementation> asis = new ArrayList<>();
+        for (int i = 0; i < aggBodyToks.size(); i++) {
+            Protocol.PClassMappingRel cm = parseNestedRel(aggBodyToks.get(i),
+                    target, shiftedTarget,
+                    outerId + "_Aggregate_" + i, id, root, shiftedMember);
+            asis.add(new Protocol.PAggregateSetImplementation(
+                    canAggs.get(i)[0], groupBys.get(i), aggVals.get(i), i,
+                    cm));
+        }
+        Protocol.PClassMappingRel mainCm = parseNestedRel(mainBodyTok,
+                target, shiftedTarget, outerId + "_Main", id, root,
+                shiftedMember);
+        return new Protocol.PClassMappingAggregationAware(target, outerId,
+                asis, mainCm, root, spanOf(memberStart, close));
+    }
+
+    private static SourceInfo shiftLines(SourceInfo si, int delta) {
+        return new SourceInfo(si.sourceId(), si.startLine() + delta,
+                si.startColumn(), si.endLine() + delta, si.endColumn());
+    }
+
+    /** A nested Relational CM parsed from the ORIGINAL stream (contents
+     *  keep TRUE spans); its class span and OWN span are the SHIFTED
+     *  outer spans (probe agg-off). */
+    private Protocol.PClassMappingRel parseNestedRel(int bodyTok,
+            String target, SourceInfo shiftedTarget, String cmId,
+            @com.legend.Nullable String explicitOuterId, boolean root,
+            SourceInfo shiftedMember) {
+        MappingProtocolParser p = new MappingProtocolParser(tokens, bodyTok);
+        // pm sources keep the EXPLICIT outer id (or null) — the engine
+        // suffixes the CM id only AFTER the sub-parse
+        // (AggregationAwareMappingParseTreeWalker:218)
+        Protocol.PClassMappingRel cm = p.parseRelationalClassMapping(target,
+                bodyTok, shiftedTarget, explicitOuterId, root, null);
+        return new Protocol.PClassMappingRel(cm.className(), shiftedTarget,
+                cmId, cm.root(), cm.distinct(),
+                cm.extendsClassMappingId(), cm.filter(), cm.groupBy(),
+                cm.mainTable(), cm.primaryKey(), cm.propertyMappings(),
+                shiftedMember);
+    }
+
+    /** One aggregate lambda expr — spans ride a CONSTANT -1 line shift
+     *  (probe agg-off): pad-relex the slice one line short. */
+    private com.legend.protocol.spec.ValueSpecification parseAggLambda() {
+        int eS = pos;
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (depth == 0 && (t == TokenType.COMMA
+                    || t == TokenType.PAREN_CLOSE)) {
+                break;
+            }
+            if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                    || t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.PAREN_CLOSE
+                    || t == TokenType.BRACKET_CLOSE
+                    || t == TokenType.BRACE_CLOSE) {
+                depth--;
+            }
+            advance();
+        }
+        StringBuilder padded = new StringBuilder();
+        for (int i = 1; i < tokens.startLine(eS) - aggLambdaShift; i++) {
+            padded.append('\n');
+        }
+        for (int i = 1; i < tokens.startColumn(eS); i++) {
+            padded.append(' ');
+        }
+        padded.append(tokens.source(), tokens.start(eS),
+                tokens.end(pos - 1));
+        List<com.legend.protocol.spec.ValueSpecification> body =
+                SpecParser.parseCodeBlock(
+                        com.legend.lexer.Lexer.tokenize(padded.toString()));
+        if (body.size() != 1) {
+            throw error("aggregate lambda must be ONE expression");
+        }
+        return body.get(0);
+    }
+
+    private void expectText(String want) {
+        if (!want.equals(text())) {
+            throw error("expected '" + want + "' but found '" + safeText()
+                    + "'");
+        }
+        advance();
+    }
+
+    /** Skip a brace-balanced block starting AT the open brace. */
+    private void skipBraceBlock() {
+        expect(TokenType.BRACE_OPEN);
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN) {
+                depth++;
+            } else if (t == TokenType.BRACE_CLOSE) {
+                if (depth == 0) {
+                    advance();
+                    return;
+                }
+                depth--;
+            }
+            advance();
+        }
+        throw error("unclosed brace block");
     }
 
     /** One embedded op under the ACTIVE scope context (scope table >
