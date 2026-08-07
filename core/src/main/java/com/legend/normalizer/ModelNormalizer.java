@@ -201,9 +201,11 @@ public final class ModelNormalizer {
                 out.add(el);
             }
         }
-        // full-arg pass-through: source/offsets/per-element imports survive
+        // full-arg pass-through: source/offsets/per-element imports,
+        // per-element sources and unclaimed sections all survive
         return new ParsedModel(out, parsed.imports(), parsed.source(),
-                parsed.elementOffsets(), parsed.elementImports());
+                parsed.elementOffsets(), parsed.elementImports(),
+                parsed.elementSources(), parsed.unclaimedSections());
     }
 
     private static String rawName(TypeExpression t) {

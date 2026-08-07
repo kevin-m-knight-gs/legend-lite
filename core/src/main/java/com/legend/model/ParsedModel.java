@@ -23,7 +23,13 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                           @com.legend.Nullable String source,
                           java.util.Map<String, Integer> elementOffsets,
                           java.util.Map<String, ImportScope> elementImports,
-                          java.util.Map<String, String> elementSources) {
+                          java.util.Map<String, String> elementSources,
+                          List<UnclaimedSection> unclaimedSections) {
+
+    /** A {@code ###} section no registered grammar claims — explicit and
+     *  reportable, never lexer silence (SectionGrammarRegistry step 1). */
+    public record UnclaimedSection(String name, int startOffset, int endOffset) {
+    }
 
     public ParsedModel {
         elements = elements == null ? List.of() : List.copyOf(elements);
@@ -36,6 +42,8 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                 : java.util.Map.copyOf(elementImports);
         elementSources = elementSources == null ? java.util.Map.of()
                 : java.util.Map.copyOf(elementSources);
+        unclaimedSections = unclaimedSections == null ? List.of()
+                : List.copyOf(unclaimedSections);
     }
 
     /**
@@ -44,12 +52,22 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
      * ({@code Compiler.parseSources}) fills {@code elementSources} (element
      * FQN &rarr; source unit name) so errors attribute to the right FILE.
      */
+    /** Multi-source form without section data. */
+    public ParsedModel(List<PackageableElement> elements, ImportScope imports,
+                       @com.legend.Nullable String source,
+                       java.util.Map<String, Integer> elementOffsets,
+                       java.util.Map<String, ImportScope> elementImports,
+                       java.util.Map<String, String> elementSources) {
+        this(elements, imports, source, elementOffsets, elementImports,
+                elementSources, List.of());
+    }
+
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
                        @com.legend.Nullable String source,
                        java.util.Map<String, Integer> elementOffsets,
                        java.util.Map<String, ImportScope> elementImports) {
         this(elements, imports, source, elementOffsets, elementImports,
-                java.util.Map.of());
+                java.util.Map.of(), List.of());
     }
 
     /**

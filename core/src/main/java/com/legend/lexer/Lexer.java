@@ -151,7 +151,8 @@ public final class Lexer {
     public static TokenStream tokenize(String source) {
         Lexer lexer = new Lexer(source);
         lexer.run();
-        return new TokenStream(source, lexer.count, lexer.types, lexer.starts, lexer.ends);
+        return new TokenStream(source, lexer.count, lexer.types, lexer.starts,
+                lexer.ends, lexer.skippedSections);
     }
 
     private void run() {
@@ -275,6 +276,12 @@ public final class Lexer {
             java.util.Set.of("Pure", "Mapping", "Relational", "Connection",
                     "Runtime");
 
+    /** Opaque sections raw-skipped by {@link #skipSectionHeader} — RECORDED,
+     *  never silent (GRAMMAR_EXTENSIBILITY.md step 1): the parser surfaces
+     *  each through the SectionGrammarRegistry as "no grammar registered". */
+    private final java.util.List<TokenStream.SkippedSection> skippedSections =
+            new java.util.ArrayList<>();
+
     private void skipSectionHeader() {
         int nameStart = pos + 3;
         int nameEnd = nameStart;
@@ -285,14 +292,19 @@ public final class Lexer {
         while (pos < length && source.charAt(pos) != '\n') pos++;
         if (pos < length) pos++;
         if (!kind.isEmpty() && !LEXABLE_SECTIONS.contains(kind)) {
-            // opaque section: raw-skip to the next line-anchored ###
+            // opaque section: raw-skip to the next line-anchored ### — a
+            // lexing necessity (Diagram color literals are unlexable Pure),
+            // but the SKIP is data, not silence
+            int skipStart = pos;
             while (pos < length) {
                 if (source.charAt(pos) == '#' && source.startsWith("###", pos)
                         && (pos == 0 || source.charAt(pos - 1) == '\n')) {
-                    return;
+                    break;
                 }
                 pos++;
             }
+            skippedSections.add(new TokenStream.SkippedSection(
+                    kind, skipStart, pos));
         }
     }
 

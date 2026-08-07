@@ -296,7 +296,19 @@ public final class ElementParser implements TokenStreamCursor {
             }
         }
 
-        return new ParsedModel(elements, imports.build(), tokens.source(), offsets, elementImports);
+        // sections the lexer raw-skipped, adjudicated by THE registry: a
+        // registered-but-opaque grammar is fine; an UNREGISTERED section is
+        // an explicit reportable row, never silence (Phase M step 1)
+        java.util.List<com.legend.model.ParsedModel.UnclaimedSection> unclaimed =
+                new java.util.ArrayList<>();
+        for (var sk : tokens.skippedSections()) {
+            if (SectionGrammarRegistry.lookup(sk.name()).isEmpty()) {
+                unclaimed.add(new com.legend.model.ParsedModel.UnclaimedSection(
+                        sk.name(), sk.startOffset(), sk.endOffset()));
+            }
+        }
+        return new ParsedModel(elements, imports.build(), tokens.source(),
+                offsets, elementImports, java.util.Map.of(), unclaimed);
     }
 
     /**

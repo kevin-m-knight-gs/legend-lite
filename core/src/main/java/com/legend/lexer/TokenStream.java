@@ -45,14 +45,34 @@ public final class TokenStream {
     private final int[] types;
     private final int[] starts;
     private final int[] ends;
+    private final java.util.List<SkippedSection> skippedSections;
+
+    /** A section whose CONTENT the lexer raw-skipped (opaque DSL — e.g.
+     *  Diagram color literals are unlexable Pure). Recorded, never silent:
+     *  the parser surfaces these through the SectionGrammarRegistry as
+     *  "no grammar registered" (GRAMMAR_EXTENSIBILITY.md step 1). */
+    public record SkippedSection(String name, int startOffset, int endOffset) {
+    }
 
     /** Package-private constructor &mdash; only {@link Lexer} creates {@code TokenStream}s. */
     TokenStream(String source, int count, int[] types, int[] starts, int[] ends) {
+        this(source, count, types, starts, ends, java.util.List.of());
+    }
+
+    TokenStream(String source, int count, int[] types, int[] starts, int[] ends,
+            java.util.List<SkippedSection> skippedSections) {
         this.source = source;
         this.count = count;
         this.types = types;
         this.starts = starts;
         this.ends = ends;
+        this.skippedSections = java.util.List.copyOf(skippedSections);
+    }
+
+    /** Sections the lexer raw-skipped as opaque, in source order. Empty for
+     *  slices — a sub-parse owns no section routing. */
+    public java.util.List<SkippedSection> skippedSections() {
+        return skippedSections;
     }
 
     /** Number of tokens in the stream. Arrays may have slack capacity beyond this; do not exceed it. */
