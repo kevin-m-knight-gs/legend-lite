@@ -20,7 +20,20 @@ R1="-Dlegend.engine.root=$ROOT_ENGINE"
 R2="-Dlegend.pure.root=$ROOT_PURE"
 SFLAG=()
 [ -n "${MVN_SETTINGS:-}" ] && SFLAG=(-s "$MVN_SETTINGS")
+# Offline by default (local hygiene: skips remote metadata checks). CI has a
+# cold ~/.m2 and MUST resolve, so it sets MVN_OFFLINE=0.
+OFF=()
+[ "${MVN_OFFLINE:-1}" = "1" ] && OFF=(-o)
+# Gate subset: GATES=1,2,3 runs only those. Default is all eight.
+WANT=${GATES:-1,2,3,4,5,6,7,8}
+want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
 L=${GATES_LOG:-/tmp/gates.log}
+# Per-run scratch dir. The old fixed /tmp/g<n>.out paths are shared across
+# users and concurrent runs on this box: "$OUT/g1.out" was found owned by a
+# DIFFERENT account, so the redirect failed and the log's grep silently read
+# that other user's stale output and reported it as this run's result.
+OUT=$(mktemp -d "${TMPDIR:-/tmp}/allgates.XXXXXX")
+trap 'rm -rf "$OUT"' EXIT
 : > "$L"
 FAILED=()
 g() { echo "=== $1" >> "$L"; }
@@ -49,73 +62,94 @@ skipped() {
        END { exit(found ? 0 : 1) }' "$1" 2>/dev/null
 }
 
-g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
-g "       so a warm target/ silently no-ops the null gate)"
-mvn -o -pl core clean test > /tmp/g1.out 2>&1
-rec 1 $?; grep -E "Tests run: [0-9]+, Fail" /tmp/g1.out | tail -1 >> "$L"
-
-g "GATE2 core install"
-mvn -o -pl core install -DskipTests > /tmp/g2.out 2>&1
-rec 2 $?
-
-g "GATE3 engine suite minus corpus"
-mvn ${SFLAG[@]+"${SFLAG[@]}"} -o -pl engine test "-Dtest=!RelationalCorpusRunner" "$R1" "$R2" > /tmp/g3.out 2>&1
-rec 3 $?; grep -E "Tests run: [0-9]+, Fail" /tmp/g3.out | tail -1 >> "$L"
-
-g "GATE4 DuckDB corpus"
-mvn -pl engine test -Dtest=RelationalCorpusRunner "$R1" "$R2" > /tmp/g4.out 2>&1
-G4=$?; if skipped /tmp/g4.out; then
-  echo "G4 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G4=1
+if want 1; then
+  g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
+  g "       so a warm target/ silently no-ops the null gate)"
+  mvn "${OFF[@]}" -pl core clean test > "$OUT/g1.out" 2>&1
+  rec 1 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
 fi
-rec 4 $G4; grep -E "h2-exec|Tests run: [0-9]+, Fail" /tmp/g4.out | tail -3 >> "$L"
 
-g "GATE5 h2 corpus"
-mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 "$R1" "$R2" > /tmp/g5.out 2>&1
-G5=$?; if skipped /tmp/g5.out; then
-  echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
+if want 2; then
+  g "GATE2 core install"
+  mvn "${OFF[@]}" -pl core install -DskipTests > "$OUT/g2.out" 2>&1
+  rec 2 $?
 fi
-rec 5 $G5; grep -E "EXACT|h2|Tests run: [0-9]+, Fail" /tmp/g5.out | tail -3 >> "$L"
 
-g "GATE6 PCT full DuckDB"
-( cd pct && mvn -o test ) > /tmp/g6.out 2>&1
-rec 6 $?; grep -E "Tests run: [0-9]+, Fail" /tmp/g6.out | tail -1 >> "$L"
+if want 3; then
+  g "GATE3 engine suite minus corpus"
+  mvn ${SFLAG[@]+"${SFLAG[@]}"} "${OFF[@]}" -pl engine test "-Dtest=!RelationalCorpusRunner" "$R1" "$R2" > "$OUT/g3.out" 2>&1
+  rec 3 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g3.out" | tail -1 >> "$L"
+fi
+
+if want 4; then
+  g "GATE4 DuckDB corpus"
+  mvn -pl engine test -Dtest=RelationalCorpusRunner "$R1" "$R2" > "$OUT/g4.out" 2>&1
+  G4=$?; if skipped "$OUT/g4.out"; then
+    echo "G4 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G4=1
+  fi
+  rec 4 $G4; grep -E "h2-exec|Tests run: [0-9]+, Fail" "$OUT/g4.out" | tail -3 >> "$L"
+fi
+
+if want 5; then
+  g "GATE5 h2 corpus"
+  mvn -pl engine test -Dtest=RelationalCorpusRunner -Drcorpus.backend=h2 "$R1" "$R2" > "$OUT/g5.out" 2>&1
+  G5=$?; if skipped "$OUT/g5.out"; then
+    echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
+  fi
+  rec 5 $G5; grep -E "EXACT|h2|Tests run: [0-9]+, Fail" "$OUT/g5.out" | tail -3 >> "$L"
+fi
+
+if want 6; then
+  g "GATE6 PCT full DuckDB"
+  ( cd pct && mvn "${OFF[@]}" test ) > "$OUT/g6.out" 2>&1
+  rec 6 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g6.out" | tail -1 >> "$L"
+fi
 
 # Ledger: 348 run, <=1 failure, <=22 errors. CEILINGS, not equality — the old
 # `grep -q "Tests run: 348, Failures: 1, Errors: 22"` went RED the moment you
 # fixed one of the 22. Lower these numbers when you earn it.
 G7_MIN_RUN=348; G7_MAX_FAIL=1; G7_MAX_ERR=22
-g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"
-( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn -o test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 ) > /tmp/g7.out 2>&1
-G7_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" /tmp/g7.out | tail -1)
-G7=1
-if [[ "$G7_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
-  R=${BASH_REMATCH[1]}; F=${BASH_REMATCH[2]}; E=${BASH_REMATCH[3]}
-  if [ "$R" -ge "$G7_MIN_RUN" ] && [ "$F" -le "$G7_MAX_FAIL" ] && [ "$E" -le "$G7_MAX_ERR" ]; then
-    G7=0
-    if [ "$F" -lt "$G7_MAX_FAIL" ] || [ "$E" -lt "$G7_MAX_ERR" ]; then
-      echo "G7 IMPROVED — fail $F/$G7_MAX_FAIL, err $E/$G7_MAX_ERR. Ratchet tools/allgates.sh." >> "$L"
+if want 7; then
+  g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"
+  ( cd pct && LEGENDLITE_PCT_BACKEND=h2 mvn "${OFF[@]}" test -Dtest=Test_LegendLite_RelationFunctions_PCT -Dh2.version=2.4.240 ) > "$OUT/g7.out" 2>&1
+  G7_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" "$OUT/g7.out" | tail -1)
+  G7=1
+  if [[ "$G7_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
+    R=${BASH_REMATCH[1]}; F=${BASH_REMATCH[2]}; E=${BASH_REMATCH[3]}
+    if [ "$R" -ge "$G7_MIN_RUN" ] && [ "$F" -le "$G7_MAX_FAIL" ] && [ "$E" -le "$G7_MAX_ERR" ]; then
+      G7=0
+      if [ "$F" -lt "$G7_MAX_FAIL" ] || [ "$E" -lt "$G7_MAX_ERR" ]; then
+        echo "G7 IMPROVED — fail $F/$G7_MAX_FAIL, err $E/$G7_MAX_ERR. Ratchet tools/allgates.sh." >> "$L"
+      fi
     fi
+  else
+    echo "G7 no surefire summary found — treating as failure" >> "$L"
   fi
-else
-  echo "G7 no surefire summary found — treating as failure" >> "$L"
+  rec 7 $G7; echo "${G7_LINE:-<no summary>}" >> "$L"
 fi
-rec 7 $G7; echo "${G7_LINE:-<no summary>}" >> "$L"
 
-g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
-mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence test \
-    -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest' \
-    -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > /tmp/g8.out 2>&1
-rec 8 $?
-sed -n '4,10p' parser-equivalence/target/equivalence-report.txt >> "$L" 2>/dev/null
-sed -n '3,6p' parser-equivalence/target/rejection-report.txt >> "$L" 2>/dev/null
-sed -n '3,9p' parser-equivalence/target/spi-seam-report.txt >> "$L" 2>/dev/null
-sed -n '3,5p' parser-equivalence/target/section-sentinel-report.txt >> "$L" 2>/dev/null
+if want 8; then
+  g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
+  mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence test \
+      -Dtest='CorpusEquivalenceTest,RejectionParityTest,SpiSeamProofTest,SectionParseSentinelTest' \
+      -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
+  G8=$?; if skipped "$OUT/g8.out"; then
+    echo "G8 SKIPPED — no upstream checkouts ($ROOT_ENGINE / $ROOT_PURE). NOT a pass." >> "$L"; G8=1
+  fi
+  rec 8 $G8
+  sed -n '4,10p' parser-equivalence/target/equivalence-report.txt >> "$L" 2>/dev/null
+  sed -n '3,6p' parser-equivalence/target/rejection-report.txt >> "$L" 2>/dev/null
+  sed -n '3,9p' parser-equivalence/target/spi-seam-report.txt >> "$L" 2>/dev/null
+  sed -n '3,5p' parser-equivalence/target/section-sentinel-report.txt >> "$L" 2>/dev/null
+fi
 
 if [ ${#FAILED[@]} -eq 0 ]; then
-  echo "ALLGATES_DONE — ALL 8 GREEN" >> "$L"
-  echo "ALLGATES_DONE — ALL 8 GREEN"
+  echo "ALLGATES_DONE — GREEN (gates: $WANT)" >> "$L"
+  echo "ALLGATES_DONE — GREEN (gates: $WANT)"
   exit 0
 fi
 echo "ALLGATES_DONE — FAILED: ${FAILED[*]}" >> "$L"
 echo "ALLGATES_DONE — FAILED: ${FAILED[*]}  (detail: $L)" >&2
+for k in "${FAILED[@]}"; do n=${k#G}; cp "$OUT/g$n.out" "${L%.log}.g$n.out" 2>/dev/null; done
+echo "failing gate output copied beside $L" >&2
 exit 1
