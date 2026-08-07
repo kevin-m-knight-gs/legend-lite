@@ -62,7 +62,7 @@ text                                                            [FRONTEND]
 | G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
-| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:15`); `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyle*`. SQLite is `Lexicon.SQLITE`, not a class | SQL string |
+| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyle*`. SQLite is `Lexicon.SQLITE`, not a class | SQL string |
 | K | execute | `exec/` | `Executor` | typed `ExecutionResult` |
 
 Wired by `com.legend.Compiler.compile(...)`.

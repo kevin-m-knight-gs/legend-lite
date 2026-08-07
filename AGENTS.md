@@ -112,67 +112,80 @@ executor never decides pipeline order.
 
 ## Invariants
 
-**Enforcement is marked honestly.** `[ENFORCED]` means a test fails if you
-break it. `[CONVENTION]` means the rule is real and expected but **nothing
-checks it** — breaking it will not turn anything red, so it is on you.
+> **These numbers are load-bearing.** 31 javadoc sites under
+> `core/src/main/java` cite them *by number* — "AGENTS.md invariant 4" appears
+> 15 times alone. **Do not renumber.** Append new rules at the end.
+>
+> **Enforcement is marked honestly.** `[ENFORCED]` means a test fails if you
+> break it. `[CONVENTION]` means the rule is real and expected but **nothing
+> checks it** — breaking it will not turn anything red, so it is on you.
 
-### 1. The wall `[ENFORCED — ArchitectureTest:50]`
+### 1. The frontend does ALL AST walking and typing `[CONVENTION]`
 
-No `com.legend..` → `com.gs.legend..` dependency, ever. Also: no `util/`
-package anywhere (`ArchitectureTest:66`).
+Two cooperating compilers:
 
-`ArchitectureTest` is 23 dependency-direction rules and **nothing else** — it
-does not assert sealedness, record-ness, or exhaustiveness. It uses its own
-numbering ("6g", "7a-c") that does **not** map to this list or to
-`core/README.md`'s. Do not merge the numbering schemes.
+- **Element compiler** (phase F — `compiler/element/PureModelContext.from`,
+  plus `ModelBuilder` and `element/{ClassCompiler,FunctionCompiler,StoreCompiler}`):
+  builds the typed model from parsed definitions.
+- **Expression compiler** (phase G — `compiler/spec/SpecCompiler`, `Typer`,
+  `InferenceKernel` and the per-construct checkers): type-checks
+  `ValueSpecification` against the model and produces typed HIR.
 
-### 2. The frontend is the single source of truth for types `[CONVENTION]`
+Together they are the **single source of truth for types**:
 
 - Every expression and every call MUST get a type.
 - Every overload MUST resolve to a concrete signature.
 - If a type is missing downstream, **the frontend has a bug — fix the
-  frontend**, usually `Typer` or the relevant `*Checker`.
+  frontend**, usually `Typer` or the relevant checker.
 
-### 3. The Lowerer does no type inference `[CONVENTION]`
+### 2. The Lowerer does no type inference `[CONVENTION]`
 
-The Lowerer MUST NOT: infer or resolve types; validate correctness; inspect
-HIR for **type** dispatch (`instanceof CInteger` to pick a MIR shape); parse
-function names to guess types; contain SQL syntax or SQL function names;
-import a dialect.
+The Lowerer reads **annotated HIR** — structure from typed nodes, types from
+the annotations.
 
-The Lowerer MAY: read HIR structure (names, parameters, lambda bodies, ColSpec
+It MUST NOT: infer or resolve types (no model lookups, no compatibility
+checks); validate correctness; inspect HIR for **type** dispatch
+(`instanceof CInteger` to pick a MIR shape); parse function names to guess
+types; contain SQL syntax or SQL function names; import a dialect.
+
+It MAY: read HIR structure (function names, parameters, lambda bodies, ColSpec
 names, nesting); read type annotations; pattern-match typed HIR for
-**structural** dispatch; use the binding tables to map a resolved signature to
-a typed MIR variant.
+**structural** dispatch; use binding tables to map a resolved signature to a
+typed MIR variant.
 
-### 4. The dialect owns ALL SQL rendering `[CONVENTION]`
+The Lowerer emits typed MIR records — never raw SQL, never SQL function names.
 
-**There is exactly ONE render entry point in core:**
+### 3. The dialect owns ALL SQL rendering `[CONVENTION]`
+
+Type-name mapping, keyword spellings, function names, syntactic quirks, and
+dialect-specific decompositions all live **here**, not in lowering.
+
+**Core has exactly ONE render entry point:**
 
 ```java
-// core/src/main/java/com/legend/sql/dialect/SqlDialect.java:15
+// core/src/main/java/com/legend/sql/dialect/SqlDialect.java:14
 String render(SqlQuery query);
 ```
 
 plus three defaults on the same interface: `normalize(Object, SqlType)`,
-`needsStaticPivot()`, `rawH2IsNative()`. Base implementation is
-`AnsiSqlRenderer`.
+`needsStaticPivot()`, `rawH2IsNative()`. Base impl `AnsiSqlRenderer`.
 
 > **If you have read otherwise:** `SQLDialect`, `SqlAggregate`, `SqlRelation`
-> and its three-render-method contract are **engine-only** types. They do not
-> exist in core. `WindowAggregate` exists in neither.
+> and the three-render-method contract are **engine-only**. They do not exist
+> in core. `WindowAggregate` exists in neither tree.
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`; `H2` → `H2Modern`; `EngineStyleH2` →
 `EngineStyleDB2` → `EngineStyleComposite`. SQLite is not a class — it is
 `Lexicon.SQLITE` passed to `AnsiSqlRenderer`.
 
-When a dialect genuinely cannot express a variant, the arm **throws**
-`UnsupportedOperationException`. That is still an arm and satisfies
-exhaustiveness. `default ->` is not an acceptable substitute.
+Render methods are switch **expressions** with **no `default ->` arm**, so
+javac enforces exhaustiveness. When a dialect genuinely cannot express a
+variant, the arm **throws** `UnsupportedOperationException` — that is still an
+arm. `default ->` is not an acceptable substitute.
 
-### 4a. The MIR is closed and pure data `[CONVENTION — dependency half ENFORCED]`
+### 3a. The MIR is closed and pure data `[CONVENTION — dependency half ENFORCED]`
 
-The sealed roots in `com.legend.sql` (15 files, ~1,743 LOC):
+Sealed roots in `com.legend.sql` (15 files, ~1,743 LOC):
 
 | Root | Variants |
 |---|---|
@@ -183,28 +196,23 @@ The sealed roots in `com.legend.sql` (15 files, ~1,743 LOC):
 | `SqlType` | `Scalar` enum, `Decimal(p,s)`, `Array`, `Map` |
 | `DateFmt` | — |
 
-Rules:
-
 - **No method on a MIR type returns SQL.** No `toSql()`, no `render()`.
 - **No MIR type references a dialect.**
 - **No MIR record has a `String` field encoding a SQL operation.** The single
-  carve-out is `SqlExpr.Cast(expr, pureTypeName)`, where the name is a *Pure*
-  type mapped by the dialect. Pure type names are not SQL.
-- **No `FunctionCall(String name, args)` catch-all in MIR.** Every operation
-  is its own typed record. New native = new MIR variant + new render arm.
+  carve-out is `SqlExpr.Cast(expr, pureTypeName)` — a *Pure* type name mapped
+  by the dialect. Pure type names are not SQL.
+- **No `FunctionCall(String name, args)` catch-all in MIR.** Every operation is
+  its own typed record. New native = new MIR variant + new render arm.
 - **Lambdas live in MIR as data** — `SqlExpr.Lambda`. MIR never holds a Pure
   AST node.
-- **New dialect = one class implementing `render(SqlQuery)`.** Nothing in MIR
-  changes.
+- **New dialect = one class implementing `render(SqlQuery)`.** MIR does not change.
 
 `ArchitectureTest:80` and `:215` enforce that `sql/` depends on nothing else.
-The "no `toSql()` / no SQL-encoding `String` field" half has **no test** —
-it is on you.
+The "no `toSql()` / no SQL-encoding `String` field" half has **no test**.
 
 > **A record named `FunctionCall` does exist** at
-> `model/RelationalOperation.java:189`. That is the parsed `###Relational`
-> dynaFunc node, not MIR, and it is fine. `core/README.md`'s claim that a grep
-> test forbids the shape is wrong on both halves — no such test exists.
+> `model/RelationalOperation.java:189` — the parsed `###Relational` dynaFunc
+> node. That is not MIR and is fine.
 
 **Stop signs** — if you are writing one of these, re-read this section:
 
@@ -214,13 +222,36 @@ it is on you.
 - `default ->` in a render method (add a real arm; throw if unsupported)
 - `sealed interface ...` with no `permits` clause
 
-### 5. NO FALLBACKS. NO DEFAULTING. `[CONVENTION]`
+### 4. NO FALLBACKS. NO DEFAULTING. `[CONVENTION]`
+
+*The most-cited invariant in the codebase — 15 javadoc sites.*
 
 - The **whole point** of the compiler is to catch mistakes early.
 - If a type is unknown, **fail**. Do not guess, default, or fall back.
 - If a binding is missing for a resolved overload, **throw** — never fall
   through to a stringly-typed catch-all.
 - Every defaulting branch is a bug hiding behind a safety net.
+
+### 5. Lazy loading of user packageable elements `[CONVENTION in core]`
+
+Cross-project dependencies must not force-load the transitive graph.
+
+- **Platform types** (everything in `builtin/Pure.java`) are always loaded and
+  safe to classify eagerly.
+- **User types** are referenced by FQN. `Type.ClassType("my::app::Person")` is
+  an FQN in a typed wrapper; it does **not** imply the class is loaded.
+- Structural access (`findProperty`, `isSubtype`, superclass walks) MUST go
+  through `ModelContext.findClass` / `findEnum` / `findFunction` — the sole
+  layer that owns load triggering.
+- Long-lived fields hold **FQN strings**, never resolved element objects.
+  `TypedClass.superClassFqns: List<String>` is the canonical example.
+- Never walk a dependency graph by field access; go through `ModelContext`
+  every step.
+
+> **The two automated guards — `NoEagerTypeReferencesTest` and
+> `NoEagerUserClassLoadsTest` — live in `engine/src/test` and scan
+> `com.gs.legend` only.** Core has **no lazy-loading enforcement at all**. If
+> you break this in core, nothing turns red.
 
 ### 6. F must not trigger G `[CONVENTION]`
 
@@ -232,27 +263,36 @@ type-checked on demand. Compiling elements must not compile specs.
 `TypedGetAll` and `TypedUserCall` MUST NOT survive phase H.
 `StoreResolver.assertNoStoreOnlyEscapees:220` walks every resolved statement
 and throws, naming the construct; `StoreResolverTest` pins it. Likewise no
-store-only node reaches the Lowerer — those are "resolver bug" walls, not
-generic errors.
+store-only node reaches the Lowerer — those are "resolver bug" walls.
 
-### 8. Lazy loading of user packageable elements `[CONVENTION in core]`
+### 8. The wall `[ENFORCED — ArchitectureTest:50]`
 
-Cross-project dependencies must not force-load the transitive graph.
+No `com.legend..` → `com.gs.legend..` dependency, ever. Also: no `util/`
+package anywhere (`ArchitectureTest:66`).
 
-- **Platform types** (everything in `builtin/Pure.java`) are always loaded and
-  safe to classify eagerly.
-- **User types** are referenced by FQN. `Type.ClassType("my::app::Person")` is
-  an FQN in a typed wrapper; it does **not** imply the class is loaded.
-- Structural access (`findProperty`, `isSubtype`, superclass walks) MUST go
-  through `ModelContext.findClass/findEnum/findFunction` — the sole layer that
-  owns load triggering.
-- Long-lived fields hold **FQN strings**, never resolved element objects.
-  `TypedClass.superClassFqns: List<String>` is the canonical example.
+`ArchitectureTest` is 23 dependency-direction rules and **nothing else** — it
+asserts no sealedness, record-ness, or exhaustiveness. It uses its own
+numbering ("6g", "7a-c") that does **not** map to this list or to
+`core/README.md`'s. Do not merge the numbering schemes.
 
-> **The two automated guards for this rule — `NoEagerTypeReferencesTest` and
-> `NoEagerUserClassLoadsTest` — live in `engine/src/test` and scan
-> `com.gs.legend` only.** Core has **no lazy-loading enforcement at all**. If
-> you break this in core, nothing turns red.
+> `core/README.md` has its **own** 12-invariant list, also cited by number from
+> code (`TypedElement.java:11`, `Type.java:16` cite "core/README invariant 11").
+> The two lists are separate. Do not merge or renumber either.
+
+## Standing documents
+
+The live process layer. None of it is reachable from any always-loaded file
+otherwise, which is how it drifted:
+
+| Doc | What it is |
+|---|---|
+| `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
+| `docs/ENGINEERING_LOG.md` | Standing tenets + active queue |
+| `docs/TENETS.md` | Eager-Knowledge / lazy-Work, the north star |
+| `docs/AUDITS.md` | Audit index and reading order |
+| `docs/CORPUS_BURNDOWN_HANDOFF.md` | Corpus burn-down entry point |
+| `docs/RELATIONAL_CORPUS.md` | The corpus scoreboard (a **gate artifact** — regenerated, not hand-edited) |
+| `docs/OUTSTANDING.md` | Generated non-passing ledger |
 
 ## Common mistakes (don't repeat)
 
