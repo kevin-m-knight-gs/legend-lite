@@ -690,7 +690,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         Protocol.PRelOp elem = null;
         if (peek() == TokenType.PIPE) {
             advance();
-            elem = atomUnder(db, schemaCtx);
+            // the element resolves under the LAST join's (re-anchored) db
+            elem = atomUnder(curDb, schemaCtx);
             if (!"default".equals(schemaCtx)) {
                 // engine resolves non-default-schema nav tables against
                 // their DECLARATION (probe nav-spacing) — unbuilt
@@ -893,13 +894,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         // A.col | S.T.col — schema-qualified when two dots; the TABLE
         // pointer's span runs through the TABLE token (probe: 'S.T1' 11-14)
-        if (scope != null && scope.singleSeg() && peek() == TokenType.DOT) {
-            // a SINGLE-segment header acts as a SCHEMA prefix for dotted
-            // refs — span shape unprobed; two-segment headers parse
-            // dotted refs plainly (probe scope-dotted)
-            throw error("dotted ref under a single-segment scope() header"
-                    + " is unprobed");
-        }
+
         expect(TokenType.DOT);
         int tblEnd = pos - 2;                       // the first identifier
         String second = parseIdentifier();
@@ -915,9 +910,15 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             column = parseIdentifier();
             explicitSchema = true;
         }
+        if (scope != null && scope.singleSeg() && !explicitSchema) {
+            // a SINGLE-segment header is a SCHEMA prefix for dotted refs
+            // (probe single-seg-scope-dotted): schema = the header seg,
+            // span stretches header..local table
+            schema = scope.table();
+        }
         SourceInfo span = spanOf(s, pos - 1);
         SourceInfo tblSpan = spanOf(s, tblEnd);
-        if (scope != null && !scope.singleSeg() && !explicitSchema) {
+        if (scope != null && !explicitSchema) {
             // under a schema.table scope header, a dotted ref's TABLE
             // pointer span STRETCHES from the header's schema through the
             // LOCAL table token (probe scope-dotted w; chainedJoinsInner)

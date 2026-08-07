@@ -77,7 +77,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
         List<Protocol.PMappingInclude> includes = new ArrayList<>();
         List<Protocol.PMappingTestSuite> suites = new ArrayList<>();
+        List<Protocol.PLegacyMappingTest> legacyTests = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            if (peek() == TokenType.VALID_STRING
+                    && "MappingTests".equals(text())) {
+                advance();
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    legacyTests.add(parseLegacyTest(qn));
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                continue;
+            }
             if (peek() == TokenType.MAPPING_TESTABLE_SUITES) {
                 advance();
                 expect(TokenType.COLON);
@@ -93,7 +105,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         expect(TokenType.PAREN_CLOSE);
         return new Protocol.PMapping(pkg, name, assocMappings, classMappings,
-                enums, includes, suites, spanOf(declStart, pos - 1));
+                enums, includes, suites, legacyTests,
+                spanOf(declStart, pos - 1));
     }
 
     private void parseMember(List<Protocol.PAssociationMapping> assocMappings,
@@ -184,9 +197,6 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     targetSpan, id, root, extendsId));
             return;
         }
-        if (extendsId != null) {
-            throw error("'extends' on this class-mapping kind is unbuilt");
-        }
         if (peek() == TokenType.VALID_STRING
                 && "AggregationAware".equals(text())) {
             advance();
@@ -207,9 +217,14 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         if (peek() == TokenType.VALID_STRING && "Operation".equals(text())) {
             advance();
+            // the engine PARSES but DROPS extends on Operation mappings
+            // (OperationClassMappingParseTreeWalker TODO)
             classMappings.add(parseOperationClassMapping(target, memberStart,
                     targetSpan, id, root));
             return;
+        }
+        if (extendsId != null) {
+            throw error("'extends' on this class-mapping kind is unbuilt");
         }
         throw error("mapping member kind '" + kind + "' is unbuilt");
     }
@@ -241,11 +256,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 expect(TokenType.BRACKET_CLOSE);
                 int tS = pos;                       // FIRST ident anchors
                 String schema = "default";
-                String tbl = parseIdentifier();
+                String tbl = parseMaybeQuotedIdentifier();
                 if (peek() == TokenType.DOT) {
                     advance();
                     schema = tbl;
-                    tbl = parseIdentifier();
+                    tbl = parseMaybeQuotedIdentifier();
                 }
                 mainTable = new Protocol.PTablePtr(db, db, schema, tbl,
                         spanOf(tS, pos - 1));
@@ -1135,6 +1150,108 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 spanOf(sS, close));
     }
 
+    /** {@code name ( query: |...; data: [<Object, JSON, cls, 'json'>];
+     *  assert: 'str'; )} — the legacy MappingTests form (probe
+     *  legacy-mapping-tests): test span name..close paren; assert span
+     *  keyword..string; inputData span = the angle region. */
+    private Protocol.PLegacyMappingTest parseLegacyTest(String mappingFqn) {
+        int tS = pos;
+        String name = parseIdentifier();
+        expect(TokenType.PAREN_OPEN);
+        com.legend.protocol.spec.ValueSpecification query = null;
+        List<Protocol.PLegacyInputData> inputData = new ArrayList<>();
+        String expected = null;
+        SourceInfo assertSpan = null;
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            String key = text();
+            if ("query".equals(key)
+                    || peek() == TokenType.MAPPING_TESTS_QUERY) {
+                advance();
+                expect(TokenType.COLON);
+                int fS = pos;
+                int depth = 0;
+                while (!atEnd()) {
+                    TokenType t = peek();
+                    if (depth == 0 && t == TokenType.SEMI_COLON) {
+                        break;
+                    }
+                    if (t == TokenType.PAREN_OPEN
+                            || t == TokenType.BRACKET_OPEN
+                            || t == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (t == TokenType.PAREN_CLOSE
+                            || t == TokenType.BRACKET_CLOSE
+                            || t == TokenType.BRACE_CLOSE) {
+                        depth--;
+                    }
+                    advance();
+                }
+                List<com.legend.protocol.spec.ValueSpecification> body =
+                        SpecParser.parseCodeBlock(tokens.slice(fS, pos),
+                                mappingFqn);
+                if (body.size() != 1) {
+                    throw error("legacy test query must be ONE lambda");
+                }
+                query = body.get(0);
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
+            if ("data".equals(key)) {
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    int dS = pos;
+                    expect(TokenType.LESS_THAN);
+                    String kind = parseIdentifier();
+                    if (!"Object".equals(kind)) {
+                        throw error("legacy input kind '" + kind
+                                + "' is unbuilt");
+                    }
+                    expect(TokenType.COMMA);
+                    String inputType = parseIdentifier();
+                    expect(TokenType.COMMA);
+                    String srcClass =
+                            Protocol.unquotePath(parseQualifiedName());
+                    expect(TokenType.COMMA);
+                    String data = TokenStreamCursor.unquoteAndUnescape(
+                            text(), this);
+                    advance();
+                    int dE = pos;
+                    expect(TokenType.GREATER_THAN);
+                    inputData.add(new Protocol.PLegacyInputData(srcClass,
+                            inputType, data, spanOf(dS, dE)));
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
+            if ("assert".equals(key)) {
+                int aS = pos;
+                advance();
+                expect(TokenType.COLON);
+                // engine: fromGrammarString(x, FALSE) — RAW body, quotes
+                // stripped, NO unescape (MappingParseTreeWalker:295)
+                String rawStr = text();
+                expected = rawStr.substring(1, rawStr.length() - 1);
+                advance();
+                assertSpan = spanOf(aS, pos);   // span INCLUDES the ';'
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
+            throw error("legacy mapping-test key '" + safeText()
+                    + "' is unbuilt");
+        }
+        int close = pos;
+        expect(TokenType.PAREN_CLOSE);
+        if (query == null || expected == null || assertSpan == null) {
+            throw error("legacy mapping test needs query AND assert");
+        }
+        return new Protocol.PLegacyMappingTest(name, query, inputData,
+                expected, assertSpan, spanOf(tS, close));
+    }
+
     private Protocol.PMappingTest parseMappingTest() {
         int tS = pos;
         String testId = parseIdentifier();
@@ -1142,8 +1259,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_OPEN);
         List<Protocol.PStoreTestData> data = new ArrayList<>();
         List<Protocol.PTestAssertion> asserts = new ArrayList<>();
+        String doc = null;
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             String key = text();
+            if ("doc".equals(key)) {
+                advance();
+                expect(TokenType.COLON);
+                doc = TokenStreamCursor.unquoteAndUnescape(text(), this);
+                advance();
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
             if ("data".equals(key)) {
                 advance();
                 expect(TokenType.COLON);
@@ -1172,7 +1298,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
-        return new Protocol.PMappingTest(testId, data, asserts,
+        return new Protocol.PMappingTest(testId, doc, data, asserts,
                 spanOf(tS, close));
     }
 
@@ -1220,18 +1346,41 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int mS = inner.pos;
             String model = Protocol.unquotePath(inner.parseQualifiedName());
             inner.expect(TokenType.COLON);
-            if (!(inner.peek() == TokenType.VALID_STRING
-                    && "ExternalFormat".equals(inner.text()))) {
+            Protocol.PEmbeddedDataValue val;
+            if (inner.peek() == TokenType.VALID_STRING
+                    && "Reference".equals(inner.text())) {
+                int rTok = inner.pos;
+                inner.advance();
+                IslandBlock ri = inner.readIsland();
+                MappingProtocolParser rp = new MappingProtocolParser(
+                        ri.tokens(), 0);
+                String dataPath =
+                        Protocol.unquotePath(rp.parseQualifiedName());
+                val = new Protocol.PDataReference(
+                        new Protocol.PPointer("DATA", dataPath,
+                                new SourceInfo("",
+                                        inner.tokens().startLine(rTok),
+                                        inner.tokens().startColumn(rTok),
+                                        ri.endLine(), ri.endColumn())),
+                        new SourceInfo("",
+                                inner.tokens().startLine(rTok),
+                                inner.tokens().startColumn(rTok),
+                                ri.endLine(), ri.endColumn()));
+            } else if (inner.peek() == TokenType.VALID_STRING
+                    && "ExternalFormat".equals(inner.text())) {
+                val = inner.parseExternalFormat();
+            } else {
                 throw inner.error("embedded data kind '" + inner.safeText()
                         + "' is unbuilt");
             }
-            Protocol.PExternalFormatData ef = inner.parseExternalFormat();
-            modelData.add(new Protocol.PModelEmbeddedData(model, ef,
+            SourceInfo vSi = val instanceof Protocol.PExternalFormatData e2
+                    ? e2.sourceInformation()
+                    : ((Protocol.PDataReference) val).sourceInformation();
+            modelData.add(new Protocol.PModelEmbeddedData(model, val,
                     new SourceInfo("",
                             island.tokens().startLine(mS),
                             island.tokens().startColumn(mS),
-                            ef.sourceInformation().endLine(),
-                            ef.sourceInformation().endColumn())));
+                            vSi.endLine(), vSi.endColumn())));
             inner.match(TokenType.COMMA);
         }
         // modelStore span = the ModelStore token .. the island close
@@ -1461,11 +1610,16 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     expect(TokenType.TILDE);
                     expectText("aggregateMapping");
                     expect(TokenType.COLON);
-                    expect(TokenType.RELATIONAL);
+                    boolean aggIsPure = peek() == TokenType.PURE_MAPPING;
+                    if (aggIsPure) {
+                        advance();
+                    } else {
+                        expect(TokenType.RELATIONAL);
+                    }
                     canAggs.add(new boolean[]{canAgg});
                     groupBys.add(gbs);
                     aggVals.add(avs);
-                    aggBodyToks.add(pos);
+                    aggBodyToks.add(aggIsPure ? -pos : pos);
                     skipBraceBlock();
                     expect(TokenType.PAREN_CLOSE);
                     match(TokenType.COMMA);
@@ -1480,8 +1634,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 advance();
                 advance();
                 expect(TokenType.COLON);
-                expect(TokenType.RELATIONAL);
-                mainBodyTok = pos;
+                boolean mainIsPure = peek() == TokenType.PURE_MAPPING;
+                if (mainIsPure) {
+                    advance();
+                } else {
+                    expect(TokenType.RELATIONAL);
+                }
+                mainBodyTok = mainIsPure ? -pos : pos;
                 skipBraceBlock();
                 match(TokenType.COMMA);
                 continue;
@@ -1505,18 +1664,24 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 shiftLines(spanOf(memberStart, close), delta);
         List<Protocol.PAggregateSetImplementation> asis = new ArrayList<>();
         for (int i = 0; i < aggBodyToks.size(); i++) {
-            Protocol.PClassMappingRel cm = parseNestedRel(aggBodyToks.get(i),
+            Protocol.PClassMapping cm = parseNested(aggBodyToks.get(i),
                     target, shiftedTarget,
                     outerId + "_Aggregate_" + i, id, root, shiftedMember);
             asis.add(new Protocol.PAggregateSetImplementation(
                     canAggs.get(i)[0], groupBys.get(i), aggVals.get(i), i,
                     cm));
         }
-        Protocol.PClassMappingRel mainCm = parseNestedRel(mainBodyTok,
+        Protocol.PClassMapping mainCm = parseNested(mainBodyTok,
                 target, shiftedTarget, outerId + "_Main", id, root,
                 shiftedMember);
+        List<Protocol.PPurePropertyMapping> aggPms = new ArrayList<>();
+        if (mainCm instanceof Protocol.PClassMappingPure pu) {
+            // Pure main mappings COPY their pms onto the agg node
+            // (walker:92-95, probe agg-pure-nested)
+            aggPms.addAll(pu.propertyMappings());
+        }
         return new Protocol.PClassMappingAggregationAware(target, outerId,
-                asis, mainCm, root, spanOf(memberStart, close));
+                asis, mainCm, aggPms, root, spanOf(memberStart, close));
     }
 
     private static SourceInfo shiftLines(SourceInfo si, int delta) {
@@ -1527,6 +1692,26 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** A nested Relational CM parsed from the ORIGINAL stream (contents
      *  keep TRUE spans); its class span and OWN span are the SHIFTED
      *  outer spans (probe agg-off). */
+    private Protocol.PClassMapping parseNested(int signedBodyTok,
+            String target, SourceInfo shiftedTarget, String cmId,
+            @com.legend.Nullable String explicitOuterId, boolean root,
+            SourceInfo shiftedMember) {
+        if (signedBodyTok < 0) {
+            MappingProtocolParser p = new MappingProtocolParser(tokens,
+                    -signedBodyTok);
+            Protocol.PClassMappingPure cm = p.parsePureClassMapping(target,
+                    -signedBodyTok, shiftedTarget, explicitOuterId, root,
+                    null);
+            return new Protocol.PClassMappingPure(cm.className(),
+                    shiftedTarget, cm.extendsClassMappingId(), cmId,
+                    cm.root(), cm.srcClass(),
+                    cm.sourceClassSourceInformation(), cm.filter(),
+                    cm.propertyMappings(), shiftedMember);
+        }
+        return parseNestedRel(signedBodyTok, target, shiftedTarget, cmId,
+                explicitOuterId, root, shiftedMember);
+    }
+
     private Protocol.PClassMappingRel parseNestedRel(int bodyTok,
             String target, SourceInfo shiftedTarget, String cmId,
             @com.legend.Nullable String explicitOuterId, boolean root,
@@ -1581,6 +1766,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             throw error("aggregate lambda must be ONE expression");
         }
         return body.get(0);
+    }
+
+    /** Quoted table spellings KEEP their quotes as the wire name (same
+     *  rule as DatabaseProtocolParser.parseIdentifier). */
+    private String parseMaybeQuotedIdentifier() {
+        if (peek() == TokenType.QUOTED_STRING) {
+            String raw = text();
+            advance();
+            return raw;
+        }
+        return parseIdentifier();
     }
 
     private void expectText(String want) {

@@ -28,6 +28,210 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch17Shapes() throws Exception {
+        probe("agg-pure-nested", """
+                ###Pure
+                Class my::SaleP { revenue: Integer[1]; }
+                Class my::SrcP { revenue: Integer[1]; }
+
+                ###Mapping
+                Mapping my::M90
+                (
+                  *my::SaleP: AggregationAware
+                  {
+                    Views:
+                    [
+                      (
+                        ~modelOperation : {
+                           ~canAggregate true,
+                           ~groupByFunctions (
+                              $this.revenue
+                           ),
+                           ~aggregateValues (
+                              ( ~mapFn: $this.revenue, ~aggregateFn: $mapped->sum() )
+                           )
+                        },
+                        ~aggregateMapping : Pure {
+                           ~src my::SrcP
+                           revenue : $src.revenue
+                        }
+                      )
+                    ],
+                    ~mainMapping : Pure {
+                       ~src my::SrcP
+                       revenue : $src.revenue
+                    }
+                  }
+                )
+                """);
+        probe("legacy-mapping-tests", """
+                ###Pure
+                Class my::PT { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M91
+                (
+                  my::PT: Pure { ~src my::PT n: $src.n }
+
+                  MappingTests
+                  [
+                    defaultTest
+                    (
+                      query: |my::PT.all();
+                      data: [
+                        <Object, JSON, my::PT, '{"n":"x"}'>
+                      ];
+                      assert: '[{"n":"x"}]';
+                    )
+                  ]
+                )
+                """);
+        probe("relation-store-data", """
+                ###Relational
+                Database my::db ( Table personTable ( ID INT, NAME VARCHAR(20) ) )
+
+                ###Pure
+                Class my::PR2 { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M92
+                (
+                  my::PR2: Relational { name: [my::db]personTable.NAME }
+
+                  testSuites:
+                  [
+                    s1:
+                    {
+                      function: |my::PR2.all();
+                      tests:
+                      [
+                        t1:
+                        {
+                          doc: 'docs here';
+                          data:
+                          [
+                            my::db:
+                              Relation
+                              #{
+                                default.personTable:
+                                  'ID,NAME\n1,abc\n'
+                              }#
+                          ];
+                          asserts:
+                          [
+                            a1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '{}';
+                                  }#;
+                              }#
+                          ];
+                        }
+                      ];
+                    }
+                  ]
+                )
+                """);
+        probe("embedded-reference", """
+                ###Data
+                Data my::MyData
+                {
+                  ExternalFormat #{ contentType: 'application/json'; data: '{}'; }#
+                }
+
+                ###Pure
+                Class my::PS { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M93
+                (
+                  my::PS: Pure { ~src my::PS n: $src.n }
+
+                  testSuites:
+                  [
+                    s1:
+                    {
+                      function: |my::PS.all();
+                      tests:
+                      [
+                        t1:
+                        {
+                          data:
+                          [
+                            ModelStore: ModelStore
+                            #{
+                               my::PS:
+                                Reference
+                                #{
+                                  my::MyData
+                                }#
+                            }#
+                          ];
+                          asserts:
+                          [
+                            a1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '{}';
+                                  }#;
+                              }#
+                          ];
+                        }
+                      ];
+                    }
+                  ]
+                )
+                """);
+        probe("single-seg-scope-dotted", """
+                ###Relational
+                Database my::db2
+                (
+                  Schema productSchema
+                  (
+                    Table synonymTable ( NAME VARCHAR(20), TYPE VARCHAR(20) )
+                  )
+                )
+
+                ###Pure
+                Class my::PN { name: String[1]; }
+
+                ###Mapping
+                Mapping my::M94
+                (
+                  my::PN: Relational
+                  {
+                    scope([my::db2]productSchema)
+                    (
+                       name : synonymTable.NAME
+                    )
+                  }
+                )
+                """);
+        probe("extends-operation", """
+                ###Pure
+                Class my::PE { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M95
+                (
+                  my::PE[base]: Pure { ~src my::PE n: $src.n }
+                  *my::PE extends [base] : Operation
+                  {
+                    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(base)
+                  }
+                )
+                """);
+    }
+
+    @Test
     void aggLambdaProbe() throws Exception {
         String head = """
                 ###Relational

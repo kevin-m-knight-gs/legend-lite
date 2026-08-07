@@ -107,7 +107,8 @@ public final class Protocol {
     public record PClassMappingAggregationAware(String className,
                                                 String id,
                                                 List<PAggregateSetImplementation> aggregateSetImplementations,
-                                                PClassMappingRel mainSetImplementation,
+                                                PClassMapping mainSetImplementation,
+                                                List<PPurePropertyMapping> aggPropertyMappings,
                                                 boolean root,
                                                 com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
@@ -117,7 +118,7 @@ public final class Protocol {
                                               List<com.legend.protocol.spec.ValueSpecification> groupByFunctions,
                                               List<PAggregateValue> aggregateValues,
                                               int index,
-                                              PClassMappingRel setImplementation) {
+                                              PClassMapping setImplementation) {
     }
 
     public record PAggregateValue(com.legend.protocol.spec.ValueSpecification mapFn,
@@ -168,6 +169,7 @@ public final class Protocol {
                            List<PEnumerationMapping> enumerationMappings,
                            List<PMappingInclude> includedMappings,
                            List<PMappingTestSuite> testSuites,
+                           List<PLegacyMappingTest> tests,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -185,6 +187,7 @@ public final class Protocol {
     }
 
     public record PMappingTest(String id,
+                               @com.legend.Nullable String doc,
                                List<PStoreTestData> storeTestData,
                                List<PTestAssertion> assertions,
                                com.legend.protocol.SourceInfo sourceInformation) {
@@ -199,19 +202,47 @@ public final class Protocol {
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    public record PModelEmbeddedData(String model, PExternalFormatData data,
+    /** Model-entry payload: ExternalFormat or a Reference (probe
+     *  embedded-reference). */
+    public sealed interface PEmbeddedDataValue
+            permits PExternalFormatData, PDataReference {
+    }
+
+    public record PDataReference(PPointer dataElement,
+                                 com.legend.protocol.SourceInfo sourceInformation)
+            implements PEmbeddedDataValue {
+    }
+
+    public record PModelEmbeddedData(String model, PEmbeddedDataValue data,
                                      com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —
      *  span ExternalFormat..}# (probe test-suites). */
     public record PExternalFormatData(String contentType, String data,
-                                      com.legend.protocol.SourceInfo sourceInformation) {
+                                      com.legend.protocol.SourceInfo sourceInformation)
+            implements PEmbeddedDataValue {
     }
 
     /** {@code id: EqualToJson #{ expected: ExternalFormat #{...}#; }#}. */
     public record PTestAssertion(String id, PExternalFormatData expected,
                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code MappingTests [ name ( query: |...; data: [<Object, JSON,
+     *  cls, 'json'>]; assert: '...'; ) ]} — the LEGACY tests array on the
+     *  mapping envelope (probe legacy-mapping-tests). */
+    public record PLegacyMappingTest(String name,
+                                     com.legend.protocol.spec.ValueSpecification query,
+                                     List<PLegacyInputData> inputData,
+                                     String expectedOutput,
+                                     com.legend.protocol.SourceInfo assertSourceInformation,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PLegacyInputData(String sourceClass, String inputType,
+                                   String data,
+                                   com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One enumeration mapping: id + typed enumeration pointer + value rows

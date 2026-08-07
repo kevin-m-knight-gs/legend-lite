@@ -159,9 +159,17 @@ class CorpusEquivalenceTest {
      * lambdas shift UP by the ~modelOperation tilde-vs-brace line gap
      * (engine anchors the spec sub-parse at the TILDE but slices after
      * the BRACE); pm sources keep the EXPLICIT outer id or null (the
-     * engine suffixes ids only AFTER the sub-parse). */
-    private static final int MIN_ELEMENTS_COMPARED = 24466;
-    private static final int MIN_MATCHES = 24466;
+     * engine suffixes ids only AFTER the sub-parse).
+     * 24,466 -> 24,483: batch 17 — agg-with-Pure nested mappings (agg
+     * node copies the main Pure pms as AggregationAwarePropertyMapping),
+     * legacy MappingTests (query lambda with mapping-path sourceId;
+     * assert = fromGrammarString(x,FALSE) raw body, span through ';'),
+     * Reference inside modelData, doc: keys, single-seg scope headers as
+     * SCHEMA prefixes for dotted refs (same stretch), quoted mainTable
+     * spellings, nav elements resolve under the LAST re-anchored db,
+     * extends on Operation parsed-and-DROPPED (engine walker TODO). */
+    private static final int MIN_ELEMENTS_COMPARED = 24483;
+    private static final int MIN_MATCHES = 24483;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

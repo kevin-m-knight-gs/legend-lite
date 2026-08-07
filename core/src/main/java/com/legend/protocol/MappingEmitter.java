@@ -188,7 +188,43 @@ final class MappingEmitter {
             }
             b.append(']');
         }
-        b.append(",\"tests\":[]}");
+        b.append(",\"tests\":[");
+        for (int i = 0; i < m.tests().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PLegacyMappingTest t = m.tests().get(i);
+            b.append("{\"assert\":{\"_type\":"
+                    + "\"expectedOutputMappingTestAssert\","
+                    + "\"expectedOutput\":");
+            str(b, t.expectedOutput());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, t.assertSourceInformation());
+            b.append("},\"inputData\":[");
+            for (int j = 0; j < t.inputData().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PLegacyInputData in = t.inputData().get(j);
+                b.append("{\"_type\":\"object\",\"data\":");
+                str(b, in.data());
+                b.append(",\"inputType\":");
+                str(b, in.inputType());
+                b.append(",\"sourceClass\":");
+                str(b, in.sourceClass());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, in.sourceInformation());
+                b.append('}');
+            }
+            b.append("],\"name\":");
+            str(b, t.name());
+            b.append(",\"query\":");
+            valueSpec(b, t.query());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, t.sourceInformation());
+            b.append('}');
+        }
+        b.append("]}");
     }
 
 
@@ -542,7 +578,7 @@ final class MappingEmitter {
             }
             b.append("]},\"index\":").append(asi.index());
             b.append(",\"setImplementation\":");
-            relClassMapping(b, asi.setImplementation());
+            nestedClassMapping(b, asi.setImplementation());
             b.append('}');
         }
         b.append("],\"class\":");
@@ -550,7 +586,40 @@ final class MappingEmitter {
         b.append(",\"id\":");
         str(b, aa.id());
         b.append(",\"mainSetImplementation\":");
-        relClassMapping(b, aa.mainSetImplementation());
+        nestedClassMapping(b, aa.mainSetImplementation());
+        if (!aa.aggPropertyMappings().isEmpty()) {
+            // Pure main mappings COPY their pms onto the agg node as
+            // AggregationAwarePropertyMapping (walker:92-95, probe
+            // agg-pure-nested)
+            b.append(",\"propertyMappings\":[");
+            for (int i = 0; i < aa.aggPropertyMappings().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                Protocol.PPurePropertyMapping pm =
+                        aa.aggPropertyMappings().get(i);
+                b.append("{\"_type\":\"AggregationAwarePropertyMapping\","
+                        + "\"property\":{\"class\":");
+                str(b, java.util.Objects.requireNonNull(pm.ownerClass()));
+                b.append(",\"property\":");
+                str(b, pm.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, pm.propertySourceInformation());
+                b.append('}');
+                if (pm.source() != null) {
+                    b.append(",\"source\":");
+                    str(b, pm.source());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, pm.sourceInformation());
+                if (pm.target() != null) {
+                    b.append(",\"target\":");
+                    str(b, pm.target());
+                }
+                b.append('}');
+            }
+            b.append(']');
+        }
         b.append(",\"root\":").append(aa.root());
         b.append(",\"sourceInformation\":");
         srcInfo(b, aa.sourceInformation());
@@ -596,7 +665,12 @@ final class MappingEmitter {
                 srcInfo(b, a.sourceInformation());
                 b.append('}');
             }
-            b.append("],\"id\":");
+            b.append(']');
+            if (t.doc() != null) {
+                b.append(",\"doc\":");
+                str(b, t.doc());
+            }
+            b.append(",\"id\":");
             str(b, t.id());
             b.append(",\"sourceInformation\":");
             srcInfo(b, t.sourceInformation());
@@ -632,7 +706,7 @@ final class MappingEmitter {
                     }
                     Protocol.PModelEmbeddedData md = mdl.get(k);
                     b.append("{\"_type\":\"modelEmbeddedData\",\"data\":");
-                    externalFormatData(b, md.data());
+                    embeddedDataValue(b, md.data());
                     b.append(",\"model\":");
                     str(b, md.model());
                     b.append(",\"sourceInformation\":");
@@ -652,6 +726,30 @@ final class MappingEmitter {
         b.append("]}");
     }
 
+
+    static void nestedClassMapping(StringBuilder b,
+            Protocol.PClassMapping cm) {
+        switch (cm) {
+            case Protocol.PClassMappingRel r -> relClassMapping(b, r);
+            case Protocol.PClassMappingPure pu -> pureClassMapping(b, pu);
+            default -> throw new IllegalStateException(
+                    "nested class-mapping kind unbuilt: " + cm.getClass());
+        }
+    }
+
+    static void embeddedDataValue(StringBuilder b,
+            Protocol.PEmbeddedDataValue v) {
+        switch (v) {
+            case Protocol.PExternalFormatData ef -> externalFormatData(b, ef);
+            case Protocol.PDataReference dr -> {
+                b.append("{\"_type\":\"reference\",\"dataElement\":");
+                pointer(b, dr.dataElement());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, dr.sourceInformation());
+                b.append('}');
+            }
+        }
+    }
 
     static void externalFormatData(StringBuilder b,
             Protocol.PExternalFormatData ef) {
