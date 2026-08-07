@@ -373,13 +373,31 @@ public final class ProtocolEmitter {
                     b.append(',');
                 }
                 Protocol.PStoreTestData sd = t.storeTestData().get(j);
+                if (sd.dataElement() != null) {
+                    // Reference #{ path }# (probe reference-data)
+                    b.append("{\"data\":{\"_type\":\"reference\","
+                            + "\"dataElement\":");
+                    pointer(b, sd.dataElement());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, sd.dataElement().sourceInformation());
+                    b.append("},\"sourceInformation\":");
+                    srcInfo(b, sd.sourceInformation());
+                    b.append(",\"store\":");
+                    pointer(b, sd.store());
+                    b.append('}');
+                    continue;
+                }
+                List<Protocol.PModelEmbeddedData> mdl =
+                        java.util.Objects.requireNonNull(sd.modelData());
+                SourceInfo msSi = java.util.Objects.requireNonNull(
+                        sd.modelStoreSourceInformation());
                 b.append("{\"data\":{\"_type\":\"modelStore\","
                         + "\"modelData\":[");
-                for (int k = 0; k < sd.modelData().size(); k++) {
+                for (int k = 0; k < mdl.size(); k++) {
                     if (k > 0) {
                         b.append(',');
                     }
-                    Protocol.PModelEmbeddedData md = sd.modelData().get(k);
+                    Protocol.PModelEmbeddedData md = mdl.get(k);
                     b.append("{\"_type\":\"modelEmbeddedData\",\"data\":");
                     externalFormatData(b, md.data());
                     b.append(",\"model\":");
@@ -389,7 +407,7 @@ public final class ProtocolEmitter {
                     b.append('}');
                 }
                 b.append("],\"sourceInformation\":");
-                srcInfo(b, sd.modelStoreSourceInformation());
+                srcInfo(b, msSi);
                 b.append("},\"sourceInformation\":");
                 srcInfo(b, sd.sourceInformation());
                 b.append(",\"store\":");

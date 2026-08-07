@@ -28,6 +28,113 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch15Shapes() throws Exception {
+        probe("agg-aware", """
+                ###Relational
+                Database my::ADB
+                (
+                  Table SalesTable ( id INT, salesPerson VARCHAR(20), revenue INT )
+                  Table SalesByPersonTable ( salesPerson VARCHAR(20), revenue INT )
+                )
+
+                ###Pure
+                Class my::Sale { salesPerson: String[1]; revenue: Integer[1]; }
+
+                ###Mapping
+                Mapping my::M70
+                (
+                  *my::Sale: AggregationAware
+                  {
+                    Views:
+                    [
+                      (
+                        ~modelOperation:
+                        {
+                          ~canAggregate true,
+                          ~groupByFunctions
+                          (
+                            $this.salesPerson
+                          ),
+                          ~aggregateValues
+                          (
+                            ( ~mapFn: $this.revenue, ~aggregateFn: $mapped->sum() )
+                          )
+                        },
+                        ~aggregateMapping: Relational
+                        {
+                          ~mainTable [my::ADB]SalesByPersonTable
+                          salesPerson: [my::ADB]SalesByPersonTable.salesPerson,
+                          revenue: [my::ADB]SalesByPersonTable.revenue
+                        }
+                      )
+                    ],
+                    ~mainMapping: Relational
+                    {
+                      ~mainTable [my::ADB]SalesTable
+                      salesPerson: [my::ADB]SalesTable.salesPerson,
+                      revenue: [my::ADB]SalesTable.revenue
+                    }
+                  }
+                )
+                """);
+        probe("reference-data", """
+                ###Data
+                Data my::TestData
+                {
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{}';
+                  }#
+                }
+
+                ###Pure
+                Class my::PR { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M71
+                (
+                  my::PR: Pure { ~src my::PR n: $src.n }
+
+                  testSuites:
+                  [
+                    s1:
+                    {
+                      function: |my::PR.all();
+                      tests:
+                      [
+                        t1:
+                        {
+                          data:
+                          [
+                            ModelStore:
+                                Reference
+                                #{
+                                  my::TestData
+                                }#
+                          ];
+                          asserts:
+                          [
+                            a1:
+                              EqualToJson
+                              #{
+                                expected:
+                                  ExternalFormat
+                                  #{
+                                    contentType: 'application/json';
+                                    data: '{}';
+                                  }#;
+                              }#
+                          ];
+                        }
+                      ];
+                    }
+                  ]
+                )
+                """);
+    }
+
+    @Test
     void batch13Shapes() throws Exception {
         probe("relation-extras", """
                 ###Relational

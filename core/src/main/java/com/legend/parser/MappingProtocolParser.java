@@ -1158,6 +1158,29 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String storePath = Protocol.unquotePath(parseQualifiedName());
         SourceInfo storeSpan = spanOf(sS, pos - 1);
         expect(TokenType.COLON);
+        if (peek() == TokenType.VALID_STRING && "Reference".equals(text())) {
+            // Reference #{ my::DataElement }# — the pointer span runs the
+            // Reference KEYWORD through the island close, like
+            // ExternalFormat (probe reference-data)
+            int refTok = pos;
+            advance();
+            IslandBlock refIsland = readIsland();
+            MappingProtocolParser ri = new MappingProtocolParser(
+                    refIsland.tokens(), 0);
+            String dataPath = Protocol.unquotePath(ri.parseQualifiedName());
+            Protocol.PPointer de = new Protocol.PPointer("DATA", dataPath,
+                    new SourceInfo("",
+                            tokens.startLine(refTok),
+                            tokens.startColumn(refTok),
+                            refIsland.endLine(),
+                            refIsland.endColumn()));
+            return new Protocol.PStoreTestData(
+                    new Protocol.PPointer("STORE", storePath, storeSpan),
+                    null, null, de,
+                    new SourceInfo("", storeSpan.startLine(),
+                            storeSpan.startColumn(), refIsland.endLine(),
+                            refIsland.endColumn()));
+        }
         if (!(peek() == TokenType.VALID_STRING
                 && "ModelStore".equals(text()))) {
             throw error("store test data kind '" + safeText()
@@ -1193,7 +1216,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 island.endLine(), island.endColumn());
         return new Protocol.PStoreTestData(
                 new Protocol.PPointer("STORE", storePath, storeSpan),
-                modelData, msSpan,
+                modelData, msSpan, null,
                 new SourceInfo("", storeSpan.startLine(),
                         storeSpan.startColumn(), island.endLine(),
                         island.endColumn()));

@@ -147,9 +147,13 @@ class CorpusEquivalenceTest {
      * path as sourceId), mappingTest with storeTestData (ModelStore
      * islands re-lexed with position padding) and equalToJson
      * assertions; testSuites key rides between sourceInformation and
-     * tests. */
-    private static final int MIN_ELEMENTS_COMPARED = 24426;
-    private static final int MIN_MATCHES = 24426;
+     * tests.
+     * 24,426 -> 24,460: Reference test data — Store: Reference
+     * #{ my::DataElement }# -> {_type reference, dataElement DATA
+     * pointer} whose span runs the Reference KEYWORD through the island
+     * close, like ExternalFormat. */
+    private static final int MIN_ELEMENTS_COMPARED = 24460;
+    private static final int MIN_MATCHES = 24460;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

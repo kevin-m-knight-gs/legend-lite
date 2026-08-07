@@ -166,10 +166,12 @@ public final class Protocol {
                                com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    /** {@code Store: ModelStore #{ path: ExternalFormat #{...}# }#}. */
+    /** {@code Store: ModelStore #{...}#} or {@code Store: Reference
+     *  #{ my::DataElement }#} (probe reference-data). */
     public record PStoreTestData(PPointer store,
-                                 List<PModelEmbeddedData> modelData,
-                                 com.legend.protocol.SourceInfo modelStoreSourceInformation,
+                                 @com.legend.Nullable List<PModelEmbeddedData> modelData,
+                                 @com.legend.Nullable com.legend.protocol.SourceInfo modelStoreSourceInformation,
+                                 @com.legend.Nullable PPointer dataElement,
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
