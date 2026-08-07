@@ -154,10 +154,13 @@ public final class Protocol {
             implements PClassMapping {
     }
 
-    /** {@code prop: col} inside a Relation mapping — span prop..col. */
+    /** {@code prop: col} inside a Relation mapping — span prop..col;
+     *  {@code prop () Inline [set]} rides inlineSetId (probe
+     *  relation-inline). */
     public record PRelationFnPropertyMapping(String ownerClass, String property,
                                              com.legend.protocol.SourceInfo propertySourceInformation,
-                                             String column,
+                                             @com.legend.Nullable String column,
+                                             @com.legend.Nullable String inlineSetId,
                                              @com.legend.Nullable PLocalProp localMappingProperty,
                                              @com.legend.Nullable String source,
                                              com.legend.protocol.SourceInfo sourceInformation) {
@@ -255,8 +258,10 @@ public final class Protocol {
                                      com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    public record PLegacyInputData(String sourceClass, String inputType,
-                                   String data,
+    /** {@code <Object, JSON, cls, 'data'>} or {@code <Relational, CSV,
+     *  db, 'data'>} (probe legacy-rel-input). */
+    public record PLegacyInputData(boolean relational, String targetPath,
+                                   String inputType, String data,
                                    com.legend.protocol.SourceInfo sourceInformation) {
     }
 

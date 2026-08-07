@@ -1041,6 +1041,24 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int identTok = pos;
             String prop = parseIdentifier();
             SourceInfo propSpan = spanOf(identTok, pos - 1);
+            if (peek() == TokenType.PAREN_OPEN) {
+                // prop () Inline [set] (probe relation-inline)
+                advance();
+                expect(TokenType.PAREN_CLOSE);
+                if (!(peek() == TokenType.INLINE)) {
+                    throw error("expected Inline after ()");
+                }
+                advance();
+                expect(TokenType.BRACKET_OPEN);
+                String setId = parseSetId();
+                int bClose = pos;
+                expect(TokenType.BRACKET_CLOSE);
+                props.add(new Protocol.PRelationFnPropertyMapping(target,
+                        prop, propSpan, null, setId, null, id,
+                        spanOf(pS, bClose)));
+                match(TokenType.COMMA);
+                continue;
+            }
             expect(TokenType.COLON);
             Protocol.PLocalProp lp = null;
             if (local) {
@@ -1074,7 +1092,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             String col = parseIdentifier();
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
-                    propSpan, col, lp, id, spanOf(pS, pos - 1)));
+                    propSpan, col, null, lp, id, spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;
@@ -1204,14 +1222,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     int dS = pos;
                     expect(TokenType.LESS_THAN);
                     String kind = parseIdentifier();
-                    if (!"Object".equals(kind)) {
+                    boolean relational = "Relational".equals(kind);
+                    if (!relational && !"Object".equals(kind)) {
                         throw error("legacy input kind '" + kind
                                 + "' is unbuilt");
                     }
                     expect(TokenType.COMMA);
                     String inputType = parseIdentifier();
                     expect(TokenType.COMMA);
-                    String srcClass =
+                    String targetPath =
                             Protocol.unquotePath(parseQualifiedName());
                     expect(TokenType.COMMA);
                     String data = TokenStreamCursor.unquoteAndUnescape(
@@ -1219,8 +1238,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     advance();
                     int dE = pos;
                     expect(TokenType.GREATER_THAN);
-                    inputData.add(new Protocol.PLegacyInputData(srcClass,
-                            inputType, data, spanOf(dS, dE)));
+                    inputData.add(new Protocol.PLegacyInputData(relational,
+                            targetPath, inputType, data, spanOf(dS, dE)));
                     match(TokenType.COMMA);
                 }
                 expect(TokenType.BRACKET_CLOSE);

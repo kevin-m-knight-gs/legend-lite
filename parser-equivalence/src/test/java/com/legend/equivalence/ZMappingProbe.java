@@ -28,6 +28,75 @@ class ZMappingProbe {
     }
 
     @Test
+    void legacyRelationalInputProbe() throws Exception {
+        probe("legacy-rel-input", """
+                ###Relational
+                Database my::pdb ( Table PersonTable(id INTEGER PRIMARY KEY, firstName VARCHAR(100)) )
+
+                ###Pure
+                Class my::P { firstName: String[1]; }
+
+                ###Mapping
+                Mapping my::M99
+                (
+                  my::P: Relational { firstName: [my::pdb]PersonTable.firstName }
+
+                  MappingTests
+                  [
+                    t1
+                    (
+                      query: |my::P.all()->project([p|$p.firstName], ['f']);
+                      data:
+                      [
+                        <Relational, CSV, my::pdb, 'default\\nPersonTable\\nid,firstName\\n1,Ada\\n'>
+                      ];
+                      assert: '[]';
+                    )
+                  ]
+                )
+                """);
+    }
+
+    @Test
+    void finalTailProbe() throws Exception {
+        probe("relation-inline", """
+                ###Relational
+                Database my::db
+                (
+                  Table personTable(ID INTEGER PRIMARY KEY, FIRSTNAME VARCHAR(100) NOT NULL, ADDRESSID INTEGER NOT NULL)
+                  Table addressTable(ID INTEGER PRIMARY KEY, NAME VARCHAR(100) NOT NULL)
+                )
+                ###Pure
+                Class my::Person { firstName: String[1]; address: my::Address[1]; }
+                Class my::Address { name: String[1]; }
+                ###Pure
+                function my::personFunc():meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::db.personTable}#->filter(x | $x.ID > 0)
+                }
+                function my::addressFunc():meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::db.addressTable}#->filter(x | $x.ID > 0)
+                }
+                ###Mapping
+                Mapping my::testMapping
+                (
+                  *my::Person[person]: Relation
+                  {
+                    ~func my::personFunc():Relation<Any>[1]
+                    firstName: FIRSTNAME,
+                    address () Inline [addressSet]
+                  }
+                  *my::Address[addressSet]: Relation
+                  {
+                    ~func my::addressFunc():Relation<Any>[1]
+                    name: NAME
+                  }
+                )
+                """);
+    }
+
+    @Test
     void relationRowsProbe() throws Exception {
         String head = """
                 ###Relational

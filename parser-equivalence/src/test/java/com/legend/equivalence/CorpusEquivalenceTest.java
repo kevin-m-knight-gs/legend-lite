@@ -176,9 +176,13 @@ class CorpusEquivalenceTest {
      * (cells TRIM both sides) -> relationAccessor/relationElements;
      * equalToRelation assertions whose expected span runs
      * (braceLine, braceCol+2)..(semiLine-1, semiCol) while DATA elements
-     * span path..semi (probes relation-data-exact + relation-rows). */
-    private static final int MIN_ELEMENTS_COMPARED = 24506;
-    private static final int MIN_MATCHES = 24506;
+     * span path..semi (probes relation-data-exact + relation-rows).
+     * 24,506 -> 24,508: Relation-CM inline PMs (prop () Inline [set] ->
+     * relationFunctionEmbeddedPropertyMapping, empty propertyMappings)
+     * and legacy Relational inputs (<Relational, CSV, db, 'data'> ->
+     * _type relational with database key). */
+    private static final int MIN_ELEMENTS_COMPARED = 24508;
+    private static final int MIN_MATCHES = 24508;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

@@ -86,10 +86,31 @@ final class MappingEmitter {
                         }
                         Protocol.PRelationFnPropertyMapping pm =
                                 rf.propertyMappings().get(j);
+                        if (pm.inlineSetId() != null) {
+                            // prop () Inline [set] (probe relation-inline)
+                            b.append("{\"_type\":\"relationFunction"
+                                    + "EmbeddedPropertyMapping\",\"id\":");
+                            str(b, pm.inlineSetId());
+                            b.append(",\"property\":{\"class\":");
+                            str(b, pm.ownerClass());
+                            b.append(",\"property\":");
+                            str(b, pm.property());
+                            b.append(",\"sourceInformation\":");
+                            srcInfo(b, pm.propertySourceInformation());
+                            b.append("},\"propertyMappings\":[]");
+                            if (pm.source() != null) {
+                                b.append(",\"source\":");
+                                str(b, pm.source());
+                            }
+                            b.append(",\"sourceInformation\":");
+                            srcInfo(b, pm.sourceInformation());
+                            b.append('}');
+                            continue;
+                        }
                         b.append("{\"_type\":"
                                 + "\"relationFunctionPropertyMapping\","
                                 + "\"column\":");
-                        str(b, pm.column());
+                        str(b, java.util.Objects.requireNonNull(pm.column()));
                         if (pm.localMappingProperty() != null) {
                             Protocol.PLocalProp lp = pm.localMappingProperty();
                             b.append(",\"localMappingProperty\":"
@@ -206,12 +227,21 @@ final class MappingEmitter {
                     b.append(',');
                 }
                 Protocol.PLegacyInputData in = t.inputData().get(j);
-                b.append("{\"_type\":\"object\",\"data\":");
-                str(b, in.data());
+                if (in.relational()) {
+                    b.append("{\"_type\":\"relational\",\"data\":");
+                    str(b, in.data());
+                    b.append(",\"database\":");
+                    str(b, in.targetPath());
+                } else {
+                    b.append("{\"_type\":\"object\",\"data\":");
+                    str(b, in.data());
+                }
                 b.append(",\"inputType\":");
                 str(b, in.inputType());
-                b.append(",\"sourceClass\":");
-                str(b, in.sourceClass());
+                if (!in.relational()) {
+                    b.append(",\"sourceClass\":");
+                    str(b, in.targetPath());
+                }
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, in.sourceInformation());
                 b.append('}');
