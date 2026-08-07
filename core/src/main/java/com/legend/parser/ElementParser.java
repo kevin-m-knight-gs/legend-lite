@@ -1366,7 +1366,18 @@ public final class ElementParser implements TokenStreamCursor {
             }
             advance();
             StringBuilder inner = new StringBuilder();
-            while (!atEnd() && peek() != TokenType.ISLAND_END) {
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (t == TokenType.ISLAND_START) {
+                    depth++;
+                } else if (t == TokenType.ISLAND_END
+                        || t == TokenType.ISLAND_ARROW_EXIT) {
+                    if (depth == 0) {
+                        break;          // THIS island's end, not a nested one
+                    }
+                    depth--;
+                }
                 inner.append(tokens.text(pos));
                 advance();
             }
@@ -1464,9 +1475,7 @@ public final class ElementParser implements TokenStreamCursor {
         advance();                                  // 'Relational'
         int openTok = pos;
         expect(TokenType.ISLAND_OPEN);
-        while (!atEnd() && peek() != TokenType.ISLAND_END) {
-            advance();
-        }
+        skipIslandContent();
         int endTok = pos;
         expect(TokenType.ISLAND_END);
         String source = tokens.source();
@@ -1640,6 +1649,29 @@ public final class ElementParser implements TokenStreamCursor {
         return parseRelationIslandElements(false);
     }
 
+
+    /** Advance from just past an {@code ISLAND_OPEN} to ITS matching
+     *  {@code ISLAND_END}: the lexer emits nested {@code ISLAND_START}/
+     *  {@code ISLAND_END} pairs inside island content (Lexer islandDepth),
+     *  so a flat {@code peek() != ISLAND_END} scan stops at an INNER
+     *  {@code }#} and truncates the island (audit §5.5). A nested island
+     *  closed by {@code }->} ({@code ISLAND_ARROW_EXIT}) counts as closed. */
+    private void skipIslandContent() {
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END || t == TokenType.ISLAND_ARROW_EXIT) {
+                if (depth == 0) {
+                    return;
+                }
+                depth--;
+            }
+            advance();
+        }
+    }
+
     /**
      * In ASSERTION position ({@code => Relation #{...}#}) the engine REPARSES
      * {@code ": " + content.trim()} through a walker anchored at the {@code #{}
@@ -1655,9 +1687,7 @@ public final class ElementParser implements TokenStreamCursor {
             parseRelationIslandElements(boolean assertionSpans) {
         int openTok = pos;
         expect(TokenType.ISLAND_OPEN);
-        while (!atEnd() && peek() != TokenType.ISLAND_END) {
-            advance();
-        }
+        skipIslandContent();
         int endTok = pos;
         expect(TokenType.ISLAND_END);
         String source = tokens.source();
