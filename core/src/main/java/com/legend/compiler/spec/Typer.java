@@ -256,6 +256,15 @@ final class Typer {
      * {@link #applyCore}, anything else is a library call on the generic path.
      */
     private TypedSpec applyFunction(AppliedFunction af, Env env) {
+        // The engine-shaped variadic spelling of infix arithmetic — one
+        // collection parameter holding the whole same-op run. The compiler's
+        // internal convention (and Pure.java's registered binary signatures)
+        // is pairwise; desugar by LEFT FOLD (InfixArith.binarize). Wire
+        // fidelity is unaffected: the model keeps the n-ary node; this
+        // rewrite exists only inside typing.
+        if (InfixArith.isNaryCarrier(af)) {
+            return synth(InfixArith.binarize(af), env);
+        }
         // Legacy TDS surface desugars (engine's TDS-era spellings):
         // col(fn, 'name') is the function-column spec — the modern ~name:fn
         if (af.function().equals("col") && af.parameters().size() == 2

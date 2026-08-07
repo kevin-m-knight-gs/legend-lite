@@ -55,6 +55,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 final class SpecParserTest {
 
+    /** Engine-shaped n-ary arithmetic node: {@code fn[Collection[operands...]]}
+     *  — the wire spelling of operator-built plus/minus/times
+     *  (DomainParseTreeWalker.buildArithmeticOp). */
+    private static AppliedFunction nary(String fn, ValueSpecification... operands) {
+        return new AppliedFunction(fn,
+                List.of(new PureCollection(List.of(operands))));
+    }
+
     // ----- numeric literals --------------------------------------------
 
     @Test
@@ -603,12 +611,12 @@ final class SpecParserTest {
 
     @Test
     void additionDesugarsToAppliedFunctionPlus() {
-        // Binary '+' desugars to AppliedFunction("plus", [lhs, rhs]).
-        // Pin both the function name and the parameter shape; engine
-        // uses the same name and order.
+        // Operator '+' desugars to the ENGINE's n-ary spelling:
+        // AppliedFunction("plus", [Collection[lhs, rhs]])
+        // (DomainParseTreeWalker.buildArithmeticOp wraps ALL operands of a
+        // same-op run in ONE collection parameter).
         assertEquals(
-                new AppliedFunction("plus", List.of(
-                        new CInteger(1L), new CInteger(2L))),
+                nary("plus", new CInteger(1L), new CInteger(2L)),
                 SpecParser.parse("1 + 2"));
     }
 
@@ -616,15 +624,13 @@ final class SpecParserTest {
     void subtractionMultiplicationDivisionUseCanonicalNames() {
         // The operator-to-function mapping must match engine for
         // corpus-byte-comparability: minus/times/divide (NOT
-        // sub/mul/div). One assertion per op so a typo on any single
-        // mapping fails its own test, not all of them.
+        // sub/mul/div). minus/times carry the n-ary collection;
+        // divide stays PAIRWISE (engine buildDivide).
         assertEquals(
-                new AppliedFunction("minus", List.of(
-                        new CInteger(5L), new CInteger(3L))),
+                nary("minus", new CInteger(5L), new CInteger(3L)),
                 SpecParser.parse("5 - 3"));
         assertEquals(
-                new AppliedFunction("times", List.of(
-                        new CInteger(4L), new CInteger(2L))),
+                nary("times", new CInteger(4L), new CInteger(2L)),
                 SpecParser.parse("4 * 2"));
         assertEquals(
                 new AppliedFunction("divide", List.of(
@@ -633,16 +639,13 @@ final class SpecParserTest {
     }
 
     @Test
-    void sameOperatorChainsFlattenLeftAssociatively() {
-        // '1 + 2 + 3' parses as plus(plus(1, 2), 3) \u2014 left-associative
-        // same-op chaining inside a single parseArithmeticPart call.
-        // The shape would be plus(1, plus(2, 3)) if associativity were
-        // wrong; pin the nesting to catch that regression.
+    void sameOperatorChainsFormOneNaryRun() {
+        // '1 + 2 + 3' is ONE grammar context \u2014 (PLUS expression)+ \u2014 so the
+        // engine builds ONE plus over a single 3-element collection:
+        // plus[Collection[1, 2, 3]] (audit \u00a71.3: runs flatten per CONTEXT,
+        // not per spine).
         assertEquals(
-                new AppliedFunction("plus", List.of(
-                        new AppliedFunction("plus", List.of(
-                                new CInteger(1L), new CInteger(2L))),
-                        new CInteger(3L))),
+                nary("plus", new CInteger(1L), new CInteger(2L), new CInteger(3L)),
                 SpecParser.parse("1 + 2 + 3"));
     }
 
@@ -709,10 +712,9 @@ final class SpecParserTest {
         // legend-pure's own test corpus as the authority; found by an
         // EXECUTED lowering test returning 9 where Pure returns 7).
         assertEquals(
-                new AppliedFunction("plus", List.of(
+                nary("plus",
                         new CInteger(1L),
-                        new AppliedFunction("times", List.of(
-                                new CInteger(2L), new CInteger(3L))))),
+                        nary("times", new CInteger(2L), new CInteger(3L))),
                 SpecParser.parse("1 + 2 * 3"));
         // Comparisons bind loosest: 1 + 2 * 3 > 4 * 5 + 6 == (7 > 26).
         assertEquals("greaterThan",
@@ -721,15 +723,12 @@ final class SpecParserTest {
 
     @Test
     void parensOverridePrecedence() {
-        // The user's only escape hatch from flat-left-to-right
-        // arithmetic is parentheses. Without parens, '1 + 2 * 3' is
-        // (1+2)*3; WITH '(2 * 3)' parens, it's 1 + (2*3) = plus(1,
-        // times(2,3)). Pin the override pathway.
+        // Parens restart combinedExpression, so '(2 * 3)' is an ordinary
+        // operand of the plus run: plus[Collection[1, times[Collection[2,3]]]].
         assertEquals(
-                new AppliedFunction("plus", List.of(
+                nary("plus",
                         new CInteger(1L),
-                        new AppliedFunction("times", List.of(
-                                new CInteger(2L), new CInteger(3L))))),
+                        nary("times", new CInteger(2L), new CInteger(3L))),
                 SpecParser.parse("1 + (2 * 3)"));
     }
 
@@ -796,8 +795,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("equal", List.of(
                         new Variable("a"),
-                        new AppliedFunction("plus", List.of(
-                                new Variable("b"), new Variable("c"))))),
+                        nary("plus", new Variable("b"), new Variable("c")))),
                 SpecParser.parse("$a == $b + $c"));
     }
 
@@ -817,10 +815,10 @@ final class SpecParserTest {
         // a future reader cannot "fix" it without consciously breaking
         // engine parity.
         assertEquals(
-                new AppliedFunction("plus", List.of(
+                nary("plus",
                         new Variable("a"),
                         new AppliedFunction("equal", List.of(
-                                new Variable("b"), new Variable("c"))))),
+                                new Variable("b"), new Variable("c")))),
                 SpecParser.parse("$a + $b == $c"));
     }
 
@@ -856,17 +854,19 @@ final class SpecParserTest {
 
     @Test
     void booleanOpsComposeWithComparisons() {
-        // '$x > 10 && $x < 20' parses SEMANTICALLY — and(gt, lt) — the shape the
-        // compiler types. The ENGINE's wire is flat left-associative
-        // (lessThan(and(gt(x,10),x),20), ProbeWireShapes "mixed bool arith");
-        // ProtocolEmitter.rotateFlatBoolean produces that spelling at EMISSION,
-        // conform-by-emission — the parse stays sane.
+        // '$x > 10 && $x < 20' parses to the ENGINE's flat left-associative
+        // accumulator shape — lessThan(and(greaterThan($x,10), $x), 20) —
+        // AT PARSE TIME (ProbeWireShapes "mixed bool arith"; audit §1.1: the
+        // old emission-only rotation left the compiler a different tree).
+        // The boolean group folds over the arithmetic accumulator and the
+        // trailing comparison folds over the boolean result.
         assertEquals(
-                new AppliedFunction("and", List.of(
-                        new AppliedFunction("greaterThan", List.of(
-                                new Variable("x"), new CInteger(10L))),
-                        new AppliedFunction("lessThan", List.of(
-                                new Variable("x"), new CInteger(20L))))),
+                new AppliedFunction("lessThan", List.of(
+                        new AppliedFunction("and", List.of(
+                                new AppliedFunction("greaterThan", List.of(
+                                        new Variable("x"), new CInteger(10L))),
+                                new Variable("x"))),
+                        new CInteger(20L))),
                 SpecParser.parse("$x > 10 && $x < 20"));
     }
 
@@ -976,8 +976,8 @@ final class SpecParserTest {
                         new PackageableElementPtr("Box"),
                         new NewInstance("Box", List.of(), Map.of(
                                 "value", new KeyExpression(
-                                        new AppliedFunction("plus", List.of(
-                                                new CInteger(1L), new CInteger(2L))), false, false)))
+                                        nary("plus", new CInteger(1L), new CInteger(2L)),
+                                        false, false)))
                 )),
                 SpecParser.parse("^Box(value=1+2)"));
     }
@@ -1139,9 +1139,7 @@ final class SpecParserTest {
                 new AppliedFunction("new", List.of(
                         new PackageableElementPtr("Result"),
                         new NewInstanceCast("Result", List.of(),
-                                new AppliedFunction("plus", List.of(
-                                        new CInteger(1L),
-                                        new CInteger(2L)))))),
+                                nary("plus", new CInteger(1L), new CInteger(2L))))),
                 SpecParser.parse("^Result(1 + 2)"));
     }
 
@@ -1210,10 +1208,8 @@ final class SpecParserTest {
         // parseCombinedExpression so operators are admitted.
         assertEquals(
                 new PureCollection(List.of(
-                        new AppliedFunction("plus", List.of(
-                                new CInteger(1L), new CInteger(2L))),
-                        new AppliedFunction("times", List.of(
-                                new CInteger(3L), new CInteger(4L))))),
+                        nary("plus", new CInteger(1L), new CInteger(2L)),
+                        nary("times", new CInteger(3L), new CInteger(4L)))),
                 SpecParser.parse("[1+2, 3*4]"));
     }
 
@@ -1243,8 +1239,7 @@ final class SpecParserTest {
         assertEquals(
                 new AppliedFunction("letFunction", List.of(
                         new CString("result"),
-                        new AppliedFunction("plus", List.of(
-                                new CInteger(1L), new CInteger(2L))))),
+                        nary("plus", new CInteger(1L), new CInteger(2L)))),
                 SpecParser.parse("let result = 1 + 2"));
     }
 
@@ -1321,8 +1316,8 @@ final class SpecParserTest {
         assertEquals(
                 new LambdaFunction(
                         List.of(new Variable("p"), new Variable("q")),
-                        List.of(new AppliedFunction("plus", List.of(
-                                new Variable("p"), new Variable("q"))))),
+                        List.of(nary("plus",
+                                new Variable("p"), new Variable("q")))),
                 SpecParser.parse("{p, q | $p + $q}"));
     }
 
@@ -1348,8 +1343,8 @@ final class SpecParserTest {
                         List.of(
                                 new AppliedFunction("letFunction", List.of(
                                         new CString("x"), new Variable("p"))),
-                                new AppliedFunction("plus", List.of(
-                                        new Variable("x"), new CInteger(1L))))),
+                                nary("plus",
+                                        new Variable("x"), new CInteger(1L)))),
                 SpecParser.parse("{p | let x = $p; $x + 1}"));
     }
 
@@ -1395,9 +1390,9 @@ final class SpecParserTest {
                         List.of(new Variable("p")),
                         List.of(new LambdaFunction(
                                 List.of(new Variable("q")),
-                                List.of(new AppliedFunction("plus", List.of(
+                                List.of(nary("plus",
                                         new Variable("p"),
-                                        new Variable("q"))))))),
+                                        new Variable("q")))))),
                 SpecParser.parse("{p | {q | $p + $q}}"));
     }
 
@@ -1414,9 +1409,9 @@ final class SpecParserTest {
                         new CString("f"),
                         new LambdaFunction(
                                 List.of(new Variable("p")),
-                                List.of(new AppliedFunction("plus", List.of(
+                                List.of(nary("plus",
                                         new Variable("p"),
-                                        new CInteger(1L))))))),
+                                        new CInteger(1L)))))),
                 SpecParser.parse("let f = {p | $p + 1}"));
     }
 
@@ -1436,9 +1431,9 @@ final class SpecParserTest {
                                 List.of(new Variable("p"))),
                         new LambdaFunction(
                                 List.of(new Variable("q")),
-                                List.of(new AppliedFunction("plus", List.of(
+                                List.of(nary("plus",
                                         new Variable("q"),
-                                        new CInteger(1L))))))),
+                                        new CInteger(1L)))))),
                 SpecParser.parse("[{p | $p}, {q | $q + 1}]"));
     }
 
@@ -1462,14 +1457,14 @@ final class SpecParserTest {
                         List.of(
                                 new AppliedFunction("letFunction", List.of(
                                         new CString("x"),
-                                        new AppliedFunction("plus", List.of(
+                                        nary("plus",
                                                 new Variable("p"),
-                                                new CInteger(1L))))),
+                                                new CInteger(1L)))),
                                 new AppliedFunction("letFunction", List.of(
                                         new CString("y"),
-                                        new AppliedFunction("times", List.of(
+                                        nary("times",
                                                 new Variable("x"),
-                                                new CInteger(2L))))),
+                                                new CInteger(2L)))),
                                 new Variable("y"))),
                 SpecParser.parse(
                         "{p | let x = $p + 1; let y = $x * 2; $y}"));
@@ -1495,16 +1490,16 @@ final class SpecParserTest {
                                 new CString("f"),
                                 new LambdaFunction(
                                         List.of(new Variable("p")),
-                                        List.of(new AppliedFunction("plus", List.of(
+                                        List.of(nary("plus",
                                                 new Variable("p"),
-                                                new CInteger(1L))))))),
+                                                new CInteger(1L)))))),
                         new AppliedFunction("letFunction", List.of(
                                 new CString("g"),
                                 new LambdaFunction(
                                         List.of(new Variable("q")),
-                                        List.of(new AppliedFunction("times", List.of(
+                                        List.of(nary("times",
                                                 new Variable("q"),
-                                                new CInteger(2L))))))),
+                                                new CInteger(2L)))))),
                         new Variable("f")),
                 stmts);
     }
@@ -1579,8 +1574,8 @@ final class SpecParserTest {
                                         Multiplicity.Concrete.PURE_ONE),
                                 new Variable("q", nr("String"),
                                         Multiplicity.Concrete.ZERO_MANY)),
-                        List.of(new AppliedFunction("plus", List.of(
-                                new Variable("p"), new Variable("q"))))),
+                        List.of(nary("plus",
+                                new Variable("p"), new Variable("q")))),
                 SpecParser.parse("{p: Integer[1], q: String[*] | $p + $q}"));
     }
 
@@ -1595,8 +1590,8 @@ final class SpecParserTest {
                 new LambdaFunction(
                         List.of(new Variable(
                                 "p", nr("Integer"), Multiplicity.Concrete.PURE_ONE)),
-                        List.of(new AppliedFunction("plus", List.of(
-                                new Variable("p"), new CInteger(1L))))),
+                        List.of(nary("plus",
+                                new Variable("p"), new CInteger(1L)))),
                 SpecParser.parse("p: Integer[1] | $p + 1"));
     }
 
@@ -1743,8 +1738,8 @@ final class SpecParserTest {
                                 new Variable("p"),
                                 new Variable("q", nr("String"),
                                         Multiplicity.Concrete.PURE_ONE)),
-                        List.of(new AppliedFunction("plus", List.of(
-                                new Variable("p"), new Variable("q"))))),
+                        List.of(nary("plus",
+                                new Variable("p"), new Variable("q")))),
                 SpecParser.parse("{p, q: String[1] | $p + $q}"));
     }
 
@@ -1845,8 +1840,8 @@ final class SpecParserTest {
                                 new CString("x"), new CInteger(1L))),
                         new AppliedFunction("letFunction", List.of(
                                 new CString("y"), new CInteger(2L))),
-                        new AppliedFunction("plus", List.of(
-                                new Variable("x"), new Variable("y")))),
+                        nary("plus",
+                                new Variable("x"), new Variable("y"))),
                 stmts);
     }
 
@@ -2105,9 +2100,9 @@ final class SpecParserTest {
                 new ColSpec("total",
                         new LambdaFunction(
                                 List.of(new Variable("x")),
-                                List.of(new AppliedFunction("times", List.of(
+                                List.of(nary("times",
                                         new AppliedProperty(new Variable("x"), "amount"),
-                                        new CInteger(2L))))),
+                                        new CInteger(2L)))),
                         null),
                 SpecParser.parse("~total:x|$x.amount * 2"));
     }
@@ -2151,9 +2146,9 @@ final class SpecParserTest {
                                         new AppliedFunction("letFunction",
                                                 List.of(new CString("y"),
                                                         new CInteger(1L))),
-                                        new AppliedFunction("plus", List.of(
+                                        nary("plus",
                                                 new Variable("y"),
-                                                new CInteger(2L))))),
+                                                new CInteger(2L)))),
                         null),
                 SpecParser.parse("~total:{x | let y = 1; $y + 2}"));
     }
@@ -2677,9 +2672,9 @@ final class SpecParserTest {
                                         Multiplicity.Concrete.PURE_ONE),
                                 new Variable("b", nr("Integer"),
                                         Multiplicity.Concrete.PURE_ONE)),
-                        List.of(new AppliedFunction("minus", List.of(
+                        List.of(nary("minus",
                                 new Variable("a"),
-                                new Variable("b"))))),
+                                new Variable("b")))),
                 SpecParser.parse(
                         "comparator(a: Integer[1], b: Integer[1]): Bool[1] { $a - $b }"));
     }

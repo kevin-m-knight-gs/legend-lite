@@ -182,7 +182,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         // GIVEN: A Pure query with AND condition
         String pureQuery = """
                 model::Person.all()
-                    ->filter({p | $p.lastName == 'Smith' && $p.age > 25})
+                    ->filter({p | $p.lastName == 'Smith' && ($p.age > 25)})
                     ->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName, age:p|$p.age])
                 """;
 

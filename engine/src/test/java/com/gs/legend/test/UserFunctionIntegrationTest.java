@@ -861,7 +861,7 @@ class UserFunctionIntegrationTest {
             String model = modelWith("""
                     function test::nameAndAge(surname: String[1], minAge: Integer[1]):model::Person[*]
                     {
-                        model::Person.all()->filter(p|$p.lastName == $surname && $p.age >= $minAge)
+                        model::Person.all()->filter(p|$p.lastName == $surname && ($p.age >= $minAge))
                     }
                     """);
             var result = exec(model,

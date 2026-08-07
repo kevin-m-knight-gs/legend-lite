@@ -60,6 +60,7 @@ import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.Variable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -573,7 +574,9 @@ final class ElementParserTest {
         assertEquals(1, d.expression().size());
         AppliedFunction plus = assertInstanceOf(AppliedFunction.class, d.expression().get(0));
         assertEquals("plus", plus.function());
-        assertEquals(List.of(new CString("a"), new CString("b")), plus.parameters());
+        // engine n-ary spelling: ONE collection parameter holding the run
+        assertEquals(List.of(new PureCollection(
+                List.of(new CString("a"), new CString("b")))), plus.parameters());
         assertEquals(nr("String"), d.type());
         assertEquals(Multiplicity.exactly(1), d.multiplicity());
         // Regular properties list stays empty.
@@ -631,11 +634,13 @@ final class ElementParserTest {
         assertEquals(1, d.expression().size());
         AppliedFunction times = assertInstanceOf(AppliedFunction.class, d.expression().get(0));
         assertEquals("times", times.function());
-        assertEquals(2, times.parameters().size());
-        AppliedProperty thisPrice = assertInstanceOf(AppliedProperty.class, times.parameters().get(0));
+        // engine n-ary spelling: times[Collection[$this.price, $rate]]
+        assertEquals(1, times.parameters().size());
+        PureCollection run = assertInstanceOf(PureCollection.class, times.parameters().get(0));
+        AppliedProperty thisPrice = assertInstanceOf(AppliedProperty.class, run.values().get(0));
         assertEquals("price", thisPrice.property());
         assertEquals(new Variable("this"), thisPrice.receiver());
-        assertEquals(new Variable("rate"), times.parameters().get(1));
+        assertEquals(new Variable("rate"), run.values().get(1));
         assertEquals(nr("Float"), d.type());
     }
 
@@ -848,10 +853,11 @@ final class ElementParserTest {
                         new FunctionDefinition.ParameterDefinition("b", nr("Integer"), Multiplicity.range(0, 1))),
                 f.parameters());
         assertEquals(nr("Integer"), f.returnType());
-        // $a + $b desugars to plus(Variable(a), Variable(b)).
+        // $a + $b desugars to the engine n-ary plus[Collection[$a, $b]].
         assertEquals(
                 List.of(new AppliedFunction("plus",
-                        List.of(new Variable("a"), new Variable("b")))),
+                        List.of(new PureCollection(
+                                List.of(new Variable("a"), new Variable("b")))))),
                 f.body());
     }
 
@@ -2800,18 +2806,18 @@ final class ElementParserTest {
         assertEquals(1, cm.propertyBindings().size());
         var b = cm.propertyBindings().get(0);
         assertEquals("fullName", b.propertyName());
-        // $src.firstName + ' ' + $src.lastName parses left-associative:
-        // plus(plus($src.firstName, ' '), $src.lastName).
+        // $src.firstName + ' ' + $src.lastName is ONE (PLUS expression)+ run:
+        // the engine builds plus[Collection[$src.firstName, ' ', $src.lastName]].
         AppliedFunction outerPlus = assertInstanceOf(AppliedFunction.class, b.expression());
         assertEquals("plus", outerPlus.function());
-        assertEquals(2, outerPlus.parameters().size());
-        AppliedFunction innerPlus = assertInstanceOf(AppliedFunction.class, outerPlus.parameters().get(0));
-        assertEquals("plus", innerPlus.function());
-        AppliedProperty srcFirst = assertInstanceOf(AppliedProperty.class, innerPlus.parameters().get(0));
+        assertEquals(1, outerPlus.parameters().size());
+        PureCollection run = assertInstanceOf(PureCollection.class, outerPlus.parameters().get(0));
+        assertEquals(3, run.values().size());
+        AppliedProperty srcFirst = assertInstanceOf(AppliedProperty.class, run.values().get(0));
         assertEquals("firstName", srcFirst.property());
         assertEquals(new Variable("src"), srcFirst.receiver());
-        assertEquals(new CString(" "), innerPlus.parameters().get(1));
-        AppliedProperty srcLast = assertInstanceOf(AppliedProperty.class, outerPlus.parameters().get(1));
+        assertEquals(new CString(" "), run.values().get(1));
+        AppliedProperty srcLast = assertInstanceOf(AppliedProperty.class, run.values().get(2));
         assertEquals("lastName", srcLast.property());
         assertEquals(new Variable("src"), srcLast.receiver());
     }

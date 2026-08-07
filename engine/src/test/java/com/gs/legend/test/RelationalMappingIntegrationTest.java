@@ -345,7 +345,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: boolean AND (&&)")
         void testBooleanAnd() throws SQLException {
-            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept == 'Engineering' && $e.sal > 95000})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|$e.dept == 'Engineering' && ($e.sal > 95000)})->project(~[name:e|$e.name])");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", r.rows().get(0).get(0).toString());
         }
@@ -392,7 +392,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: complex compound predicate")
         void testComplexCompound() throws SQLException {
-            var r = exec(empModel, "model::Emp.all()->filter({e|($e.dept == 'Engineering' && $e.sal > 95000) || ($e.dept == 'Sales' && $e.active == true)})->project(~[name:e|$e.name])");
+            var r = exec(empModel, "model::Emp.all()->filter({e|($e.dept == 'Engineering' && ($e.sal > 95000)) || ($e.dept == 'Sales' && $e.active == true)})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Bob")));
         }
@@ -1302,7 +1302,7 @@ class RelationalMappingIntegrationTest {
             // Join person→dept WHERE dept ID matches AND dept is in org > 1 (Globex only)
             // Alice(dept=1,org=1)→NULL, Bob(dept=2,org=1)→NULL, Charlie(dept=3,org=2)→Research
             var r = exec(traverseModel(),
-                "#>{store::DB.T_PERSON}#->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID && $hop.ORG_ID > 1})->extend(~deptName: __r|$__r.n1.NAME)->select(~[NAME, deptName])->from(test::RT)");
+                "#>{store::DB.T_PERSON}#->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID && ($hop.ORG_ID > 1)})->extend(~deptName: __r|$__r.n1.NAME)->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var names = colStr(r, 0);
             var depts = colStr(r, 1);
@@ -3129,13 +3129,13 @@ class RelationalMappingIntegrationTest {
         @Test @DisplayName("Filter: deeply nested boolean logic")
         void testDeepNestedBoolean() throws SQLException {
             // (category == 'Tools' AND price > 10) OR (category == 'Electronics' AND stock > 20)
-            var r = exec(model, "model::P.all()->filter({p|($p.category == 'Tools' && $p.price > 10.0) || ($p.category == 'Electronics' && $p.stock > 20)})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|($p.category == 'Tools' && ($p.price > 10.0)) || ($p.category == 'Electronics' && ($p.stock > 20))})->project(~[name:p|$p.name])");
             assertEquals(4, r.rowCount()); // Widget B, Widget C, Gadget X, Gadget Y
         }
 
         @Test @DisplayName("Filter: triple AND")
         void testTripleAnd() throws SQLException {
-            var r = exec(model, "model::P.all()->filter({p|$p.category == 'Tools' && $p.active == true && $p.stock > 50})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|$p.category == 'Tools' && $p.active == true && ($p.stock > 50)})->project(~[name:p|$p.name])");
             assertEquals(2, r.rowCount()); // Widget A (100), Widget C (200)
         }
 
@@ -3153,7 +3153,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: price range (between equivalent)")
         void testPriceRange() throws SQLException {
-            var r = exec(model, "model::P.all()->filter({p|$p.price >= 10.0 && $p.price <= 50.0})->project(~[name:p|$p.name])");
+            var r = exec(model, "model::P.all()->filter({p|($p.price >= 10.0) && ($p.price <= 50.0)})->project(~[name:p|$p.name])");
             assertEquals(3, r.rowCount()); // Widget B (19.99), Widget C (14.99), Gadget X (49.99)
         }
 
@@ -3598,7 +3598,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Filter: date range")
         void testDateRange() throws SQLException {
-            var r = exec(model, "model::E.all()->filter({e|$e.eventDate >= %2024-02-01 && $e.eventDate <= %2024-07-01})->project(~[name:e|$e.name])");
+            var r = exec(model, "model::E.all()->filter({e|($e.eventDate >= %2024-02-01) && ($e.eventDate <= %2024-07-01)})->project(~[name:e|$e.name])");
             assertEquals(2, r.rowCount()); // Valentine, Summer
         }
 

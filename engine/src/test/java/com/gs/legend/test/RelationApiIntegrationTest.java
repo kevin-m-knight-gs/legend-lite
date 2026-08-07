@@ -290,7 +290,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
         void testFilterWithAnd() throws SQLException {
             String pureQuery = """
                     model::Person.all()
-                        ->filter({p | $p.lastName == 'Smith' && $p.age > 29})
+                        ->filter({p | $p.lastName == 'Smith' && ($p.age > 29)})
                         ->project(~[firstName:p|$p.firstName])
                     """;
 

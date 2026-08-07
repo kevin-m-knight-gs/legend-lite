@@ -1173,54 +1173,6 @@ public final class ProtocolEmitter {
         };
     }
 
-    /** The comparison family that participates in the engine's flat left-fold —
-     *  NOT {@code equal}, which binds inside each operand (golden precedence corpus:
-     *  {@code true == false && true == false} keeps {@code and} on top). */
-    private static final java.util.Set<String> FLAT_COMPARISONS = java.util.Set.of(
-            "lessThan", "lessThanEqual", "greaterThan", "greaterThanEqual");
-
-    /** The boolean fold heads. */
-    private static final java.util.Set<String> BOOL_FOLD = java.util.Set.of("and", "or");
-
-    /**
-     * {@code bool(l, cmp(rl, rr))} &rarr; {@code cmp(bool(l, rl), rr)}, recursively —
-     * the engine's booleanPart chain is FLAT left-associative across {@code &&}/{@code ||}
-     * and comparisons (probe "mixed bool arith"). Applies only to OPERATOR-BUILT,
-     * unparenthesised nodes; each op keeps its own token span through the rotation.
-     */
-    private static com.legend.protocol.spec.AppliedFunction rotateFlatBoolean(
-            com.legend.protocol.spec.AppliedFunction f) {
-        if (!BOOL_FOLD.contains(f.function())
-                || !f.infix() || f.grouped() || f.parameters().size() != 2) {
-            return f;
-        }
-        if (f.parameters().get(1) instanceof com.legend.protocol.spec.AppliedFunction cmp
-                && cmp.infix() && !cmp.grouped()
-                && FLAT_COMPARISONS.contains(cmp.function())
-                && cmp.parameters().size() == 2) {
-            com.legend.protocol.spec.AppliedFunction inner =
-                    new com.legend.protocol.spec.AppliedFunction(f.function(),
-                            java.util.List.of(f.parameters().get(0), cmp.parameters().get(0)),
-                            f.candidateFqns(), f.pos(), false, false, true);
-            return new com.legend.protocol.spec.AppliedFunction(cmp.function(),
-                    java.util.List.of(rotateFlatBoolean(inner), cmp.parameters().get(1)),
-                    cmp.candidateFqns(), cmp.pos(), false, false, true);
-        }
-        return f;
-    }
-
-    /** Arithmetic natives the engine spells N-ARY: one collection parameter holding the
-     *  flattened operand chain. {@code divide} and the comparisons stay binary. */
-    private static final java.util.Set<String> NARY_ARITHMETIC =
-            java.util.Set.of("plus", "minus", "times");
-
-    /** The operators our grammar can only produce OVER an arithmetic LHS via explicit
-     *  parentheses — a tree shape whose engine bytes are not yet probed (see below). */
-    private static final java.util.Set<String> EQUAL_AND_OR =
-            java.util.Set.of("equal", "and", "or");
-
-    private static final java.util.Set<String> BINARY_ARITHMETIC = java.util.Set.of("divide");
-
     /** Every infix-built family — the key-expression first-atom rule strips them all. */
     private static final java.util.Set<String> INFIX_FAMILIES = java.util.Set.of(
             "plus", "minus", "times", "divide", "lessThan", "lessThanEqual",
@@ -1281,19 +1233,12 @@ public final class ProtocolEmitter {
             b.append('}');
             return;
         }
-        // THE FLAT-CHAIN SPELLING (probe "mixed bool arith"; engine booleanPart folds
-        // LEFT over the accumulated chain): an operator-built and/or whose RIGHT operand
-        // is an operator-built comparison rotates at EMISSION — the parse stays the
-        // semantic and(gt,lt) shape the compiler types (conform-by-emission).
-        f = rotateFlatBoolean(f);
-        // n-ary flatten applies to OPERATOR-SPELLED chains only: an arrow-spelled
-        // (10)->times(2) is a plain two-parameter call (inline corpus TestM3AntlrParser)
-        if (NARY_ARITHMETIC.contains(f.function()) && f.infix()) {
-            naryArithmetic(b, f, topSpanOverride);
-            return;
-        }
-        // (equal/and/or over a parenthesised arithmetic chain probed harmless: the inner
-        // func keeps its operator-run span, nothing special — ProbeWireShapes parenEq.)
+        // NO SHAPE PATCHES HERE: the parser carries the engine's tree — n-ary
+        // plus[Collection[...]], booleanPart accumulator rotation, run-context
+        // spans — at PARSE time (SpecParser's combined loop; implementation
+        // audit §1.1/§1.3). Operator-built nodes emit structurally like any
+        // other func; an arrow-spelled (10)->times(2) stays a plain
+        // two-parameter call because the parser built it that way.
         if ("new".equals(f.function()) && !f.parameters().isEmpty()
                 && f.parameters().get(f.parameters().size() - 1)
                         instanceof com.legend.protocol.spec.NewInstance ni) {
@@ -1365,70 +1310,6 @@ public final class ProtocolEmitter {
         b.append("],\"sourceInformation\":");
         srcInfo(b, topSpanOverride != null ? topSpanOverride
                 : requirePos(f.pos(), "func " + f.function()));
-        b.append('}');
-    }
-
-    /**
-     * {@code a + b + c} on the wire is ONE {@code plus} whose single parameter is a collection
-     * of all operands (probe: multiplicity {@code [n..n]}, span from the FIRST operator token
-     * to the end of the chain — which is the innermost climb node's span start and the
-     * outermost's end). Our precedence climb builds a left-nested tree of the same operator;
-     * flatten its left spine.
-     */
-    private static void naryArithmetic(StringBuilder b,
-                                       com.legend.protocol.spec.AppliedFunction f,
-                                       @com.legend.Nullable SourceInfo topSpanOverride) {
-        if (f.parameters().size() == 1) {
-            // UNARY form (ProbeWireShapes cNeg): one direct parameter, NO collection,
-            // span = the operator token only.
-            b.append("{\"_type\":\"func\",\"function\":");
-            str(b, f.function());
-            b.append(",\"parameters\":[");
-            valueSpec(b, f.parameters().get(0));
-            b.append("],\"sourceInformation\":");
-            srcInfo(b, topSpanOverride != null ? topSpanOverride
-                    : requirePos(f.pos(), "unary " + f.function()));
-            b.append('}');
-            return;
-        }
-        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> operands =
-                new java.util.ArrayDeque<>();
-        com.legend.protocol.spec.AppliedFunction node = f;
-        while (true) {
-            require(node.parameters().size() == 2, "non-infix " + node.function(), "arity "
-                    + node.parameters().size());
-            operands.addFirst(node.parameters().get(1));
-            if (node.parameters().get(0) instanceof com.legend.protocol.spec.AppliedFunction inner
-                    && inner.function().equals(f.function())
-                    // a UNARY head (+'a' + 'b') is an OPERAND of the run, not spine
-                    // (probe "unary plus chain")
-                    && inner.parameters().size() == 2
-                    && !inner.grouped()) {
-                node = inner;
-            } else {
-                operands.addFirst(node.parameters().get(0));
-                break;
-            }
-        }
-        // The func's span is its own operator-run context, carried on the node by the
-        // climb. The COLLECTION keeps that same span — UNLESS the run's last operand was
-        // claimed by a tighter operator (its context lies entirely after the run's), in
-        // which case the engine's walker leaves the collection stamped with the CLAIMING
-        // context (ProbeWireShapes "precedence zoo": 2 + 2 * 4 -> plus coll spans the
-        // times segment). In let context only the FUNC span is overridden.
-        SourceInfo ctx = requirePos(f.pos(), "func " + f.function());
-        SourceInfo coll = ctx;
-        if (operands.peekLast() instanceof com.legend.protocol.spec.AppliedFunction lastOp
-                && lastOp.pos() != null
-                && startsAfter(lastOp.pos(), ctx)) {
-            coll = lastOp.pos();
-        }
-        b.append("{\"_type\":\"func\",\"function\":");
-        str(b, f.function());
-        b.append(",\"parameters\":[");
-        collection(b, java.util.List.copyOf(operands), coll);
-        b.append("],\"sourceInformation\":");
-        srcInfo(b, topSpanOverride != null ? topSpanOverride : ctx);
         b.append('}');
     }
 
@@ -1521,11 +1402,23 @@ public final class ProtocolEmitter {
             // flavor): a key expression keeps only the FIRST ATOM of an unparenthesised
             // infix chain — s='a'+'b'+$v emits just 'a', h=$a||$b emits just $a.
             com.legend.protocol.spec.ValueSpecification kv = e.getValue().value();
+            // Two spellings of an infix chain: pairwise params (divide, comparisons,
+            // equal/and/or) strip to the first parameter; the n-ary collection carrier
+            // (plus/minus/times — parser-shaped like the engine) strips to the first
+            // collection element.
             while (kv instanceof com.legend.protocol.spec.AppliedFunction chain
                     && INFIX_FAMILIES.contains(chain.function())
-                    && !chain.grouped()
-                    && chain.parameters().size() == 2) {
-                kv = chain.parameters().get(0);
+                    && !chain.grouped()) {
+                if (chain.parameters().size() == 2) {
+                    kv = chain.parameters().get(0);
+                } else if (chain.parameters().size() == 1
+                        && chain.parameters().get(0)
+                                instanceof com.legend.protocol.spec.PureCollection run
+                        && run.values().size() >= 2) {
+                    kv = run.values().get(0);
+                } else {
+                    break;
+                }
             }
             valueSpec(b, kv);
             b.append(",\"key\":{\"_type\":\"string\",\"value\":");
@@ -1937,11 +1830,6 @@ public final class ProtocolEmitter {
     }
 
     /** True when {@code s} begins strictly after {@code ctx} ends. */
-    private static boolean startsAfter(SourceInfo s, SourceInfo ctx) {
-        return s.startLine() > ctx.endLine()
-                || (s.startLine() == ctx.endLine() && s.startColumn() > ctx.endColumn());
-    }
-
     /** {@code {"_type":"collection","multiplicity":{n,n},"sourceInformation":…,"values":[…]}} */
     private static void collection(StringBuilder b,
                                    List<com.legend.protocol.spec.ValueSpecification> values,

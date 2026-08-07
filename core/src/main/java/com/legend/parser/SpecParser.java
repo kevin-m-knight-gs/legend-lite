@@ -140,18 +140,28 @@ import java.util.Objects;
  *       uses the same machinery internally.</li>
  * </ul>
  *
- * <h3>Precedence (matching engine's {@code PureQueryParser})</h3>
- * <p>Pure's grammar is intentionally <em>flat</em> within arithmetic:
- * {@code 1 + 2 * 3} parses as {@code (1 + 2) * 3}, not
- * {@code 1 + (2 * 3)}. There is no precedence distinction between
- * {@code +} and {@code *}; same-operator chains stay together
- * ({@code 1 + 2 + 3} chains in one node-builder call), different
- * operators bubble up to the combined-expression loop and chain
- * left-to-right. The structure has three nested levels:
+ * <h3>Precedence (the engine's {@code DomainParseTreeWalker}, verbatim)</h3>
+ * <p>The top level reproduces the engine's
+ * {@code combinedExpression = expression (arithmeticPart | booleanPart)*}
+ * walk exactly &mdash; including its accumulator-threading quirks (see
+ * {@link EngineQuirks}) &mdash; so the tree the compiler receives IS the
+ * tree the wire describes; the emitter has no shape patches. Grammar
+ * facts this encodes (M3ParserGrammar.g4:199-211):
+ * <ul>
+ *   <li>an {@code arithmeticPart} is a SAME-OP RUN
+ *       ({@code (PLUS expression)+} | minus/star/divide runs) or a
+ *       single comparison ({@code < <= > >= expression});</li>
+ *   <li>{@code plus}/{@code minus}/{@code times} wrap all operands in
+ *       ONE collection parameter ({@code plus[Collection[a,b,c]]});
+ *       {@code divide} and the comparisons take pairwise params;</li>
+ *   <li>{@code booleanPart} is {@code (AND|OR) expression}; boolean and
+ *       arithmetic parts interleave through the shared accumulators of
+ *       {@link #parseCombinedExpression()}.</li>
+ * </ul>
+ * The structure has three nested levels:
  * <ol>
- *   <li>{@link #parseCombinedExpression()} &mdash; outermost.
- *       Loops over {@code &&}/{@code ||}/arithmetic ops, building
- *       left-associative call chains.</li>
+ *   <li>{@link #parseCombinedExpression()} &mdash; outermost. The
+ *       engine's combined loop over boolean/arithmetic parts.</li>
  *   <li>{@link #parseExpression()} &mdash; middle. Handles postfix
  *       ({@code .}, {@code ->}) and a single trailing
  *       {@code ==}/{@code !=} after them.</li>
@@ -399,22 +409,48 @@ public final class SpecParser implements TokenStreamCursor {
     // -------------------------------------------------------------------
 
     /**
-     * Outermost expression entry &mdash; handles {@code &&}/{@code ||}
-     * and arithmetic-style binary operators in a flat, left-associative
-     * sequence (matching Pure's grammar; see precedence note in the
-     * class Javadoc). Calls {@link #parseExpression()} for each operand.
+     * Outermost expression entry &mdash; the engine's
+     * {@code DomainParseTreeWalker.combinedExpression} loop, verbatim.
+     * Consecutive parts of one kind accumulate and flush as a group when
+     * the other kind (or the end) arrives; the two results thread
+     * crosswise &mdash; a boolean group folds over the latest
+     * <em>arithmetic</em> result and vice versa. This single rule
+     * produces the engine's boolean-then-arithmetic shape
+     * ({@code 1 && 2 + 3} &rarr; {@code plus[Collection[and(1,2), 3]]})
+     * and its depth-2 form ({@code 1 || 2 < 3 && 4} &rarr;
+     * {@code and(lessThan(or(1,2), 3), 4)}).
      */
     private ValueSpecification parseCombinedExpression() {
         ValueSpecification expr = parseExpression();
+        // engine invariant: arth and bool are never both non-empty — one is
+        // flushed the moment a part of the other kind arrives
+        List<OperatorParts.ArithPart> arth = new ArrayList<>();
+        List<OperatorParts.BoolPart> bool = new ArrayList<>();
+        ValueSpecification boolResult = expr;
+        ValueSpecification arithResult = expr;
         while (!atEnd()) {
             TokenType t = peek();
-            if (t == TokenType.AND || t == TokenType.OR) {
-                expr = parseBooleanPart(expr);
-            } else if (isArithmeticOp(t)) {
-                expr = parseArithmeticPart(expr);
+            if (isArithmeticOp(t)) {
+                if (!bool.isEmpty()) {
+                    boolResult = OperatorParts.booleanPart(bool, arithResult);
+                    bool.clear();
+                }
+                arth.add(parseArithmeticPartContext());
+            } else if (t == TokenType.AND || t == TokenType.OR) {
+                if (!arth.isEmpty()) {
+                    arithResult = OperatorParts.arithmeticPart(arth, boolResult);
+                    arth.clear();
+                }
+                bool.add(parseBooleanPartContext());
             } else {
                 break;
             }
+        }
+        if (!arth.isEmpty()) {
+            return OperatorParts.arithmeticPart(arth, boolResult);
+        }
+        if (!bool.isEmpty()) {
+            return OperatorParts.booleanPart(bool, arithResult);
         }
         return expr;
     }
@@ -512,18 +548,19 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     /**
-     * Helper used by the right-hand side of {@code ==}/{@code !=}: a
-     * single expression plus any trailing arithmetic chain (but no
-     * {@code &&}/{@code ||} &mdash; those would re-enter the
+     * The grammar's {@code combinedArithmeticOnly: expression
+     * arithmeticPart*} &mdash; the right-hand side of {@code ==}/
+     * {@code !=} (no {@code &&}/{@code ||}; those would re-enter the
      * combined-expression loop and never terminate the equality
-     * production).
+     * production). Same accumulator machinery as the combined loop.
      */
     private ValueSpecification parseCombinedArithmeticOnly() {
         ValueSpecification expr = parseExpression();
+        List<OperatorParts.ArithPart> parts = new ArrayList<>();
         while (!atEnd() && isArithmeticOp(peek())) {
-            expr = parseArithmeticPart(expr);
+            parts.add(parseArithmeticPartContext());
         }
-        return expr;
+        return parts.isEmpty() ? expr : OperatorParts.arithmeticPart(parts, expr);
     }
 
     private static boolean isArithmeticOp(TokenType t) {
@@ -537,97 +574,47 @@ public final class SpecParser implements TokenStreamCursor {
                 || t == TokenType.GREATER_OR_EQUAL;
     }
 
-    /**
-     * {@code &&} or {@code ||}, desugared to
-     * {@code and(left, right)} / {@code or(left, right)}. The right
-     * operand is parsed via {@link #parseCombinedArithmeticOnly()} so
-     * the boolean operator binds <em>looser</em> than arithmetic but
-     * <em>tighter</em> than no operator at all &mdash; matching
-     * engine's grammar.
-     */
-    private AppliedFunction parseBooleanPart(ValueSpecification left) {
-        TokenType t = peek();
-        String fn = (t == TokenType.AND) ? "and" : "or";
+    // -------------------------------------------------------------------
+    // Engine-shaped operator contexts (the builders live in OperatorParts)
+    // -------------------------------------------------------------------
+
+    private OperatorParts.ArithPart parseArithmeticPartContext() {
+        TokenType op = peek();
+        int firstOp = pos;
+        String fn = switch (op) {
+            case PLUS -> "plus";
+            case MINUS -> "minus";
+            case STAR -> "times";
+            case DIVIDE -> "divide";
+            case LESS_THAN -> "lessThan";
+            case LESS_OR_EQUAL -> "lessThanEqual";
+            case GREATER_THAN -> "greaterThan";
+            case GREATER_OR_EQUAL -> "greaterThanEqual";
+            default -> throw new IllegalStateException(
+                    "parseArithmeticPartContext on non-arithmetic token: " + op);
+        };
+        if (op == TokenType.LESS_THAN || op == TokenType.LESS_OR_EQUAL
+                || op == TokenType.GREATER_THAN || op == TokenType.GREATER_OR_EQUAL) {
+            pos++;
+            ValueSpecification rhs = parseExpression();
+            return new OperatorParts.ArithPart(fn, true, List.of(rhs),
+                    spanOf(firstOp, pos - 1));
+        }
+        // same-op run: (PLUS expression)+ etc. — greedy, one context
+        List<ValueSpecification> operands = new ArrayList<>();
+        while (!atEnd() && peek() == op) {
+            pos++;
+            operands.add(parseExpression());
+        }
+        return new OperatorParts.ArithPart(fn, false, operands,
+                spanOf(firstOp, pos - 1));
+    }
+
+    private OperatorParts.BoolPart parseBooleanPartContext() {
+        String fn = (peek() == TokenType.AND) ? "and" : "or";
         int opTok = pos;
         pos++;
-        ValueSpecification right = parseCombinedArithmeticOnly();
-        // REAL Pure: && binds tighter than || (engine DomainParseTreeWalker's
-        // isLowerPrecedenceBoolean) — an AND-chain claims the operand before
-        // an OR folds it: a || b && c == or(a, and(b, c)).
-        while (fn.equals("or") && !atEnd() && peek() == TokenType.AND) {
-            right = parseBooleanPart(right);
-        }
-        // Engine convention: and/or span the OPERATOR TOKEN only.
-        return new AppliedFunction(fn, List.of(left, right), List.of(),
-                spanOf(opTok, opTok), false, false, true);
-    }
-
-    /**
-     * Arithmetic and comparison operators desugared to
-     * {@link AppliedFunction}s via PRECEDENCE CLIMBING &mdash; REAL Pure's
-     * grammar (legend-pure {@code AbstractTestPrecedence} is the spec):
-     * {@code *}/{@code /} bind tighter than {@code +}/{@code -}, which bind
-     * tighter than comparisons, so {@code 1 + 2 * 3} is
-     * {@code plus(1, times(2, 3))} = 7. (Engine-lite's flat grammar —
-     * {@code times(plus(1,2),3)} = 9 — was a DIVERGENCE from real Pure that
-     * we deliberately do not carry; caught by an executed lowering test.)
-     * Left-associative within a tier.
-     */
-    private ValueSpecification parseArithmeticPart(ValueSpecification left) {
-        return parseArithmeticClimb(left, 1);
-    }
-
-    private ValueSpecification parseArithmeticClimb(ValueSpecification left, int minPrec) {
-        // Engine span semantics (ProbeWireShapes "precedence zoo"): consecutive SAME-op
-        // segments form one grammar context — the func spans the whole run — while a
-        // DIFFERENT op opens a new context. A tighter op that claims the right operand
-        // does NOT extend the outer context: `2 + 2 * 4` gives plus the span of `+ 2`
-        // only (the pre-claim right end), with times spanning `* 4`.
-        int runStartOp = -1;
-        String runFn = null;
-        while (!atEnd() && isArithmeticOp(peek())
-                && precedenceOf(peek()) >= minPrec) {
-            TokenType op = peek();
-            int prec = precedenceOf(op);
-            String fn = switch (op) {
-                case PLUS -> "plus";
-                case MINUS -> "minus";
-                case STAR -> "times";
-                case DIVIDE -> "divide";
-                case LESS_THAN -> "lessThan";
-                case LESS_OR_EQUAL -> "lessThanEqual";
-                case GREATER_THAN -> "greaterThan";
-                case GREATER_OR_EQUAL -> "greaterThanEqual";
-                default -> throw new IllegalStateException(
-                        "parseArithmeticClimb on non-arithmetic token: " + op);
-            };
-            int opTok = pos;
-            if (!fn.equals(runFn)) {
-                runFn = fn;
-                runStartOp = opTok;
-            }
-            pos++;
-            ValueSpecification right = parseExpression();
-            int rhsEnd = pos - 1;
-            // Tighter-binding operators on the right claim the operand first.
-            while (!atEnd() && isArithmeticOp(peek())
-                    && precedenceOf(peek()) > prec) {
-                right = parseArithmeticClimb(right, precedenceOf(peek()));
-            }
-            left = new AppliedFunction(fn, List.of(left, right), List.of(),
-                    spanOf(runStartOp, rhsEnd), false, false, true);
-        }
-        return left;
-    }
-
-    /** {@code *}/{@code /} &gt; {@code +}/{@code -} &gt; comparisons (real Pure). */
-    private static int precedenceOf(TokenType t) {
-        return switch (t) {
-            case STAR, DIVIDE -> 3;
-            case PLUS, MINUS -> 2;
-            case LESS_THAN, LESS_OR_EQUAL, GREATER_THAN, GREATER_OR_EQUAL -> 1;
-            default -> 0;
-        };
+        return new OperatorParts.BoolPart(fn, parseExpression(), spanOf(opTok, opTok));
     }
 
     /**

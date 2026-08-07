@@ -58,16 +58,21 @@ final class FoldChecker {
         }
         // 3. MapReduce: the body's left op-chain spine strips the accumulator, leaving
         // an element-only transform; the reducer is the same op over two accumulators.
+        // The parser spells the body's operator runs the ENGINE's n-ary way
+        // (plus[Collection[$a, ...]]); the spine-matching below is pairwise, so
+        // binarize the top node first (nested carriers desugar when synth'd).
         String elemParam = lambda.parameters().get(0).name();
         String accParam = lambda.parameters().size() >= 2 ? lambda.parameters().get(1).name() : "y";
-        ValueSpecification transform = elementTransform(lambda.body().get(0), accParam);
+        ValueSpecification body0 = lambda.body().get(0) instanceof AppliedFunction bodyAf
+                ? InfixArith.binarize(bodyAf) : lambda.body().get(0);
+        ValueSpecification transform = elementTransform(body0, accParam);
         if (transform == null) {
-            transform = commutativeElementTransform(lambda.body().get(0), accParam, init);
+            transform = commutativeElementTransform(body0, accParam, init);
         }
         if (transform != null) {
             TypedSpec typedTransform = t.synth(transform,
                     env.with(elemParam, new ExprType(elementType, Multiplicity.Bounded.ONE)));
-            String op = ((AppliedFunction) lambda.body().get(0)).function();
+            String op = ((AppliedFunction) body0).function();
             String freshParam = "__mr_x";
             TypedSpec typedReducer = t.synth(
                     new AppliedFunction(op, List.of(new Variable(accParam), new Variable(freshParam))),
