@@ -28,6 +28,96 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch10Shapes() throws Exception {
+        String db = """
+                ###Relational
+                Database my::DB
+                (
+                  Table t ( name VARCHAR(20), fid INT )
+                  Table f ( id INT )
+                  Join J ( t.fid = f.id )
+                  Join K ( t.fid = f.id )
+                  Filter FLT ( t.fid > 0 )
+                )
+                """;
+        probe("filter-jointype", db + """
+                ###Mapping
+                Mapping my::M30
+                (
+                  my::S: Relational
+                  {
+                    ~filter [my::DB] (INNER)@J | [my::DB] FLT
+                    v: [my::DB]t.name
+                  }
+                )
+                """);
+        probe("inline-embedded", db + """
+                ###Mapping
+                Mapping my::M31
+                (
+                  my::S[s1]: Relational
+                  {
+                    v: [my::DB]t.name,
+                    emb() Inline[other]
+                  }
+                  my::T2[other]: Relational { u: [my::DB]f.id }
+                )
+                """);
+        probe("otherwise-embedded", db + """
+                ###Mapping
+                Mapping my::M32
+                (
+                  my::S[s1]: Relational
+                  {
+                    v: [my::DB]t.name,
+                    emb
+                    (
+                      ~primaryKey ([my::DB]t.fid)
+                      w: [my::DB]t.fid
+                    ) Otherwise ( [other]:[my::DB]@J )
+                  }
+                  my::T2[other]: Relational { u: [my::DB]f.id }
+                )
+                """);
+        probe("xstore-ids", """
+                ###Pure
+                Class my::A3 { id: Integer[1]; }
+                Class my::B3 { aId: Integer[1]; }
+                Association my::AB { a3: my::A3[1]; b3: my::B3[*]; }
+
+                ###Mapping
+                Mapping my::M33
+                (
+                  my::A3[a_set]: Pure { ~src my::A3 id: $src.id }
+                  my::B3[b_set]: Pure { ~src my::B3 aId: $src.aId }
+                  my::AB: XStore
+                  {
+                    a3[b_set, a_set]: $this.aId == $that.id,
+                    b3[a_set, b_set]: $this.id == $that.aId
+                  }
+                )
+                """);
+        probe("pure-decorations", """
+                ###Pure
+                Class my::S4 { v: String[1]; w: String[*]; }
+                Class my::T4 { u: String[1]; }
+
+                ###Mapping
+                Mapping my::M34
+                (
+                  my::S4[s]: Pure
+                  {
+                    ~src my::S4
+                    v: $src.v,
+                    +extra: String[0..1]: $src.v,
+                    w*: $src.w,
+                    u[t_set]: $src.v
+                  }
+                )
+                """);
+    }
+
+    @Test
     void batch8Shapes() throws Exception {
         String db = """
                 ###Relational

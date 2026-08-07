@@ -79,6 +79,7 @@ public final class Protocol {
     public record PXStorePropertyMapping(String ownerClass, String property,
                                          com.legend.protocol.SourceInfo propertySourceInformation,
                                          List<com.legend.protocol.spec.ValueSpecification> crossExpression,
+                                         String source, String target,
                                          com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -148,17 +149,23 @@ public final class Protocol {
             implements PClassMapping {
     }
 
-    public record PPurePropertyMapping(String ownerClass, String property,
+    public record PPurePropertyMapping(@com.legend.Nullable String ownerClass,
+                                       String property,
                                        com.legend.protocol.SourceInfo propertySourceInformation,
+                                       boolean explodeProperty,
+                                       @com.legend.Nullable PLocalProp localMappingProperty,
                                        List<com.legend.protocol.spec.ValueSpecification> transform,
                                        @com.legend.Nullable String source,
+                                       @com.legend.Nullable String target,
                                        com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** A relational class-mapping property line — plain column/nav lines
      *  and embedded blocks ({@code emb[k] ( ... )}) share the list. */
     public sealed interface PPropertyMapping
-            permits PRelPropertyMapping, PEmbeddedPropertyMapping {
+            permits PRelPropertyMapping, PEmbeddedPropertyMapping,
+            PInlineEmbeddedPropertyMapping,
+            POtherwiseEmbeddedPropertyMapping {
     }
 
     public record PRelPropertyMapping(@com.legend.Nullable String ownerClass,
@@ -190,8 +197,36 @@ public final class Protocol {
                                            String property,
                                            com.legend.protocol.SourceInfo propertySourceInformation,
                                            @com.legend.Nullable String id,
+                                           List<PRelOp> primaryKey,
                                            List<PPropertyMapping> propertyMappings,
                                            com.legend.protocol.SourceInfo sourceInformation)
+            implements PPropertyMapping {
+    }
+
+    /** {@code prop() Inline[setId]} — span paren-open..bracket-close
+     *  (probe inline-embedded). */
+    public record PInlineEmbeddedPropertyMapping(@com.legend.Nullable String ownerClass,
+                                                 String property,
+                                                 com.legend.protocol.SourceInfo propertySourceInformation,
+                                                 @com.legend.Nullable String id,
+                                                 String setImplementationId,
+                                                 com.legend.protocol.SourceInfo sourceInformation)
+            implements PPropertyMapping {
+    }
+
+    /** {@code prop ( ... ) Otherwise ( [tgt]:<op> )} — the embedded
+     *  classMapping span runs paren-open..OTHERWISE-close; the otherwise
+     *  op's span STRETCHES back to the {@code [tgt]} bracket (probe
+     *  otherwise-embedded). */
+    public record POtherwiseEmbeddedPropertyMapping(@com.legend.Nullable String ownerClass,
+                                                    String property,
+                                                    com.legend.protocol.SourceInfo propertySourceInformation,
+                                                    @com.legend.Nullable String id,
+                                                    List<PRelOp> primaryKey,
+                                                    List<PPropertyMapping> propertyMappings,
+                                                    PRelOp otherwiseOp,
+                                                    String otherwiseTarget,
+                                                    com.legend.protocol.SourceInfo sourceInformation)
             implements PPropertyMapping {
     }
 
@@ -323,6 +358,7 @@ public final class Protocol {
     public sealed interface PRelOp
             permits PDynaFunc, PColumnRef, PRelLiteral, PRelLiteralList,
             PElemtWithJoins {
+        com.legend.protocol.SourceInfo sourceInformation();
     }
 
     /** {@code [1,2,3]} — items emit the NESTED literal form

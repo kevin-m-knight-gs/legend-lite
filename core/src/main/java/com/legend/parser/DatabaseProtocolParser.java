@@ -658,13 +658,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     private Protocol.PRelOp parseJoinNav(String db, String schemaCtx,
             int s) {
         List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
+        String curDb = db;
         String pendingType = null;
         while (peek() == TokenType.AT) {
             int jS = pos;                           // span INCLUDES the '@'
             advance();
             String jn = parseIdentifier();
             joinPtrs.add(new Protocol.PJoinPtr(
-                    db.isEmpty() ? null : db, pendingType, jn,
+                    curDb.isEmpty() ? null : curDb, pendingType, jn,
                     spanOf(jS, pos - 1)));
             pendingType = null;
             if (peek() == TokenType.GREATER_THAN) {
@@ -674,6 +675,13 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     advance();
                     pendingType = parseIdentifier();
                     expect(TokenType.PAREN_CLOSE);
+                }
+                if (peek() == TokenType.BRACKET_OPEN) {
+                    // > [db2] @Next — re-anchors the NEXT pointer's db;
+                    // spans stay AT the '@' (probe nav-chain-db-each-step)
+                    advance();
+                    curDb = Protocol.unquotePath(parseQualifiedName());
+                    expect(TokenType.BRACKET_CLOSE);
                 }
             } else {
                 break;

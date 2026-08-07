@@ -303,15 +303,57 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         + "' is unbuilt");
             }
             int pS = pos;
+            boolean local = match(TokenType.PLUS);  // span INCLUDES the '+'
+            int identTok = pos;
             String prop = parseIdentifier();
-            SourceInfo propSpan = spanOf(pS, pos - 1);
-            if (peek() == TokenType.STAR || peek() == TokenType.PLUS
-                    || peek() == TokenType.BRACKET_OPEN) {
-                throw error("pure property-mapping decoration '" + safeText()
-                        + "' is unbuilt");
+            SourceInfo propSpan = spanOf(identTok, pos - 1);
+            boolean explode = match(TokenType.STAR);
+            String srcId = id != null ? id : "";
+            String tgtId = null;
+            if (peek() == TokenType.BRACKET_OPEN) {
+                advance();
+                String first = parseIdentifier();
+                if (peek() == TokenType.COMMA) {
+                    advance();
+                    srcId = first;
+                    tgtId = parseIdentifier();
+                } else {
+                    tgtId = first;              // ONE id is the TARGET
+                }
+                expect(TokenType.BRACKET_CLOSE);
             }
-            int colonTok = pos;
+            Protocol.PLocalProp localProp = null;
             expect(TokenType.COLON);
+            if (local) {
+                // +prop: Type[m]: <expr> — the local prop's span is the
+                // IDENT (probe pure-decorations, unlike relational)
+                String type = Protocol.unquotePath(parseQualifiedName());
+                expect(TokenType.BRACKET_OPEN);
+                long lower;
+                Long upper = null;
+                if (peek() == TokenType.STAR) {
+                    advance();
+                    lower = 0L;
+                } else {
+                    lower = Long.parseLong(text());
+                    expect(TokenType.INTEGER);
+                    upper = lower;
+                }
+                if (peek() == TokenType.DOT_DOT) {
+                    advance();
+                    if (peek() == TokenType.STAR) {
+                        advance();
+                        upper = null;
+                    } else {
+                        upper = Long.parseLong(text());
+                        expect(TokenType.INTEGER);
+                    }
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                localProp = new Protocol.PLocalProp(type, lower, upper,
+                        propSpan);
+                expect(TokenType.COLON);
+            }
             int exprStart = pos;
             int depth = 0;
             while (!atEnd()) {
@@ -332,9 +374,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             List<com.legend.protocol.spec.ValueSpecification> body =
                     SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
-            props.add(new Protocol.PPurePropertyMapping(target, prop,
-                    propSpan, body, id != null ? id : "",
-                    spanOf(pS, pos - 1)));
+            props.add(new Protocol.PPurePropertyMapping(
+                    local ? null : target, prop, propSpan, explode,
+                    localProp, body, srcId, tgtId, spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;
@@ -415,6 +457,21 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int pS = pos;
             String prop = parseIdentifier();
             SourceInfo propSpan = spanOf(pS, pos - 1);
+            String srcId = "";
+            String tgtId = "";
+            if (peek() == TokenType.BRACKET_OPEN) {
+                // side[srcSet, tgtSet] (probe xstore-ids)
+                advance();
+                String first = parseIdentifier();
+                if (peek() == TokenType.COMMA) {
+                    advance();
+                    srcId = first;
+                    tgtId = parseIdentifier();
+                } else {
+                    tgtId = first;
+                }
+                expect(TokenType.BRACKET_CLOSE);
+            }
             expect(TokenType.COLON);
             int exprStart = pos;
             int depth = 0;
@@ -437,7 +494,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             List<com.legend.protocol.spec.ValueSpecification> body =
                     SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
             props.add(new Protocol.PXStorePropertyMapping(target, prop,
-                    propSpan, body, spanOf(pS, pos - 1)));
+                    propSpan, body, srcId, tgtId, spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;
@@ -492,9 +549,16 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PJoinPtr> joins = new ArrayList<>();
         String fdb = db;
         String name;
+        String firstType = null;
+        if (peek() == TokenType.PAREN_OPEN) {
+            // ~filter [db] (INNER)@J | ... (probe filter-jointype)
+            advance();
+            firstType = parseIdentifier();
+            expect(TokenType.PAREN_CLOSE);
+        }
         if (peek() == TokenType.AT) {
             String curDb = db;
-            String pendingType = null;
+            String pendingType = firstType;
             while (peek() == TokenType.AT) {
                 int jS = pos;                       // span INCLUDES the '@'
                 advance();
@@ -569,14 +633,64 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // ENCLOSING set id as source (probe embedded-plain)
             int parenTok = pos;
             advance();
+            if (peek() == TokenType.PAREN_CLOSE
+                    && "Inline".equals(tokens.text(
+                            Math.min(pos + 1, tokens.count() - 1)))) {
+                // prop() Inline[setId] — span '('..']' (probe
+                // inline-embedded)
+                advance();
+                advance();                          // Inline
+                expect(TokenType.BRACKET_OPEN);
+                String setId = parseIdentifier();
+                int close = pos;
+                expect(TokenType.BRACKET_CLOSE);
+                props.add(new Protocol.PInlineEmbeddedPropertyMapping(target,
+                        prop, propSpan, embId, setId,
+                        spanOf(parenTok, close)));
+                match(TokenType.COMMA);
+                return;
+            }
             List<Protocol.PPropertyMapping> inner = new ArrayList<>();
+            List<Protocol.PRelOp> pk = new ArrayList<>();
             while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                if (peek() == TokenType.PRIMARY_KEY_CMD) {
+                    advance();
+                    expect(TokenType.PAREN_OPEN);
+                    while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
+                        pk.add(parseEmbeddedOperation());
+                        match(TokenType.COMMA);
+                    }
+                    expect(TokenType.PAREN_CLOSE);
+                    continue;
+                }
                 parsePropertyLine(inner, null, id, scopeDb, scope);
             }
             int close = pos;
             expect(TokenType.PAREN_CLOSE);
+            if (peek() == TokenType.VALID_STRING
+                    && "Otherwise".equals(text())) {
+                // ) Otherwise ( [tgt]:<op> ) — the embedded span runs
+                // through the OTHERWISE close; the op span stretches back
+                // to the '[' (probe otherwise-embedded)
+                advance();
+                expect(TokenType.PAREN_OPEN);
+                int oS = pos;
+                expect(TokenType.BRACKET_OPEN);
+                String tgt = parseIdentifier();
+                expect(TokenType.BRACKET_CLOSE);
+                expect(TokenType.COLON);
+                Protocol.PRelOp op = parseEmbeddedOperation();
+                op = withSpanStart(op, oS);
+                int oClose = pos;
+                expect(TokenType.PAREN_CLOSE);
+                props.add(new Protocol.POtherwiseEmbeddedPropertyMapping(
+                        target, prop, propSpan, embId, pk, inner, op, tgt,
+                        spanOf(parenTok, oClose)));
+                match(TokenType.COMMA);
+                return;
+            }
             props.add(new Protocol.PEmbeddedPropertyMapping(target, prop,
-                    propSpan, embId, inner, spanOf(parenTok, close)));
+                    propSpan, embId, pk, inner, spanOf(parenTok, close)));
             match(TokenType.COMMA);
             return;
         }
@@ -596,9 +710,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 expect(TokenType.INTEGER);
                 upper = lower;
             }
-            if (peek() == TokenType.DOT) {
+            if (peek() == TokenType.DOT_DOT) {
                 advance();
-                expect(TokenType.DOT);
                 if (peek() == TokenType.STAR) {
                     advance();
                     upper = null;
@@ -674,6 +787,27 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     scope);
         }
         expect(TokenType.PAREN_CLOSE);
+    }
+
+    /** The op with its span's START moved to token {@code startTok}. */
+    private Protocol.PRelOp withSpanStart(Protocol.PRelOp op, int startTok) {
+        SourceInfo st = spanOf(startTok, startTok);
+        SourceInfo w = new SourceInfo("", st.startLine(), st.startColumn(),
+                op.sourceInformation().endLine(),
+                op.sourceInformation().endColumn());
+        return switch (op) {
+            case Protocol.PElemtWithJoins ej ->
+                    new Protocol.PElemtWithJoins(ej.joins(),
+                            ej.relationalElement(), w);
+            case Protocol.PColumnRef c -> new Protocol.PColumnRef(c.column(),
+                    c.table(), c.tableAlias(), w);
+            case Protocol.PDynaFunc f -> new Protocol.PDynaFunc(f.funcName(),
+                    f.parameters(), w);
+            case Protocol.PRelLiteral l ->
+                    new Protocol.PRelLiteral(l.value(), w);
+            case Protocol.PRelLiteralList ll ->
+                    new Protocol.PRelLiteralList(ll.values(), w);
+        };
     }
 
     /** One embedded relational operation via THE relational op grammar. */

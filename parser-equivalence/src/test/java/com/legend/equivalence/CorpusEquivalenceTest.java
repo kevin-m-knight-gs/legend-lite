@@ -112,9 +112,16 @@ class CorpusEquivalenceTest {
      * ~filter lambdas, embedded property mappings (recursive, paren-region
      * spans), local +props (source=enclosing, walker:1241), association
      * set-ids + member id, per-step [db] nav re-anchor; single bracket id
-     * is the TARGET, source stays the enclosing id (walker:1211-1216). */
-    private static final int MIN_ELEMENTS_COMPARED = 24108;
-    private static final int MIN_MATCHES = 24108;
+     * is the TARGET, source stays the enclosing id (walker:1211-1216).
+     * 24,108 -> 24,226: batch 10 — inline embedded (prop() Inline[set],
+     * span paren..bracket), otherwise embedded (classMapping span runs
+     * through the Otherwise close; op span stretches back to [tgt]),
+     * embedded ~primaryKey, xstore set-ids, pure decorations (+local
+     * with IDENT-span localMappingProperty, * explode, [id] target),
+     * ~filter (TYPE) join prefix, DOT_DOT multiplicities, per-step nav
+     * [db] re-anchor (batch-9 replace had silently no-op'd). */
+    private static final int MIN_ELEMENTS_COMPARED = 24226;
+    private static final int MIN_MATCHES = 24226;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

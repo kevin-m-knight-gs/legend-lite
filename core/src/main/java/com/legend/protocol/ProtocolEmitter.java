@@ -245,9 +245,13 @@ public final class ProtocolEmitter {
                         str(b, pm.property());
                         b.append(",\"sourceInformation\":");
                         srcInfo(b, pm.propertySourceInformation());
-                        b.append("},\"source\":\"\",\"sourceInformation\":");
+                        b.append("},\"source\":");
+                        str(b, pm.source());
+                        b.append(",\"sourceInformation\":");
                         srcInfo(b, pm.sourceInformation());
-                        b.append(",\"target\":\"\"}");
+                        b.append(",\"target\":");
+                        str(b, pm.target());
+                        b.append('}');
                     }
                     b.append("],\"sourceInformation\":");
                     srcInfo(b, xa.sourceInformation());
@@ -390,9 +394,28 @@ public final class ProtocolEmitter {
             }
             Protocol.PPurePropertyMapping pm = cm.propertyMappings().get(i);
             b.append("{\"_type\":\"purePropertyMapping\","
-                    + "\"explodeProperty\":false,\"property\":{\"class\":");
-            str(b, pm.ownerClass());
-            b.append(",\"property\":");
+                    + "\"explodeProperty\":").append(pm.explodeProperty());
+            if (pm.localMappingProperty() != null) {
+                Protocol.PLocalProp lp = pm.localMappingProperty();
+                b.append(",\"localMappingProperty\":{\"multiplicity\":"
+                        + "{\"lowerBound\":");
+                b.append(lp.lowerBound());
+                if (lp.upperBound() != null) {
+                    b.append(",\"upperBound\":").append(lp.upperBound());
+                }
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, lp.sourceInformation());
+                b.append(",\"type\":");
+                str(b, lp.type());
+                b.append('}');
+            }
+            b.append(",\"property\":{");
+            if (pm.ownerClass() != null) {
+                b.append("\"class\":");
+                str(b, pm.ownerClass());
+                b.append(',');
+            }
+            b.append("\"property\":");
             str(b, pm.property());
             b.append(",\"sourceInformation\":");
             srcInfo(b, pm.propertySourceInformation());
@@ -403,6 +426,10 @@ public final class ProtocolEmitter {
             }
             b.append(",\"sourceInformation\":");
             srcInfo(b, pm.sourceInformation());
+            if (pm.target() != null) {
+                b.append(",\"target\":");
+                str(b, pm.target());
+            }
             b.append(",\"transform\":{\"_type\":\"lambda\",\"body\":[");
             for (int j = 0; j < pm.transform().size(); j++) {
                 if (j > 0) {
@@ -532,7 +559,14 @@ public final class ProtocolEmitter {
                     b.append(",\"id\":");
                     str(b, em.id());
                 }
-                b.append(",\"primaryKey\":[],\"propertyMappings\":[");
+                b.append(",\"primaryKey\":[");
+                for (int i = 0; i < em.primaryKey().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relOp(b, em.primaryKey().get(i));
+                }
+                b.append("],\"propertyMappings\":[");
                 for (int i = 0; i < em.propertyMappings().size(); i++) {
                     if (i > 0) {
                         b.append(',');
@@ -562,6 +596,83 @@ public final class ProtocolEmitter {
                     b.append(",\"target\":");
                     str(b, em.id());
                 }
+                b.append('}');
+            }
+            case Protocol.PInlineEmbeddedPropertyMapping ie -> {
+                b.append("{\"_type\":\"inlineEmbeddedPropertyMapping\"");
+                if (ie.id() != null) {
+                    b.append(",\"id\":");
+                    str(b, ie.id());
+                }
+                b.append(",\"property\":{");
+                if (ie.ownerClass() != null) {
+                    b.append("\"class\":");
+                    str(b, ie.ownerClass());
+                    b.append(',');
+                }
+                b.append("\"property\":");
+                str(b, ie.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ie.propertySourceInformation());
+                b.append("},\"setImplementationId\":");
+                str(b, ie.setImplementationId());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ie.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.POtherwiseEmbeddedPropertyMapping oe -> {
+                b.append("{\"_type\":\"otherwiseEmbeddedPropertyMapping\","
+                        + "\"classMapping\":{\"_type\":\"embedded\"");
+                if (oe.id() != null) {
+                    b.append(",\"id\":");
+                    str(b, oe.id());
+                }
+                b.append(",\"primaryKey\":[");
+                for (int i = 0; i < oe.primaryKey().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relOp(b, oe.primaryKey().get(i));
+                }
+                b.append("],\"propertyMappings\":[");
+                for (int i = 0; i < oe.propertyMappings().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    relPropertyMapping(b, oe.propertyMappings().get(i));
+                }
+                b.append("],\"root\":false,\"sourceInformation\":");
+                srcInfo(b, oe.sourceInformation());
+                b.append("},\"otherwisePropertyMapping\":{"
+                        + "\"_type\":\"relationalPropertyMapping\","
+                        + "\"property\":{");
+                if (oe.ownerClass() != null) {
+                    b.append("\"class\":");
+                    str(b, oe.ownerClass());
+                    b.append(',');
+                }
+                b.append("\"property\":");
+                str(b, oe.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, oe.propertySourceInformation());
+                b.append("},\"relationalOperation\":");
+                relOp(b, oe.otherwiseOp());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, oe.otherwiseOp().sourceInformation());
+                b.append(",\"target\":");
+                str(b, oe.otherwiseTarget());
+                b.append("},\"property\":{");
+                if (oe.ownerClass() != null) {
+                    b.append("\"class\":");
+                    str(b, oe.ownerClass());
+                    b.append(',');
+                }
+                b.append("\"property\":");
+                str(b, oe.property());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, oe.propertySourceInformation());
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, oe.sourceInformation());
                 b.append('}');
             }
         }
