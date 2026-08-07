@@ -1,7 +1,27 @@
 # Audits — index
 
-Five audit rounds have run on `legend-lite`. Their output is four documents with **separate
-lifecycles** — do not merge them into one queue; separate docs are what got the first two executed.
+Audit rounds have run on `legend-lite` since 2026-07. Their output is a set of documents with
+**separate lifecycles** — do not merge them into one queue; separate docs are what got the first
+two executed.
+
+> **Index refreshed 2026-08-06.** The 2026-08 round added five documents (below), and every
+> corpus figure in this file predates the current ledger — **2,398 pass of 2,798** (2,298 of the
+> 2,575 runnable). Take numbers from `docs/GATES.md` and `docs/RELATIONAL_CORPUS.md`, not from here.
+
+### The 2026-08 round
+
+| Doc | Covers |
+|---|---|
+| [`PARSER_IMPLEMENTATION_AUDIT_2026_08.md`](PARSER_IMPLEMENTATION_AUDIT_2026_08.md) | The parser: totality, span fidelity, grammar divergence, architecture, robustness. Found a 33% operator-precedence divergence invisible to every gate. |
+| [`COMPILER_STAGE_AUDIT_2026_08.md`](COMPILER_STAGE_AUDIT_2026_08.md) | Stage 2 (PMCD → PureModel): name/import resolution, the oracle question, type inference, element compilation, diagnostics. **§7 records a decision the project must make** — legend-pure and legend-engine disagree on overload resolution. |
+| [`GRAMMAR_COMPATIBILITY_2026_08.md`](GRAMMAR_COMPATIBILITY_2026_08.md) | Every `###` section: what it would take to be 100% compatible. |
+| [`TEXT_SURGERY_AUDIT_2026_08.md`](TEXT_SURGERY_AUDIT_2026_08.md) | Every regex and string-manipulation site, censused exhaustively. |
+| [`ARCHITECTURE_AUDIT_2026_08.md`](ARCHITECTURE_AUDIT_2026_08.md) | 12 feature areas: did we build the right design, or fix point tests with point solutions? |
+
+Also present and not previously indexed: [`PERFORMANCE_AUDIT.md`](PERFORMANCE_AUDIT.md),
+[`PCT_AUDIT.md`](PCT_AUDIT.md), [`NAME_RESOLUTION_BUG.md`](NAME_RESOLUTION_BUG.md),
+[`SIMPLE_NAME_AUDIT.md`](SIMPLE_NAME_AUDIT.md) (superseded), and the dated
+`audit-20a/20b/20c`, `21a/21b`, `22a/22b` finding sets.
 
 | Doc | Fixes | Status |
 |---|---|---|
@@ -9,7 +29,7 @@ lifecycles** — do not merge them into one queue; separate docs are what got th
 | [`CORRECTNESS_REMEDIATION.md`](CORRECTNESS_REMEDIATION.md) | **Answers** — silent wrong rows, and the scoreboard's own honesty | Tier C0 (four diagnostics) is the entry point |
 | [`TENET_REMEDIATION.md`](TENET_REMEDIATION.md) | **Who does the work** — tenet #1 conformance, 20 ranked violations | V0 (tenet text) first; it makes the rest adjudicable |
 | [`AUDIT_PROGRAM.md`](AUDIT_PROGRAM.md) | **What to audit next** — exhaustive `null` / `try` / `if` sweeps | Plan, not findings. Audit N is a gate and starts now |
-| [`CORPUS_TAXONOMY.md`](CORPUS_TAXONOMY.md) | **The burndown** — root causes behind the 406 non-passing corpus tests, not error messages | Dataset a2ee66f0 (2132 pass; now 2177 — R1, k_ carriers, enum decode already burned). Start at §8 |
+| [`CORPUS_TAXONOMY.md`](CORPUS_TAXONOMY.md) | **The burndown** — root causes behind the 406 non-passing corpus tests, not error messages | ⚠ **Its own banner disowns §8** as historical and supersedes it with `CORPUS_STUDY_2026_08.md`. Use `CORPUS_BURNDOWN_HANDOFF.md` as the burn-down entry point instead. |
 | [`NULL_GATE_VERIFICATION.md`](NULL_GATE_VERIFICATION.md) | **Verification of delivered work** — did the null gate land correctly, and is it aggressive enough | Audit of `a814ffa9..aa5df4f7`. G0–G3 executed |
 | [`STATE_AUDIT.md`](STATE_AUDIT.md) | **State discipline** — every void method, all mutable and ambient state, determinism | 306 voids / 476 records / 10 ThreadLocals enumerated. Start at S0 |
 | [`H2_BACKEND.md`](H2_BACKEND.md) | **H2 as a real backend** — capability map (206/256 constructs), golden-text census, 13-step sequencing | ADOPTED as the loop plan 2026-07-31; verification addendum covers 2.4.240 |
@@ -24,7 +44,10 @@ lifecycles** — do not merge them into one queue; separate docs are what got th
    always flatteringly. Read before trusting any pass rate.
 3. **`TENET_REMEDIATION.md` §1.1** — five invariant headers falsified, every one flattering. Read
    before trusting any `CONTRACT:` comment.
-4. Then whichever tier you're working.
+4. **`docs/GATES.md`** — before claiming anything is green. It names three ways this chain
+   reports success without having checked anything.
+5. **`CORPUS_BURNDOWN_HANDOFF.md`** — the burn-down entry point ("start here").
+6. Then whichever tier you're working.
 
 ## Three things every one of them agrees on
 

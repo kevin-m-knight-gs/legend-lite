@@ -11,10 +11,17 @@
 legend-lite: a clean-room, backwards-compatible reimplementation of FINOS
 legend-engine — parse → normalize → type-check (G) → resolve (H) → lower (I)
 → render (J) → execute (K) on DuckDB — verified against the REAL engine's
-core_relational corpus (2497 tests). **Row equality with engine semantics is
-the contract; golden SQL text is advisory.** Local reference checkouts:
-`/Users/neema/legend/legend-engine` and `/Users/neema/legend/legend-pure`
-(ground-truth every signature/semantic against these, never against memory).
+core_relational corpus (2,798 `<<test.Test>>` functions; 2,575 runnable).
+**Row equality with engine semantics is the contract; golden SQL text is
+advisory.** Local reference checkouts: **`$HOME/legend/legend-engine` and
+`$HOME/legend/legend-pure`** — ground-truth every signature/semantic against
+these, never against memory.
+
+> **Path correction 2026-08-06.** This previously named
+> `/Users/neema/legend/...`. That directory exists on this machine *and is a
+> different checkout* (different inode) from the one the gates actually use.
+> `tools/allgates.sh:19-20` defaults to `$HOME/legend/...`. Following the old
+> path grounds truth against a possibly-divergent tree.
 
 ## Standing tenets (violations get reverted)
 
@@ -36,16 +43,25 @@ the contract; golden SQL text is advisory.** Local reference checkouts:
 
 ## The gate protocol (every slice, no exceptions)
 
+> **`docs/GATES.md` is the authority — it has 8 gates; the 5 below are a
+> subset.** Two protocols is one too many, and this one is missing the h2
+> corpus sweep, the PCT h2modern guard, and parser-equivalence. It also
+> predates the discovery that CI runs only gates 1/2/4 and that gate 4
+> silently skips. **Read `docs/GATES.md` before claiming a green.**
+
+The shape, retained because `.github/workflows/gate.yml` cites this file:
+
 ```
 mvn -pl core clean test          # CLEAN is load-bearing: a warm target/ skips
                                  # compilation and the null gate silently no-ops
                                  # (NULL_GATE_VERIFICATION G0.1)
                                  # must be Failures: 0, Errors: 0, Skipped: 0
-mvn -pl core install -DskipTests
-cd engine && mvn -o test -Dtest='!RelationalCorpusRunner'   # 2729, 0 fail
+mvn -pl core install -DskipTests # REQUIRED before any downstream module —
+                                 # `-pl <x> test` resolves core from ~/.m2
+cd engine && mvn -o test -Dtest='!RelationalCorpusRunner'
 mvn -o test -Dtest='RelationalCorpusRunner'                 # THE sweep
 # diff the FAIL ledger vs the last committed baseline; classify EVERY delta
-cd ../pct && mvn -o test                                    # 1109/1109
+cd ../pct && mvn -o test
 git commit (document deltas per-commit) && push origin main
 ```
 
@@ -123,15 +139,20 @@ git commit (document deltas per-commit) && push origin main
   phantom row killed); F4 predClosedOverParam is shadow-aware; F6 named
   decorrelation wall in substituteParam. F5 (flatten binding re-point
   phantom columns / eager otherwise walls) deferred to the MED batch.
-- The harness (`com.legend.harness.TestBody` + engine's `rcorpus/Runner`)
-  contains ZERO evaluation compensation (audit-verified). Residual policy:
+- ~~The harness contains ZERO evaluation compensation (audit-verified).~~
+  **FALSIFIED** — `docs/TENET_REMEDIATION.md:46`: *"True of the main assert
+  path. Globally false: four compensations, one of them concealing a
+  wrong-answer bug (§3 V1.5)"*, `VERIFIED@16ee3358`. Residual policy:
   comparator rules, order policy (`orderView` — watched duplication),
   `expandHelperCalls` (kept for mapping discovery + assert visibility —
   removal experiment in commit 519dc6c8 proved the rationale).
-- `engine/` module is slated for deletion; blockers: move
-  `rcorpus/Runner`+`RelationalCorpusRunner` to a core-only module, port the
-  PCT adapter (`ExecuteLegendLiteQuery`) off `com.gs.legend.exec` (a second
-  session is on this).
+- `engine/` module is slated for deletion; blockers unchanged as of
+  2026-08-06: move `rcorpus/Runner`+`RelationalCorpusRunner` to a core-only
+  module, port the PCT adapter (`ExecuteLegendLiteQuery`) off
+  `com.gs.legend.exec`. **A third blocker has since appeared:** `engine/`'s
+  server, service and serialization layers are now *load-bearing*, not merely
+  un-ported — core has no HTTP layer, no JSON *writer*, no LSP. See
+  `AGENTS.md` for what legitimately still lives there.
 
 ## Active queue (weight = current error census)
 
