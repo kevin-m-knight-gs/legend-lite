@@ -157,6 +157,50 @@ class ZRelationalProbe {
                   )
                 )
                 """);
+        probe("db-qualified-join-nav", """
+                ###Relational
+                Database my::DBB
+                (
+                  include my::DB
+                  Table P ( id INTEGER PRIMARY KEY, fid INTEGER, name VARCHAR(10) )
+                  Table F ( id INTEGER PRIMARY KEY, legal VARCHAR(10) )
+                  Join PF ([my::DBB]P.fid = [my::DBB]F.id)
+                  View V
+                  (
+                    pid: P.id PRIMARY KEY,
+                    fname: @PF | F.legal
+                  )
+                )
+                """);
+        probe("snapshot-quoted-tabfunc", """
+                ###Relational
+                Database my::DBC
+                (
+                  Table T
+                  (
+                    milestoning( business(BUS_SNAPSHOT_DATE = snap) )
+                    id INTEGER PRIMARY KEY, snap DATE, "quoted col" VARCHAR(10)
+                  )
+                  Table "quoted table" ( id INTEGER PRIMARY KEY )
+                  TabularFunction TF ( id INTEGER )
+                )
+                """);
+        probe("nav-spacing", """
+                ###Relational
+                Database my::DBD
+                (
+                  Table AlternativeID ( id INTEGER PRIMARY KEY, alternativeNameTXT VARCHAR(10) )
+                  Schema E
+                  (
+                    Table M ( id INTEGER PRIMARY KEY )
+                    View V
+                    (
+                      txt:        @MJ | AlternativeID.alternativeNameTXT
+                    )
+                  )
+                  Join MJ (E.M.id = AlternativeID.id)
+                )
+                """);
         probe("include", """
                 ###Relational
                 Database my::DB3

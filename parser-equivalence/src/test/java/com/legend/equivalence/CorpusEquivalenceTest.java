@@ -62,9 +62,15 @@ class CorpusEquivalenceTest {
      * includes at byte parity: n-ary and/or chains, operator-anchored
      * spans, left-operand stretch, qualified table pointers, dimension
      * reparse +1-column quirk, default schema LAST, strictDate infinity.
-     * 90 walls remain (quoted identifiers, TabularFunction, tail). */
-    private static final int MIN_ELEMENTS_COMPARED = 23266;
-    private static final int MIN_MATCHES = 23266;
+     * 90 walls remain (quoted identifiers, TabularFunction, tail).
+     * 23,266 -> 23,282: leg 3b — bracket-qualified refs, elemtWithJoins
+     * nav ops (engine typo preserved) with @-anchored join spans and
+     * schema-context resolution, businessSnapshotMilestoning, quoted
+     * identifiers keep their quotes, TabularFunction slim shape, view
+     * directives as *_CMD tokens; 58 walls left (cross-schema nav span
+     * resolution + unbuilt tail). */
+    private static final int MIN_ELEMENTS_COMPARED = 23282;
+    private static final int MIN_MATCHES = 23282;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

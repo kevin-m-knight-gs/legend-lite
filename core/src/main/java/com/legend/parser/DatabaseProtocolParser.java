@@ -52,6 +52,18 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         this.pos = pos;
     }
 
+    /** Relational identifiers admit QUOTED spellings, which KEEP their
+     *  quotes as the wire name (probe: '"quoted col"'). */
+    @Override
+    public String parseIdentifier() {
+        if (peek() == TokenType.QUOTED_STRING) {
+            String raw = text();
+            advance();
+            return raw;
+        }
+        return TokenStreamCursor.super.parseIdentifier();
+    }
+
     /** Parse one {@code Database qn ( ... )} at {@code tokenIndex}. */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex, "");
@@ -77,6 +89,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         List<Protocol.PPointer> includes = new ArrayList<>();
         List<Protocol.PDbTable> defaultTables = new ArrayList<>();
         List<Protocol.PDbView> defaultViews = new ArrayList<>();
+        List<Protocol.PDbTable> defaultTabFns = new ArrayList<>();
         List<Protocol.PDbSchema> schemas = new ArrayList<>();
         List<Protocol.PDbJoin> joins = new ArrayList<>();
         List<Protocol.PDbFilter> filters = new ArrayList<>();
@@ -91,13 +104,20 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 }
                 case SCHEMA -> schemas.add(parseSchema());
                 case TABLE -> defaultTables.add(parseTable());
-                case VIEW -> defaultViews.add(parseView());
+                case VIEW -> defaultViews.add(parseView("default"));
+                case VALID_STRING -> {
+                    if (!"TabularFunction".equals(text())) {
+                        throw error("unsupported Database member: '"
+                                + safeText() + "'");
+                    }
+                    defaultTabFns.add(parseTabularFunction());
+                }
                 case JOIN -> {
                     int s = pos;
                     advance();
                     String jn = parseIdentifier();
                     expect(TokenType.PAREN_OPEN);
-                    Protocol.PRelOp op = parseOperation();
+                    Protocol.PRelOp op = parseOperation("default");
                     expect(TokenType.PAREN_CLOSE);
                     joins.add(new Protocol.PDbJoin(jn, op, spanOf(s, pos - 1)));
                 }
@@ -108,7 +128,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     advance();
                     String fn = parseIdentifier();
                     expect(TokenType.PAREN_OPEN);
-                    Protocol.PRelOp op = parseOperation();
+                    Protocol.PRelOp op = parseOperation("default");
                     expect(TokenType.PAREN_CLOSE);
                     filters.add(new Protocol.PDbFilter(ft, fn, op,
                             spanOf(s, pos - 1)));
@@ -120,11 +140,12 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         int close = pos;
         expect(TokenType.PAREN_CLOSE);
         SourceInfo dbSpan = spanOf(declStart, close);
-        if (!defaultTables.isEmpty() || !defaultViews.isEmpty()) {
+        if (!defaultTables.isEmpty() || !defaultViews.isEmpty()
+                || !defaultTabFns.isEmpty()) {
             // the implicit default schema takes the WHOLE database span and
             // sorts AFTER named schemas (engine walker append order)
             schemas.add(new Protocol.PDbSchema("default", defaultTables,
-                    defaultViews, List.of(), List.of(), dbSpan));
+                    defaultViews, defaultTabFns, List.of(), List.of(), dbSpan));
         }
         return new Protocol.PDatabase(pkg, name, includes, schemas, joins,
                 filters, dbSpan);
@@ -189,18 +210,43 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PDbTable> tables = new ArrayList<>();
         List<Protocol.PDbView> views = new ArrayList<>();
+        List<Protocol.PDbTable> tabFns = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
             if (peek() == TokenType.TABLE) {
                 tables.add(parseTable());
             } else if (peek() == TokenType.VIEW) {
-                views.add(parseView());
+                views.add(parseView(name));
+            } else if (peek() == TokenType.VALID_STRING
+                    && "TabularFunction".equals(text())) {
+                tabFns.add(parseTabularFunction());
             } else {
                 throw error("unsupported Schema member: '" + safeText() + "'");
             }
         }
         expect(TokenType.PAREN_CLOSE);
-        return new Protocol.PDbSchema(name, tables, views, dec.stereotypes(),
-                dec.taggedValues(), spanOf(s, pos - 1));
+        return new Protocol.PDbSchema(name, tables, views, tabFns,
+                dec.stereotypes(), dec.taggedValues(), spanOf(s, pos - 1));
+    }
+
+    /** {@code TabularFunction TF ( cols )} — slim table shape on the wire
+     *  (columns + name + span; probe snapshot-quoted-tabfunc). */
+    private Protocol.PDbTable parseTabularFunction() {
+        int s = pos;
+        advance();                                  // 'TabularFunction'
+        String name = parseIdentifier();
+        expect(TokenType.PAREN_OPEN);
+        List<Protocol.PDbColumn> columns = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            int cS = pos;
+            String colName = parseIdentifier();
+            Protocol.PDbType type = parseDbType();
+            columns.add(new Protocol.PDbColumn(colName, true, type,
+                    List.of(), spanOf(cS, pos - 1)));
+            match(TokenType.COMMA);
+        }
+        expect(TokenType.PAREN_CLOSE);
+        return new Protocol.PDbTable(name, columns, List.of(), List.of(),
+                List.of(), List.of(), spanOf(s, pos - 1));
     }
 
     private Protocol.PDbTable parseTable() {
@@ -348,11 +394,18 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     : plusOneCols(spanOf(s, pos - 1));
             match(TokenType.COMMA);
             switch (kind) {
-                case "business" -> out.add(new Protocol.PBusinessMilestoning(
+                case "business" -> {
+                    if (kv.containsKey("BUS_SNAPSHOT_DATE")) {
+                        out.add(new Protocol.PBusinessSnapshotMilestoning(
+                                req(kv, "BUS_SNAPSHOT_DATE"), span));
+                        continue;
+                    }
+                    out.add(new Protocol.PBusinessMilestoning(
                         req(kv, "BUS_FROM"), req(kv, "BUS_THRU"),
                         Boolean.parseBoolean(kv.getOrDefault(
                                 "THRU_IS_INCLUSIVE", "false")),
                         infinity, span));
+                }
                 case "processing" -> out.add(new Protocol.PProcessingMilestoning(
                         req(kv, "PROCESSING_IN"), req(kv, "PROCESSING_OUT"),
                         Boolean.parseBoolean(kv.getOrDefault(
@@ -377,7 +430,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         return v;
     }
 
-    private Protocol.PDbView parseView() {
+    private Protocol.PDbView parseView(String schemaCtx) {
         int s = pos;
         expect(TokenType.VIEW);
         Decorations dec = parseDecorations();
@@ -389,34 +442,38 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         List<Protocol.PViewColumnMapping> mappings = new ArrayList<>();
         List<String> primaryKey = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            if (peek() == TokenType.TILDE) {
+            if (peek() == TokenType.DISTINCT_CMD) {
+                advance();
+                distinct = true;
+                continue;
+            }
+            if (peek() == TokenType.FILTER_CMD) {
                 int tS = pos;
                 advance();
-                String directive = parseIdentifier();
-                switch (directive) {
-                    case "distinct" -> distinct = true;
-                    case "filter" -> {
-                        String fn = parseIdentifier();
-                        filter = new Protocol.PViewFilter(fn, spanOf(tS, pos - 1));
-                    }
-                    case "groupBy" -> {
-                        groupBy = new ArrayList<>();
-                        expect(TokenType.PAREN_OPEN);
-                        while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-                            groupBy.add(parseOperation());
-                            match(TokenType.COMMA);
-                        }
-                        expect(TokenType.PAREN_CLOSE);
-                    }
-                    default -> throw error("unsupported view directive: ~"
-                            + directive);
+                if (peek() == TokenType.BRACKET_OPEN) {
+                    advance();                      // [db] filter pointer
+                    parseQualifiedName();
+                    expect(TokenType.BRACKET_CLOSE);
                 }
+                String fn = parseIdentifier();
+                filter = new Protocol.PViewFilter(fn, spanOf(tS, pos - 1));
+                continue;
+            }
+            if (peek() == TokenType.GROUP_BY_CMD) {
+                advance();
+                groupBy = new ArrayList<>();
+                expect(TokenType.PAREN_OPEN);
+                while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
+                    groupBy.add(parseOperation(schemaCtx));
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.PAREN_CLOSE);
                 continue;
             }
             int mS = pos;
             String colName = parseIdentifier();
             expect(TokenType.COLON);
-            Protocol.PRelOp op = parseOperation();
+            Protocol.PRelOp op = parseOperation(schemaCtx);
             if (peek() == TokenType.PRIMARY_KEY) {
                 advance();
                 primaryKey.add(colName);
@@ -438,8 +495,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** OPERATOR-node spans run the OPERATOR TOKEN to the right operand's
      *  end (probed: and 24-38, equal 17-22 for 'A.id = B.id and ...') —
      *  never the left operand's start. */
-    Protocol.PRelOp parseOperation() {
-        Protocol.PRelOp left = parseAnd();
+    Protocol.PRelOp parseOperation(String schemaCtx) {
+        Protocol.PRelOp left = parseAnd(schemaCtx);
         if (peek() != TokenType.RELATIONAL_OR
                 && !(peek() == TokenType.VALID_STRING && "or".equals(text()))) {
             return left;
@@ -452,13 +509,13 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         while (peek() == TokenType.RELATIONAL_OR
                 || (peek() == TokenType.VALID_STRING && "or".equals(text()))) {
             advance();
-            params.add(parseAnd());
+            params.add(parseAnd(schemaCtx));
         }
         return new Protocol.PDynaFunc("or", params, spanOf(firstOp, pos - 1));
     }
 
-    private Protocol.PRelOp parseAnd() {
-        Protocol.PRelOp left = parseComparison();
+    private Protocol.PRelOp parseAnd(String schemaCtx) {
+        Protocol.PRelOp left = parseComparison(schemaCtx);
         if (peek() != TokenType.RELATIONAL_AND
                 && !(peek() == TokenType.VALID_STRING && "and".equals(text()))) {
             return left;
@@ -469,13 +526,13 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         while (peek() == TokenType.RELATIONAL_AND
                 || (peek() == TokenType.VALID_STRING && "and".equals(text()))) {
             advance();
-            params.add(parseComparison());
+            params.add(parseComparison(schemaCtx));
         }
         return new Protocol.PDynaFunc("and", params, spanOf(firstOp, pos - 1));
     }
 
-    private Protocol.PRelOp parseComparison() {
-        Protocol.PRelOp left = parseAtom();
+    private Protocol.PRelOp parseComparison(String schemaCtx) {
+        Protocol.PRelOp left = parseAtom(schemaCtx);
         String fn = switch (peek()) {
             case EQUAL -> "equal";
             case NOT_EQUAL -> "notEqual";
@@ -490,7 +547,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         int opTok = pos;
         advance();
-        Protocol.PRelOp right = parseAtom();
+        Protocol.PRelOp right = parseAtom(schemaCtx);
         SourceInfo compSpan = spanOf(opTok, pos - 1);
         // ENGINE QUIRK (probed): the LEFT operand's context swallows the
         // operator and right operand — its span END is the comparison's
@@ -510,6 +567,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     stretch(c.sourceInformation(), end));
             case Protocol.PRelLiteral l -> new Protocol.PRelLiteral(l.value(),
                     stretch(l.sourceInformation(), end));
+            case Protocol.PElemtWithJoins ej -> ej;   // nav spans stay put
         };
     }
 
@@ -518,11 +576,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 end.endLine(), end.endColumn());
     }
 
-    private Protocol.PRelOp parseAtom() {
+    private Protocol.PRelOp parseAtom(String schemaCtx) {
         int s = pos;
         if (peek() == TokenType.PAREN_OPEN) {
             advance();
-            Protocol.PRelOp inner = parseOperation();
+            Protocol.PRelOp inner = parseOperation(schemaCtx);
             expect(TokenType.PAREN_CLOSE);
             return inner;
         }
@@ -550,8 +608,59 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             String col = parseIdentifier();
             SourceInfo span = spanOf(s, pos - 1);
             return new Protocol.PColumnRef(col, new Protocol.PTablePtr(dbFqn,
-                    dbFqn, "default", "{target}", spanOf(s, s)), "{target}",
+                    dbFqn, schemaCtx, "{target}", spanOf(s, s)), "{target}",
                     span);
+        }
+        if (peek() == TokenType.BRACKET_OPEN) {
+            // [db]table.col — bracket-qualified ref: the bracket db becomes
+            // the pointer's database; ptr srcInfo = TABLE token only,
+            // column span starts at the BRACKET (probe db-qualified)
+            advance();
+            String db = Protocol.unquotePath(parseQualifiedName());
+            expect(TokenType.BRACKET_CLOSE);
+            int tblTok = pos;
+            String schema = "default";
+            String table = parseIdentifier();
+            expect(TokenType.DOT);
+            String column = parseIdentifier();
+            if (peek() == TokenType.DOT) {
+                advance();                          // [db]schema.table.col
+                schema = table;
+                table = column;
+                tblTok = pos - 2;
+                column = parseIdentifier();
+            }
+            return new Protocol.PColumnRef(column, new Protocol.PTablePtr(db,
+                    db, schema, table, spanOf(tblTok, tblTok)), table,
+                    spanOf(s, pos - 1));
+        }
+        if (peek() == TokenType.AT) {
+            // @Join | expr  (also @J1 > @J2 | expr chains)
+            List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
+            while (peek() == TokenType.AT) {
+                int jS = pos;                       // span INCLUDES the '@'
+                advance();
+                String jn = parseIdentifier();
+                joinPtrs.add(new Protocol.PJoinPtr(dbFqn, jn,
+                        spanOf(jS, pos - 1)));
+                if (peek() == TokenType.GREATER_THAN) {
+                    advance();
+                } else {
+                    break;
+                }
+            }
+            expect(TokenType.PIPE);
+            Protocol.PRelOp elem = parseAtom(schemaCtx);
+            if (!"default".equals(schemaCtx)) {
+                // the engine resolves a NON-default-schema view's nav table
+                // against its DECLARATION and stamps declaration-side spans
+                // (probe nav-spacing: table span points at the Table line) —
+                // needs two-pass declaration tracking; refuse until built
+                throw error("join-navigation inside schema '" + schemaCtx
+                        + "' needs declaration-site span resolution (unbuilt)");
+            }
+            return new Protocol.PElemtWithJoins(joinPtrs, elem,
+                    spanOf(s, pos - 1));
         }
         // identifier: function call, or dotted column ref
         String first = parseIdentifier();
@@ -559,7 +668,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             advance();
             List<Protocol.PRelOp> args = new ArrayList<>();
             while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-                args.add(parseOperation());
+                args.add(parseOperation(schemaCtx));
                 match(TokenType.COMMA);
             }
             expect(TokenType.PAREN_CLOSE);
@@ -570,7 +679,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         expect(TokenType.DOT);
         int tblEnd = pos - 2;                       // the first identifier
         String second = parseIdentifier();
-        String schema = "default";
+        String schema = schemaCtx;
         String table = first;
         String column = second;
         if (peek() == TokenType.DOT) {

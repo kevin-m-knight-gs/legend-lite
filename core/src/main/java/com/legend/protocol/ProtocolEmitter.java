@@ -237,7 +237,22 @@ public final class ProtocolEmitter {
             }
             dbTable(b, sc.tables().get(i));
         }
-        b.append("],\"tabularFunctions\":[]");
+        b.append("],\"tabularFunctions\":[");
+        for (int i = 0; i < sc.tabularFunctions().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PDbTable tf = sc.tabularFunctions().get(i);
+            // slim wire: columns + name + span only (probe)
+            b.append('{');
+            dbColumns(b, tf.columns());
+            b.append(",\"name\":");
+            str(b, tf.name());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, tf.sourceInformation());
+            b.append('}');
+        }
+        b.append(']');
         if (!sc.taggedValues().isEmpty()) {
             b.append(",\"taggedValues\":");
             taggedValues(b, sc.taggedValues());
@@ -253,12 +268,19 @@ public final class ProtocolEmitter {
     }
 
     private static void dbTable(StringBuilder b, Protocol.PDbTable t) {
-        b.append("{\"columns\":[");
-        for (int i = 0; i < t.columns().size(); i++) {
+        b.append('{');
+        dbColumns(b, t.columns());
+        b.append(",\"milestoning\":[");
+        emitTableTail(b, t);
+    }
+
+    private static void dbColumns(StringBuilder b, List<Protocol.PDbColumn> cols) {
+        b.append("\"columns\":[");
+        for (int i = 0; i < cols.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            Protocol.PDbColumn c = t.columns().get(i);
+            Protocol.PDbColumn c = cols.get(i);
             b.append("{\"name\":");
             str(b, c.name());
             b.append(",\"nullable\":").append(c.nullable());
@@ -281,7 +303,10 @@ public final class ProtocolEmitter {
             }
             b.append("}}");
         }
-        b.append("],\"milestoning\":[");
+        b.append(']');
+    }
+
+    private static void emitTableTail(StringBuilder b, Protocol.PDbTable t) {
         for (int i = 0; i < t.milestoning().size(); i++) {
             if (i > 0) {
                 b.append(',');
@@ -324,6 +349,14 @@ public final class ProtocolEmitter {
                 b.append(",\"thru\":");
                 str(b, bm.thru());
                 b.append(",\"thruIsInclusive\":").append(bm.thruIsInclusive());
+                b.append('}');
+            }
+            case Protocol.PBusinessSnapshotMilestoning sm -> {
+                b.append("{\"_type\":\"businessSnapshotMilestoning\","
+                        + "\"snapshotDate\":");
+                str(b, sm.snapshotDate());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, sm.sourceInformation());
                 b.append('}');
             }
             case Protocol.PProcessingMilestoning pm -> {
@@ -440,6 +473,27 @@ public final class ProtocolEmitter {
                 str(b, c.table().table());
                 b.append("},\"tableAlias\":");
                 str(b, c.tableAlias());
+                b.append('}');
+            }
+            case Protocol.PElemtWithJoins ej -> {
+                b.append("{\"_type\":\"elemtWithJoins\",\"joins\":[");
+                for (int i = 0; i < ej.joins().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PJoinPtr jp = ej.joins().get(i);
+                    b.append("{\"db\":");
+                    str(b, jp.db());
+                    b.append(",\"name\":");
+                    str(b, jp.name());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, jp.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"relationalElement\":");
+                relOp(b, ej.relationalElement());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, ej.sourceInformation());
                 b.append('}');
             }
             case Protocol.PRelLiteral l -> {

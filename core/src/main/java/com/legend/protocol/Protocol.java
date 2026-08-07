@@ -59,6 +59,7 @@ public final class Protocol {
 
     public record PDbSchema(String name, List<PDbTable> tables,
                             List<PDbView> views,
+                            List<PDbTable> tabularFunctions,
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation) {
@@ -87,7 +88,14 @@ public final class Protocol {
     /** {@code businessMilestoning} / {@code processingMilestoning}; the
      *  optional infinityDate nests a dateTime literal node. */
     public sealed interface PMilestoning
-            permits PBusinessMilestoning, PProcessingMilestoning {
+            permits PBusinessMilestoning, PProcessingMilestoning,
+            PBusinessSnapshotMilestoning {
+    }
+
+    /** {@code business(BUS_SNAPSHOT_DATE = col)}. */
+    public record PBusinessSnapshotMilestoning(String snapshotDate,
+            com.legend.protocol.SourceInfo sourceInformation)
+            implements PMilestoning {
     }
 
     public record PBusinessMilestoning(String from, String thru,
@@ -124,7 +132,19 @@ public final class Protocol {
 
     /** A relational OPERATION node (join/filter/view expressions). */
     public sealed interface PRelOp
-            permits PDynaFunc, PColumnRef, PRelLiteral {
+            permits PDynaFunc, PColumnRef, PRelLiteral, PElemtWithJoins {
+    }
+
+    /** {@code @Join | expr} navigation — the wire _type is the engine's own
+     *  TYPO {@code "elemtWithJoins"}, preserved deliberately. */
+    public record PElemtWithJoins(List<PJoinPtr> joins,
+                                  PRelOp relationalElement,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
+    }
+
+    public record PJoinPtr(String db, String name,
+                           com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     public record PDynaFunc(String funcName, List<PRelOp> parameters,
