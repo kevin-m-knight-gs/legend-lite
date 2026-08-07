@@ -152,6 +152,7 @@ public final class Protocol {
     public record PPurePropertyMapping(@com.legend.Nullable String ownerClass,
                                        String property,
                                        com.legend.protocol.SourceInfo propertySourceInformation,
+                                       @com.legend.Nullable String enumMappingId,
                                        boolean explodeProperty,
                                        @com.legend.Nullable PLocalProp localMappingProperty,
                                        List<com.legend.protocol.spec.ValueSpecification> transform,
@@ -226,6 +227,7 @@ public final class Protocol {
                                                     List<PPropertyMapping> propertyMappings,
                                                     PRelOp otherwiseOp,
                                                     String otherwiseTarget,
+                                                    com.legend.protocol.SourceInfo classMappingSourceInformation,
                                                     com.legend.protocol.SourceInfo sourceInformation)
             implements PPropertyMapping {
     }
@@ -245,7 +247,8 @@ public final class Protocol {
                                   com.legend.protocol.SourceInfo sourceInformation) {
     }
 
-    public record PEnumerationMapping(String id, PPointer enumeration,
+    public record PEnumerationMapping(@com.legend.Nullable String id,
+                                      PPointer enumeration,
                                       List<PEnumValueMapping> enumValueMappings,
                                       com.legend.protocol.SourceInfo sourceInformation) {
     }

@@ -74,7 +74,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (peek() == TokenType.INCLUDE) {
             int s = pos;
             advance();
-            if (peek() == TokenType.MAPPING) {
+            if (peek() == TokenType.SERVICE_MAPPING
+                    && tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                            != TokenType.PATH_SEPARATOR) {
                 advance();                          // 'include mapping qn'
             } else if (peek() == TokenType.VALID_STRING
                     && "dataspace".equals(text())) {
@@ -103,7 +105,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String id = null;
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();                              // [setId]
-            id = parseIdentifier();
+            id = parseSetId();
             expect(TokenType.BRACKET_CLOSE);
         }
         String extendsId = null;
@@ -312,11 +314,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String tgtId = null;
             if (peek() == TokenType.BRACKET_OPEN) {
                 advance();
-                String first = parseIdentifier();
+                String first = parseSetId();
                 if (peek() == TokenType.COMMA) {
                     advance();
                     srcId = first;
-                    tgtId = parseIdentifier();
+                    tgtId = parseSetId();
                 } else {
                     tgtId = first;              // ONE id is the TARGET
                 }
@@ -324,6 +326,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             Protocol.PLocalProp localProp = null;
             expect(TokenType.COLON);
+            String enumId = null;
+            if (peek() == TokenType.ENUMERATION_MAPPING) {
+                advance();                  // EnumerationMapping em: <expr>
+                enumId = parseIdentifier();
+                expect(TokenType.COLON);
+            }
             if (local) {
                 // +prop: Type[m]: <expr> — the local prop's span is the
                 // IDENT (probe pure-decorations, unlike relational)
@@ -375,7 +383,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             List<com.legend.protocol.spec.ValueSpecification> body =
                     SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
             props.add(new Protocol.PPurePropertyMapping(
-                    local ? null : target, prop, propSpan, explode,
+                    local ? null : target, prop, propSpan, enumId, explode,
                     localProp, body, srcId, tgtId, spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
@@ -414,11 +422,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             if (peek() == TokenType.BRACKET_OPEN) {
                 // side[srcSet, tgtSet] (probe assoc-set-ids)
                 advance();
-                String first = parseIdentifier();
+                String first = parseSetId();
                 if (peek() == TokenType.COMMA) {
                     advance();
                     srcId = first;
-                    tgtId = parseIdentifier();
+                    tgtId = parseSetId();
                 } else {
                     tgtId = first;              // TARGET; assoc source null
                 }
@@ -462,11 +470,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             if (peek() == TokenType.BRACKET_OPEN) {
                 // side[srcSet, tgtSet] (probe xstore-ids)
                 advance();
-                String first = parseIdentifier();
+                String first = parseSetId();
                 if (peek() == TokenType.COMMA) {
                     advance();
                     srcId = first;
-                    tgtId = parseIdentifier();
+                    tgtId = parseSetId();
                 } else {
                     tgtId = first;
                 }
@@ -523,7 +531,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             case "merge_OperationSetImplementation_1__SetImplementation_MANY_",
                  "meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_" ->
                     null;   // MERGE emits NO discriminator (probe merge-op)
-            default -> throw error("unsupported operation function: " + fqn);
+            // UNKNOWN functions also emit NO discriminator (probe
+            // custom-op-fn: a__SetImplementation_MANY_())
+            default -> null;
         };
         expect(TokenType.PAREN_OPEN);
         List<String> params = new ArrayList<>();
@@ -536,6 +546,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingOperation(target, targetSpan, id,
                 root, operation, params, spanOf(memberStart, close));
+    }
+
+    /** A set-implementation id — bare NUMBERS are legal ids (probe
+     *  numeric-id: {@code *test::A[1]} emits id "1"). */
+    private String parseSetId() {
+        if (peek() == TokenType.INTEGER) {
+            String t = text();
+            advance();
+            return t;
+        }
+        return parseIdentifier();
     }
 
     /** {@code ~filter [db] NAME} or {@code ~filter [db]@J ... | [db2]NAME}
@@ -614,11 +635,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String embId = null;
         if (peek() == TokenType.BRACKET_OPEN) {
             advance();
-            String first = parseIdentifier();
+            String first = parseSetId();
             if (peek() == TokenType.COMMA) {
                 advance();
                 srcId = first;
-                tgtId = parseIdentifier();
+                tgtId = parseSetId();
             } else {
                 // ONE id is the TARGET; source stays the ENCLOSING id
                 // (engine RelationalParseTreeWalker:1211-1216)
@@ -657,7 +678,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     advance();
                     expect(TokenType.PAREN_OPEN);
                     while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-                        pk.add(parseEmbeddedOperation());
+                        pk.add(parseOpInCtx(scopeDb, scope));
                         match(TokenType.COMMA);
                     }
                     expect(TokenType.PAREN_CLOSE);
@@ -667,25 +688,27 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             int close = pos;
             expect(TokenType.PAREN_CLOSE);
-            if (peek() == TokenType.VALID_STRING
-                    && "Otherwise".equals(text())) {
-                // ) Otherwise ( [tgt]:<op> ) — the embedded span runs
-                // through the OTHERWISE close; the op span stretches back
-                // to the '[' (probe otherwise-embedded)
+            if (peek() == TokenType.OTHERWISE) {
+                // ) Otherwise ( [tgt]:<op> ) — the embedded class
+                // mapping's span runs paren..OTHERWISE-close but the
+                // OUTER pm's span runs OTHERWISE..close; the op span
+                // stretches back to the '[' (probe otherwise-embedded)
+                int otherwiseTok = pos;
                 advance();
                 expect(TokenType.PAREN_OPEN);
                 int oS = pos;
                 expect(TokenType.BRACKET_OPEN);
-                String tgt = parseIdentifier();
+                String tgt = parseSetId();
                 expect(TokenType.BRACKET_CLOSE);
                 expect(TokenType.COLON);
-                Protocol.PRelOp op = parseEmbeddedOperation();
+                Protocol.PRelOp op = parseOpInCtx(scopeDb, scope);
                 op = withSpanStart(op, oS);
                 int oClose = pos;
                 expect(TokenType.PAREN_CLOSE);
                 props.add(new Protocol.POtherwiseEmbeddedPropertyMapping(
                         target, prop, propSpan, embId, pk, inner, op, tgt,
-                        spanOf(parenTok, oClose)));
+                        spanOf(parenTok, oClose),
+                        spanOf(otherwiseTok, oClose)));
                 match(TokenType.COMMA);
                 return;
             }
@@ -733,20 +756,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             enumId = parseIdentifier();
             expect(TokenType.COLON);
         }
-        Protocol.PRelOp op;
-        if (scope != null) {
-            int[] posOut = new int[1];
-            op = DatabaseProtocolParser.scopedOperationAt(tokens, pos, scope,
-                    posOut);
-            pos = posOut[0];
-        } else if (scopeDb != null) {
-            int[] posOut = new int[1];
-            op = DatabaseProtocolParser.operationAt(tokens, pos, scopeDb,
-                    "default", posOut);
-            pos = posOut[0];
-        } else {
-            op = parseEmbeddedOperation();
-        }
+        Protocol.PRelOp op = parseOpInCtx(scopeDb, scope);
         props.add(new Protocol.PRelPropertyMapping(
                 localProp != null ? null : target, prop, propSpan, enumId,
                 localProp, op, srcId, localProp != null ? null : tgtId,
@@ -810,6 +820,26 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         };
     }
 
+    /** One embedded op under the ACTIVE scope context (scope table >
+     *  scope db > bare). */
+    private Protocol.PRelOp parseOpInCtx(
+            @com.legend.Nullable String scopeDb,
+            DatabaseProtocolParser.@com.legend.Nullable ScopeCtx scope) {
+        int[] posOut = new int[1];
+        Protocol.PRelOp op;
+        if (scope != null) {
+            op = DatabaseProtocolParser.scopedOperationAt(tokens, pos, scope,
+                    posOut);
+        } else if (scopeDb != null) {
+            op = DatabaseProtocolParser.operationAt(tokens, pos, scopeDb,
+                    "default", posOut);
+        } else {
+            return parseEmbeddedOperation();
+        }
+        pos = posOut[0];
+        return op;
+    }
+
     /** One embedded relational operation via THE relational op grammar. */
     private Protocol.PRelOp parseEmbeddedOperation() {
         int[] posOut = new int[1];
@@ -824,7 +854,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  pointer type ENUMERATION (probe enum-mapping). */
     private Protocol.PEnumerationMapping parseEnumerationMapping(
             String target, int targetStart, SourceInfo targetSpan) {
-        String id = parseIdentifier();
+        String id = peek() == TokenType.BRACE_OPEN ? null : parseIdentifier();
         expect(TokenType.BRACE_OPEN);
         List<Protocol.PEnumValueMapping> rows = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {

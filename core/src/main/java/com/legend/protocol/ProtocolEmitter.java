@@ -328,8 +328,10 @@ public final class ProtocolEmitter {
             }
             b.append("],\"enumeration\":");
             pointer(b, em.enumeration());
-            b.append(",\"id\":");
-            str(b, em.id());
+            if (em.id() != null) {
+                b.append(",\"id\":");
+                str(b, em.id());
+            }
             b.append(",\"sourceInformation\":");
             srcInfo(b, em.sourceInformation());
             b.append('}');
@@ -393,8 +395,13 @@ public final class ProtocolEmitter {
                 b.append(',');
             }
             Protocol.PPurePropertyMapping pm = cm.propertyMappings().get(i);
-            b.append("{\"_type\":\"purePropertyMapping\","
-                    + "\"explodeProperty\":").append(pm.explodeProperty());
+            b.append("{\"_type\":\"purePropertyMapping\",");
+            if (pm.enumMappingId() != null) {
+                b.append("\"enumMappingId\":");
+                str(b, pm.enumMappingId());
+                b.append(',');
+            }
+            b.append("\"explodeProperty\":").append(pm.explodeProperty());
             if (pm.localMappingProperty() != null) {
                 Protocol.PLocalProp lp = pm.localMappingProperty();
                 b.append(",\"localMappingProperty\":{\"multiplicity\":"
@@ -642,7 +649,7 @@ public final class ProtocolEmitter {
                     relPropertyMapping(b, oe.propertyMappings().get(i));
                 }
                 b.append("],\"root\":false,\"sourceInformation\":");
-                srcInfo(b, oe.sourceInformation());
+                srcInfo(b, oe.classMappingSourceInformation());
                 b.append("},\"otherwisePropertyMapping\":{"
                         + "\"_type\":\"relationalPropertyMapping\","
                         + "\"property\":{");

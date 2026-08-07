@@ -800,6 +800,33 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             advance();
             String db = Protocol.unquotePath(parseQualifiedName());
             expect(TokenType.BRACKET_CLOSE);
+            if (peek() == TokenType.VALID_STRING
+                    && peek(1) == TokenType.PAREN_OPEN) {
+                // [db] add(...) — a dynaFunc under the bracket db; the
+                // OUTER op's span starts at the bracket (probe
+                // db-dynafunc)
+                DatabaseProtocolParser p =
+                        new DatabaseProtocolParser(tokens, pos, db, scope);
+                Protocol.PDynaFunc f =
+                        (Protocol.PDynaFunc) p.parseAtom(schemaCtx);
+                this.pos = p.pos;
+                SourceInfo br = spanOf(s, s);
+                return new Protocol.PDynaFunc(f.funcName(), f.parameters(),
+                        new SourceInfo("", br.startLine(),
+                                br.startColumn(),
+                                f.sourceInformation().endLine(),
+                                f.sourceInformation().endColumn()));
+            }
+            if (scope != null && peek() == TokenType.VALID_STRING
+                    && peek(1) != TokenType.DOT) {
+                // [db] BARECOL under a scope header — column of the
+                // HEADER table; span bracket..ident (probe db-dynafunc)
+                String col = parseIdentifier();
+                return new Protocol.PColumnRef(col, new Protocol.PTablePtr(
+                        db, db, scope.schema(), scope.table(),
+                        scope.tableSpan()), scope.table(),
+                        spanOf(s, pos - 1));
+            }
             int firstTok = pos;                     // FIRST ident anchors
             int tblEndTok = pos;
             String schema = "default";

@@ -28,6 +28,92 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch11Shapes() throws Exception {
+        String db = """
+                ###Relational
+                Database my::DB
+                (
+                  Table t ( name VARCHAR(20), fid INT )
+                )
+                """;
+        probe("pure-enum-transform", """
+                ###Pure
+                Class my::S5 { v: String[1]; }
+                Enum my::E5 { A }
+
+                ###Mapping
+                Mapping my::M40
+                (
+                  my::S5: Pure
+                  {
+                    ~src my::S5
+                    v: EnumerationMapping em5: $src.v
+                  }
+                  my::E5: EnumerationMapping em5
+                  {
+                    A: ['a']
+                  }
+                )
+                """);
+        probe("enum-no-id", """
+                ###Pure
+                Enum my::E6 { BUY, SELL }
+
+                ###Mapping
+                Mapping my::M41
+                (
+                  my::E6: EnumerationMapping
+                  {
+                    BUY: ['B'],
+                    SELL: ['S']
+                  }
+                )
+                """);
+        probe("custom-op-fn", """
+                ###Pure
+                Class my::P6 { n: String[1]; }
+                function my::a(): meta::pure::mapping::SetImplementation[*] { [] }
+
+                ###Mapping
+                Mapping my::M42
+                (
+                  *my::P6[one]: Operation
+                  {
+                    a__SetImplementation_MANY_()
+                  }
+                )
+                """);
+        probe("db-dynafunc", db + """
+                ###Mapping
+                Mapping my::M43
+                (
+                  my::S: Relational
+                  {
+                    v: [my::DB] add(t.fid, add(t.fid, 3)),
+                    scope([my::DB]t)
+                    (
+                      w: [my::DB] name
+                    )
+                  }
+                )
+                """);
+        probe("numeric-id", """
+                ###Pure
+                Class my::S7 { v: String[1]; }
+
+                ###Mapping
+                Mapping my::M44
+                (
+                  *my::S7[1]: Pure
+                  {
+                    ~src my::S7
+                    v: $src.v
+                  }
+                )
+                """);
+    }
+
+    @Test
     void batch10Shapes() throws Exception {
         String db = """
                 ###Relational

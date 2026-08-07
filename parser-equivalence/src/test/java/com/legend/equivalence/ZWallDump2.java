@@ -6,7 +6,7 @@ class ZWallDump2 {
     @Test
     void dump() {
         java.util.Set<String> wanted = java.util.Set.of(
-                "legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-grammar/src/test/java/org/finos/legend/pure/m2/relational/TestSimpleGrammar.java#218");
+                "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-grammar/src/test/java/org/finos/legend/engine/language/pure/compiler/test/TestEmbeddedRelationalCompilationFromGrammar.java#4");
         for (Corpus.Source s : Corpus.all()) {
             if (wanted.contains(s.id())) {
                 System.out.println(s.text());

@@ -119,9 +119,18 @@ class CorpusEquivalenceTest {
      * embedded ~primaryKey, xstore set-ids, pure decorations (+local
      * with IDENT-span localMappingProperty, * explode, [id] target),
      * ~filter (TYPE) join prefix, DOT_DOT multiplicities, per-step nav
-     * [db] re-anchor (batch-9 replace had silently no-op'd). */
-    private static final int MIN_ELEMENTS_COMPARED = 24226;
-    private static final int MIN_MATCHES = 24226;
+     * [db] re-anchor (batch-9 replace had silently no-op'd).
+     * 24,226 -> 24,295: batch 11 — numeric set ids ("1"), pure inline
+     * EnumerationMapping transforms (enumMappingId FIRST key),
+     * EnumerationMapping members without id (key omitted), UNKNOWN
+     * operation functions emit NO discriminator, [db] dynaFunc + [db]
+     * scoped-bare atoms (outer span starts at the bracket), Otherwise is
+     * a KEYWORD token (batch-10 text check was dead), outer otherwise-PM
+     * span = OTHERWISE..close (classMapping span stays paren..close),
+     * otherwise/primaryKey ops inherit the scope db, include-mapping
+     * keyword vs path-head 'mapping' disambiguated. */
+    private static final int MIN_ELEMENTS_COMPARED = 24295;
+    private static final int MIN_MATCHES = 24295;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
