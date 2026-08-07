@@ -36,9 +36,14 @@ class CorpusEquivalenceTest {
 
     /** Bumped deliberately as coverage grows. Lowering it requires saying why in the commit.
      * 19,269 -> 19,305: Measure sites added + SectionIndex excluded + the
-     * comparator drains both directions (implementation audit §3.2). */
-    private static final int MIN_ELEMENTS_COMPARED = 19305;
-    private static final int MIN_MATCHES = 19305;
+     * comparator drains both directions (implementation audit §3.2).
+     * 19,305 -> 22,725: the pureOnly gate is deleted — mixed-section files'
+     * Pure elements compare like any other (implementation audit §3.1),
+     * discovered per Pure section, with non-Pure reference elements named
+     * OUT_OF_SCOPE rows and the assertion-island span emulating the engine's
+     * reparse mechanism instead of a curve-fit quirk. */
+    private static final int MIN_ELEMENTS_COMPARED = 22725;
+    private static final int MIN_MATCHES = 22725;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
@@ -68,7 +73,7 @@ class CorpusEquivalenceTest {
         }
 
         int compared = counts.get(Kind.MATCH) + counts.get(Kind.DIFF);
-        String report = report(sources.size(), all.size(), counts, compared, walls, diffs);
+        String report = report(sources.size(), all, counts, compared, walls, diffs);
         Files.writeString(Path.of("target", "equivalence-report.txt"), report);
         // per-wall detail — the burn-down worklist, one line per walled element
         StringBuilder wd = new StringBuilder();
@@ -110,13 +115,13 @@ class CorpusEquivalenceTest {
                         .reduce("", (x, y) -> x + y + "\n"));
     }
 
-    private static String report(int sources, int verdicts, Map<Kind, Integer> counts, int compared,
+    private static String report(int sources, List<Verdict> all, Map<Kind, Integer> counts, int compared,
                                  Map<String, Integer> walls, List<Verdict> diffs) {
         StringBuilder b = new StringBuilder();
         b.append("PARSER EQUIVALENCE — legend-lite vs legend-engine, byte comparison\n")
                 .append("=".repeat(72)).append('\n')
                 .append(String.format("corpus sources        : %d files%n", sources))
-                .append(String.format("verdicts              : %d%n", verdicts))
+                .append(String.format("verdicts              : %d%n", all.size()))
                 .append(String.format("  MATCH (byte-equal)  : %d%n", counts.get(Kind.MATCH)))
                 .append(String.format("  DIFF  (BUG)         : %d%n", counts.get(Kind.DIFF)))
                 .append(String.format("  WALL  (no rule yet) : %d%n", counts.get(Kind.WALL)))
@@ -124,12 +129,33 @@ class CorpusEquivalenceTest {
                 .append(String.format("  REFERENCE_REJECTED  : %d files%n", counts.get(Kind.REFERENCE_REJECTED)))
                 .append(String.format("  LITE_EXTRA          : %d%n", counts.get(Kind.LITE_EXTRA)))
                 .append(String.format("  LITE_MISSED         : %d%n", counts.get(Kind.LITE_MISSED)))
+                .append(String.format("  OUT_OF_SCOPE        : %d (section-parity worklist)%n",
+                        counts.get(Kind.OUT_OF_SCOPE)))
                 .append(String.format("%ncoverage: %d of %d comparable (%.1f%%)%n",
                         counts.get(Kind.MATCH), compared,
                         compared == 0 ? 0.0 : 100.0 * counts.get(Kind.MATCH) / compared));
         b.append("\nWALLS — the ranked worklist\n").append("-".repeat(72)).append('\n');
         walls.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(20)
                 .forEach(e -> b.append(String.format("  %6d  %s%n", e.getValue(), e.getKey())));
+        List<Verdict> missed = all.stream()
+                .filter(v -> v.kind() == Kind.LITE_MISSED).toList();
+        if (!missed.isEmpty()) {
+            b.append("\nLITE_MISSED — reference elements we never compared\n")
+                    .append("-".repeat(72)).append('\n');
+            missed.stream().limit(30).forEach(v ->
+                    b.append("  ").append(v.sourceId()).append(" :: ")
+                            .append(v.element()).append('\n'));
+        }
+        Map<String, Integer> oos = new java.util.TreeMap<>();
+        all.stream().filter(v -> v.kind() == Kind.OUT_OF_SCOPE)
+                .forEach(v -> oos.merge(v.detail(), 1, Integer::sum));
+        if (!oos.isEmpty()) {
+            b.append("\nOUT_OF_SCOPE by section — the parity worklist\n")
+                    .append("-".repeat(72)).append('\n');
+            oos.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue())
+                    .forEach(e -> b.append(String.format("  %6d  %s%n",
+                            e.getValue(), e.getKey())));
+        }
         if (!diffs.isEmpty()) {
             b.append("\nDIFFS — real divergence, these are bugs\n").append("-".repeat(72)).append('\n');
             diffs.stream().limit(20).forEach(d ->

@@ -39,6 +39,10 @@ class RejectionParityTest {
     /** Sections the Pure-only filter admits — mirrors ParserEquivalence.compare. */
     private static final Pattern SECTION = Pattern.compile("(?m)^###(\\w+)");
 
+    /** Pins whose input has non-Pure sections — no parity claim until section
+     *  parity lands, but NEVER a silent hole: counted and reported. */
+    private int skippedNonPure;
+
     @Test
     void everyEngineRejectedInputIsRejectedHereToo() throws Exception {
         List<Pin> pins = extractPins();
@@ -76,7 +80,9 @@ class RejectionParityTest {
                 .append(String.format("stale (engine accepts): %d%n", engineAccepts))
                 .append(String.format("REJECT_MATCH          : %d%n", rejectMatch))
                 .append(String.format("REJECT_MISS (BUG)     : %d%n", misses.size()))
-                .append(String.format("error-line agreement  : %d of %d%n", lineMatch, rejectMatch));
+                .append(String.format("error-line agreement  : %d of %d%n", lineMatch, rejectMatch))
+                .append(String.format("non-Pure pins skipped : %d (section-parity worklist)%n",
+                        skippedNonPure));
         if (!misses.isEmpty()) {
             report.append("\nMISSES — we accept what the engine refuses\n")
                     .append("-".repeat(72)).append('\n');
@@ -133,7 +139,9 @@ class RejectionParityTest {
                         continue;                   // not a code snippet
                     }
                     // Pure-only inputs: a broken Mapping section is invisible to a
-                    // parser that lexes non-Pure sections opaquely — no parity claim
+                    // parser that lexes non-Pure sections opaquely — no parity
+                    // claim until section parity lands. COUNTED, not silent
+                    // (Phase A): the census prints with the report.
                     Matcher s = SECTION.matcher(input);
                     boolean pureOnly = true;
                     while (s.find()) {
@@ -143,6 +151,7 @@ class RejectionParityTest {
                         }
                     }
                     if (!pureOnly) {
+                        skippedNonPure++;
                         continue;
                     }
                     String lineGroup = m.group(1) != null ? m.group(1) : m.group(3);

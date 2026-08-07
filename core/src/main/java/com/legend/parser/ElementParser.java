@@ -1665,12 +1665,15 @@ public final class ElementParser implements TokenStreamCursor {
     }
 
     /**
-     * In ASSERTION position ({@code => Relation #{...}#}) the engine's walker reparses
-     * the island with a lost line: when content starts on the line AFTER {@code #{},
-     * every span line shifts UP by one and a SINGLE-LINE block's end column lands two
-     * past the {@code ;}; content starting ON the {@code #{} line keeps real lines but
-     * the start column shifts left by one (probe "relation span fit" t1-t3 + corpus
-     * #14/#62). DATA-position islands keep real coordinates.
+     * In ASSERTION position ({@code => Relation #{...}#}) the engine REPARSES
+     * {@code ": " + content.trim()} through a walker anchored at the {@code #{}
+     * token (HelperTestAssertionGrammarParser.parseRelationElement +
+     * buildIslandSourceInformation), so the element's span is a reparse
+     * ARTIFACT, not the content's real coordinates: it starts at the synthetic
+     * {@code :} — {@code (lineOf(#{), colOf(#{)+2)} whatever the content's
+     * indentation — and ends where the trimmed text ends in reparse space
+     * (probe ZAssertSpanProbe, all 8 geometries). DATA-position islands keep
+     * real coordinates.
      */
     private List<com.legend.protocol.Protocol.PTestPayload.RelationElement>
             parseRelationIslandElements(boolean assertionSpans) {
@@ -1684,6 +1687,8 @@ public final class ElementParser implements TokenStreamCursor {
         String source = tokens.source();
         int from = tokens.end(openTok);
         int to = tokens.start(endTok);
+        com.legend.protocol.SourceInfo assertSpan = assertionSpans
+                ? islandReparseSpan(source, from, to, openTok) : null;
         List<com.legend.protocol.Protocol.PTestPayload.RelationElement> out =
                 new ArrayList<>();
         int blockStart = from;
@@ -1702,12 +1707,41 @@ public final class ElementParser implements TokenStreamCursor {
                 a++;
             }
             if (a < i) {
-                out.add(relationBlock(source, a, i, assertionSpans,
-                        tokens.startLine(openTok)));
+                out.add(relationBlock(source, a, i, assertSpan));
             }
             blockStart = i + 1;
         }
         return out;
+    }
+
+    /** The engine's assertion-island span: where {@code ": " + trim(content)}
+     *  lands when reparsed with lineOffset {@code lineOf(#{)-1} and
+     *  columnOffset {@code colOf(#{)+1}. Start is the synthetic {@code :}
+     *  (reparse 1:0); end is the trimmed text's last char — on reparse line 1
+     *  the column offset applies, on later lines the reparse column is raw. */
+    private com.legend.protocol.SourceInfo islandReparseSpan(
+            String source, int from, int to, int openTok) {
+        int t0 = from;
+        while (t0 < to && Character.isWhitespace(source.charAt(t0))) {
+            t0++;
+        }
+        int t1 = to - 1;
+        while (t1 >= t0 && Character.isWhitespace(source.charAt(t1))) {
+            t1--;
+        }
+        int line = tokens.startLine(openTok);
+        int col = tokens.startColumn(openTok);
+        int newlines = 0;
+        int lastNl = -1;
+        for (int i = t0; i <= t1; i++) {
+            if (source.charAt(i) == '\n') {
+                newlines++;
+                lastNl = i;
+            }
+        }
+        int eLine = newlines == 0 ? line : line + newlines;
+        int eCol = newlines == 0 ? (t1 - t0 + 1) + col + 3 : t1 - lastNl;
+        return new com.legend.protocol.SourceInfo("", line, col + 2, eLine, eCol);
     }
 
     /** Quote-aware cell split: commas inside double-quotes do not split; every cell
@@ -1728,9 +1762,12 @@ public final class ElementParser implements TokenStreamCursor {
         return cells;
     }
 
-    /** One relation block over {@code source[a, semi]}; the span includes the ';'. */
+    /** One relation block over {@code source[a, semi]}; the span includes the ';'.
+     *  A non-null {@code assertSpan} (assertion position) REPLACES the real
+     *  coordinates — see {@link #islandReparseSpan}. */
     private com.legend.protocol.Protocol.PTestPayload.RelationElement relationBlock(
-            String source, int a, int semi, boolean assertionSpans, int openLine) {
+            String source, int a, int semi,
+            @com.legend.Nullable com.legend.protocol.SourceInfo assertSpan) {
         String body = source.substring(a, semi);
         List<String> paths = new ArrayList<>();
         int colon = body.indexOf(':');
@@ -1755,24 +1792,12 @@ public final class ElementParser implements TokenStreamCursor {
                 rows.add(cells);
             }
         }
-        int sLine = tokens.lineOf(a);
-        int sCol = tokens.columnOf(a);
-        int eLine = tokens.lineOf(semi);
-        int eCol = tokens.columnOf(semi);
-        if (assertionSpans) {
-            if (sLine == openLine) {
-                sCol -= 1;
-            } else {
-                sLine -= 1;
-                eLine -= 1;
-                if (tokens.lineOf(a) == tokens.lineOf(semi)) {
-                    eCol += 2;                      // single-line block quirk
-                }
-            }
-        }
+        com.legend.protocol.SourceInfo span = assertSpan != null ? assertSpan
+                : new com.legend.protocol.SourceInfo("", tokens.lineOf(a),
+                        tokens.columnOf(a), tokens.lineOf(semi),
+                        tokens.columnOf(semi));
         return new com.legend.protocol.Protocol.PTestPayload.RelationElement(
-                columns, paths, rows, new com.legend.protocol.SourceInfo("",
-                        sLine, sCol, eLine, eCol));
+                columns, paths, rows, span);
     }
 
 

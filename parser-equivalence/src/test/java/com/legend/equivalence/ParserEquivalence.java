@@ -57,7 +57,11 @@ public final class ParserEquivalence {
         LITE_EXTRA,
         /** The reference produced an element we never compared — the
          * one-directional hole (implementation audit §3.2). Must be zero. */
-        LITE_MISSED
+        LITE_MISSED,
+        /** A reference element in a section we do not claim yet — the
+         * closed-world row (grammar-compat §8): named, counted, and the
+         * section-parity worklist. */
+        OUT_OF_SCOPE
     }
 
     public record Verdict(Kind kind, String sourceId, String element, String detail) {
@@ -75,50 +79,29 @@ public final class ParserEquivalence {
      */
     public List<Verdict> compare(Corpus.Source src) {
         List<Verdict> out = new ArrayList<>();
-        Matcher m = SECTION.matcher(src.text());
-        boolean pureOnly = true;
-        while (m.find()) {
-            if (!"Pure".equals(m.group(1))) {
-                pureOnly = false;
-                break;
-            }
-        }
-        if (!pureOnly) {
-            return out;                          // other sections have no emitter yet — not a wall, just out of scope
-        }
+        // The pureOnly gate is DEAD (implementation audit §3.1 / grammar-
+        // compat Phase A): a mixed-section file's ###Pure elements compare
+        // like any other; non-Pure sections classify at the DRAIN as
+        // OUT_OF_SCOPE rows, never silence. Pure CHAR RANGES scope our
+        // site discovery (the lexer consumes section headers, so ranges
+        // come from the same line-anchored ### rule it applies).
+        List<long[]> pureRanges = pureRanges(src.text());
 
-        Map<String, List<String>> referenceBytes;
+        Ref ref;
         try {
-            referenceBytes = referenceElements(src);
+            ref = referenceElements(src);
         } catch (Throwable t) {
             // ONE named verdict per rejected file — silence is not evidence
             out.add(new Verdict(Kind.REFERENCE_REJECTED, src.id(), "-", root(t)));
             return out;
         }
+        Map<String, List<String>> referenceBytes = ref.byFqn();
 
         // Parse the WHOLE file so source information is file-absolute, then position the parser
         // at each top-level `Class` token. Parsing isolated chunks restarts line numbers at 1 —
         // a harness artefact that presents as a parser bug.
         com.legend.lexer.TokenStream ts = Lexer.tokenize(src.text());
-        java.util.List<int[]> sites = new ArrayList<>();
-        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.CLASS)) {
-            sites.add(new int[]{i, 0});
-        }
-        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.ENUM)) {
-            sites.add(new int[]{i, 1});
-        }
-        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.PROFILE)) {
-            sites.add(new int[]{i, 2});
-        }
-        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.ASSOCIATION)) {
-            sites.add(new int[]{i, 3});
-        }
-        for (int i : ElementParser.topLevelIndexes(ts, com.legend.lexer.TokenType.FUNCTION)) {
-            sites.add(new int[]{i, 4});
-        }
-        for (int i : ElementParser.measureSites(ts)) {
-            sites.add(new int[]{i, 5});
-        }
+        java.util.List<int[]> sites = pureSites(ts, pureRanges);
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -155,7 +138,24 @@ public final class ParserEquivalence {
                 continue;
             }
             List<String> queue = referenceBytes.get(fqn);
-            String expected = queue == null || queue.isEmpty() ? null : queue.remove(0);
+            // the engine allows DUPLICATE paths across sections (a Class and a
+            // Mapping both named X) — dequeue the entry of OUR element's kind,
+            // falling back to the head so a real kind mismatch still DIFFs
+            String expected = null;
+            if (queue != null && !queue.isEmpty()) {
+                String prefix = "{\"_type\":\""
+                        + new String[]{"class", "Enumeration", "profile",
+                                "association", "function", "measure"}[site[1]]
+                        + "\"";
+                int pick = 0;
+                for (int q = 0; q < queue.size(); q++) {
+                    if (queue.get(q).startsWith(prefix)) {
+                        pick = q;
+                        break;
+                    }
+                }
+                expected = queue.remove(pick);
+            }
             if (expected == null) {
                 out.add(new Verdict(Kind.LITE_EXTRA, src.id(), fqn, "no reference element"));
                 continue;
@@ -172,35 +172,146 @@ public final class ParserEquivalence {
                     : new Verdict(Kind.DIFF, src.id(), fqn, firstDivergence(expected, actual)));
         }
         // DRAIN: every reference element we never looked up is a named row —
-        // the comparison was one-directional and this is the other direction
+        // the comparison was one-directional and this is the other direction.
+        // An element the SectionIndex places in an unclaimed section is the
+        // section-parity worklist (OUT_OF_SCOPE); a PURE element left over
+        // is a front-door disagreement (LITE_MISSED, asserted zero).
         for (Map.Entry<String, List<String>> e : referenceBytes.entrySet()) {
-            for (int i = 0; i < e.getValue().size(); i++) {
-                out.add(new Verdict(Kind.LITE_MISSED, src.id(), e.getKey(),
-                        "reference element never compared"));
+            for (String leftover : e.getValue()) {
+                // the leftover's OWN _type decides Pure-ness — the SectionIndex
+                // path->section map is ambiguous when the engine allows the
+                // same path in two sections (Class X + Mapping X)
+                boolean pureKind = false;
+                for (String t : new String[]{"class", "Enumeration", "profile",
+                        "association", "function", "measure"}) {
+                    if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
+                        pureKind = true;
+                        break;
+                    }
+                }
+                String sec = ref.sectionOf().getOrDefault(e.getKey(), "?");
+                if (!pureKind && "Pure".equals(sec)) {
+                    // duplicate-path collision (Class X + Mapping X): the
+                    // path->section map answered for the Pure twin — label
+                    // the row by the element's own _type instead
+                    int t0 = leftover.indexOf('"', 10) + 1;
+                    sec = "_type " + leftover.substring(t0, leftover.indexOf('"', t0));
+                }
+                out.add(pureKind
+                        ? new Verdict(Kind.LITE_MISSED, src.id(), e.getKey(),
+                                "reference element never compared")
+                        : new Verdict(Kind.OUT_OF_SCOPE, src.id(), e.getKey(), sec));
             }
         }
         return out;
     }
 
+
+    /** {@code {marker token type -> site parse kind}} for {@link #pureSites}. */
+    private static final Map<com.legend.lexer.TokenType, Integer> MARKERS = Map.of(
+            com.legend.lexer.TokenType.CLASS, 0,
+            com.legend.lexer.TokenType.ENUM, 1,
+            com.legend.lexer.TokenType.PROFILE, 2,
+            com.legend.lexer.TokenType.ASSOCIATION, 3,
+            com.legend.lexer.TokenType.FUNCTION, 4);
+
+    /** Declaration sites scanned PER Pure range — the section-aware form of
+     * {@code ElementParser.topLevelIndexes}/{@code measureSites}. Each range
+     * opens at depth 0 with its first token a declaration position, so a
+     * {@code ###Pure} that follows a Relational {@code )} still yields its
+     * elements, and bracket depth from other sections cannot leak in. */
+    private static java.util.List<int[]> pureSites(
+            com.legend.lexer.TokenStream ts, List<long[]> ranges) {
+        java.util.List<int[]> sites = new ArrayList<>();
+        int cursor = 0;
+        for (long[] r : ranges) {
+            while (cursor < ts.count() && ts.start(cursor) < r[0]) {
+                cursor++;
+            }
+            int depth = 0;
+            boolean declPos = true;
+            for (; cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
+                com.legend.lexer.TokenType t = ts.type(cursor);
+                switch (t) {
+                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                    default -> {
+                        Integer kind = MARKERS.get(t);
+                        if (depth == 0 && declPos && kind != null
+                                && (cursor + 1 >= ts.count() || ts.type(cursor + 1)
+                                        != com.legend.lexer.TokenType.PATH_SEPARATOR)) {
+                            sites.add(new int[]{cursor, kind});
+                        } else if (depth == 0 && declPos
+                                && t == com.legend.lexer.TokenType.VALID_STRING
+                                && "Measure".equals(ts.text(cursor))) {
+                            sites.add(new int[]{cursor, 5});
+                        }
+                    }
+                }
+                declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
+                        || t == com.legend.lexer.TokenType.SEMI_COLON;
+            }
+        }
+        return sites;
+    }
+
+    /** Line-anchored {@code ###} header scan — the lexer's own rule — as
+     * PURE char ranges: the implicit preamble plus every ###Pure body. */
+    private static List<long[]> pureRanges(String text) {
+        List<long[]> ranges = new ArrayList<>();
+        long pureStart = 0;
+        boolean inPure = true;
+        Matcher m = SECTION.matcher(text);
+        while (m.find()) {
+            if (inPure) {
+                ranges.add(new long[]{pureStart, m.start()});
+            }
+            inPure = "Pure".equals(m.group(1));
+            pureStart = m.end();
+        }
+        if (inPure) {
+            ranges.add(new long[]{pureStart, text.length()});
+        }
+        return ranges;
+    }
+
+    private static boolean inRanges(List<long[]> ranges, long offset) {
+        for (long[] r : ranges) {
+            if (offset >= r[0] && offset < r[1]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The reference parser's elements, serialised individually and keyed by FQN. The value
      *  is a LIST: a source may declare the same FQN twice (the SameElementInSameNamespace
      *  test family) and sites pair with reference elements in source order. */
-    private Map<String, List<String>> referenceElements(Corpus.Source src)
-            throws Exception {
+    /** The reference's comparable elements plus, from the SectionIndex it
+     * is excluded for being metadata, each element's SECTION parser name —
+     * the drain's Pure/OUT_OF_SCOPE classifier. */
+    private record Ref(Map<String, List<String>> byFqn,
+                       Map<String, String> sectionOf) {
+    }
+
+    private Ref referenceElements(Corpus.Source src) throws Exception {
         PureModelContextData pmcd = reference.parseModel(src.text());
         Map<String, List<String>> byFqn = new LinkedHashMap<>();
+        Map<String, String> sectionOf = new LinkedHashMap<>();
         for (PackageableElement e : pmcd.getElements()) {
-            // SectionIndex is parse METADATA, not a comparable element —
-            // leaving it in the map made every leftover invisible because
-            // draining would have flagged 4,039 false LITE_MISSED rows
             if (e instanceof org.finos.legend.engine.protocol.pure.v1.model
-                    .packageableElement.section.SectionIndex) {
+                    .packageableElement.section.SectionIndex si) {
+                for (var sec : si.sections) {
+                    for (String path : sec.elements) {
+                        sectionOf.put(path, sec.parserName);
+                    }
+                }
                 continue;
             }
             byFqn.computeIfAbsent(e.getPath(), k -> new ArrayList<>())
                     .add(mapper.writeValueAsString(e));
         }
-        return byFqn;
+        return new Ref(byFqn, sectionOf);
     }
 
     /** A diff message that names the exact JSON path, not just "differs". */

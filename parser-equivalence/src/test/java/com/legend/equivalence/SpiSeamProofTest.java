@@ -11,8 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,8 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SpiSeamProofTest {
 
-    private static final Pattern SECTION = Pattern.compile("(?m)^###(\\w+)");
-
     @Test
     void engineWithLegendLiteSpiMatchesVanillaEngineByteForByte() throws Exception {
         ObjectMapper mapper =
@@ -42,23 +38,14 @@ class SpiSeamProofTest {
 
         int match = 0;
         int bothReject = 0;
-        int skippedNonPure = 0;
         List<String> diffs = new ArrayList<>();
         List<String> engineAsymmetry = new ArrayList<>();
         List<String> asymmetric = new ArrayList<>();
+        // NO pureOnly gate (implementation audit §3.1): mixed-section files are
+        // the production drop-in shape — the SPI routes ###Pure through
+        // legend-lite while the engine's own parsers take the other sections,
+        // and BOTH sides must still agree on the full PMCD
         for (Corpus.Source src : Corpus.all()) {
-            Matcher m = SECTION.matcher(src.text());
-            boolean pureOnly = true;
-            while (m.find()) {
-                if (!"Pure".equals(m.group(1))) {
-                    pureOnly = false;
-                    break;
-                }
-            }
-            if (!pureOnly) {
-                skippedNonPure++;
-                continue;
-            }
             String vanillaJson;
             try {
                 PureModelContextData v = vanilla.parseModel(src.text());
@@ -99,7 +86,6 @@ class SpiSeamProofTest {
                 .append("=".repeat(72)).append('\n')
                 .append(String.format("files byte-identical  : %d%n", match))
                 .append(String.format("both reject           : %d%n", bothReject))
-                .append(String.format("non-Pure (skipped)    : %d%n", skippedNonPure))
                 .append(String.format("engine JSON-asymmetry : %d%n", engineAsymmetry.size()))
                 .append(String.format("DIFF (BUG)            : %d%n", diffs.size()))
                 .append(String.format("asymmetric rejects    : %d%n", asymmetric.size()));
@@ -131,8 +117,11 @@ class SpiSeamProofTest {
                         + " — see target/spi-seam-report.txt");
     }
 
-    /** Bumped deliberately as coverage grows. */
-    private static final int MIN_FILES_MATCHED = 4011;
+    /** Bumped deliberately as coverage grows.
+     * 4,011 -> 4,051: the pureOnly gate is deleted — mixed-section files flow
+     * through the seam (the production drop-in shape); most both-reject under
+     * the extension-less vanilla baseline, +40 parse end-to-end. */
+    private static final int MIN_FILES_MATCHED = 4051;
 
     /** The attributed SPI-ACCEPTS census — files VANILLA rejects that we parse. Every
      *  one is (a) m3-only dialect the engine grammar never supported ('Primitive',
