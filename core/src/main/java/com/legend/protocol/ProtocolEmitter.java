@@ -357,6 +357,14 @@ public final class ProtocolEmitter {
                 b.append(",\"thruIsInclusive\":").append(bm.thruIsInclusive());
                 b.append('}');
             }
+            case Protocol.PProcessingSnapshotMilestoning psm -> {
+                b.append("{\"_type\":\"processingSnapshotMilestoning\","
+                        + "\"snapshotDate\":");
+                str(b, psm.snapshotDate());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, psm.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PBusinessSnapshotMilestoning sm -> {
                 b.append("{\"_type\":\"businessSnapshotMilestoning\","
                         + "\"snapshotDate\":");
@@ -501,6 +509,28 @@ public final class ProtocolEmitter {
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, ej.sourceInformation());
                 b.append('}');
+            }
+            case Protocol.PRelLiteralList ll -> {
+                b.append("{\"_type\":\"literalList\",\"sourceInformation\":");
+                srcInfo(b, ll.sourceInformation());
+                b.append(",\"values\":[");
+                for (int i = 0; i < ll.values().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PRelLiteral it = ll.values().get(i);
+                    b.append("{\"_type\":\"literal\",\"value\":"
+                            + "{\"sourceInformation\":");
+                    srcInfo(b, it.sourceInformation());
+                    b.append(",\"value\":");
+                    if (it.value() instanceof String sv) {
+                        str(b, sv);
+                    } else {
+                        b.append(it.value());
+                    }
+                    b.append("}}");
+                }
+                b.append("]}");
             }
             case Protocol.PRelLiteral l -> {
                 b.append("{\"_type\":\"literal\",\"sourceInformation\":");

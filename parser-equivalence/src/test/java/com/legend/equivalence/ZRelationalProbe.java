@@ -224,6 +224,18 @@ class ZRelationalProbe {
                   )
                 )
                 """);
+        probe("proc-snapshot-array-json", """
+                ###Relational
+                Database my::DBG
+                (
+                  Table T
+                  (
+                    milestoning( processing(PROCESSING_SNAPSHOT_DATE=snap) )
+                    id INTEGER PRIMARY KEY, snap TIMESTAMP, j JSON
+                  )
+                  Join JIn (T.id = T.id and in(T.id, [2,3,4]))
+                )
+                """);
         probe("include", """
                 ###Relational
                 Database my::DB3

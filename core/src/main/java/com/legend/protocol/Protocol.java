@@ -91,7 +91,13 @@ public final class Protocol {
      *  optional infinityDate nests a dateTime literal node. */
     public sealed interface PMilestoning
             permits PBusinessMilestoning, PProcessingMilestoning,
-            PBusinessSnapshotMilestoning {
+            PBusinessSnapshotMilestoning, PProcessingSnapshotMilestoning {
+    }
+
+    /** {@code processing(PROCESSING_SNAPSHOT_DATE = col)}. */
+    public record PProcessingSnapshotMilestoning(String snapshotDate,
+            com.legend.protocol.SourceInfo sourceInformation)
+            implements PMilestoning {
     }
 
     /** {@code business(BUS_SNAPSHOT_DATE = col)}. */
@@ -134,7 +140,16 @@ public final class Protocol {
 
     /** A relational OPERATION node (join/filter/view expressions). */
     public sealed interface PRelOp
-            permits PDynaFunc, PColumnRef, PRelLiteral, PElemtWithJoins {
+            permits PDynaFunc, PColumnRef, PRelLiteral, PRelLiteralList,
+            PElemtWithJoins {
+    }
+
+    /** {@code [1,2,3]} — items emit the NESTED literal form
+     *  ({@code {"_type":"literal","value":{span,value}}}), unlike the flat
+     *  scalar literal (probe proc-snapshot-array-json). */
+    public record PRelLiteralList(List<PRelLiteral> values,
+                                  com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
     }
 
     /** {@code @Join | expr} navigation — the wire _type is the engine's own

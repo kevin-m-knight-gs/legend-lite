@@ -313,6 +313,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "DATE" -> "Date";
             case "TIMESTAMP" -> "Timestamp";
             case "SEMISTRUCTURED" -> "SemiStructured";
+            case "JSON" -> "Json";
             case "OTHER" -> "Other";
             case "ARRAY" -> "Array";
             case "VARCHAR" -> "Varchar";
@@ -376,7 +377,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             expect(TokenType.PAREN_CLOSE);
             // business: ARGS span; processing: WHOLE dimension span —
             // both with the +1-column reparse quirk
-            SourceInfo span = "business".equals(kind)
+            boolean snapshot = kv.containsKey("BUS_SNAPSHOT_DATE")
+                    || kv.containsKey("PROCESSING_SNAPSHOT_DATE");
+            // fromThru-business and BOTH snapshot variants span their ARGS
+            // context; plain processing spans the whole dimension
+            SourceInfo span = "business".equals(kind) || snapshot
                     ? plusOneCols(spanOf(argsStart, argsEnd))
                     : plusOneCols(spanOf(s, pos - 1));
             match(TokenType.COMMA);
@@ -393,11 +398,18 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                                 "THRU_IS_INCLUSIVE", "false")),
                         infinity, span));
                 }
-                case "processing" -> out.add(new Protocol.PProcessingMilestoning(
+                case "processing" -> {
+                    if (kv.containsKey("PROCESSING_SNAPSHOT_DATE")) {
+                        out.add(new Protocol.PProcessingSnapshotMilestoning(
+                                req(kv, "PROCESSING_SNAPSHOT_DATE"), span));
+                        continue;
+                    }
+                    out.add(new Protocol.PProcessingMilestoning(
                         req(kv, "PROCESSING_IN"), req(kv, "PROCESSING_OUT"),
                         Boolean.parseBoolean(kv.getOrDefault(
                                 "OUT_IS_INCLUSIVE", "false")),
                         infinity, span));
+                }
                 default -> throw error("unsupported milestoning kind: " + kind);
             }
         }
@@ -480,42 +492,46 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     // ------------------------------------------------------------------
 
     /** OPERATOR-node spans run the OPERATOR TOKEN to the right operand's
-     *  end (probed: and 24-38, equal 17-22 for 'A.id = B.id and ...') —
-     *  never the left operand's start. */
+     *  end. and/or carry NO precedence (engine booleanOperation is
+     *  RIGHT-recursive): {@code x and y or z} is {@code and(x, or(y,z))};
+     *  CONSECUTIVE same-ops flatten n-ary with the FIRST operator's
+     *  anchor. Parens wrap as a {@code group} dynaFunc. */
     Protocol.PRelOp parseOperation(String schemaCtx) {
-        Protocol.PRelOp left = parseAnd(schemaCtx);
-        if (peek() != TokenType.RELATIONAL_OR
-                && !(peek() == TokenType.VALID_STRING && "or".equals(text()))) {
+        Protocol.PRelOp left = parseComparison(schemaCtx);
+        String op = boolOpHere();
+        if (op == null) {
             return left;
         }
-        // N-ARY: 'a or b or c' is ONE or[a,b,c]; span = FIRST operator
-        // token through the chain's end (probe nary-and-schema-qual)
-        int firstOp = pos;
-        List<Protocol.PRelOp> params = new ArrayList<>();
-        params.add(left);
-        while (peek() == TokenType.RELATIONAL_OR
-                || (peek() == TokenType.VALID_STRING && "or".equals(text()))) {
-            advance();
-            params.add(parseAnd(schemaCtx));
+        int opTok = pos;
+        advance();
+        Protocol.PRelOp rest = parseOperation(schemaCtx);
+        SourceInfo span = spanOf(opTok, pos - 1);
+        if (rest instanceof Protocol.PDynaFunc df && df.funcName().equals(op)) {
+            List<Protocol.PRelOp> params = new ArrayList<>();
+            params.add(left);
+            params.addAll(df.parameters());
+            return new Protocol.PDynaFunc(op, params, span);
         }
-        return new Protocol.PDynaFunc("or", params, spanOf(firstOp, pos - 1));
+        if (rest instanceof Protocol.PDynaFunc df
+                && ("and".equals(df.funcName()) || "or".equals(df.funcName()))) {
+            // a DIFFERENT-op boolean right side wraps in group (engine's
+            // right-recursion goes through the group rule)
+            rest = new Protocol.PDynaFunc("group", List.of(rest),
+                    df.sourceInformation());
+        }
+        return new Protocol.PDynaFunc(op, List.of(left, rest), span);
     }
 
-    private Protocol.PRelOp parseAnd(String schemaCtx) {
-        Protocol.PRelOp left = parseComparison(schemaCtx);
-        if (peek() != TokenType.RELATIONAL_AND
-                && !(peek() == TokenType.VALID_STRING && "and".equals(text()))) {
-            return left;
-        }
-        int firstOp = pos;
-        List<Protocol.PRelOp> params = new ArrayList<>();
-        params.add(left);
-        while (peek() == TokenType.RELATIONAL_AND
+    private @com.legend.Nullable String boolOpHere() {
+        if (peek() == TokenType.RELATIONAL_AND
                 || (peek() == TokenType.VALID_STRING && "and".equals(text()))) {
-            advance();
-            params.add(parseComparison(schemaCtx));
+            return "and";
         }
-        return new Protocol.PDynaFunc("and", params, spanOf(firstOp, pos - 1));
+        if (peek() == TokenType.RELATIONAL_OR
+                || (peek() == TokenType.VALID_STRING && "or".equals(text()))) {
+            return "or";
+        }
+        return null;
     }
 
     private Protocol.PRelOp parseComparison(String schemaCtx) {
@@ -566,6 +582,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case Protocol.PRelLiteral l -> new Protocol.PRelLiteral(l.value(),
                     stretch(l.sourceInformation(), end));
             case Protocol.PElemtWithJoins ej -> ej;   // nav spans stay put
+            case Protocol.PRelLiteralList ll -> new Protocol.PRelLiteralList(
+                    ll.values(), stretch(ll.sourceInformation(), end));
         };
     }
 
@@ -574,13 +592,24 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 end.endLine(), end.endColumn());
     }
 
+    /** {@code [} opens either a db-qualifier or a literal list — a literal
+     *  or string first token means list. */
+    private boolean looksLikeLiteralList() {
+        TokenType n = peek(1);
+        return n == TokenType.INTEGER || n == TokenType.FLOAT
+                || n == TokenType.STRING;
+    }
+
     private Protocol.PRelOp parseAtom(String schemaCtx) {
         int s = pos;
         if (peek() == TokenType.PAREN_OPEN) {
+            int gS = pos;
             advance();
             Protocol.PRelOp inner = parseOperation(schemaCtx);
             expect(TokenType.PAREN_CLOSE);
-            return inner;
+            // parenthesized subexpressions WRAP as a group dynaFunc
+            return new Protocol.PDynaFunc("group", List.of(inner),
+                    spanOf(gS, pos - 1));
         }
         if (peek() == TokenType.STRING) {
             String quoted = text();
@@ -609,7 +638,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     dbFqn, schemaCtx, "{target}", spanOf(s, s)), "{target}",
                     span);
         }
-        if (peek() == TokenType.BRACKET_OPEN) {
+        if (peek() == TokenType.BRACKET_OPEN && !looksLikeLiteralList()) {
             // [db]table.col — bracket-qualified ref: the bracket db becomes
             // the pointer's database; ptr srcInfo = TABLE token only,
             // column span starts at the BRACKET (probe db-qualified)
@@ -631,6 +660,30 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return new Protocol.PColumnRef(column, new Protocol.PTablePtr(db,
                     db, schema, table, spanOf(tblTok, tblTok)), table,
                     spanOf(s, pos - 1));
+        }
+        if (peek() == TokenType.BRACKET_OPEN && looksLikeLiteralList()) {
+            int lS = pos;
+            advance();
+            List<Protocol.PRelLiteral> items = new ArrayList<>();
+            while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                int iS = pos;
+                Object v;
+                if (peek() == TokenType.STRING) {
+                    v = TokenStreamCursor.unquoteAndUnescape(text(), this);
+                } else if (peek() == TokenType.INTEGER) {
+                    v = Long.parseLong(text());
+                } else if (peek() == TokenType.FLOAT) {
+                    v = Double.parseDouble(text());
+                } else {
+                    throw error("unsupported literal-list element: "
+                            + safeText());
+                }
+                advance();
+                items.add(new Protocol.PRelLiteral(v, spanOf(iS, iS)));
+                match(TokenType.COMMA);
+            }
+            expect(TokenType.BRACKET_CLOSE);
+            return new Protocol.PRelLiteralList(items, spanOf(lS, pos - 1));
         }
         if (peek() == TokenType.AT) {
             // @Join | expr  (also @J1 > @J2 | expr chains)

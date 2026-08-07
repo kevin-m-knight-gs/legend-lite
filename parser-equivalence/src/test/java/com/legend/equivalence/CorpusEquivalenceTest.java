@@ -72,9 +72,14 @@ class CorpusEquivalenceTest {
      * 23,282 -> 23,288: '!=' token, postfix is-null/is-not-null with the
      * operand swallowing the operator (probe null-postfix).
      * 23,288 -> 23,300: Database-level stereotypes + column tagged
-     * values (probe db-and-column-decorations); 22 walls left. */
-    private static final int MIN_ELEMENTS_COMPARED = 23300;
-    private static final int MIN_MATCHES = 23300;
+     * values (probe db-and-column-decorations); 22 walls left.
+     * 23,300 -> 23,302: literalList (nested literal items), snapshot
+     * milestoning variants span their ARGS context, Json datatype, and
+     * the boolean grammar corrected — NO and/or precedence
+     * (right-recursive), same-op n-ary flatten, mixed-op right sides and
+     * parens wrap as group dynaFuncs. 18 walls left. */
+    private static final int MIN_ELEMENTS_COMPARED = 23302;
+    private static final int MIN_MATCHES = 23302;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
