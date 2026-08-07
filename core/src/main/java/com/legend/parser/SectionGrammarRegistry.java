@@ -28,24 +28,44 @@ public final class SectionGrammarRegistry {
     private SectionGrammarRegistry() {
     }
 
-    /** One section grammar: its {@code ###name} and whether the shared
-     *  lexer understands its content. */
-    public record SectionGrammar(String name, boolean lexable) {
+    /** A built-in section: content flows through the main token pipeline,
+     *  so its {@link com.legend.spi.SectionGrammar#parse} surface is never
+     *  invoked — calling it is a wiring bug and throws. */
+    private record BuiltIn(String name) implements com.legend.spi.SectionGrammar {
+        @Override
+        public boolean lexable() {
+            return true;
+        }
+
+        @Override
+        public void parse(com.legend.spi.SectionSource src,
+                com.legend.spi.ElementSink out) {
+            throw new IllegalStateException("built-in section '" + name
+                    + "' parses through the main pipeline, not the SPI");
+        }
     }
 
-    private static final Map<String, SectionGrammar> BUILT_INS = builtIns();
+    private static final Map<String, com.legend.spi.SectionGrammar> REGISTRY =
+            build();
 
-    private static Map<String, SectionGrammar> builtIns() {
-        Map<String, SectionGrammar> m = new LinkedHashMap<>();
+    private static Map<String, com.legend.spi.SectionGrammar> build() {
+        Map<String, com.legend.spi.SectionGrammar> m = new LinkedHashMap<>();
         for (String s : new String[]{"Pure", "Mapping", "Relational",
                 "Connection", "Runtime"}) {
-            m.put(s, new SectionGrammar(s, true));
+            m.put(s, new BuiltIn(s));
+        }
+        // ServiceLoader overlays — registered LAST so an extension claiming
+        // a built-in name WINS (the engine's own shadowing rule: that is
+        // exactly what lets legend-lite drop into the engine's ###Pure)
+        for (com.legend.spi.SectionGrammar g : java.util.ServiceLoader
+                .load(com.legend.spi.SectionGrammar.class)) {
+            m.put(g.name(), g);
         }
         return m;
     }
 
     /** The grammar registered for {@code sectionName}, if any. */
-    public static Optional<SectionGrammar> lookup(String sectionName) {
-        return Optional.ofNullable(BUILT_INS.get(sectionName));
+    public static Optional<com.legend.spi.SectionGrammar> lookup(String sectionName) {
+        return Optional.ofNullable(REGISTRY.get(sectionName));
     }
 }

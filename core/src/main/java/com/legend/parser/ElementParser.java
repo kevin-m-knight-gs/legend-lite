@@ -301,14 +301,28 @@ public final class ElementParser implements TokenStreamCursor {
         // an explicit reportable row, never silence (Phase M step 1)
         java.util.List<com.legend.model.ParsedModel.UnclaimedSection> unclaimed =
                 new java.util.ArrayList<>();
+        java.util.List<com.legend.model.ParsedModel.OpaqueElement> opaque =
+                new java.util.ArrayList<>();
         for (var sk : tokens.skippedSections()) {
-            if (SectionGrammarRegistry.lookup(sk.name()).isEmpty()) {
+            var g = SectionGrammarRegistry.lookup(sk.name());
+            if (g.isEmpty()) {
                 unclaimed.add(new com.legend.model.ParsedModel.UnclaimedSection(
                         sk.name(), sk.startOffset(), sk.endOffset()));
+            } else if (!g.get().lexable()) {
+                // an OVERLAY grammar owns this opaque section: hand it the
+                // raw text (foreign grammars never adopt our lexer) and
+                // collect its elements as opaque carriers
+                g.get().parse(new com.legend.spi.SectionSource(sk.name(),
+                                tokens.source().substring(sk.startOffset(),
+                                        sk.endOffset()),
+                                sk.startOffset(), sk.endOffset()),
+                        (fqn, json) -> opaque.add(
+                                new com.legend.model.ParsedModel.OpaqueElement(
+                                        fqn, sk.name(), json)));
             }
         }
         return new ParsedModel(elements, imports.build(), tokens.source(),
-                offsets, elementImports, java.util.Map.of(), unclaimed);
+                offsets, elementImports, java.util.Map.of(), unclaimed, opaque);
     }
 
     /**

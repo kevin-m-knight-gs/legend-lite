@@ -205,7 +205,8 @@ public final class ModelNormalizer {
         // per-element sources and unclaimed sections all survive
         return new ParsedModel(out, parsed.imports(), parsed.source(),
                 parsed.elementOffsets(), parsed.elementImports(),
-                parsed.elementSources(), parsed.unclaimedSections());
+                parsed.elementSources(), parsed.unclaimedSections(),
+                parsed.opaqueElements());
     }
 
     private static String rawName(TypeExpression t) {

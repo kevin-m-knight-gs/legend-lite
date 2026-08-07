@@ -68,7 +68,11 @@ class DropInSurfaceTextRuleTest {
      *  flat island scans that a nested #{ }# truncated. New sites still
      *  need a whitelist edit — and this comment's justification. */
     private static final Map<String, Integer> SOURCE_WHITELIST = Map.of(
-            "parser/ElementParser.java", 5,
+            // 5 island-content reads + 1 OVERLAY handoff: an opaque overlay
+            // section is raw-skipped by the lexer, so its SectionSource text
+            // has no token form to read from — the raw slice IS the SPI
+            // contract (Phase M step 2)
+            "parser/ElementParser.java", 6,
             "parser/SpecParser.java", 1);
 
     @Test

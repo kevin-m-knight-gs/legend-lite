@@ -36,6 +36,26 @@ class SectionGrammarRegistryTest {
     }
 
     @Test
+    void overlayJarSectionParsesThroughTheServiceLoaderSeam() {
+        // the whole Phase M point: a section legend-lite does not know,
+        // added WITHOUT forking — ServiceLoader discovery, raw text in,
+        // opaque elements out, claimed (not unclaimed)
+        ParsedModel m = ElementParser.parse("""
+                Class my::A { a: String[1]; }
+
+                ###Toy
+                Toy my::toys::T1;
+                Toy my::toys::T2;
+                """);
+        assertTrue(m.unclaimedSections().isEmpty(), "Toy is CLAIMED");
+        assertEquals(2, m.opaqueElements().size());
+        assertEquals("my::toys::T1", m.opaqueElements().get(0).fqn());
+        assertEquals("Toy", m.opaqueElements().get(0).sectionName());
+        assertTrue(ToySectionGrammar.lastText.contains("Toy my::toys::T2;"),
+                "the grammar received the section's raw text");
+    }
+
+    @Test
     void registeredSectionsAreNeverUnclaimed() {
         ParsedModel m = ElementParser.parse(
                 "Class my::A { a: String[1]; }");

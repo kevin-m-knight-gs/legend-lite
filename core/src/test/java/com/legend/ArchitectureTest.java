@@ -368,6 +368,7 @@ final class ArchitectureTest {
                                     "com.legend.model..",   // shrinking: dies with the last model-record output
                                     "com.legend.values",
                                     "com.legend.error",     // ParseException extends the shared error vocabulary (a JDK-only leaf, 6g)
+                                    "com.legend.spi",       // the OVERLAY seam (Phase M): SectionGrammarRegistry routes ### sections through it — a stable JDK-only contract, below the parser by design
                                     "java..")
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 7c: the parser consumes tokens and produces protocol"
