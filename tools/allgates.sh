@@ -27,7 +27,11 @@ OFF=()
 # Gate subset: GATES=1,2,3 runs only those. Default is all eight.
 WANT=${GATES:-1,2,3,4,5,6,7,8}
 want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
-L=${GATES_LOG:-/tmp/gates.log}
+# Default the log to a PER-USER path. A fixed /tmp/gates.log is shared across
+# accounts on this box (it was found owned by another user), so writes fail
+# silently and you end up reading someone else's run. TMPDIR is per-user on
+# macOS; the id -un suffix covers Linux, where it is not.
+L=${GATES_LOG:-${TMPDIR:-/tmp}/gates-$(id -un).log}
 # Per-run scratch dir. The old fixed /tmp/g<n>.out paths are shared across
 # users and concurrent runs on this box: "$OUT/g1.out" was found owned by a
 # DIFFERENT account, so the redirect failed and the log's grep silently read
