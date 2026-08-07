@@ -160,7 +160,8 @@ public final class Protocol {
             implements PRelOp {
     }
 
-    public record PJoinPtr(String db, String name,
+    public record PJoinPtr(String db, @com.legend.Nullable String joinType,
+                           String name,
                            com.legend.protocol.SourceInfo sourceInformation) {
     }
 

@@ -236,6 +236,29 @@ class ZRelationalProbe {
                   Join JIn (T.id = T.id and in(T.id, [2,3,4]))
                 )
                 """);
+        probe("join-types-chain", """
+                ###Relational
+                Database my::DBH
+                (
+                  Schema MySchema ( Table T2 ( id INTEGER PRIMARY KEY ) )
+                  Table T1 ( id INTEGER PRIMARY KEY )
+                  Join SJ (T1.id = MySchema.T2.id)
+                  Join SJ2 (T1.id = MySchema.T2.id)
+                  View V
+                  (
+                    id: T1.id PRIMARY KEY,
+                    c: @SJ > (INNER) @SJ2 | MySchema.T2.id
+                  )
+                )
+                """);
+        probe("chained-eq", """
+                ###Relational
+                Database my::DBI
+                (
+                  Table A ( id INTEGER PRIMARY KEY, x INTEGER, y INTEGER )
+                  Join JC (A.id = A.x = A.y)
+                )
+                """);
         probe("include", """
                 ###Relational
                 Database my::DB3

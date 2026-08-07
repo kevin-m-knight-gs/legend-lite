@@ -498,6 +498,10 @@ public final class ProtocolEmitter {
                     Protocol.PJoinPtr jp = ej.joins().get(i);
                     b.append("{\"db\":");
                     str(b, jp.db());
+                    if (jp.joinType() != null) {
+                        b.append(",\"joinType\":");
+                        str(b, jp.joinType());
+                    }
                     b.append(",\"name\":");
                     str(b, jp.name());
                     b.append(",\"sourceInformation\":");

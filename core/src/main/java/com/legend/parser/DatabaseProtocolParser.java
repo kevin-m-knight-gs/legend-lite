@@ -243,7 +243,13 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             int cS = pos;
             String colName = parseIdentifier();
             Protocol.PDbType type = parseDbType();
-            columns.add(new Protocol.PDbColumn(colName, true, type,
+            boolean nullable = true;
+            while (peek() == TokenType.PRIMARY_KEY
+                    || peek() == TokenType.NOT_NULL) {
+                nullable = false;
+                advance();
+            }
+            columns.add(new Protocol.PDbColumn(colName, nullable, type,
                     List.of(), List.of(), spanOf(cS, pos - 1)));
             match(TokenType.COMMA);
         }
@@ -549,7 +555,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         String fn = switch (peek()) {
             case EQUAL -> "equal";
-            case NOT_EQUAL, TEST_NOT_EQUAL -> "notEqual";
+            case NOT_EQUAL -> "notEqualAnsi";   // <> is the ANSI spelling
+            case TEST_NOT_EQUAL -> "notEqual";
             case GREATER_THAN -> "greaterThan";
             case GREATER_OR_EQUAL -> "greaterThanEqual";
             case LESS_THAN -> "lessThan";
@@ -561,7 +568,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         int opTok = pos;
         advance();
-        Protocol.PRelOp right = parseAtom(schemaCtx);
+        // comparisons CHAIN right-recursively (probe chained-eq:
+        // a = b = c is equal(a, equal(b, c)) with the same swallow)
+        Protocol.PRelOp right = parseComparison(schemaCtx);
         SourceInfo compSpan = spanOf(opTok, pos - 1);
         // ENGINE QUIRK (probed): the LEFT operand's context swallows the
         // operator and right operand — its span END is the comparison's
@@ -617,6 +626,18 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return new Protocol.PRelLiteral(
                     TokenStreamCursor.unquoteAndUnescape(quoted, this),
                     spanOf(s, s));
+        }
+        if (peek() == TokenType.MINUS) {
+            advance();
+            int numTok = pos;
+            if (peek() == TokenType.INTEGER) {
+                long v = -Long.parseLong(text());
+                advance();
+                return new Protocol.PRelLiteral(v, spanOf(s, numTok));
+            }
+            double v = -Double.parseDouble(text());
+            expect(TokenType.FLOAT);
+            return new Protocol.PRelLiteral(v, spanOf(s, numTok));
         }
         if (peek() == TokenType.INTEGER) {
             long v = Long.parseLong(text());
@@ -688,14 +709,22 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         if (peek() == TokenType.AT) {
             // @Join | expr  (also @J1 > @J2 | expr chains)
             List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
+            String pendingType = null;
             while (peek() == TokenType.AT) {
                 int jS = pos;                       // span INCLUDES the '@'
                 advance();
                 String jn = parseIdentifier();
-                joinPtrs.add(new Protocol.PJoinPtr(dbFqn, jn,
+                joinPtrs.add(new Protocol.PJoinPtr(dbFqn, pendingType, jn,
                         spanOf(jS, pos - 1)));
+                pendingType = null;
                 if (peek() == TokenType.GREATER_THAN) {
                     advance();
+                    if (peek() == TokenType.PAREN_OPEN) {
+                        // > (INNER) @Next — the TYPE rides the NEXT pointer
+                        advance();
+                        pendingType = parseIdentifier();
+                        expect(TokenType.PAREN_CLOSE);
+                    }
                 } else {
                     break;
                 }

@@ -77,9 +77,14 @@ class CorpusEquivalenceTest {
      * milestoning variants span their ARGS context, Json datatype, and
      * the boolean grammar corrected — NO and/or precedence
      * (right-recursive), same-op n-ary flatten, mixed-op right sides and
-     * parens wrap as group dynaFuncs. 18 walls left. */
-    private static final int MIN_ELEMENTS_COMPARED = 23302;
-    private static final int MIN_MATCHES = 23302;
+     * parens wrap as group dynaFuncs. 18 walls left.
+     * 23,302 -> 23,308: joinType chains (@J > (INNER) @K — the type rides
+     * the NEXT pointer), <> as notEqualAnsi vs != as notEqual, RIGHT-
+     * recursive comparison chains, TabularFunction constraints, negative
+     * literals. SIX walls remain: the declaration-site nav-span family
+     * (by design, needs two-pass tracking) + one @-in-operation single. */
+    private static final int MIN_ELEMENTS_COMPARED = 23308;
+    private static final int MIN_MATCHES = 23308;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
