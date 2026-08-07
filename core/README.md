@@ -36,15 +36,15 @@ right.
 text                                                            [FRONTEND]
   ──▶  lexer/        Lexer.tokenize                              text → tokens
   ──▶  parser/       ElementParser, SpecParser                   tokens → parsed syntax
-  ──▶  parser/       ImportResolver                              simple → FQN
-  ──▶  normalizer/   MappingNormalizer                           Decl → Decl (mappings → fns)
-  ──▶  compiler/     ElementCompiler                             Decl → Def     (compiled model)
+  ──▶  compiler/     NameResolver                                simple → FQN
+  ──▶  normalizer/   ModelNormalizer                             Decl → Decl (mappings → fns)
+  ──▶  compiler/     PureModelContext.from                       Decl → Def     (compiled model)
   ──▶  compiler/     SpecCompiler                                Spec + model → TypedSpec
                                                                 [MIDEND]
   ──▶  resolver/     StoreResolver                               logical → physical TypedSpec
   ──▶  lowering/     Lowerer (+Fold/Scalars/Aggregates/Windows)  TypedSpec → sql.SqlQuery IR
                                                                 [BACKEND]
-  ──▶  sql/dialect/  SqlDialect.render                           SqlQuery → SQL string
+  ──▶  sql/dialect/  SqlDialect.render(SqlQuery)                  SqlQuery → SQL string
                                                                 [RUNTIME]
   ──▶  exec/         Executor                                    SQL string + JDBC → ExecutionResult
 ```
@@ -55,14 +55,14 @@ text                                                            [FRONTEND]
 | A | lex | `lexer/` | `Lexer` | `Token` stream |
 | B | parse elements | `parser/` | `ElementParser` | `parser.element.PackageableElement` (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
 | C | parse specs | `parser/` | `SpecParser` | `parser.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
-| D | resolve names | `compiler/` | `NameResolver` | (same shapes, FQN-rewritten) |
-| E | normalize model | `normalizer/` | `MappingNormalizer` | `PackageableElement` (mappings desugared into `FunctionDefinition`s) |
-| F | compile elements | `compiler/` | `ElementCompiler` | `compiler.element.TypedElement` (`TypedClass`, `TypedMapping`, …) + `ModelContext` |
+| D | resolve names | `compiler/` | `NameResolver.resolve` (`:157`) | (same shapes, FQN-rewritten) |
+| E | normalize model | `normalizer/` | `ModelNormalizer.normalize` (`:98`) — `MappingNormalizer` is sub-slice E.1, not the entry | `PackageableElement` (mappings desugared into `FunctionDefinition`s) |
+| F | compile elements | `compiler/` | `PureModelContext.from` (`:84`) — there is no `ElementCompiler` class | `compiler.element.TypedElement` (`TypedClass`, `TypedMapping`, …) + `ModelContext` |
 | G | compile specs | `compiler/` | `SpecCompiler` | `compiler.spec.TypedSpec` (`TypedFilter`, `TypedProject`, …) + `Dependencies` |
 | G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
-| J | render SQL | `sql/dialect/` | `SqlDialect` (`DuckDb`, `Sqlite`) | SQL string |
+| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:15`); `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyle*`. SQLite is `Lexicon.SQLITE`, not a class | SQL string |
 | K | execute | `exec/` | `Executor` | typed `ExecutionResult` |
 
 Wired by `com.legend.Compiler.compile(...)`.
@@ -240,20 +240,78 @@ core/src/main/java/com/legend/
 | **No `util/` package** | helpers live with the code that needs them | `util/` is a code smell; ArchUnit blocks it |
 | **FQN strings, not live refs**, in long-lived fields | `superClassFqn: String`, not `superClass: TypedClass` | Lazy loading; no transitive force-load |
 
-## Strong invariants (enforced by structure + tests)
+## Strong invariants
 
-1. **The wall.** No `com.legend..` → `com.gs.legend..` dependency. ArchUnit.
-2. **No `util/` package.** ArchUnit.
-3. **Sealed everywhere a hierarchy exists.** `PackageableElement`, `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `Rel`, `ScalarOp`, `Dialect`, `NativeChecker`, `BindRule`, `ConnectionSpecification`, `AuthenticationSpec`. ArchUnit (sealed-or-final assertion on listed packages).
-4. **Records for all data carriers** under `parser/element/`, `parser/spec/`, `compiler/element/`, `compiler/spec/`, `sql/`, `plan/`. ArchUnit.
-5. **Sealed exhaustiveness over `default ->`** in `lowering/`, `sql/`, `resolver/`, `compiler/`. List every variant; new variants must fail compile. Sanctioned exceptions: guarded-pattern switches need a coverage default (it must THROW), and best-effort rewrite walkers may pass unknown nodes through ONLY where a downstream loud wall is guaranteed (audit 15 closed five that weren't).
-6. **No `FunctionCall(String, args)`** type. Grep test asserts no such record shape.
-7. **`F` (compile elements) MUST NOT trigger `G` (compile specs).** Function bodies stay as `ValueSpecification` inside `TypedFunction`; type-check on demand. (Engine violates this in `buildPureFunctions`; we don't carry the violation forward.)
-8. **No mutable sidecar state across passes.** Each step takes input, returns output. No `IdentityHashMap<TypedSpec, ?>` threaded across phase boundaries. Pass-local caches are fine, labelled and confined.
-9. **`TypedGetAll` and `TypedUserCall` MUST NOT survive `H` (resolver/).** `StoreResolver.assertNoStoreOnlyEscapees` walks every resolved statement and throws a resolver-phase error naming the construct; `StoreResolverTest` pins it. (Promised from day one; BUILT in audit 15.)
-10. **No store-only node reaches the lowerer.** `TypedJoinSlot`/store navigates hitting `lowering/` are named "resolver bug" walls (Lowerer), not generic errors. (The original `physicalColumn` field design was superseded: physical stamping happens by pipeline substitution, not node mutation.)
-11. **`compiler/element/Typed*` reference other elements by FQN string, not live ref.** Lazy loading: `superClassFqn: String`, not `superClass: TypedClass`. Inheriting AGENTS.md §5 from engine.
-12. **`sql/` is closed and pure data.** No `toSql()` method, no `Dialect` import, no `String` field encoding a SQL operation. Inheriting AGENTS.md §3a from engine.
+**Enforcement is marked honestly.** `[ENFORCED]` = a test fails if you break
+it. `[CONVENTION]` = the rule is real and expected, but **nothing checks it**.
+Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
+
+> `ArchitectureTest` is **23 dependency-direction rules and nothing else** — it
+> does not assert sealedness, record-ness, exhaustiveness, or field shape. It
+> also uses its own numbering ("6g", "7a-c") that does **not** map to this
+> list. Do not merge the two numbering schemes.
+
+1. **The wall.** No `com.legend..` → `com.gs.legend..` dependency.
+   `[ENFORCED — ArchitectureTest:50]`
+2. **No `util/` package.** `[ENFORCED — ArchitectureTest:66]`
+3. **Sealed everywhere a hierarchy exists.** `PackageableElement`,
+   `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `SqlQuery`,
+   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `ExecutionResult`.
+   `[CONVENTION]` — no sealed-or-final test exists.
+   *(This entry previously named `Rel`, `ScalarOp`, `Dialect`, `NativeChecker`
+   and `BindRule`, none of which exist in core.)*
+4. **Records for all data carriers** under `model/`, `protocol/spec/`,
+   `compiler/element/`, `compiler/spec/`, `sql/`, `plan/`. `[CONVENTION]` — no
+   record-ness test exists.
+5. **Sealed exhaustiveness over `default ->`** in `lowering/`, `sql/`,
+   `resolver/`, `compiler/`. List every variant. Sanctioned exceptions:
+   guarded-pattern switches need a coverage default (make it THROW), and
+   best-effort rewrite walkers may pass unknown nodes through ONLY where a
+   downstream loud wall is guaranteed. `[CONVENTION]` — enforced by javac only,
+   and only when a sealed root gains a variant; no test scans for `default ->`.
+6. **No `FunctionCall(String, args)` in the MIR.** `[CONVENTION]`
+   *Corrected 2026-08-06:* this previously claimed "a grep test asserts no such
+   record shape". **No such test exists, and the record does exist** —
+   `model/RelationalOperation.java:189` is the parsed `###Relational` dynaFunc
+   node. That is legitimate; it is not MIR. The rule applies to `sql/` only.
+7. **`F` (compile elements) MUST NOT trigger `G` (compile specs).** Function
+   bodies stay as `ValueSpecification` inside `TypedFunction`, type-checked on
+   demand. (Engine violates this in `buildPureFunctions`; we do not carry the
+   violation forward.) `[CONVENTION]` — the analogous behavioural guard,
+   `NoEagerUserClassLoadsTest`, scans `com.gs.legend` only.
+8. **No mutable sidecar state across passes.** Each step takes input, returns
+   output. No `IdentityHashMap<TypedSpec, ?>` threaded across phase
+   boundaries; pass-local caches are fine, labelled and confined.
+   `[CONVENTION]` — the nearest live rule is `CodeShapeGuardrailTest`'s
+   zero-non-final-statics, which is adjacent, not the same.
+9. **`TypedGetAll` and `TypedUserCall` MUST NOT survive `H` (resolver/).**
+   `[ENFORCED — StoreResolver.assertNoStoreOnlyEscapees:220]`, called per
+   statement at `:177`, pinned by `StoreResolverTest`.
+10. **No store-only node reaches the lowerer.** `TypedJoinSlot` / store
+    navigates hitting `lowering/` are named "resolver bug" walls, not generic
+    errors. `[ENFORCED — runtime]`
+11. **`compiler/element/Typed*` reference other elements by FQN string, not
+    live ref.** `superClassFqns: List<String>`, not `TypedClass`.
+    `[CONVENTION]` — **`NoEagerTypeReferencesTest` scans `com.gs.legend` only,
+    so core has no lazy-loading enforcement at all.**
+12. **`sql/` is closed and pure data.** No `toSql()`, no dialect import, no
+    `String` field encoding a SQL operation. `[HALF ENFORCED]` — the
+    *dependency* half by `ArchitectureTest:80` and `:215`; the "no `toSql()` /
+    no SQL-encoding String field" half has no test.
+
+### The mechanical guards that do exist
+
+| Test | Module | Enforces |
+|---|---|---|
+| `ArchitectureTest` | core | 23 dependency-direction rules (the wall, no `util/`, `sql/` standalone, package acyclicity, lexer JDK-only, protocol at the bottom, caches funnelled) |
+| `CodeShapeGuardrailTest` | core | method ≤ 250 lines; file ≤ 3,500; non-final instance fields allowlisted; **zero** non-final statics |
+| `ErrorShapeGuardrailTest` | core | no return/throw in `finally`; broad-catch census; no control flow on exception text |
+| `ObservabilityGuardrailTest` | core | shrink-only ratchets on `System.getenv`, `System.err`, string-dispatch sites |
+| `CarrierPurityRatchetTest` | core | 5 regex pins over `lowering/`+`resolver/`+`plan/` |
+| `TypedSpecChildrenTest`, `SpecChildrenContractsTest` | core | reflective `children()`/`withChildren()` totality |
+| `PlatformTypesDriftTest` | core | `PlatformTypes` FQNs pinned against `builtin/Pure` |
+| NullAway | core | main sources only, `default-compile` — **needs a cold compile** |
+| `NoEagerTypeReferencesTest`, `NoEagerUserClassLoadsTest` | **engine** | lazy loading — **`com.gs.legend` only** |
 
 ## How to add a file under `core/`
 
@@ -318,9 +376,23 @@ Things we deferred deliberately. Each entry: **what's deferred**, **why now**, *
 
 ## Status
 
+> **Current state, 2026-08-06.** All phases below are complete. `core/` is the
+> **live implementation** — every production query path runs through it, and
+> `engine/` is frozen (last substantive change 2026-07-18). The Strangler Fig
+> framing in this file's header is therefore near its end: what remains in
+> `engine/` is the HTTP server, LSP, diagram service, JSON writer and result
+> serializers, none of which `core/` has yet. See `AGENTS.md`.
+>
+> Live gate numbers: parser equivalence **22,725/22,725** byte-identical;
+> rejection parity **43/43**; PCT **1,109 run / 36 ledgered / 0 skipped**;
+> relational corpus **2,575 run / 2,298 pass**. Regenerate rather than quote —
+> see `docs/GATES.md`.
+>
+> The per-phase detail below is kept as the build record.
+
 - [x] Module skeleton + Maven wiring
 - [x] Architecture wall test (`com.legend.* ⇏ com.gs.legend.*`)
-- [ ] Phase 0: builtins
+- [x] Phase 0: builtins (`builtin/Pure.java`, the platform prelude)
 - [x] Phase A: lexer (`Lexer` + `TokenStream` + `Token` + `TokenType`; 25 unit tests)
 - [x] Phase B: parser/element + ElementParser **— full feature parity with `legend-lite/engine`**
   - [x] B.1: scaffolding + `Class` (imports, properties, type params, extends, native, stereotypes, tagged values; 29 unit tests)
@@ -357,12 +429,12 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
   - [x] C.1 &ndash; C.5: `SpecParser` &mdash; sealed `ValueSpec` AST + Pure expression grammar (literals, variables, property paths, function calls, operators, lambdas, `let`, code blocks, collections, milestoning). Standalone module taking a `String` (or `TokenStream` slice) and returning a `ValueSpec`. **211 tests in `SpecParserTest`.**
   - [x] C.6: `SpecParser` wired into element parsing &mdash; all value-expression bodies (`FunctionDefinition.body`, derived properties, constraints, `ServiceDefinition.functionBody`, M2M property RHS + `~filter`) parse eagerly into typed `ValueSpec` during deep-parse, driven per-element by `ModelOrchestrator` &rarr; `ElementParser.parseSingle` (so it is just-in-time per resolved element, implemented inside the element parser rather than as a separate orchestrator step). **Closes D-1.** The one remaining raw-text holdout is `testSuitesSource` (D-3) &mdash; a separate test-suite-grammar concern, not `SpecParser`.
 
-- [x] Phase D: NameResolver — implemented as `parser/ImportResolver` + `ImportScope` (imports → FQN over def records; 116 tests in `ImportResolverTest`)
-- [x] Phase E: MappingNormalizer — `normalizer/MappingNormalizer` (mappings desugared into `FunctionDefinition`s; 86 tests in `MappingNormalizerTest`)
+- [x] Phase D: NameResolver — now `compiler/NameResolver` + `model/ImportScope` (imports → FQN over def records). *Renamed and moved out of `parser/` since this line was written.*
+- [x] Phase E: normalize — entry point is `normalizer/ModelNormalizer.normalize`; `MappingNormalizer` is sub-slice E.1 (mappings desugared into `FunctionDefinition`s)
 - [x] Phase F: `PureModelContext.from` + compiler/element (TypedElement family)
 - [x] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + checkers (G½: UserCallInliner)
 - [x] Phase H: StoreResolver + resolver/ (see `docs/RELATIONAL_CORPUS.md` for the coverage ledger)
 - [x] Phase I: Lowerer + lowering/ + sql/ data records
-- [x] Phase J: SqlDialect (DuckDb, Sqlite) + sql/dialect
+- [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. SQLite is `Lexicon.SQLITE`, not a class.
 - [x] Phase K: Executor + exec/
 - [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)
