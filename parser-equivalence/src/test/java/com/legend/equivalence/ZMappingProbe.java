@@ -28,6 +28,26 @@ class ZMappingProbe {
     }
 
     @Test
+    void srcIdShapes() throws Exception {
+        probe("src-set-id", """
+                ###Pure
+                Class my::S { v: String[1]; }
+                Class my::T2 { w: String[1]; }
+
+                ###Mapping
+                Mapping my::MA
+                (
+                  my::S[srcSet]: Pure { ~src my::S v: 'x' }
+                  my::T2: Pure
+                  {
+                    ~src srcSet
+                    w: $src.v
+                  }
+                )
+                """);
+    }
+
+    @Test
     void includeShapes() throws Exception {
         probe("include-plain", """
                 ###Mapping

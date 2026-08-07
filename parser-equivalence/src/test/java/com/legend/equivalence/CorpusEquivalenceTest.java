@@ -91,9 +91,13 @@ class CorpusEquivalenceTest {
      * 23,395 -> 23,476: RELATIONAL CLASS MAPPINGS — the leg's biggest
      * family: star-anchored spans, first-ident table anchors (mainTable
      * AND bracket-qualified op refs), colon..op property spans, source =
-     * enclosing set id, ops through THE relational operation grammar. */
-    private static final int MIN_ELEMENTS_COMPARED = 23476;
-    private static final int MIN_MATCHES = 23476;
+     * enclosing set id, ops through THE relational operation grammar.
+     * 23,476 -> 23,484: PURE (M2M) class mappings — transforms are the
+     * ###Pure ValueSpecification wire, parsed by SpecParser over token
+     * slices and emitted by the SAME spec arms; pm.source = enclosing
+     * set id (empty string when none). */
+    private static final int MIN_ELEMENTS_COMPARED = 23484;
+    private static final int MIN_MATCHES = 23484;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

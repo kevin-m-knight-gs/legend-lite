@@ -49,6 +49,7 @@ public final class Protocol {
      *  mapping families land probe-by-probe; unbuilt ones WALL. */
     public record PMapping(String pkg, String name,
                            List<PClassMappingRel> classMappings,
+                           List<PClassMappingPure> pureClassMappings,
                            List<PEnumerationMapping> enumerationMappings,
                            List<PMappingInclude> includedMappings,
                            com.legend.protocol.SourceInfo sourceInformation)
@@ -73,6 +74,26 @@ public final class Protocol {
                                    List<PRelOp> primaryKey,
                                    List<PRelPropertyMapping> propertyMappings,
                                    com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code _type:"pureInstance"} class mapping (probe pure-m2m):
+     *  transforms are PURE lambda trees — the ###Pure ValueSpecification
+     *  wire, parsed by SpecParser and emitted by the SAME spec arms. */
+    public record PClassMappingPure(String className,
+                                    com.legend.protocol.SourceInfo classSourceInformation,
+                                    @com.legend.Nullable String id,
+                                    boolean root,
+                                    @com.legend.Nullable String srcClass,
+                                    @com.legend.Nullable com.legend.protocol.SourceInfo sourceClassSourceInformation,
+                                    List<PPurePropertyMapping> propertyMappings,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PPurePropertyMapping(String ownerClass, String property,
+                                       com.legend.protocol.SourceInfo propertySourceInformation,
+                                       List<com.legend.protocol.spec.ValueSpecification> transform,
+                                       @com.legend.Nullable String source,
+                                       com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     public record PRelPropertyMapping(String ownerClass, String property,

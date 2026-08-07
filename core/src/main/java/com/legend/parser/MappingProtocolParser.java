@@ -56,17 +56,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PClassMappingRel> classMappings = new ArrayList<>();
+        List<Protocol.PClassMappingPure> pureMappings = new ArrayList<>();
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
         List<Protocol.PMappingInclude> includes = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            parseMember(classMappings, enums, includes);
+            parseMember(classMappings, pureMappings, enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
-        return new Protocol.PMapping(pkg, name, classMappings, enums,
-                includes, spanOf(declStart, pos - 1));
+        return new Protocol.PMapping(pkg, name, classMappings, pureMappings,
+                enums, includes, spanOf(declStart, pos - 1));
     }
 
     private void parseMember(List<Protocol.PClassMappingRel> classMappings,
+            List<Protocol.PClassMappingPure> pureMappings,
             List<Protocol.PEnumerationMapping> enums,
             List<Protocol.PMappingInclude> includes) {
         if (peek() == TokenType.INCLUDE) {
@@ -103,6 +105,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         if (peek() == TokenType.RELATIONAL) {
             advance();
             classMappings.add(parseRelationalClassMapping(target, memberStart,
+                    targetSpan, id, root));
+            return;
+        }
+        if (peek() == TokenType.PURE_MAPPING) {
+            advance();
+            pureMappings.add(parsePureClassMapping(target, memberStart,
                     targetSpan, id, root));
             return;
         }
@@ -189,6 +197,70 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return new Protocol.PClassMappingRel(target, targetSpan, id, root,
                 distinct, groupBy, mainTable, primaryKey, props,
                 spanOf(memberStart, close));
+    }
+
+    /** {@code cls: Pure { ~src my::S  prop: <pure expr>, ... }} — the
+     *  transforms parse through SpecParser (the ###Pure machinery) with
+     *  absolute spans via token slices (probe pure-m2m). */
+    private Protocol.PClassMappingPure parsePureClassMapping(String target,
+            int memberStart, SourceInfo targetSpan,
+            @com.legend.Nullable String id, boolean root) {
+        expect(TokenType.BRACE_OPEN);
+        String srcClass = null;
+        SourceInfo srcSpan = null;
+        List<Protocol.PPurePropertyMapping> props = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            if (peek() == TokenType.TILDE) {
+                advance();
+                String directive = parseIdentifier();
+                if (!"src".equals(directive)) {
+                    throw error("pure class-mapping directive '~" + directive
+                            + "' is unbuilt");
+                }
+                int sS = pos;
+                srcClass = Protocol.unquotePath(parseQualifiedName());
+                srcSpan = spanOf(sS, pos - 1);
+                continue;
+            }
+            int pS = pos;
+            String prop = parseIdentifier();
+            SourceInfo propSpan = spanOf(pS, pos - 1);
+            if (peek() == TokenType.STAR || peek() == TokenType.PLUS
+                    || peek() == TokenType.BRACKET_OPEN) {
+                throw error("pure property-mapping decoration '" + safeText()
+                        + "' is unbuilt");
+            }
+            int colonTok = pos;
+            expect(TokenType.COLON);
+            int exprStart = pos;
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (depth == 0 && (t == TokenType.COMMA
+                        || t == TokenType.BRACE_CLOSE)) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.PAREN_CLOSE
+                        || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                }
+                advance();
+            }
+            List<com.legend.protocol.spec.ValueSpecification> body =
+                    SpecParser.parseCodeBlock(tokens.slice(exprStart, pos));
+            props.add(new Protocol.PPurePropertyMapping(target, prop,
+                    propSpan, body, id != null ? id : "",
+                    spanOf(pS, pos - 1)));
+            match(TokenType.COMMA);
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PClassMappingPure(target, targetSpan, id, root,
+                srcClass, srcSpan, props, spanOf(memberStart, close));
     }
 
     /** One embedded relational operation via THE relational op grammar. */

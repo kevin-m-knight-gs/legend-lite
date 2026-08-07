@@ -172,11 +172,20 @@ public final class ProtocolEmitter {
     private static void mapping(StringBuilder b, Protocol.PMapping m) {
         b.append("{\"_type\":\"mapping\",\"associationMappings\":[]"
                 + ",\"classMappings\":[");
+        boolean firstCm = true;
         for (int i = 0; i < m.classMappings().size(); i++) {
-            if (i > 0) {
+            if (!firstCm) {
                 b.append(',');
             }
+            firstCm = false;
             relClassMapping(b, m.classMappings().get(i));
+        }
+        for (int i = 0; i < m.pureClassMappings().size(); i++) {
+            if (!firstCm) {
+                b.append(',');
+            }
+            firstCm = false;
+            pureClassMapping(b, m.pureClassMappings().get(i));
         }
         b.append("],\"enumerationMappings\":[");
         for (int i = 0; i < m.enumerationMappings().size(); i++) {
@@ -237,6 +246,59 @@ public final class ProtocolEmitter {
         b.append(",\"sourceInformation\":");
         srcInfo(b, m.sourceInformation());
         b.append(",\"tests\":[]}");
+    }
+
+    private static void pureClassMapping(StringBuilder b,
+            Protocol.PClassMappingPure cm) {
+        b.append("{\"_type\":\"pureInstance\",\"class\":");
+        str(b, cm.className());
+        b.append(",\"classSourceInformation\":");
+        srcInfo(b, cm.classSourceInformation());
+        if (cm.id() != null) {
+            b.append(",\"id\":");
+            str(b, cm.id());
+        }
+        b.append(",\"propertyMappings\":[");
+        for (int i = 0; i < cm.propertyMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PPurePropertyMapping pm = cm.propertyMappings().get(i);
+            b.append("{\"_type\":\"purePropertyMapping\","
+                    + "\"explodeProperty\":false,\"property\":{\"class\":");
+            str(b, pm.ownerClass());
+            b.append(",\"property\":");
+            str(b, pm.property());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, pm.propertySourceInformation());
+            b.append('}');
+            if (pm.source() != null) {
+                b.append(",\"source\":");
+                str(b, pm.source());
+            }
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, pm.sourceInformation());
+            b.append(",\"transform\":{\"_type\":\"lambda\",\"body\":[");
+            for (int j = 0; j < pm.transform().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                valueSpec(b, pm.transform().get(j));
+            }
+            b.append("],\"parameters\":[]}}");
+        }
+        b.append("],\"root\":").append(cm.root());
+        if (cm.srcClass() != null && cm.sourceClassSourceInformation() != null) {
+            b.append(",\"sourceClassSourceInformation\":");
+            srcInfo(b, cm.sourceClassSourceInformation());
+        }
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, cm.sourceInformation());
+        if (cm.srcClass() != null) {
+            b.append(",\"srcClass\":");
+            str(b, cm.srcClass());
+        }
+        b.append('}');
     }
 
     private static void relClassMapping(StringBuilder b,
