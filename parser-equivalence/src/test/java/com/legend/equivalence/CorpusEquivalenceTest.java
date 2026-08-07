@@ -70,9 +70,11 @@ class CorpusEquivalenceTest {
      * directives as *_CMD tokens; 58 walls left (cross-schema nav span
      * resolution + unbuilt tail).
      * 23,282 -> 23,288: '!=' token, postfix is-null/is-not-null with the
-     * operand swallowing the operator (probe null-postfix). */
-    private static final int MIN_ELEMENTS_COMPARED = 23288;
-    private static final int MIN_MATCHES = 23288;
+     * operand swallowing the operator (probe null-postfix).
+     * 23,288 -> 23,300: Database-level stereotypes + column tagged
+     * values (probe db-and-column-decorations); 22 walls left. */
+    private static final int MIN_ELEMENTS_COMPARED = 23300;
+    private static final int MIN_MATCHES = 23300;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

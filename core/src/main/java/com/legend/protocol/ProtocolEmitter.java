@@ -218,7 +218,9 @@ public final class ProtocolEmitter {
         }
         b.append("],\"sourceInformation\":");
         srcInfo(b, d.sourceInformation());
-        b.append(",\"stereotypes\":[]}");
+        b.append(",\"stereotypes\":");
+        stereotypes(b, d.stereotypes());
+        b.append('}');
     }
 
     private static void dbSchema(StringBuilder b, Protocol.PDbSchema sc) {
@@ -289,6 +291,10 @@ public final class ProtocolEmitter {
             if (!c.stereotypes().isEmpty()) {
                 b.append(",\"stereotypes\":");
                 stereotypes(b, c.stereotypes());
+            }
+            if (!c.taggedValues().isEmpty()) {
+                b.append(",\"taggedValues\":");
+                taggedValues(b, c.taggedValues());
             }
             b.append(",\"type\":{\"_type\":\"").append(c.type().kind())
                     .append('\"');

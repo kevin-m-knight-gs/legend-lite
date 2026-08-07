@@ -50,6 +50,7 @@ public final class Protocol {
                             List<PDbSchema> schemas,
                             List<PDbJoin> joins,
                             List<PDbFilter> filters,
+                            List<PStereotype> stereotypes,
                             com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -75,6 +76,7 @@ public final class Protocol {
 
     public record PDbColumn(String name, boolean nullable, PDbType type,
                             List<PStereotype> stereotypes,
+                            List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation) {
     }
 

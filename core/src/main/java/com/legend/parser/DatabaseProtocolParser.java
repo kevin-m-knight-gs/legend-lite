@@ -73,18 +73,21 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     private Protocol.PDatabase parseDatabase() {
         int declStart = pos;
         expect(TokenType.DATABASE);
+        Decorations dbDec = parseDecorations();
         String qn = Protocol.unquotePath(parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         DatabaseProtocolParser inner =
                 new DatabaseProtocolParser(tokens, pos, qn);
-        Protocol.PDatabase db = inner.parseBody(declStart, pkg, name);
+        Protocol.PDatabase db = inner.parseBody(declStart, pkg, name,
+                dbDec.stereotypes());
         this.pos = inner.pos;
         return db;
     }
 
-    private Protocol.PDatabase parseBody(int declStart, String pkg, String name) {
+    private Protocol.PDatabase parseBody(int declStart, String pkg, String name,
+            List<Protocol.PStereotype> dbStereotypes) {
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PPointer> includes = new ArrayList<>();
         List<Protocol.PDbTable> defaultTables = new ArrayList<>();
@@ -148,7 +151,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     defaultViews, defaultTabFns, List.of(), List.of(), dbSpan));
         }
         return new Protocol.PDatabase(pkg, name, includes, schemas, joins,
-                filters, dbSpan);
+                filters, dbStereotypes, dbSpan);
     }
 
     private record Decorations(List<Protocol.PStereotype> stereotypes,
@@ -241,7 +244,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             String colName = parseIdentifier();
             Protocol.PDbType type = parseDbType();
             columns.add(new Protocol.PDbColumn(colName, true, type,
-                    List.of(), spanOf(cS, pos - 1)));
+                    List.of(), List.of(), spanOf(cS, pos - 1)));
             match(TokenType.COMMA);
         }
         expect(TokenType.PAREN_CLOSE);
@@ -267,26 +270,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             }
             int cS = pos;
             String colName = parseIdentifier();
-            List<Protocol.PStereotype> stereos = new ArrayList<>();
-            if (peek() == TokenType.LESS_THAN) {
-                // column stereotypes <<pkg::P.v, ...>> — VALUE-only spans
-                // (probe column-stereotypes; unlike class stereotypes)
-                advance();
-                expect(TokenType.LESS_THAN);
-                while (!atEnd() && peek() != TokenType.GREATER_THAN) {
-                    int pS = pos;
-                    String profile = Protocol.unquotePath(parseQualifiedName());
-                    SourceInfo pSpan = spanOf(pS, pos - 1);
-                    expect(TokenType.DOT);
-                    int vS = pos;
-                    String value = parseIdentifier();
-                    stereos.add(new Protocol.PStereotype(profile, value,
-                            pSpan, spanOf(vS, vS)));
-                    match(TokenType.COMMA);
-                }
-                expect(TokenType.GREATER_THAN);
-                expect(TokenType.GREATER_THAN);
-            }
+            // columns take stereotypes AND tagged values before the type
+            // (probes column-stereotypes + db-and-column-decorations)
+            Decorations colDec = parseDecorations();
             Protocol.PDbType type = parseDbType();
             boolean nullable = true;
             // PRIMARY KEY / NOT NULL lex as single tokens
@@ -299,7 +285,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 advance();
             }
             columns.add(new Protocol.PDbColumn(colName, nullable,
-                    type, stereos, spanOf(cS, pos - 1)));
+                    type, colDec.stereotypes(), colDec.taggedValues(),
+                    spanOf(cS, pos - 1)));
             match(TokenType.COMMA);
         }
         expect(TokenType.PAREN_CLOSE);

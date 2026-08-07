@@ -210,6 +210,20 @@ class ZRelationalProbe {
                   Filter FNN (A.x is not null)
                 )
                 """);
+        probe("db-and-column-decorations", """
+                ###Pure
+                Profile test::SP { stereotypes: [s1]; tags: [doc]; }
+
+                ###Relational
+                Database <<test::SP.s1>> my::DBF
+                (
+                  Table tb
+                  (
+                    id {test::SP.doc = 'docd'} INTEGER,
+                    nm <<test::SP.s1>> {test::SP.doc = 'both'} VARCHAR(5)
+                  )
+                )
+                """);
         probe("include", """
                 ###Relational
                 Database my::DB3
