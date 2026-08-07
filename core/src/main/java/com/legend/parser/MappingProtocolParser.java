@@ -56,17 +56,29 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String name = cut < 0 ? qn : qn.substring(cut + 2);
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
+        List<Protocol.PMappingInclude> includes = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            parseMember(enums);
+            parseMember(enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
-        return new Protocol.PMapping(pkg, name, enums,
+        return new Protocol.PMapping(pkg, name, enums, includes,
                 spanOf(declStart, pos - 1));
     }
 
-    private void parseMember(List<Protocol.PEnumerationMapping> enums) {
+    private void parseMember(List<Protocol.PEnumerationMapping> enums,
+            List<Protocol.PMappingInclude> includes) {
         if (peek() == TokenType.INCLUDE) {
-            throw error("mapping includes are unbuilt");
+            int s = pos;
+            advance();
+            if (peek() == TokenType.MAPPING) {
+                advance();                          // 'include mapping qn'
+            } else if (peek() == TokenType.VALID_STRING
+                    && "dataspace".equals(text())) {
+                throw error("include dataspace is unbuilt");
+            }
+            String inc = Protocol.unquotePath(parseQualifiedName());
+            includes.add(new Protocol.PMappingInclude(inc, spanOf(s, pos - 1)));
+            return;
         }
         match(TokenType.STAR);                      // root marker
         int targetStart = pos;

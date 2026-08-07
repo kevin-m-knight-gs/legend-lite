@@ -28,6 +28,28 @@ class ZMappingProbe {
     }
 
     @Test
+    void includeShapes() throws Exception {
+        probe("include-plain", """
+                ###Mapping
+                Mapping my::Base ()
+
+                Mapping my::M8
+                (
+                  include my::Base
+                )
+                """);
+        probe("include-mapping-kw", """
+                ###Mapping
+                Mapping my::Base2 ()
+
+                Mapping my::M9
+                (
+                  include mapping my::Base2
+                )
+                """);
+    }
+
+    @Test
     void moreShapes() throws Exception {
         probe("pure-m2m", """
                 ###Pure

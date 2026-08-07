@@ -85,9 +85,11 @@ class CorpusEquivalenceTest {
      * (by design, needs two-pass tracking) + one @-in-operation single.
      * 23,308 -> 23,375: ###Mapping OPENS (leg 4) — envelope + enumeration
      * mappings at byte parity; class-mapping families walled by name;
-     * the wall ranking IS the leg's worklist. */
-    private static final int MIN_ELEMENTS_COMPARED = 23375;
-    private static final int MIN_MATCHES = 23375;
+     * the wall ranking IS the leg's worklist.
+     * 23,375 -> 23,395: mapping includes (mappingIncludeMapping, both
+     * spellings; dataspace includes wall). */
+    private static final int MIN_ELEMENTS_COMPARED = 23395;
+    private static final int MIN_MATCHES = 23395;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

@@ -49,6 +49,7 @@ public final class Protocol {
      *  mapping families land probe-by-probe; unbuilt ones WALL. */
     public record PMapping(String pkg, String name,
                            List<PEnumerationMapping> enumerationMappings,
+                           List<PMappingInclude> includedMappings,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -58,6 +59,12 @@ public final class Protocol {
 
     /** One enumeration mapping: id + typed enumeration pointer + value rows
      *  (probe enum-mapping). */
+    /** {@code include [mapping] my::Other} — {@code _type:
+     *  "mappingIncludeMapping"}, span keyword..path (probe include-plain). */
+    public record PMappingInclude(String includedMapping,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
     public record PEnumerationMapping(String id, PPointer enumeration,
                                       List<PEnumValueMapping> enumValueMappings,
                                       com.legend.protocol.SourceInfo sourceInformation) {

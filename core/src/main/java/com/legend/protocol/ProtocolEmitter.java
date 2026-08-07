@@ -210,7 +210,20 @@ public final class ProtocolEmitter {
             srcInfo(b, em.sourceInformation());
             b.append('}');
         }
-        b.append("],\"includedMappings\":[],\"name\":");
+        b.append("],\"includedMappings\":[");
+        for (int i = 0; i < m.includedMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PMappingInclude inc = m.includedMappings().get(i);
+            b.append("{\"_type\":\"mappingIncludeMapping\","
+                    + "\"includedMapping\":");
+            str(b, inc.includedMapping());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, inc.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"name\":");
         str(b, m.name());
         b.append(",\"package\":");
         str(b, m.pkg());
