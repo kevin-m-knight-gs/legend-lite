@@ -201,6 +201,15 @@ class ZRelationalProbe {
                   Join MJ (E.M.id = AlternativeID.id)
                 )
                 """);
+        probe("null-postfix", """
+                ###Relational
+                Database my::DBE
+                (
+                  Table A ( id INTEGER PRIMARY KEY, x VARCHAR(10), n INTEGER )
+                  Filter FN (A.x is null and A.n > 1)
+                  Filter FNN (A.x is not null)
+                )
+                """);
         probe("include", """
                 ###Relational
                 Database my::DB3

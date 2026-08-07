@@ -533,9 +533,20 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     private Protocol.PRelOp parseComparison(String schemaCtx) {
         Protocol.PRelOp left = parseAtom(schemaCtx);
+        // postfix null tests bind tighter than comparisons
+        while (peek() == TokenType.IS_NULL || peek() == TokenType.IS_NOT_NULL) {
+            String nf = peek() == TokenType.IS_NULL ? "isNull" : "isNotNull";
+            int nTok = pos;
+            advance();
+            SourceInfo opSpan = spanOf(nTok, nTok);
+            // the operand's context swallows the postfix operator (probe
+            // null-postfix: column 14..24 under 'is null' at 18..24)
+            left = new Protocol.PDynaFunc(nf,
+                    List.of(withSpanEnd(left, opSpan)), opSpan);
+        }
         String fn = switch (peek()) {
             case EQUAL -> "equal";
-            case NOT_EQUAL -> "notEqual";
+            case NOT_EQUAL, TEST_NOT_EQUAL -> "notEqual";
             case GREATER_THAN -> "greaterThan";
             case GREATER_OR_EQUAL -> "greaterThanEqual";
             case LESS_THAN -> "lessThan";

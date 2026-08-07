@@ -68,9 +68,11 @@ class CorpusEquivalenceTest {
      * schema-context resolution, businessSnapshotMilestoning, quoted
      * identifiers keep their quotes, TabularFunction slim shape, view
      * directives as *_CMD tokens; 58 walls left (cross-schema nav span
-     * resolution + unbuilt tail). */
-    private static final int MIN_ELEMENTS_COMPARED = 23282;
-    private static final int MIN_MATCHES = 23282;
+     * resolution + unbuilt tail).
+     * 23,282 -> 23,288: '!=' token, postfix is-null/is-not-null with the
+     * operand swallowing the operator (probe null-postfix). */
+    private static final int MIN_ELEMENTS_COMPARED = 23288;
+    private static final int MIN_MATCHES = 23288;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
