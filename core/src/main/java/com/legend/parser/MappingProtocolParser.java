@@ -1534,7 +1534,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 new ArrayList<>();
         List<List<Protocol.PAggregateValue>> aggVals = new ArrayList<>();
         List<Integer> aggBodyToks = new ArrayList<>();
-        int mainBodyTok = -1;
+        int mainBodyTok = 0;                        // 0 = absent
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
             if (peek() == TokenType.VALID_STRING && "Views".equals(text())) {
                 advance();
@@ -1650,7 +1650,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
-        if (mainBodyTok < 0) {
+        if (mainBodyTok == 0) {
             throw error("AggregationAware without ~mainMapping");
         }
         // engine sub-parse shift (probes agg-off-A/B + corpus

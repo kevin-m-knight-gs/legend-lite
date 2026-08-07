@@ -167,9 +167,13 @@ class CorpusEquivalenceTest {
      * Reference inside modelData, doc: keys, single-seg scope headers as
      * SCHEMA prefixes for dotted refs (same stretch), quoted mainTable
      * spellings, nav elements resolve under the LAST re-anchored db,
-     * extends on Operation parsed-and-DROPPED (engine walker TODO). */
-    private static final int MIN_ELEMENTS_COMPARED = 24483;
-    private static final int MIN_MATCHES = 24483;
+     * extends on Operation parsed-and-DROPPED (engine walker TODO).
+     * 24,483 -> 24,503: the Pure-nested-mapping sentinel collision
+     * (mainBodyTok sign-encodes Pure as -pos; -1 'absent' sentinel
+     * misfired) — 20 walls left, ALL the Relation-store test-data
+     * family. */
+    private static final int MIN_ELEMENTS_COMPARED = 24503;
+    private static final int MIN_MATCHES = 24503;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
