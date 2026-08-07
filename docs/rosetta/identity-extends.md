@@ -1,5 +1,13 @@
 # Identity & Extends — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **B7** (root marker), **B8** (set ID / mapping ID), **B9** (extends)
 
 ---
@@ -151,7 +159,7 @@ model::aRel()->redefine(~aNme: ...)    // ❌ COMPILE ERROR: aNme doesn't exist 
 ### Key files in legend-lite
 
 - **MappingNormalizer.java** — would need to process `extends` clause
-- **PureModelBuilder.java** — parses extends syntax
+- **PureModelContext.java** — parses extends syntax
 - **RelationalMappingIntegrationTest.java** — `testMappingExtends` (disabled)
 
 ### Tests in legend-lite

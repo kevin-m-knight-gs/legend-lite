@@ -1,5 +1,13 @@
 # Model-to-Model (M2M) Mapping — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **E2** (Pure/M2M mapping)
 >
 > Two source flavors: **M2M→R** (relational source) and **M2M→J** (JSON source)
@@ -73,8 +81,8 @@ Mapping model::StaffMemberMapping (
 |-------|------|---------|
 | **Parser** | Extracts `~src Employee`, property expressions | `$src.firstName + ' ' + $src.lastName` → concat AST |
 | **GetAllChecker** | `compileM2MGetAll`: resolves source class, compiles each `$src.prop` expression | TypeInfo stamped on every node |
-| **MappingResolver** | Discovers M2M chain: StaffMember → Employee → T_EMPLOYEE | Chains resolved to single query |
-| **PlanGenerator** | Emits `extend()` for computed + passthrough columns, then `select()` to drop raw cols | Flat SQL with column aliases |
+| **StoreResolver** | Discovers M2M chain: StaffMember → Employee → T_EMPLOYEE | Chains resolved to single query |
+| **Lowerer** | Emits `extend()` for computed + passthrough columns, then `select()` to drop raw cols | Flat SQL with column aliases |
 | **Dialect** | Renders SQL | `CONCAT(FIRST_NAME, ' ', LAST_NAME) AS "fullName"` |
 
 ### Query + Output (from tests)
@@ -943,8 +951,8 @@ function model::activeStaff(): Relation<(fullName:String, dept:String)>[1] {
 | File | Role |
 |------|------|
 | **GetAllChecker.java** | `compileM2MGetAll` — resolves `~src`, compiles `$src.prop` expressions |
-| **MappingResolver.java** | `resolveM2MAssociationNavigations()` — wires `$src.assocProp` to JOINs |
-| **PlanGenerator.java** | Emits extend/select for M2M, correlated subquery for deep fetch |
+| **StoreResolver.java** | `resolveM2MAssociationNavigations()` — wires `$src.assocProp` to JOINs |
+| **Lowerer.java** | Emits extend/select for M2M, correlated subquery for deep fetch |
 | **M2MIntegrationTest.java** | 18 tests: flat, deep-fetch 1-to-1, 1-to-many, multiplicity violation |
 | **M2MChainIntegrationTest.java** | 38 tests: L1–L4 chains, filters, edge cases, traverse columns, deep fetch, disjoint 1-to-many |
 | **JsonM2MChainIntegrationTest.java** | 52 tests: L1–L4 chains, filters, edge cases, multiple JSON sources, 3 file formats (NDJSON/Array/Unstructured) |
@@ -1041,4 +1049,4 @@ M2M in Relation API is just function composition — the "source mapping" become
 
 The Relation API is arguably cleaner for M2M because the data flow is explicit: `rawData() -> transform() -> output()`. In the mapping DSL, the `~src` directive and `$src.property` syntax are implicit — you have to know which mapping provides the source class.
 
-**Key architectural insight:** The M2M→R and M2M→J paths share the same M2M compilation logic (GetAllChecker, MappingResolver, PlanGenerator). The only difference is how the leaf source is resolved — relational mapping produces `FROM "TABLE"`, inline JSON produces `FROM (SELECT unnest(CAST('...' AS JSON[])))`, file JSON produces `FROM (SELECT json AS "data" FROM read_json_objects('...'))`. Everything above the leaf is identical.
+**Key architectural insight:** The M2M→R and M2M→J paths share the same M2M compilation logic (GetAllChecker, StoreResolver, Lowerer). The only difference is how the leaf source is resolved — relational mapping produces `FROM "TABLE"`, inline JSON produces `FROM (SELECT unnest(CAST('...' AS JSON[])))`, file JSON produces `FROM (SELECT json AS "data" FROM read_json_objects('...'))`. Everything above the leaf is identical.

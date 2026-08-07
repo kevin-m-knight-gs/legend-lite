@@ -1,5 +1,13 @@
 # Join Navigation — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **A2** (join chain + column), **D2** (simple join), **D3** (complex/multi-column join), **D4** (function in join), **D5** (self-join)
 
 ---
@@ -158,7 +166,7 @@ LEFT OUTER JOIN FIRM AS "firm_0" ON ("root".FIRM_ID = "firm_0".ID)
 ### Key files in legend-lite
 
 - **ExtendChecker.java** — `compileTraverseClause` parses traverse chains
-- **PlanGenerator.java** — generates flat LEFT JOINs from TraversalSpec
+- **Lowerer.java** — generates flat LEFT JOINs from TraversalSpec
 - **MappingNormalizer.java** — converts `@JoinName` references to `traverse()` nodes
 
 ### Tests in legend-lite
@@ -184,4 +192,4 @@ LEFT OUTER JOIN FIRM AS "firm_0" ON ("root".FIRM_ID = "firm_0".ID)
 
 The key difference: Legend Mapping declares joins once in the Database block and references them by name (`@PersonFirm`). The Relation API inlines the join predicate at each use site via `traverse()`. This is more verbose but self-contained — you can read the Relation expression without cross-referencing the Database definition.
 
-Multi-hop chains (`@J1 > @J2 | T.col`) become chained `traverse()` calls, which the PlanGenerator flattens to a single SQL query with multiple LEFT JOINs.
+Multi-hop chains (`@J1 > @J2 | T.col`) become chained `traverse()` calls, which the Lowerer flattens to a single SQL query with multiple LEFT JOINs.

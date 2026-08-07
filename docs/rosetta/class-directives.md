@@ -1,5 +1,13 @@
 # Class Mapping Directives — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **B1** (~mainTable), **B2** (~filter), **B3** (~filter via join), **B4** (~distinct), **B5** (~groupBy), **B6** (~primaryKey), **B10** (scope blocks)
 
 ---
@@ -184,7 +192,7 @@ Scope blocks are pure syntactic sugar — they save repetition of `[db]base.Pers
 ### Key files in legend-lite
 
 - **MappingNormalizer.java** — processes ~mainTable, ~filter, ~distinct, ~groupBy
-- **PlanGenerator.java** — generates DISTINCT, GROUP BY, WHERE clauses
+- **Lowerer.java** — generates DISTINCT, GROUP BY, WHERE clauses
 - **RelationalMappingIntegrationTest.java** — filter, distinct, groupBy tests
 
 ### Tests in legend-lite
@@ -219,7 +227,7 @@ Scope blocks are pure syntactic sugar — they save repetition of `[db]base.Pers
 |---------|--------|---------------|
 | B1 ~mainTable | ✅ | — |
 | B2 ~filter | ✅ | — |
-| B3 ~filter via join | ❌ | Filter-on-traverse → EXISTS generation in PlanGenerator |
+| B3 ~filter via join | ❌ | Filter-on-traverse → EXISTS generation in Lowerer |
 | B4 ~distinct | ✅ | — |
 | B5 ~groupBy | ✅ | — |
 | B6 ~primaryKey | ❌ | Parser extension: `#>{db.T \| [pk]}#` syntax |

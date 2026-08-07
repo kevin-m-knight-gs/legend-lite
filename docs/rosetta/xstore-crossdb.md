@@ -1,5 +1,13 @@
 # XStore, Local Properties, Source/Target IDs & Cross-DB — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **E3** (xStore), **C5** (local mapping properties), **A10** (source/target IDs), **A11** (cross-DB reference)
 
 ---
@@ -122,21 +130,21 @@ In legend-lite's multi-pass architecture, local properties can be simpler than l
 
 1. **Builder** extracts `+prop` → stores type/multiplicity, marks as local
 2. **MappingNormalizer** emits it as an extend ColSpec in the sourceRelation (same as dynaFunction properties today)
-3. **TypeChecker** blocks user access naturally — `$p.firmName` fails because `firmName` isn't on the class
+3. **Typer** blocks user access naturally — `$p.firmName` fails because `firmName` isn't on the class
 4. No synthetic MappingClass needed — our pass separation gives us the scoping for free
 
-**FACT**: Steps 1-3 follow directly from existing code patterns. MappingNormalizer already creates extends for computed properties. TypeChecker already rejects properties not found on the class.
+**FACT**: Steps 1-3 follow directly from existing code patterns. MappingNormalizer already creates extends for computed properties. Typer already rejects properties not found on the class.
 
 ### XStore: unsolved design problem
 
 The extend-without-class-binding works for the physical SQL side. But XStore `$this.firmName` resolution is NOT solved:
 
 - In legend-engine, `$this` is typed as MappingClass → compiler resolves `firmName`
-- In legend-lite, `$this` would be typed as `Person` → TypeChecker rejects `firmName`
+- In legend-lite, `$this` would be typed as `Person` → Typer rejects `firmName`
 - **Some mechanism** is needed to make local properties visible in XStore expression compilation
 
 **Possible approaches (not yet designed):**
-- MappingResolver compiles XStore expressions in a mapping-aware context that knows about local extends
+- StoreResolver compiles XStore expressions in a mapping-aware context that knows about local extends
 - A lightweight "mapping type overlay" that augments the class with local properties during XStore expression compilation only
 - Compile XStore predicates as lambda expressions with access to the sourceRelation column list
 

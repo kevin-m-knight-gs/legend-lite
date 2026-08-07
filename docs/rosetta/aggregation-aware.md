@@ -1,5 +1,13 @@
 # AggregationAware — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **E4** (AggregationAware mapping)
 
 ---
@@ -267,4 +275,4 @@ Inferred from the measure function:
 **Key files to modify**:
 - Grammar: add `aggregate()` function or `AggregationAware` keyword
 - Compiler/Checker: validate aggregate schema compatibility
-- PlanGenerator or MappingResolver: query rewrite logic
+- Lowerer or StoreResolver: query rewrite logic

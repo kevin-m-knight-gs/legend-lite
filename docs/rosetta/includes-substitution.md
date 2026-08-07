@@ -1,5 +1,13 @@
 # Mapping Includes & Store Substitution — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **C1** (mapping includes), **C2** (store substitution)
 
 ---
@@ -120,7 +128,7 @@ The `#>{$store.TABLE}#` syntax enables store substitution without any special `i
 
 ### Key files in legend-lite
 
-- **PureModelBuilder.java** — parses mapping includes
+- **PureModelContext.java** — parses mapping includes
 - **MappingRegistry.java** — resolves included mappings
 - **RelationalMappingIntegrationTest.java** — `testMappingInclude` (✅)
 

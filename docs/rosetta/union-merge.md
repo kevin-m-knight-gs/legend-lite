@@ -1,5 +1,13 @@
 # Union & Merge — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **E6** (union), **E7** (merge/intersection)
 
 ---
@@ -144,7 +152,7 @@ function model::mergedPerson(): Relation<(name:String, region:String, score:Floa
 
 ### Key files in legend-lite
 
-- **PureModelBuilder.java** — would need to parse `Operation` class mappings
+- **PureModelContext.java** — would need to parse `Operation` class mappings
 - **MappingNormalizer.java** — emit `concatenate()` for union, `join()` for merge
 
 ### Tests in legend-lite

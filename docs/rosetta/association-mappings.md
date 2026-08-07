@@ -1,5 +1,13 @@
 # Association Mappings — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **C3** (association mapping)
 
 ---
@@ -122,8 +130,8 @@ The key difference: in Legend Mapping, the association is declared once and the 
 ### Key files in legend-lite
 
 - **MappingNormalizer.java** — `addAssociationExtends()` converts association refs to traverse nodes
-- **MappingResolver.java** — resolves association joins to `JoinResolution`
-- **PlanGenerator.java** — generates LEFT JOIN from traverse
+- **StoreResolver.java** — resolves association joins to `JoinResolution`
+- **Lowerer.java** — generates LEFT JOIN from traverse
 
 ### Tests in legend-lite
 

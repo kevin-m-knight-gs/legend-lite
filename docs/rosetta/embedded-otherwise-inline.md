@@ -1,5 +1,13 @@
 # Embedded, Otherwise, Inline — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **A6** (embedded), **A7** (otherwise embedded), **A8** (inline embedded)
 
 ---
@@ -200,8 +208,8 @@ Tests confirm: `testOtherwisePruningEmbeddedOnly` = **0 JOINs**, `testOtherwiseP
 
 - **MappingNormalizer.java** — `addEmbeddedExtends()` creates 0-param lambda ColSpecArray
 - **ExtendChecker.java** — `isEmbeddedExtend()` detects embedded pattern
-- **MappingResolver.java** — `resolveAssociationJoins()` handles otherwise fallback
-- **PlanGenerator.java** — generates correlated subqueries for nested graphFetch
+- **StoreResolver.java** — `resolveAssociationJoins()` handles otherwise fallback
+- **Lowerer.java** — generates correlated subqueries for nested graphFetch
 
 ### Tests in legend-lite
 

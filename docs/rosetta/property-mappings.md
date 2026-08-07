@@ -1,5 +1,13 @@
 # Property Mappings — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **A1** (simple column), **A3** (DynaFunction), **A4** (DynaFunction + join)
 
 ---
@@ -131,8 +139,8 @@ LEFT OUTER JOIN FirmTable AS "firmtable_0" ON ("root".FIRM_ID = "firmtable_0".ID
 ### Key files in legend-lite
 
 - **MappingNormalizer.java** — converts property mappings to `extend()` nodes
-- **MappingResolver.java** — resolves DynaFunction → `DynaFunction` PropertyResolution
-- **PlanGenerator.java** — `resolveColumnExpr` handles Column, DynaFunction, and JoinResolution cases
+- **StoreResolver.java** — resolves DynaFunction → `DynaFunction` PropertyResolution
+- **Lowerer.java** — `resolveColumnExpr` handles Column, DynaFunction, and JoinResolution cases
 
 ### Tests in legend-lite
 

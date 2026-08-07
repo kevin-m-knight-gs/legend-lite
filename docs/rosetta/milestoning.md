@@ -1,5 +1,13 @@
 # Milestoning — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **G** (business/processing milestoning)
 
 ---
@@ -184,4 +192,4 @@ See also: [AsOfJoinCheckerTest.java](../../engine/src/test/java/com/gs/legend/te
 - PackageableElementBuilder — parse milestoning annotations in Table definitions
 - MappingNormalizer or a new MilestoningResolver — inject date filters
 - ExtendChecker / TraverseChecker — propagate asOf context through traverse chains
-- PlanGenerator — render the injected filter predicates
+- Lowerer — render the injected filter predicates

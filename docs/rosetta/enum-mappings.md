@@ -1,5 +1,13 @@
 # Enumeration Mappings — Rosetta Stone
 
+> *2026-08-06: **class** names in the implementation notes were remapped from the
+> frozen `engine/` tree to the live `core/` one (`MappingResolver` →
+> `StoreResolver`, `PlanGenerator` → `Lowerer`, `PureModelBuilder` →
+> `PureModelContext`, `TypeChecker` → `Typer`). **Method names were NOT verified**
+> and some no longer exist. The upstream-Legend semantics this document
+> describes — its actual subject — are unchanged and remain accurate. See
+> `AGENTS.md` for the live layer map.*
+
 > Covers: **A5** (enum transformer on property), **C4** (enumeration mapping definition)
 
 ---
@@ -156,7 +164,7 @@ FROM PERSON AS "root"
 ### Key files in legend-lite
 
 - **MappingNormalizer.java** — converts EnumerationMapping references to case/if expressions
-- **PureModelBuilder.java** — parses EnumerationMapping definitions
+- **PureModelContext.java** — parses EnumerationMapping definitions
 - **EnumIntegrationTest.java** — comprehensive enum mapping tests
 
 ### Tests in legend-lite
