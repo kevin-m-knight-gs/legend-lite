@@ -24,21 +24,11 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                           java.util.Map<String, Integer> elementOffsets,
                           java.util.Map<String, ImportScope> elementImports,
                           java.util.Map<String, String> elementSources,
-                          List<UnclaimedSection> unclaimedSections,
-                          List<OpaqueElement> opaqueElements) {
+                          List<UnclaimedSection> unclaimedSections) {
 
     /** A {@code ###} section no registered grammar claims — explicit and
      *  reportable, never lexer silence (SectionGrammarRegistry step 1). */
     public record UnclaimedSection(String name, int startOffset, int endOffset) {
-    }
-
-    /** An element an OVERLAY section grammar produced (spi.ElementSink):
-     *  core indexes, names and routes it by FQN but never looks inside the
-     *  extension-owned protocol JSON — compiling it is the extension's job.
-     *  Promotion to a sealed PackageableElement variant is Phase M step 3;
-     *  until then opaque elements ride ParsedModel beside the model. */
-    public record OpaqueElement(String fqn, String sectionName,
-            String protocolJson) {
     }
 
     public ParsedModel {
@@ -54,8 +44,6 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                 : java.util.Map.copyOf(elementSources);
         unclaimedSections = unclaimedSections == null ? List.of()
                 : List.copyOf(unclaimedSections);
-        opaqueElements = opaqueElements == null ? List.of()
-                : List.copyOf(opaqueElements);
     }
 
     /**
@@ -71,7 +59,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                        java.util.Map<String, ImportScope> elementImports,
                        java.util.Map<String, String> elementSources) {
         this(elements, imports, source, elementOffsets, elementImports,
-                elementSources, List.of(), List.of());
+                elementSources, List.of());
     }
 
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
@@ -79,7 +67,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                        java.util.Map<String, Integer> elementOffsets,
                        java.util.Map<String, ImportScope> elementImports) {
         this(elements, imports, source, elementOffsets, elementImports,
-                java.util.Map.of(), List.of(), List.of());
+                java.util.Map.of(), List.of());
     }
 
     /**

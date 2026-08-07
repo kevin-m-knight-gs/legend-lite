@@ -48,9 +48,16 @@ class SectionGrammarRegistryTest {
                 Toy my::toys::T2;
                 """);
         assertTrue(m.unclaimedSections().isEmpty(), "Toy is CLAIMED");
-        assertEquals(2, m.opaqueElements().size());
-        assertEquals("my::toys::T1", m.opaqueElements().get(0).fqn());
-        assertEquals("Toy", m.opaqueElements().get(0).sectionName());
+        var opaques = m.elements().stream()
+                .filter(e -> e instanceof com.legend.model.OpaqueElementDefinition)
+                .map(e -> (com.legend.model.OpaqueElementDefinition) e)
+                .toList();
+        assertEquals(2, opaques.size());
+        assertEquals("my::toys::T1", opaques.get(0).qualifiedName());
+        assertEquals("Toy", opaques.get(0).sectionName());
+        assertEquals(3, m.elements().size(),
+                "opaque elements ride the SAME element list — indexed and"
+                        + " routed like any element");
         assertTrue(ToySectionGrammar.lastText.contains("Toy my::toys::T2;"),
                 "the grammar received the section's raw text");
     }

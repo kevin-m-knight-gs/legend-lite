@@ -294,6 +294,10 @@ public final class NameResolver {
     private static PackageableElement resolveElement(
             PackageableElement element, Scope scope) {
         return switch (element) {
+            // opaque overlay elements carry EXTENSION-owned payloads — core
+            // routes them by FQN and never opens them, so there are no names
+            // to resolve (Phase M step 3)
+            case com.legend.model.OpaqueElementDefinition oe -> oe;
             case com.legend.model.PrimitiveExtensionDefinition pe -> {
                 // base primitives (String, Integer...) pass through resolveName
                 // unchanged; an extension-of-extension base resolves via imports

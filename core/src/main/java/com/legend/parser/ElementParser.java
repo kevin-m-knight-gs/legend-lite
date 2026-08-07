@@ -301,8 +301,6 @@ public final class ElementParser implements TokenStreamCursor {
         // an explicit reportable row, never silence (Phase M step 1)
         java.util.List<com.legend.model.ParsedModel.UnclaimedSection> unclaimed =
                 new java.util.ArrayList<>();
-        java.util.List<com.legend.model.ParsedModel.OpaqueElement> opaque =
-                new java.util.ArrayList<>();
         for (var sk : tokens.skippedSections()) {
             var g = SectionGrammarRegistry.lookup(sk.name());
             if (g.isEmpty()) {
@@ -310,19 +308,20 @@ public final class ElementParser implements TokenStreamCursor {
                         sk.name(), sk.startOffset(), sk.endOffset()));
             } else if (!g.get().lexable()) {
                 // an OVERLAY grammar owns this opaque section: hand it the
-                // raw text (foreign grammars never adopt our lexer) and
-                // collect its elements as opaque carriers
+                // raw text (foreign grammars never adopt our lexer); its
+                // elements enter the MODEL as the sealed opaque carrier —
+                // indexed and routed like any element, never opened
                 g.get().parse(new com.legend.spi.SectionSource(sk.name(),
                                 tokens.source().substring(sk.startOffset(),
                                         sk.endOffset()),
                                 sk.startOffset(), sk.endOffset()),
-                        (fqn, json) -> opaque.add(
-                                new com.legend.model.ParsedModel.OpaqueElement(
+                        (fqn, json) -> elements.add(
+                                new com.legend.model.OpaqueElementDefinition(
                                         fqn, sk.name(), json)));
             }
         }
         return new ParsedModel(elements, imports.build(), tokens.source(),
-                offsets, elementImports, java.util.Map.of(), unclaimed, opaque);
+                offsets, elementImports, java.util.Map.of(), unclaimed);
     }
 
     /**

@@ -36,7 +36,8 @@ public sealed interface PackageableElement
                 DatabaseDefinition,
                 MappingDefinition,
                 LegacyMappingDefinition,
-                PrimitiveExtensionDefinition {
+                PrimitiveExtensionDefinition,
+                OpaqueElementDefinition {
 
     /** Fully qualified name, e.g. {@code "model::Person"}. The only identity. */
     String qualifiedName();
