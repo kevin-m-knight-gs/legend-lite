@@ -1,3 +1,13 @@
+> ## ⚠ SUPERSEDED — 2026-08-06
+>
+> This document describes work that was **not built, was abandoned, or has been
+> superseded**. It targets `engine/com.gs.legend` (frozen since 2026-07-18) or a
+> plan that never landed. It is kept as a record of what was considered.
+>
+> **Do not act on it.** For the live architecture see `AGENTS.md` and
+> `core/README.md`; for current work see `docs/GATES.md` and
+> `docs/CORPUS_BURNDOWN_HANDOFF.md`.
+
 # Mapping Unification Plan
 
 > Four-pass compiler architecture for legend-lite:
@@ -346,4 +356,3 @@ Phase 4 ─── Mapping as Relation DSL
 > [!IMPORTANT]
 > No one-way doors. Every phase is reversible. The architecture is proven by
 > legend-engine's 10+ years of production use.
-

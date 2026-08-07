@@ -1,3 +1,13 @@
+> ## ⚠ NOT BUILT — status note, 2026-08-06
+>
+> This is a **feasibility design**. No such dialect exists in `core/`. The
+> dialects that do exist are `DuckDb`, `H2`, `H2Modern`, and the
+> `EngineStyleH2`/`DB2`/`Composite` chain, all under `sql/dialect/`. SQLite is
+> not a class — it is `Lexicon.SQLITE` passed to `AnsiSqlRenderer`.
+>
+> The analysis is still usable as a starting point; just do not read it as
+> describing shipped behaviour.
+
 # SQLite as a real backend — design
 
 > **Question asked:** add SQLite as a real execution backend, on the same terms `H2_BACKEND.md`

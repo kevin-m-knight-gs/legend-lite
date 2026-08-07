@@ -1,3 +1,16 @@
+> ## Live spec — verified current 2026-08-06
+>
+> This is the **active specification** for `normalizer/MappingNormalizer`'s
+> desugaring, not a historical record. Verified against the tree:
+> `navigate` / `legacyNavigate` / `legacyAssocPredicate` are live in
+> `builtin/Pure.java` and emitted by `MappingNormalizer`, whose javadoc cites
+> this document's §5.6.1 and §5.3.6 by section number. Also consumed by
+> `JoinChainEmission`, `AssociationSynthesis`, `XStorePureEnds`,
+> `GroupBySynthesis` and `UnionSynthesis`.
+>
+> Note: phase E's entry point is `ModelNormalizer.normalize`;
+> `MappingNormalizer` is sub-slice E.1.
+
 # Legacy Mapping DSL → Function Form
 
 **Status:** Design spec. This document specifies how the existing
@@ -7,9 +20,9 @@ DSL** into the clean-sheet function form defined in
 
 > **Companion docs:**
 > - `MAPPING_CLEAN_SHEET.md` — the target user-facing function form.
-> - `MAPPING_NORMALIZER_DESIGN.md` — historical 7-layer normalizer
+> - ~~`MAPPING_NORMALIZER_DESIGN.md`~~ *(never written)* — historical 7-layer normalizer
 >   design (legacy IR — predates this document).
-> - `MAPPING_NORMALIZER_FOLLOWUPS.md` — implementation roadmap.
+> - ~~`MAPPING_NORMALIZER_FOLLOWUPS.md`~~ *(never written)* — implementation roadmap.
 
 ---
 

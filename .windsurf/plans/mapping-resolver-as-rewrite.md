@@ -1,3 +1,13 @@
+> ## ⚠ FROZEN-TREE PLAN — banner added 2026-08-06
+>
+> This plans a rewrite of `com.gs.legend.compiler.MappingResolver`, which lives
+> in the **frozen** `engine/` tree. Kept because `MappingResolverV2.java` and
+> `MappingResolverParityTest.java` still cite it — both of which are themselves
+> legacy-pipeline code, reachable only under `-Dlegend.pipeline=engine`.
+>
+> The live equivalent is `resolver/StoreResolver` (phase H) in `core/`.
+> **Do not act on this plan.**
+
 # MappingResolver as a Tree Rewrite
 
 ## Problem

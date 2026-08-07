@@ -1,3 +1,10 @@
+> ## ⚠ ABANDONED — banner added 2026-08-06
+>
+> This records a `MappingResolver` rewrite arc in `engine/com.gs.legend`, which
+> is **frozen and superseded**. The live equivalent is `resolver/StoreResolver`
+> (phase H) in `core/`. Kept only because a javadoc comment still points here.
+> **Do not act on it.**
+
 # MappingResolver rewrite — progress notes
 
 > Living notes on the multi-phase MR rewrite. The end state is "MR is a

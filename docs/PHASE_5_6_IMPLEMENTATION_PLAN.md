@@ -1,3 +1,13 @@
+> ## ⚠ SUPERSEDED — 2026-08-06
+>
+> This document describes work that was **not built, was abandoned, or has been
+> superseded**. It targets `engine/com.gs.legend` (frozen since 2026-07-18) or a
+> plan that never landed. It is kept as a record of what was considered.
+>
+> **Do not act on it.** For the live architecture see `AGENTS.md` and
+> `core/README.md`; for current work see `docs/GATES.md` and
+> `docs/CORPUS_BURNDOWN_HANDOFF.md`.
+
 # Phase 5 & 6: Full Pipeline Implementation Plan
 
 Implement all remaining mapping/store features end-to-end (grammar → builder → model → normalizer → resolver → planGen → SQL), covering DynaFunction expressions, scope blocks, embedded/inline/otherwise mappings, association mappings, set IDs, includes, views, self-joins, local properties, grammar additions (XStore, AggAware, Relation), binding transformer, milestoning, and union/merge.

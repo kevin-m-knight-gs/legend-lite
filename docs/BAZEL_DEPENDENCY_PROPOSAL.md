@@ -1,3 +1,13 @@
+> ## ⚠ SUPERSEDED — 2026-08-06
+>
+> This document describes work that was **not built, was abandoned, or has been
+> superseded**. It targets `engine/com.gs.legend` (frozen since 2026-07-18) or a
+> plan that never landed. It is kept as a record of what was considered.
+>
+> **Do not act on it.** For the live architecture see `AGENTS.md` and
+> `core/README.md`; for current work see `docs/GATES.md` and
+> `docs/CORPUS_BURNDOWN_HANDOFF.md`.
+
 # Bazel-Based Dependency Management for Legend
 
 > **📎 Phase B design note:** Element serialization details (the `Compiled*` record hierarchy, `.legend` file format, `compileAll()` API, Tier 1/2/3 back-reference modeling) are now fully specified in **[`PHASE_B_COMPILED_ELEMENTS.md`](./PHASE_B_COMPILED_ELEMENTS.md)**. This doc retains the high-level rationale and §6 tier design; concrete Java types and serialization format live in the companion.
@@ -2308,4 +2318,3 @@ Developers can use either build system during the transition. CI runs both until
 - **Access control** -- all exports are public; `visibility` in BUILD.bazel provides basic scoping
 - **Version ranges** -- Bazel's single-version-per-target eliminates the need
 - **Custom CLI** -- `bazel build/test/run` replaces `legend compile/publish/sync`
-

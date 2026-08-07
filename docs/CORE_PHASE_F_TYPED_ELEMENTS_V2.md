@@ -1,3 +1,11 @@
+> ## Design record — banner added 2026-08-06
+>
+> This is a **dated design record**, kept because the work it describes landed
+> and because live code cites it (1 javadoc site(s) under `core/src/main/java`).
+> Some class names in it have since moved or been renamed. **Do not delete it**,
+> and do not treat its names as current — see `AGENTS.md` and `core/README.md`
+> for the live map.
+
 # Core Phase F — Typed Elements (`compiler/element/`) — Design (v2)
 
 > **Scope:** `legend-lite/core` Phase F (`ElementCompiler` + `compiler/element/` +
