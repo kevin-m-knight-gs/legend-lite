@@ -760,8 +760,7 @@ final class RelationalGrammarParser {
     }
 
     static String stripQuoted(String n) {
-        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
-                ? n.substring(1, n.length() - 1) : n;
+        return TokenStreamCursor.stripDoubleQuotes(n);
     }
 
     /** A COLUMN-position identifier: a double-quoted spelling KEEPS its

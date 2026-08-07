@@ -1573,7 +1573,6 @@ final class MappingGrammarParser {
 
 
     private static String stripColQuotes(String n) {
-        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
-                ? n.substring(1, n.length() - 1) : n;
+        return TokenStreamCursor.stripDoubleQuotes(n);
     }
 }

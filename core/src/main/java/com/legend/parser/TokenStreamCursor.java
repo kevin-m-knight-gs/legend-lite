@@ -448,7 +448,21 @@ public interface TokenStreamCursor {
         if (raw.length() < 2 || raw.charAt(0) != '\'' || raw.charAt(raw.length() - 1) != '\'') {
             throw at.error("malformed quoted name: missing surrounding quotes");
         }
-        String body = raw.substring(1, raw.length() - 1);
+        return unescapeBody(raw.substring(1, raw.length() - 1), "quoted name", at);
+    }
+
+    /**
+     * THE escape table — quoted names AND string literals decode the same
+     * token the same way (audit §2.5: the earlier de-duplication kept the
+     * WEAKER 5-escape table for names, so {@code 'x\by'} was a value in
+     * expression position and a parse error in name position). Real pure's
+     * set (M4Fragment.g4 EscSeq): {@code [btnfr"'\\]}; an UNRECOGNIZED escape
+     * drops the backslash and keeps the char (legend-pure
+     * StringEscape.UNESCAPE_PURE's terminal rule — the corpus's {@code '\ '}
+     * seed literal depends on it). Octal and {@code \\uXXXX} stay loud until a
+     * corpus file demands them: drop-backslash would corrupt them silently.
+     */
+    static String unescapeBody(String body, String what, TokenStreamCursor at) {
         if (body.indexOf('\\') < 0) {
             return body;
         }
@@ -462,21 +476,34 @@ public interface TokenStreamCursor {
                 continue;
             }
             if (i + 1 >= body.length()) {
-                throw at.error("malformed quoted name: trailing backslash");
+                throw at.error("malformed " + what + ": trailing backslash");
             }
             char esc = body.charAt(i + 1);
             switch (esc) {
                 case '\\' -> sb.append('\\');
                 case '\'' -> sb.append('\'');
+                case '"' -> sb.append('"');
                 case 'n' -> sb.append('\n');
                 case 't' -> sb.append('\t');
                 case 'r' -> sb.append('\r');
-                default -> throw at.error(
-                        "malformed quoted name: unsupported escape '\\" + esc + "'");
+                case 'b' -> sb.append('\b');
+                case 'f' -> sb.append('\f');
+                case 'u', '0', '1', '2', '3', '4', '5', '6', '7' ->
+                        throw at.error("malformed " + what + ": octal/unicode"
+                                + " escape '\\" + esc + "' is not supported yet");
+                default -> sb.append(esc);
             }
             i += 2;
         }
         return sb.toString();
+    }
+
+    /** THE double-quoted-identifier stripper (SQL-ish spellings in Relational
+     *  and Mapping positions) — no escapes, quotes-off if present. One copy;
+     *  the two per-parser twins it replaces were byte-identical (audit §2.5). */
+    static String stripDoubleQuotes(String n) {
+        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
+                ? n.substring(1, n.length() - 1) : n;
     }
 
     // -----------------------------------------------------------------

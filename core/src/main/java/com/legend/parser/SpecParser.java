@@ -809,39 +809,9 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     private String unescapeString(String body) {
-        if (body.indexOf('\\') < 0) return body;
-        StringBuilder sb = new StringBuilder(body.length());
-        int i = 0;
-        while (i < body.length()) {
-            char c = body.charAt(i);
-            if (c != '\\') { sb.append(c); i++; continue; }
-            if (i + 1 >= body.length()) {
-                throw error("malformed string literal: trailing backslash");
-            }
-            char esc = body.charAt(i + 1);
-            // real pure's set (M4Fragment.g4 EscSeq): [btnfr"'\\]; an
-            // UNRECOGNIZED escape drops the backslash and keeps the char
-            // (legend-pure StringEscape.UNESCAPE_PURE's terminal {"\\",""}
-            // rule — the corpus's '\ ' seed literal depends on it). Octal
-            // and \\uXXXX escapes stay loud until a corpus file demands
-            // them (drop-backslash would corrupt them silently).
-            switch (esc) {
-                case '\\' -> sb.append('\\');
-                case '\'' -> sb.append('\'');
-                case '"' -> sb.append('"');
-                case 'n' -> sb.append('\n');
-                case 't' -> sb.append('\t');
-                case 'r' -> sb.append('\r');
-                case 'b' -> sb.append('\b');
-                case 'f' -> sb.append('\f');
-                case 'u', '0', '1', '2', '3', '4', '5', '6', '7' ->
-                        throw error("malformed string literal: octal/unicode"
-                                + " escape '\\" + esc + "' is not supported yet");
-                default -> sb.append(esc);
-            }
-            i += 2;
-        }
-        return sb.toString();
+        // delegates to THE escape table (TokenStreamCursor.unescapeBody) —
+        // names and string literals must decode identically (audit §2.5)
+        return TokenStreamCursor.unescapeBody(body, "string literal", this);
     }
 
     private CBoolean consumeBoolean(boolean value) {
@@ -2584,11 +2554,117 @@ public final class SpecParser implements TokenStreamCursor {
         return new AppliedFunction("pathWithAlias", List.of(lit, new CString(alias)));
     }
 
+    /** What {@link #scanScalar} read. {@code a}/{@code b} carry the kind's
+     *  strings (STRING: unescaped body; DATE: body sans {@code %} / written
+     *  with it; ENUM: type / value; VAR: name); spans are {@code s..e}
+     *  inclusive; {@code next} is where the caller resumes. */
+    private record Scalar(ScalarKind kind, String a, String b, long intValue,
+            int s, int e, int next) {
+        static Scalar of(ScalarKind k, String a, String b, long v, int s, int e, int n) {
+            return new Scalar(k, a, b, v, s, e, n);
+        }
+    }
+
+    private enum ScalarKind { SKIP, LATEST, DATE, INT, NUMERICISH, STRING, BOOL, VAR, ENUM, OTHER }
+
+    /**
+     * THE ONE scalar reader for island argument text (audit §2.1): path-literal
+     * dated-segment args and graph-fetch property args read the same lexeme the
+     * SAME way. Each caller maps the kinds whose wire shapes it has probed and
+     * WALLS the rest — an unprobed position refuses loudly instead of reading
+     * wrong (a float no longer truncates to its fraction digits; strings
+     * unescape on both paths). Structural syntax (collections, commas,
+     * closers) stays with the caller.
+     */
+    private Scalar scanScalar(String src, int i, int limit) {
+        char c = src.charAt(i);
+        if (c == '/' && i + 1 < limit && src.charAt(i + 1) == '/') {
+            int k = i;
+            while (k < limit && src.charAt(k) != '\n') {
+                k++;
+            }
+            return Scalar.of(ScalarKind.SKIP, "", "", 0, i, k, k);
+        }
+        if (c == '%') {
+            int k = i + 1;
+            while (k < limit && (Character.isLetterOrDigit(src.charAt(k))
+                    || "-T:.Z+".indexOf(src.charAt(k)) >= 0)) {
+                k++;
+            }
+            String body = src.substring(i + 1, k);
+            if (body.isEmpty()) {
+                return Scalar.of(ScalarKind.OTHER, "", "", 0, i, i, i + 1);
+            }
+            return Scalar.of(body.equals("latest") ? ScalarKind.LATEST : ScalarKind.DATE,
+                    body, src.substring(i, k), 0, i, k - 1, k);
+        }
+        if (Character.isDigit(c)) {
+            int k = i;
+            while (k < limit && Character.isDigit(src.charAt(k))) {
+                k++;
+            }
+            if (k < limit && (src.charAt(k) == '.' || isGraphIdentChar(src.charAt(k)))) {
+                // float/decimal/suffixed — one LEXEME, wire unprobed: consume it
+                // whole so it cannot re-read as its fraction digits
+                while (k < limit && (src.charAt(k) == '.' || isGraphIdentChar(src.charAt(k)))) {
+                    k++;
+                }
+                return Scalar.of(ScalarKind.NUMERICISH, src.substring(i, k), "", 0, i, k - 1, k);
+            }
+            return Scalar.of(ScalarKind.INT, "", "", Long.parseLong(src.substring(i, k)),
+                    i, k - 1, k);
+        }
+        if (c == '\'') {
+            int close = src.indexOf('\'', i + 1);
+            if (close < 0 || close >= limit) {
+                return Scalar.of(ScalarKind.OTHER, "", "", 0, i, limit - 1, limit);
+            }
+            return Scalar.of(ScalarKind.STRING,
+                    unescapeString(src.substring(i + 1, close)), "", 0, i, close, close + 1);
+        }
+        if (c == '$') {
+            int k = i + 1;
+            while (k < limit && isGraphIdentChar(src.charAt(k))) {
+                k++;
+            }
+            if (k == i + 1) {
+                return Scalar.of(ScalarKind.OTHER, "", "", 0, i, i, i + 1);
+            }
+            return Scalar.of(ScalarKind.VAR, src.substring(i + 1, k), "", 0, i + 1, k - 1, k);
+        }
+        if (Character.isLetter(c) || c == '_') {
+            int k = i;
+            while (k < limit && (isGraphIdentChar(src.charAt(k)) || src.charAt(k) == ':')) {
+                k++;
+            }
+            String word = src.substring(i, k);
+            if (word.equals("true") || word.equals("false")) {
+                return Scalar.of(ScalarKind.BOOL, word, "", word.equals("true") ? 1 : 0,
+                        i, k - 1, k);
+            }
+            if (k < limit && src.charAt(k) == '.') {
+                int vs = k + 1;
+                int ve = vs;
+                while (ve < limit && isGraphIdentChar(src.charAt(ve))) {
+                    ve++;
+                }
+                if (ve > vs) {
+                    return Scalar.of(ScalarKind.ENUM, word, src.substring(vs, ve), 0,
+                            i, ve - 1, ve);
+                }
+            }
+            return Scalar.of(ScalarKind.OTHER, word, "", 0, i, k - 1, k);
+        }
+        return Scalar.of(ScalarKind.OTHER, "", "", 0, i, i, i + 1);
+    }
+
     /**
      * Charwise scan of a dated path segment's argument list {@code rawSeg[from,to)}.
-     * Scalars: {@code %latest}, {@code %date}, integers, quoted strings, {@code Enum.VAL};
-     * {@code [a, b]} recurses one level as a span-less collection (probe "pf path
-     * exotic"). Offsets are relative to the literal text via {@code base}.
+     * Scalars via {@link #scanScalar}; {@code [a, b]} recurses one level as a
+     * span-less collection (probe "pf path exotic"). Offsets are relative to
+     * the literal text via {@code base}. Kinds with no probed PATH wire shape
+     * (booleans, variables, floats) mark the literal unsupported — a loud
+     * wall, not a wrong read.
      */
     private void scanPathArgs(String rawSeg, int from, int to, int base,
             List<com.legend.protocol.spec.PathLiteral.PathArg> out,
@@ -2612,67 +2688,28 @@ public final class SpecParser implements TokenStreamCursor {
                 i = close + 1;
                 continue;
             }
-            if (c == '%') {
-                int k = i + 1;
-                while (k < to && (Character.isLetterOrDigit(rawSeg.charAt(k))
-                        || "-T:.Z+".indexOf(rawSeg.charAt(k)) >= 0)) {
-                    k++;
-                }
-                String body = rawSeg.substring(i + 1, k);
-                if (body.equals("latest")) {
-                    out.add(new com.legend.protocol.spec.PathLiteral.PathArg.Latest(
-                            base + i, base + k - 1));
-                } else if (body.matches("[0-9T:.Z+\\-]+")) {
-                    out.add(new com.legend.protocol.spec.PathLiteral.PathArg.DateArg(
-                            body, base + i, base + k - 1));
-                } else {
-                    unsupported[0] = true;
-                }
-                i = k;
-                continue;
-            }
-            if (Character.isDigit(c)) {
-                int s = i;
-                while (i < to && Character.isDigit(rawSeg.charAt(i))) {
-                    i++;
-                }
-                out.add(new com.legend.protocol.spec.PathLiteral.PathArg.IntArg(
-                        Long.parseLong(rawSeg.substring(s, i)), base + s, base + i - 1));
-                continue;
-            }
-            if (c == '\'') {
-                int close = rawSeg.indexOf('\'', i + 1);
-                if (close < 0 || close >= to) {
-                    unsupported[0] = true;
-                    return;
-                }
-                out.add(new com.legend.protocol.spec.PathLiteral.PathArg.StrArg(
-                        unescapeString(rawSeg.substring(i + 1, close)),
-                        base + i, base + close));
-                i = close + 1;
-                continue;
-            }
-            if (Character.isLetter(c) || c == '_') {
-                int s = i;
-                while (i < to && (Character.isLetterOrDigit(rawSeg.charAt(i))
-                        || rawSeg.charAt(i) == '_' || rawSeg.charAt(i) == ':')) {
-                    i++;
-                }
-                if (i < to && rawSeg.charAt(i) == '.') {
-                    int vs = ++i;
-                    while (i < to && (Character.isLetterOrDigit(rawSeg.charAt(i))
-                            || rawSeg.charAt(i) == '_')) {
-                        i++;
+            Scalar sc = scanScalar(rawSeg, i, to);
+            switch (sc.kind()) {
+                case SKIP -> { }
+                case LATEST -> out.add(new com.legend.protocol.spec.PathLiteral
+                        .PathArg.Latest(base + sc.s(), base + sc.e()));
+                case DATE -> {
+                    if (sc.a().matches("[0-9T:.Z+\\-]+")) {
+                        out.add(new com.legend.protocol.spec.PathLiteral
+                                .PathArg.DateArg(sc.a(), base + sc.s(), base + sc.e()));
+                    } else {
+                        unsupported[0] = true;
                     }
-                    out.add(new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
-                            rawSeg.substring(s, vs - 1), rawSeg.substring(vs, i)));
-                } else {
-                    unsupported[0] = true;
                 }
-                continue;
+                case INT -> out.add(new com.legend.protocol.spec.PathLiteral
+                        .PathArg.IntArg(sc.intValue(), base + sc.s(), base + sc.e()));
+                case STRING -> out.add(new com.legend.protocol.spec.PathLiteral
+                        .PathArg.StrArg(sc.a(), base + sc.s(), base + sc.e()));
+                case ENUM -> out.add(new com.legend.protocol.spec.PathLiteral
+                        .PathArg.EnumArg(sc.a(), sc.b()));
+                default -> unsupported[0] = true;
             }
-            unsupported[0] = true;
-            i++;
+            i = sc.next();
         }
     }
 
@@ -3171,103 +3208,30 @@ public final class SpecParser implements TokenStreamCursor {
                 i++;
                 continue;
             }
-            if (c == '/' && i + 1 < limit && src.charAt(i + 1) == '/') {
-                while (i < limit && src.charAt(i) != '\n') {
-                    i++;
-                }
-                continue;
-            }
-            if (c == '\'') {
-                int qe = src.indexOf('\'', i + 1);
-                if (qe < 0 || qe >= limit) {
-                    unsupported[0] = true;
-                    i = limit;
-                    break;
-                }
-                out.add(new CString(src.substring(i + 1, qe), charSpan(i, qe)));
-                i = qe + 1;
-                continue;
-            }
-            if (c == '$') {
-                int s = i + 1;
-                int k = s;
-                while (k < limit && isGraphIdentChar(src.charAt(k))) {
-                    k++;
-                }
-                if (k == s) {
-                    unsupported[0] = true;
-                    i++;
-                    continue;
-                }
-                out.add(new Variable(src.substring(s, k), null, null, charSpan(s, k - 1)));
-                i = k;
-                continue;
-            }
-            if (c == '%') {
-                int s = i;
-                int k = i + 1;
-                while (k < limit && (Character.isDigit(src.charAt(k))
-                        || "-T:.Z+".indexOf(src.charAt(k)) >= 0)) {
-                    k++;
-                }
-                if (k == i + 1) {
-                    unsupported[0] = true;          // %latest and friends — unprobed here
-                    i++;
-                    continue;
-                }
-                try {
-                    out.add(new CDate(
-                            com.legend.values.PureDateLiteral.parse(src.substring(s + 1, k)),
-                            src.substring(s, k), charSpan(s, k - 1)));
-                } catch (IllegalArgumentException e) {
-                    unsupported[0] = true;
-                }
-                i = k;
-                continue;
-            }
-            if (Character.isDigit(c)) {
-                int s = i;
-                while (i < limit && Character.isDigit(src.charAt(i))) {
-                    i++;
-                }
-                if (i < limit && (src.charAt(i) == '.' || isGraphIdentChar(src.charAt(i)))) {
-                    unsupported[0] = true;          // floats/decimals — unprobed
-                    continue;
-                }
-                out.add(new CInteger(Long.parseLong(src.substring(s, i)), charSpan(s, i - 1)));
-                continue;
-            }
-            if (Character.isLetter(c) || c == '_') {
-                int s = i;
-                int k = i;
-                while (k < limit && (isGraphIdentChar(src.charAt(k)) || src.charAt(k) == ':')) {
-                    k++;
-                }
-                String word = src.substring(s, k);
-                if (word.equals("true") || word.equals("false")) {
-                    out.add(new CBoolean(word.equals("true"), charSpan(s, k - 1)));
-                    i = k;
-                    continue;
-                }
-                if (k < limit && src.charAt(k) == '.') {
-                    int vs = k + 1;
-                    int ve = vs;
-                    while (ve < limit && isGraphIdentChar(src.charAt(ve))) {
-                        ve++;
-                    }
-                    if (ve > vs) {
-                        out.add(new EnumValue(src.substring(s, k), src.substring(vs, ve),
-                                null, charSpan(s, ve - 1)));
-                        i = ve;
-                        continue;
+            Scalar sc = scanScalar(src, i, limit);
+            switch (sc.kind()) {
+                case SKIP -> { }
+                case STRING -> out.add(new CString(sc.a(), charSpan(sc.s(), sc.e())));
+                case VAR -> out.add(new Variable(sc.a(), null, null,
+                        charSpan(sc.s(), sc.e())));
+                case DATE -> {
+                    try {
+                        out.add(new CDate(
+                                com.legend.values.PureDateLiteral.parse(sc.a()),
+                                sc.b(), charSpan(sc.s(), sc.e())));
+                    } catch (IllegalArgumentException e) {
+                        unsupported[0] = true;
                     }
                 }
-                unsupported[0] = true;
-                i = k;
-                continue;
+                case INT -> out.add(new CInteger(sc.intValue(), charSpan(sc.s(), sc.e())));
+                case BOOL -> out.add(new CBoolean(sc.intValue() == 1,
+                        charSpan(sc.s(), sc.e())));
+                case ENUM -> out.add(new EnumValue(sc.a(), sc.b(), null,
+                        charSpan(sc.s(), sc.e())));
+                // LATEST / NUMERICISH / OTHER: wire unprobed in graph position
+                default -> unsupported[0] = true;
             }
-            unsupported[0] = true;
-            i++;
+            i = sc.next();
         }
         cursor[0] = i;
         return out;
