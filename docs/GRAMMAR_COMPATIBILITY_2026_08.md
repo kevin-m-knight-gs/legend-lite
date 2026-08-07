@@ -47,7 +47,7 @@ verdicts              : 19273
 |---|---|
 | `CorpusEquivalenceTest` | PASS — 19,273/19,273 |
 | `RejectionParityTest` | PASS — 43/43 pins (error-**line** agreement 20/43 — asserted on nothing) |
-| `SectionParseSentinelTest` | PASS — 857 vs `MIN_FILES_PARSED = 857` |
+| `SectionParseSentinelTest` | PASS — 857 vs `MIN_FILES_PARSED = 877` |
 | `SpiSeamProofTest` | PASS — 170 vs `MAX_LENIENT_ACCEPTS = 170` |
 
 **The live problem is not the ratchet's value. It is what the ratchet measures.**

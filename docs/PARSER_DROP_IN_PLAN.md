@@ -48,7 +48,7 @@ Jackson.** We write bytes in the order we observe; the harness says when we are 
 
 | reason | measured |
 |---|---|
-| **Memory** | 1,287 B allocated per source char vs 25 — **52×**; 3.6 GB to parse 2.8 MB; +31.5 MB retained to warm the parser |
+| **Memory** | 1,281 B allocated per source char vs 39 — **32.9×** (re-measured 2026-08-05; see PARSER_DROP_IN.md §0.1); 3.6 GB to parse 2.8 MB; +31.5 MB retained to warm the parser |
 | **Generated code** | 132 of 1,508 jar classes are ANTLR output but **46% of the bytes**; 156 `.g4` / 14,568 lines deleted |
 | **Build** | `antlr4-maven-plugin` at `generate-sources` in 41 modules |
 | **Currency** | ANTLR pinned 4.8-1 (2020); today it can only move with all generated code |
@@ -71,7 +71,7 @@ Jackson.** We write bytes in the order we observe; the harness says when we are 
     |                               SourceInfo inline, set at construction.
     +--> ProtocolEmitter --------> bytes   <- the ONLY upstream-shaped code
     |
-    +--> ProtocolToModel --------> com.legend.model.*  <- legend-lite's compiler,
+    +--> FromProtocol --------> com.legend.model.*  <- legend-lite's compiler,
                                                           unchanged
 ```
 
@@ -79,7 +79,7 @@ Jackson.** We write bytes in the order we observe; the harness says when we are 
 - **`ProtocolEmitter` is a switch expression over the sealed hierarchy with no `default ->` arm.**
   Adding a protocol type without an emit rule is a **compile error** — the same javac-enforced
   discipline `AGENTS.md` invariant 3 already imposes on MIR → dialect rendering.
-- **`ProtocolToModel` is stage 2's input adapter**, built now and exercised by legend-lite's entire
+- **`FromProtocol` is stage 2's input adapter**, built now and exercised by legend-lite's entire
   existing test suite on every build. Not throwaway.
 
 ### 2.2 The surface, measured
@@ -365,7 +365,7 @@ specs fall back to two families and a transform, like the elements.
    > **Framing stale.** 48 of 57 `###Data` files parse cleanly, with **zero** failures
    > attributable to `###Data` — all 9 are other sections in the same file. 42 single-section
    > files need only embedded-data kinds we already emit. Best cost/benefit in this list.
-9. **`ProtocolToModel`** — the transform feeding legend-lite's compiler; also stage 2's adapter.
+9. **`FromProtocol`** — the transform feeding legend-lite's compiler; also stage 2's adapter.
 10. **Delete `MappingGrammarParser.java:432-440`** — it deliberately swallows the tail of an XStore
     block after a missing comma. Incompatible with any equivalence claim.
 11. **Multi-line `'''...'''` strings** (upstream #4998) — dedent -> strip trailing whitespace per
@@ -501,7 +501,7 @@ differential harness:
 | stage | input -> output | seam |
 |---|---|---|
 | 1 parse | text -> **`PureModelContextData`** | this plan |
-| 2 compile | PMCD -> **`PureModel`** | `ProtocolToModel` (§4.2) is already its input adapter |
+| 2 compile | PMCD -> **`PureModel`** | `FromProtocol` (§4.2) is already its input adapter |
 | 3 plan | PureModel + query -> **`ExecutionPlan`** | |
 | 4 execute | plan -> **`Result`** | |
 

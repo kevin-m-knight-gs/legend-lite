@@ -6,7 +6,7 @@ to run a test at all is not.
 
 ## Where we are (homework)
 
-Universe: **2538 tests** discovered and accounted (raw corpus carries ~2479
+Universe: **2798 tests** discovered and accounted (raw corpus carries ~2479
 `<<test.Test>>` stamps; shared files counted per family variant; 129
 `test.ToFix` excluded by engine-harness parity — the engine itself skips them).
 No dark families: the previously-dark executionPlan (110) and postprocessor
@@ -23,7 +23,7 @@ Current split (baseline `9f22c22e` + batch-4 in flight):
 | SHAPE misc (assert forms, DB2 loop, wrapper shapes) | 26 | 1% | no |
 | ERROR | 672 | 26% | **no** |
 
-**Runnable today: 1346 / 2538 = 53%. The burn-down target: 1192 tests.**
+**Runnable today: 1346 / 2798 = 53%. The burn-down target: 1192 tests.**
 
 ## What the 1192 are
 

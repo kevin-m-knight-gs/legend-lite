@@ -1,3 +1,25 @@
+> ## ⚠ Status correction — 2026-08-06
+>
+> **The branch framing in this document is wrong.** It says the work is on
+> `parser/drop-in`, "17 commits, not merged". **The work is on `main`** —
+> `core/{lexer,parser,protocol}` and the whole `parser-equivalence` module are
+> there. That branch has since diverged badly (205 main commits are not in it);
+> following this doc sends you to a stale branch.
+>
+> **§3.1's snapshot is superseded by its own §4.1** and by the live ratchets.
+> Current, regenerated 2026-08-06: **22,725 / 22,725** byte-identical, 0 DIFF;
+> **43/43** rejection pins (40 line-exact, 28 column-exact); SPI seam 4,051
+> matched; sentinel 877 parsed. The ratchet constants in
+> `parser-equivalence/src/test/.../*.java` are the authority — see
+> `docs/GATES.md`.
+>
+> Also corrected elsewhere: the memory figure is **32.9×**, not 52×
+> (`PARSER_DROP_IN.md` §0.1), and the core test count given here (1634 / 1608)
+> disagrees with itself.
+>
+> The architecture and lesson sections below remain the best account of the
+> design. Read those; take numbers from the gates.
+
 # Parser drop-in — status and handoff
 
 > **Read this first if you are picking the work up.** It is the state of play, the reasoning that

@@ -1,6 +1,6 @@
 # Burn-down handoff — start here
 
-> **LEDGER 2375/2793 (418 non-passing) as of `c0ff1f1e`.** The lineage
+> **LEDGER 2398/2798 (400 non-passing) as of `4dd28f24`.** The lineage
 > leg is COMPLETE: scanRelations 19 honest → 45/49, ZERO FAILs, across
 > 7 gated batches; the 4 remaining rows are loud SHAPE walls
 > (tableToTDS cross-join/multi-source ×3, unmapped-property probe) —
