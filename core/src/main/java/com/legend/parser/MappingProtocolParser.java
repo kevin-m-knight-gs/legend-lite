@@ -1041,6 +1041,34 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             int identTok = pos;
             String prop = parseIdentifier();
             SourceInfo propSpan = spanOf(identTok, pos - 1);
+            if (peek() == TokenType.PAREN_OPEN
+                    && tokens.type(Math.min(pos + 1, tokens.count() - 1))
+                            != TokenType.PAREN_CLOSE) {
+                // prop ( street: COL, ... ) — embedded with nested
+                // classless pms; span prop..close paren (probe
+                // relation-embedded)
+                advance();
+                List<Protocol.PRelationFnPropertyMapping> nested =
+                        new ArrayList<>();
+                while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                    int nS = pos;
+                    String nProp = parseIdentifier();
+                    SourceInfo nSpan = spanOf(nS, pos - 1);
+                    expect(TokenType.COLON);
+                    String nCol = parseIdentifier();
+                    nested.add(new Protocol.PRelationFnPropertyMapping(null,
+                            nProp, nSpan, nCol, null, null, null, null,
+                            spanOf(nS, pos - 1)));
+                    match(TokenType.COMMA);
+                }
+                int pClose = pos;
+                expect(TokenType.PAREN_CLOSE);
+                props.add(new Protocol.PRelationFnPropertyMapping(target,
+                        prop, propSpan, null, null, nested, null, id,
+                        spanOf(pS, pClose)));
+                match(TokenType.COMMA);
+                continue;
+            }
             if (peek() == TokenType.PAREN_OPEN) {
                 // prop () Inline [set] (probe relation-inline)
                 advance();
@@ -1054,7 +1082,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 int bClose = pos;
                 expect(TokenType.BRACKET_CLOSE);
                 props.add(new Protocol.PRelationFnPropertyMapping(target,
-                        prop, propSpan, null, setId, null, id,
+                        prop, propSpan, null, setId, null, null, id,
                         spanOf(pS, bClose)));
                 match(TokenType.COMMA);
                 continue;
@@ -1092,7 +1120,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             String col = parseIdentifier();
             props.add(new Protocol.PRelationFnPropertyMapping(target, prop,
-                    propSpan, col, null, lp, id, spanOf(pS, pos - 1)));
+                    propSpan, col, null, null, lp, id,
+                    spanOf(pS, pos - 1)));
             match(TokenType.COMMA);
         }
         int close = pos;

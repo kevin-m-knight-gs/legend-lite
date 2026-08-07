@@ -157,10 +157,12 @@ public final class Protocol {
     /** {@code prop: col} inside a Relation mapping — span prop..col;
      *  {@code prop () Inline [set]} rides inlineSetId (probe
      *  relation-inline). */
-    public record PRelationFnPropertyMapping(String ownerClass, String property,
+    public record PRelationFnPropertyMapping(@com.legend.Nullable String ownerClass,
+                                             String property,
                                              com.legend.protocol.SourceInfo propertySourceInformation,
                                              @com.legend.Nullable String column,
                                              @com.legend.Nullable String inlineSetId,
+                                             @com.legend.Nullable List<PRelationFnPropertyMapping> nested,
                                              @com.legend.Nullable PLocalProp localMappingProperty,
                                              @com.legend.Nullable String source,
                                              com.legend.protocol.SourceInfo sourceInformation) {

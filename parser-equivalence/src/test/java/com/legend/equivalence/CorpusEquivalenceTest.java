@@ -180,9 +180,12 @@ class CorpusEquivalenceTest {
      * 24,506 -> 24,508: Relation-CM inline PMs (prop () Inline [set] ->
      * relationFunctionEmbeddedPropertyMapping, empty propertyMappings)
      * and legacy Relational inputs (<Relational, CSV, db, 'data'> ->
-     * _type relational with database key). */
-    private static final int MIN_ELEMENTS_COMPARED = 24508;
-    private static final int MIN_MATCHES = 24508;
+     * _type relational with database key).
+     * 24,508 -> 24,510: Relation-CM embedded blocks (prop ( street: COL )
+     * -> relationFunctionEmbeddedPropertyMapping with NESTED classless
+     * pms; span prop..close paren). */
+    private static final int MIN_ELEMENTS_COMPARED = 24510;
+    private static final int MIN_MATCHES = 24510;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

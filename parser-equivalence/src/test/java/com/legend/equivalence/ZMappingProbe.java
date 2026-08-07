@@ -28,6 +28,39 @@ class ZMappingProbe {
     }
 
     @Test
+    void relationEmbeddedProbe() throws Exception {
+        probe("relation-embedded", """
+                ###Relational
+                Database my::db
+                (
+                  Table personTable(ID INTEGER PRIMARY KEY, FIRSTNAME VARCHAR(100) NOT NULL, STREET VARCHAR(100) NOT NULL, CITY VARCHAR(100) NOT NULL)
+                )
+                ###Pure
+                Class my::Person { firstName: String[1]; address: my::Addr[1]; }
+                Class my::Addr { street: String[1]; city: String[1]; }
+                ###Pure
+                function my::pf():meta::pure::metamodel::relation::Relation<Any>[1]
+                {
+                  #>{my::db.personTable}#->filter(x | $x.ID > 0)
+                }
+                ###Mapping
+                Mapping my::M100
+                (
+                  *my::Person[p]: Relation
+                  {
+                    ~func my::pf():Relation<Any>[1]
+                    firstName: FIRSTNAME,
+                    address
+                    (
+                      street: STREET,
+                      city: CITY
+                    )
+                  }
+                )
+                """);
+    }
+
+    @Test
     void legacyRelationalInputProbe() throws Exception {
         probe("legacy-rel-input", """
                 ###Relational

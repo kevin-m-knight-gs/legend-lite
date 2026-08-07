@@ -86,13 +86,18 @@ final class MappingEmitter {
                         }
                         Protocol.PRelationFnPropertyMapping pm =
                                 rf.propertyMappings().get(j);
+                        if (pm.nested() != null) {
+                            relationFnEmbedded(b, pm);
+                            continue;
+                        }
                         if (pm.inlineSetId() != null) {
                             // prop () Inline [set] (probe relation-inline)
                             b.append("{\"_type\":\"relationFunction"
                                     + "EmbeddedPropertyMapping\",\"id\":");
                             str(b, pm.inlineSetId());
                             b.append(",\"property\":{\"class\":");
-                            str(b, pm.ownerClass());
+                            str(b, java.util.Objects.requireNonNull(
+                                    pm.ownerClass()));
                             b.append(",\"property\":");
                             str(b, pm.property());
                             b.append(",\"sourceInformation\":");
@@ -127,7 +132,8 @@ final class MappingEmitter {
                             b.append('}');
                         }
                         b.append(",\"property\":{\"class\":");
-                        str(b, pm.ownerClass());
+                        str(b, java.util.Objects.requireNonNull(
+                                pm.ownerClass()));
                         b.append(",\"property\":");
                         str(b, pm.property());
                         b.append(",\"sourceInformation\":");
@@ -798,6 +804,46 @@ final class MappingEmitter {
             default -> throw new IllegalStateException(
                     "nested class-mapping kind unbuilt: " + cm.getClass());
         }
+    }
+
+    /** {@code prop ( street: COL, ... )} in a Relation mapping —
+     *  embedded with NESTED classless pms (probe relation-embedded). */
+    static void relationFnEmbedded(StringBuilder b,
+            Protocol.PRelationFnPropertyMapping pm) {
+        b.append("{\"_type\":\"relationFunctionEmbeddedPropertyMapping\","
+                + "\"property\":{\"class\":");
+        str(b, java.util.Objects.requireNonNull(pm.ownerClass()));
+        b.append(",\"property\":");
+        str(b, pm.property());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pm.propertySourceInformation());
+        b.append("},\"propertyMappings\":[");
+        List<Protocol.PRelationFnPropertyMapping> nested =
+                java.util.Objects.requireNonNull(pm.nested());
+        for (int i = 0; i < nested.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PRelationFnPropertyMapping in = nested.get(i);
+            b.append("{\"_type\":\"relationFunctionPropertyMapping\","
+                    + "\"column\":");
+            str(b, java.util.Objects.requireNonNull(in.column()));
+            b.append(",\"property\":{\"property\":");
+            str(b, in.property());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, in.propertySourceInformation());
+            b.append("},\"sourceInformation\":");
+            srcInfo(b, in.sourceInformation());
+            b.append('}');
+        }
+        b.append(']');
+        if (pm.source() != null) {
+            b.append(",\"source\":");
+            str(b, pm.source());
+        }
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pm.sourceInformation());
+        b.append('}');
     }
 
     static void relationElement(StringBuilder b,
