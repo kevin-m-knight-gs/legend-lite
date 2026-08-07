@@ -102,9 +102,14 @@ class CorpusEquivalenceTest {
      * 23,506 -> 23,570: ASSOCIATION mappings (Relational AssociationMapping
      * + XStore cross-expressions) and the [db]@Join bracket-nav form; nav
      * elements inherit the bracket db; bare embedded refs (no db anywhere)
-     * OMIT database/mainTableDb/join db keys (probe bare-no-db). */
-    private static final int MIN_ELEMENTS_COMPARED = 23570;
-    private static final int MIN_MATCHES = 23570;
+     * OMIT database/mainTableDb/join db keys (probe bare-no-db).
+     * 23,570 -> 23,948: seven-family batch — property set-ids (one id =
+     * TARGET, two = source,target), scope() flattening (header-table spans),
+     * extends [id], include [src->tgt] substitution, inline
+     * EnumerationMapping transforms, ~src as SRC_CMD token, merge_ op
+     * (NO discriminator on the wire). */
+    private static final int MIN_ELEMENTS_COMPARED = 23948;
+    private static final int MIN_MATCHES = 23948;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

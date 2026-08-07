@@ -31,7 +31,23 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     private int pos;
     private final String dbFqn;
 
+    /** An active {@code scope([db]seg(.seg)?)} header (probe scope-forms):
+     *  bare idents inside are columns of the HEADER table, whose pointer
+     *  span points at the header tokens — the engine flattens scope at
+     *  parse. Only headers WITH a table segment build one; db-only scopes
+     *  just re-anchor {@code dbFqn}. */
+    record ScopeCtx(String db, String schema, String table,
+            SourceInfo tableSpan) { }
+
+    private final @com.legend.Nullable ScopeCtx scope;
+
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn) {
+        this(tokens, pos, dbFqn, null);
+    }
+
+    private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
+            @com.legend.Nullable ScopeCtx scope) {
+        this.scope = scope;
         this.tokens = tokens;
         this.pos = pos;
         this.dbFqn = dbFqn;
@@ -590,6 +606,17 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         return new Protocol.PDynaFunc(fn, List.of(left, right), compSpan);
     }
 
+    /** One operation under an active {@code scope(...)} header with a
+     *  table segment (probe scope-forms). */
+    static Protocol.PRelOp scopedOperationAt(TokenStream ts, int start,
+            ScopeCtx scope, int[] posOut) {
+        DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start,
+                scope.db(), scope);
+        Protocol.PRelOp op = p.parseOperation("default");
+        posOut[0] = p.pos;
+        return op;
+    }
+
     /** {@code null} when parsing OUTSIDE any database (mapping-embedded
      *  bare refs) — the wire then omits both db keys (probe bare-no-db). */
     private @com.legend.Nullable String dbOrNull() {
@@ -811,6 +838,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         // identifier: function call, or dotted column ref
         String first = parseIdentifier();
+        if (scope != null && peek() != TokenType.PAREN_OPEN
+                && peek() != TokenType.DOT) {
+            // bare ident under scope = column of the HEADER table; the
+            // pointer span points AT THE HEADER tokens (probe scope-forms)
+            return new Protocol.PColumnRef(first, new Protocol.PTablePtr(
+                    dbFqn, dbFqn, scope.schema(), scope.table(),
+                    scope.tableSpan()), scope.table(), spanOf(s, s));
+        }
         if (peek() == TokenType.PAREN_OPEN) {
             advance();
             List<Protocol.PRelOp> args = new ArrayList<>();
@@ -823,6 +858,12 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         // A.col | S.T.col — schema-qualified when two dots; the TABLE
         // pointer's span runs through the TABLE token (probe: 'S.T1' 11-14)
+        if (scope != null && peek() == TokenType.DOT) {
+            // the engine treats the header segment as a SCHEMA prefix for
+            // dotted refs — span shape unprobed; refuse until probed
+            throw error("dotted ref under a table-scoped scope() header"
+                    + " is unprobed");
+        }
         expect(TokenType.DOT);
         int tblEnd = pos - 2;                       // the first identifier
         String second = parseIdentifier();

@@ -260,8 +260,11 @@ public final class ProtocolEmitter {
                         b.append(",\"id\":");
                         str(b, om.id());
                     }
-                    b.append(",\"operation\":");
-                    str(b, om.operation());
+                    if (om.operation() != null) {
+                        // MERGE emits NO discriminator (probe merge-op)
+                        b.append(",\"operation\":");
+                        str(b, om.operation());
+                    }
                     b.append(",\"parameters\":[");
                     for (int j = 0; j < om.parameters().size(); j++) {
                         if (j > 0) {
@@ -324,8 +327,16 @@ public final class ProtocolEmitter {
             b.append("{\"_type\":\"mappingIncludeMapping\","
                     + "\"includedMapping\":");
             str(b, inc.includedMapping());
+            if (inc.sourceDatabasePath() != null) {
+                b.append(",\"sourceDatabasePath\":");
+                str(b, inc.sourceDatabasePath());
+            }
             b.append(",\"sourceInformation\":");
             srcInfo(b, inc.sourceInformation());
+            if (inc.targetDatabasePath() != null) {
+                b.append(",\"targetDatabasePath\":");
+                str(b, inc.targetDatabasePath());
+            }
             b.append('}');
         }
         b.append("],\"name\":");
@@ -397,6 +408,10 @@ public final class ProtocolEmitter {
         b.append(",\"classSourceInformation\":");
         srcInfo(b, cm.classSourceInformation());
         b.append(",\"distinct\":").append(cm.distinct());
+        if (cm.extendsClassMappingId() != null) {
+            b.append(",\"extendsClassMappingId\":");
+            str(b, cm.extendsClassMappingId());
+        }
         b.append(",\"groupBy\":[");
         for (int i = 0; i < cm.groupBy().size(); i++) {
             if (i > 0) {
@@ -426,8 +441,13 @@ public final class ProtocolEmitter {
                 b.append(',');
             }
             Protocol.PRelPropertyMapping pm = cm.propertyMappings().get(i);
-            b.append("{\"_type\":\"relationalPropertyMapping\","
-                    + "\"property\":{\"class\":");
+            b.append("{\"_type\":\"relationalPropertyMapping\",");
+            if (pm.enumMappingId() != null) {
+                b.append("\"enumMappingId\":");
+                str(b, pm.enumMappingId());
+                b.append(',');
+            }
+            b.append("\"property\":{\"class\":");
             str(b, pm.ownerClass());
             b.append(",\"property\":");
             str(b, pm.property());
@@ -441,6 +461,10 @@ public final class ProtocolEmitter {
             }
             b.append(",\"sourceInformation\":");
             srcInfo(b, pm.sourceInformation());
+            if (pm.target() != null) {
+                b.append(",\"target\":");
+                str(b, pm.target());
+            }
             b.append('}');
         }
         b.append("],\"root\":").append(cm.root());

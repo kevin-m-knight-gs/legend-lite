@@ -28,6 +28,106 @@ class ZMappingProbe {
     }
 
     @Test
+    void batch7Shapes() throws Exception {
+        String db = """
+                ###Relational
+                Database my::DB
+                (
+                  Table t ( name VARCHAR(20), fid INT )
+                  Table f ( id INT )
+                  Join J ( t.fid = f.id )
+                  Join K ( t.fid = f.id )
+                )
+                """;
+        probe("prop-set-ids", db + """
+                ###Mapping
+                Mapping my::M10
+                (
+                  my::S[s1]: Relational { v: [my::DB]t.name, w[s1,s2]: [my::DB]@J }
+                  my::T2[s2]: Relational { u[s2]: [my::DB]@J }
+                )
+                """);
+        probe("scope-forms", db + """
+                ###Mapping
+                Mapping my::M11
+                (
+                  my::S: Relational
+                  {
+                    scope([my::DB])
+                    (
+                      v: t.name
+                    ),
+                    scope([my::DB]f)
+                    (
+                      w: id
+                    ),
+                    scope([my::DB]default.t)
+                    (
+                      u: name
+                    )
+                  }
+                )
+                """);
+        probe("extends-id", db + """
+                ###Mapping
+                Mapping my::M12
+                (
+                  my::S[a]: Relational { v: [my::DB]t.name }
+                  my::T2[b] extends [a]: Relational { w: [my::DB]t.name }
+                )
+                """);
+        probe("include-substitution", db + """
+                ###Relational
+                Database my::DB2 ( include my::DB )
+
+                ###Mapping
+                Mapping my::Base ()
+
+                Mapping my::M13
+                (
+                  include my::Base[my::DB->my::DB2]
+                )
+                """);
+        probe("inline-enum-transform", db + """
+                ###Mapping
+                Mapping my::M14
+                (
+                  my::S: Relational
+                  {
+                    v: EnumerationMapping em: [my::DB]t.name
+                  }
+                  E_1: EnumerationMapping em
+                  {
+                    A: ['a']
+                  }
+                )
+                """);
+        probe("nav-chain-db-each-step", db + """
+                ###Mapping
+                Mapping my::M15
+                (
+                  my::S: Relational
+                  {
+                    v: [my::DB] @J > (INNER) [my::DB] @K | t.name
+                  }
+                )
+                """);
+        probe("merge-op", """
+                ###Pure
+                Class my::P { n: String[1]; }
+
+                ###Mapping
+                Mapping my::M16
+                (
+                  *my::P : Operation
+                  {
+                    merge_OperationSetImplementation_1__SetImplementation_MANY_(p1,p2)
+                  }
+                )
+                """);
+    }
+
+    @Test
     void bareTableShapes() throws Exception {
         probe("bare-no-db", """
                 ###Relational

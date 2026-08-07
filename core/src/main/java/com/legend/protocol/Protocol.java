@@ -107,6 +107,7 @@ public final class Protocol {
                                    @com.legend.Nullable String id,
                                    boolean root,
                                    boolean distinct,
+                                   @com.legend.Nullable String extendsClassMappingId,
                                    List<PRelOp> groupBy,
                                    @com.legend.Nullable PTablePtr mainTable,
                                    List<PRelOp> primaryKey,
@@ -122,7 +123,7 @@ public final class Protocol {
                                          com.legend.protocol.SourceInfo classSourceInformation,
                                          @com.legend.Nullable String id,
                                          boolean root,
-                                         String operation,
+                                         @com.legend.Nullable String operation,
                                          List<String> parameters,
                                          com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
@@ -151,14 +152,18 @@ public final class Protocol {
 
     public record PRelPropertyMapping(String ownerClass, String property,
                                       com.legend.protocol.SourceInfo propertySourceInformation,
+                                      @com.legend.Nullable String enumMappingId,
                                       PRelOp relationalOperation,
                                       @com.legend.Nullable String source,
+                                      @com.legend.Nullable String target,
                                       com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code include [mapping] my::Other} — {@code _type:
      *  "mappingIncludeMapping"}, span keyword..path (probe include-plain). */
     public record PMappingInclude(String includedMapping,
+                                  @com.legend.Nullable String sourceDatabasePath,
+                                  @com.legend.Nullable String targetDatabasePath,
                                   com.legend.protocol.SourceInfo sourceInformation) {
     }
 
