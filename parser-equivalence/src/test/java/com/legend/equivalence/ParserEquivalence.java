@@ -85,7 +85,8 @@ public final class ParserEquivalence {
         // OUT_OF_SCOPE rows, never silence. Pure CHAR RANGES scope our
         // site discovery (the lexer consumes section headers, so ranges
         // come from the same line-anchored ### rule it applies).
-        List<long[]> pureRanges = pureRanges(src.text());
+        List<long[]> pureRanges = sectionRanges(src.text(), "Pure", true);
+        List<long[]> runtimeRanges = sectionRanges(src.text(), "Runtime", false);
 
         Ref ref;
         try {
@@ -102,6 +103,8 @@ public final class ParserEquivalence {
         // a harness artefact that presents as a parser bug.
         com.legend.lexer.TokenStream ts = Lexer.tokenize(src.text());
         java.util.List<int[]> sites = pureSites(ts, pureRanges);
+        sites.addAll(runtimeSites(ts, runtimeRanges));
+        boolean runtimeWalled = false;
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -126,6 +129,10 @@ public final class ParserEquivalence {
                     Protocol.PMeasure me = ElementParser.at(ts, site[0]).parseMeasureDefinition();
                     el = me;
                     fqn = me.qualifiedName();
+                } else if (site[1] == 6) {
+                    Protocol.PRuntime rt = ElementParser.at(ts, site[0]).parseRuntimeProtocol();
+                    el = rt;
+                    fqn = rt.qualifiedName();
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -134,7 +141,17 @@ public final class ParserEquivalence {
                             : fn.pkg() + "::" + fn.mangledName();
                 }
             } catch (Throwable t) {
-                out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
+                // a RUNTIME site refusing an unbuilt sub-grammar (embedded
+                // RelationalDatabaseConnection, Connection-leg territory) is
+                // a WALL — the section-parity worklist — not a parse bug;
+                // its reference elements drain as WALL rows too
+                if (site[1] == 6) {
+                    runtimeWalled = true;
+                    out.add(new Verdict(Kind.WALL, src.id(), "?",
+                            "runtime: " + root(t)));
+                } else {
+                    out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
+                }
                 continue;
             }
             List<String> queue = referenceBytes.get(fqn);
@@ -145,7 +162,8 @@ public final class ParserEquivalence {
             if (queue != null && !queue.isEmpty()) {
                 String prefix = "{\"_type\":\""
                         + new String[]{"class", "Enumeration", "profile",
-                                "association", "function", "measure"}[site[1]]
+                                "association", "function", "measure",
+                                "runtime"}[site[1]]
                         + "\"";
                 int pick = 0;
                 for (int q = 0; q < queue.size(); q++) {
@@ -183,11 +201,17 @@ public final class ParserEquivalence {
                 // same path in two sections (Class X + Mapping X)
                 boolean pureKind = false;
                 for (String t : new String[]{"class", "Enumeration", "profile",
-                        "association", "function", "measure"}) {
+                        "association", "function", "measure", "runtime"}) {
                     if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
                         pureKind = true;
                         break;
                     }
+                }
+                if (pureKind && runtimeWalled
+                        && leftover.startsWith("{\"_type\":\"runtime\"")) {
+                    out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
+                            "runtime: unbuilt sub-grammar (walled site)"));
+                    continue;
                 }
                 String sec = ref.sectionOf().getOrDefault(e.getKey(), "?");
                 if (!pureKind && "Pure".equals(sec)) {
@@ -256,23 +280,58 @@ public final class ParserEquivalence {
     }
 
     /** Line-anchored {@code ###} header scan — the lexer's own rule — as
-     * PURE char ranges: the implicit preamble plus every ###Pure body. */
-    private static List<long[]> pureRanges(String text) {
+     * char ranges of {@code section} bodies. {@code implicitPreamble}: text
+     * before any header belongs to the default section (Pure). */
+    private static List<long[]> sectionRanges(String text, String section,
+            boolean implicitPreamble) {
         List<long[]> ranges = new ArrayList<>();
-        long pureStart = 0;
-        boolean inPure = true;
+        long start = 0;
+        boolean in = implicitPreamble;
         Matcher m = SECTION.matcher(text);
         while (m.find()) {
-            if (inPure) {
-                ranges.add(new long[]{pureStart, m.start()});
+            if (in) {
+                ranges.add(new long[]{start, m.start()});
             }
-            inPure = "Pure".equals(m.group(1));
-            pureStart = m.end();
+            in = section.equals(m.group(1));
+            start = m.end();
         }
-        if (inPure) {
-            ranges.add(new long[]{pureStart, text.length()});
+        if (in) {
+            ranges.add(new long[]{start, text.length()});
         }
         return ranges;
+    }
+
+    /** Runtime-section declaration sites: kind 6, same per-range depth
+     *  discipline as {@link #pureSites}. */
+    private static java.util.List<int[]> runtimeSites(
+            com.legend.lexer.TokenStream ts, List<long[]> ranges) {
+        java.util.List<int[]> sites = new ArrayList<>();
+        int cursor = 0;
+        for (long[] r : ranges) {
+            while (cursor < ts.count() && ts.start(cursor) < r[0]) {
+                cursor++;
+            }
+            int depth = 0;
+            boolean declPos = true;
+            for (; cursor < ts.count() && ts.start(cursor) < r[1]; cursor++) {
+                com.legend.lexer.TokenType t = ts.type(cursor);
+                switch (t) {
+                    case BRACE_OPEN, BRACKET_OPEN, PAREN_OPEN -> depth++;
+                    case BRACE_CLOSE, BRACKET_CLOSE, PAREN_CLOSE -> depth--;
+                    default -> {
+                        if (depth == 0 && declPos
+                                && (t == com.legend.lexer.TokenType.RUNTIME
+                                        || t == com.legend.lexer.TokenType
+                                                .SINGLE_CONNECTION_RUNTIME)) {
+                            sites.add(new int[]{cursor, 6});
+                        }
+                    }
+                }
+                declPos = t == com.legend.lexer.TokenType.BRACE_CLOSE
+                        || t == com.legend.lexer.TokenType.SEMI_COLON;
+            }
+        }
+        return sites;
     }
 
     private static boolean inRanges(List<long[]> ranges, long offset) {

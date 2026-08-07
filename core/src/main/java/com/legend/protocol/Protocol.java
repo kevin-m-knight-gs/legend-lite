@@ -39,7 +39,75 @@ public final class Protocol {
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
-            PProfile, PSectionIndex, PMeasure {
+            PProfile, PSectionIndex, PMeasure, PRuntime {
+    }
+
+    /**
+     * {@code _type:"runtime"} — {@code Runtime pkg::R { mappings: [...];
+     * connections: [...] }} and {@code SingleConnectionRuntime} (whose
+     * runtimeValue discriminates {@code localEngineRuntime}). Probed
+     * byte-shapes: ZRuntimeProbe — fields alphabetical, element and
+     * runtimeValue share ONE span, pointer types spelled {@code MAPPING} /
+     * {@code STORE}, connections keep their IDs and source ORDER.
+     */
+    public record PRuntime(String pkg, String name, boolean single,
+                           List<PPointer> mappings,
+                           List<PStoreConnections> connections,
+                           List<PConnectionStores> connectionStores,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** A typed packageable-element pointer ({@code path}/{@code type}/span). */
+    public record PPointer(String type, String path,
+                           com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code store: [ id: conn, ... ]} group — order preserved. */
+    public record PStoreConnections(PPointer store,
+                                    List<PIdentifiedConnection> storeConnections,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code id: <connection>} — pointer or embedded connection value. */
+    public record PIdentifiedConnection(String id, PConnectionValue connection,
+                                        com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code connectionStores: [conn: [stores...]]} group (also
+     *  SingleConnectionRuntime's {@code connection:}, storePointers empty).
+     *  Store pointers serialize path+span WITHOUT a type field (probe). */
+    public record PConnectionStores(PConnectionValue connectionPointer,
+                                    List<PStorePointer> storePointers,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A typeless store pointer inside connectionStores. */
+    public record PStorePointer(String path,
+                                com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** A connection VALUE inside a runtime: a pointer or an embedded island. */
+    public sealed interface PConnectionValue
+            permits PConnectionPointer, PJsonModelConnection {
+    }
+
+    /** {@code _type:"connectionPointer"}. */
+    public record PConnectionPointer(String connection,
+                                     com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
+    }
+
+    /** {@code _type:"JsonModelConnection"} — class + classSourceInformation
+     *  + url (probe embedded-json). */
+    public record PJsonModelConnection(String className,
+                                       com.legend.protocol.SourceInfo classSourceInformation,
+                                       String url,
+                                       com.legend.protocol.SourceInfo sourceInformation)
+            implements PConnectionValue {
     }
 
     /**

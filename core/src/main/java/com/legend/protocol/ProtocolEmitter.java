@@ -74,6 +74,118 @@ public final class ProtocolEmitter {
             case Protocol.PEnumeration en -> enumeration(b, en);
             case Protocol.PProfile pr -> profile(b, pr);
             case PSectionIndex s -> sectionIndex(b, s);
+            case Protocol.PRuntime r -> runtime(b, r);
+        }
+    }
+
+    /** {@code _type:"runtime"} — element and runtimeValue share ONE span;
+     *  runtimeValue discriminates engineRuntime/localEngineRuntime
+     *  (ZRuntimeProbe). Fields alphabetical throughout. */
+    private static void runtime(StringBuilder b, Protocol.PRuntime r) {
+        b.append("{\"_type\":\"runtime\",\"name\":");
+        str(b, r.name());
+        b.append(",\"package\":");
+        str(b, r.pkg());
+        b.append(",\"runtimeValue\":{\"_type\":");
+        str(b, r.single() ? "localEngineRuntime" : "engineRuntime");
+        b.append(",\"connectionStores\":[");
+        for (int i = 0; i < r.connectionStores().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PConnectionStores cs = r.connectionStores().get(i);
+            b.append("{\"connectionPointer\":");
+            connectionValue(b, cs.connectionPointer());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, cs.sourceInformation());
+            b.append(",\"storePointers\":[");
+            for (int j = 0; j < cs.storePointers().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                b.append("{\"path\":");
+                str(b, cs.storePointers().get(j).path());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, cs.storePointers().get(j).sourceInformation());
+                b.append('}');
+            }
+            b.append("]}");
+        }
+        b.append("],\"connections\":[");
+        for (int i = 0; i < r.connections().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            storeConnections(b, r.connections().get(i));
+        }
+        b.append("],\"mappings\":[");
+        for (int i = 0; i < r.mappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            pointer(b, r.mappings().get(i));
+        }
+        b.append("],\"sourceInformation\":");
+        srcInfo(b, r.sourceInformation());
+        b.append("},\"sourceInformation\":");
+        srcInfo(b, r.sourceInformation());
+        b.append('}');
+    }
+
+    private static void storeConnections(StringBuilder b,
+            Protocol.PStoreConnections sc) {
+        b.append("{\"sourceInformation\":");
+        srcInfo(b, sc.sourceInformation());
+        b.append(",\"store\":");
+        pointer(b, sc.store());
+        b.append(",\"storeConnections\":[");
+        for (int i = 0; i < sc.storeConnections().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PIdentifiedConnection ic = sc.storeConnections().get(i);
+            b.append("{\"connection\":");
+            connectionValue(b, ic.connection());
+            b.append(",\"id\":");
+            str(b, ic.id());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, ic.sourceInformation());
+            b.append('}');
+        }
+        b.append("]}");
+    }
+
+    private static void pointer(StringBuilder b, Protocol.PPointer p) {
+        b.append("{\"path\":");
+        str(b, p.path());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, p.sourceInformation());
+        b.append(",\"type\":");
+        str(b, p.type());
+        b.append('}');
+    }
+
+    private static void connectionValue(StringBuilder b,
+            Protocol.PConnectionValue v) {
+        switch (v) {
+            case Protocol.PConnectionPointer cp -> {
+                b.append("{\"_type\":\"connectionPointer\",\"connection\":");
+                str(b, cp.connection());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, cp.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PJsonModelConnection jc -> {
+                b.append("{\"_type\":\"JsonModelConnection\",\"class\":");
+                str(b, jc.className());
+                b.append(",\"classSourceInformation\":");
+                srcInfo(b, jc.classSourceInformation());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, jc.sourceInformation());
+                b.append(",\"url\":");
+                str(b, jc.url());
+                b.append('}');
+            }
         }
     }
 

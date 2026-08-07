@@ -108,6 +108,28 @@ import java.util.Objects;
  */
 public final class ElementParser implements TokenStreamCursor {
 
+    /** Walker offsets for EMBEDDED-island reparses (engine rule: line
+     *  offset applies to every line, column offset to line 1 only). Zero
+     *  outside an island reparse; set only at construction. */
+    private final int islandLineOffset;
+    private final int islandColOffset;
+
+    @Override
+    public com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
+        com.legend.protocol.SourceInfo sp =
+                TokenStreamCursor.super.spanOf(fromTok, toTok);
+        if (islandLineOffset == 0 && islandColOffset == 0) {
+            return sp;
+        }
+        return new com.legend.protocol.SourceInfo("",
+                sp.startLine() + islandLineOffset,
+                sp.startLine() == 1 ? sp.startColumn() + islandColOffset
+                        : sp.startColumn(),
+                sp.endLine() + islandLineOffset,
+                sp.endLine() == 1 ? sp.endColumn() + islandColOffset
+                        : sp.endColumn());
+    }
+
     // ============================================================
     // Instance state (transient during parse)
     // ============================================================
@@ -142,8 +164,15 @@ public final class ElementParser implements TokenStreamCursor {
     final RelationalGrammarParser relationalGrammar = new RelationalGrammarParser(this);
 
     ElementParser(TokenStream tokens) {
+        this(tokens, 0, 0);
+    }
+
+    /** Embedded-island reparse form: spans map through walker offsets. */
+    ElementParser(TokenStream tokens, int islandLineOffset, int islandColOffset) {
         this.tokens = tokens;
         this.pos = 0;
+        this.islandLineOffset = islandLineOffset;
+        this.islandColOffset = islandColOffset;
     }
 
     // ============================================================
@@ -2094,6 +2123,199 @@ public final class ElementParser implements TokenStreamCursor {
      * Embedded {@code JsonModelConnection} islands ({@code #{ ... }#}) are
      * captured and parsed via regex (engine parity).
      */
+    /**
+     * PROTOCOL-path Runtime parse (Phase D commit 3): full wire fidelity —
+     * connection IDs, source order, per-node spans (ZRuntimeProbe pins the
+     * byte shapes). The execution-path {@link RuntimeDefinition} derives
+     * from this, so there is ONE runtime grammar.
+     */
+    public com.legend.protocol.Protocol.PRuntime parseRuntimeProtocol() {
+        int declStart = pos;
+        boolean single = peek() == TokenType.SINGLE_CONNECTION_RUNTIME;
+        advance();                                  // Runtime | SingleConnectionRuntime
+        String qn = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
+        int cut = qn.lastIndexOf("::");
+        String pkg = cut < 0 ? "" : qn.substring(0, cut);
+        String name = cut < 0 ? qn : qn.substring(cut + 2);
+        expect(TokenType.BRACE_OPEN);
+        List<com.legend.protocol.Protocol.PPointer> mappings = new ArrayList<>();
+        List<com.legend.protocol.Protocol.PStoreConnections> connections =
+                new ArrayList<>();
+        List<com.legend.protocol.Protocol.PConnectionStores> connectionStores =
+                new ArrayList<>();
+        while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
+            TokenType key = peek();
+            String keyText = safeText();
+            advance();
+            expect(TokenType.COLON);
+            if (key == TokenType.MAPPINGS) {
+                expect(TokenType.BRACKET_OPEN);
+                while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                    int mStart = pos;
+                    String path = com.legend.protocol.Protocol
+                            .unquotePath(parseQualifiedName());
+                    mappings.add(new com.legend.protocol.Protocol.PPointer(
+                            "MAPPING", path, spanOf(mStart, pos - 1)));
+                    if (!match(TokenType.COMMA)) {
+                        break;
+                    }
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                match(TokenType.SEMI_COLON);
+            } else if (key == TokenType.CONNECTIONS && !single) {
+                parseRuntimeConnectionsProtocol(connections);
+            } else if (!single && "connectionStores".equals(keyText)) {
+                expect(TokenType.BRACKET_OPEN);
+                while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                    int cStart = pos;
+                    String conn = com.legend.protocol.Protocol
+                            .unquotePath(parseQualifiedName());
+                    com.legend.protocol.SourceInfo cSpan = spanOf(cStart, pos - 1);
+                    expect(TokenType.COLON);
+                    expect(TokenType.BRACKET_OPEN);
+                    List<com.legend.protocol.Protocol.PStorePointer> stores =
+                            new ArrayList<>();
+                    while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                        int pStart = pos;
+                        stores.add(new com.legend.protocol.Protocol.PStorePointer(
+                                com.legend.protocol.Protocol
+                                        .unquotePath(parseQualifiedName()),
+                                spanOf(pStart, pos - 1)));
+                        match(TokenType.COMMA);
+                    }
+                    int groupEnd = pos;
+                    expect(TokenType.BRACKET_CLOSE);
+                    connectionStores.add(new com.legend.protocol.Protocol
+                            .PConnectionStores(new com.legend.protocol.Protocol
+                                    .PConnectionPointer(conn, cSpan), stores,
+                                    spanOf(cStart, groupEnd)));
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                match(TokenType.SEMI_COLON);
+            } else if (key == TokenType.CONNECTION && single) {
+                int cStart = pos;
+                String conn = com.legend.protocol.Protocol
+                        .unquotePath(parseQualifiedName());
+                com.legend.protocol.SourceInfo cSpan = spanOf(cStart, pos - 1);
+                connectionStores.add(new com.legend.protocol.Protocol
+                        .PConnectionStores(new com.legend.protocol.Protocol
+                                .PConnectionPointer(conn, cSpan),
+                                List.of(), cSpan));
+                match(TokenType.SEMI_COLON);
+            } else {
+                throw error("unknown key '" + keyText + "' inside "
+                        + (single ? "SingleConnectionRuntime" : "Runtime")
+                        + " '" + qn + "'");
+            }
+        }
+        expect(TokenType.BRACE_CLOSE);
+        return new com.legend.protocol.Protocol.PRuntime(pkg, name, single,
+                mappings, connections, connectionStores,
+                spanOf(declStart, pos - 1));
+    }
+
+    private void parseRuntimeConnectionsProtocol(
+            List<com.legend.protocol.Protocol.PStoreConnections> out) {
+        expect(TokenType.BRACKET_OPEN);
+        while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+            int sStart = pos;
+            String store = com.legend.protocol.Protocol
+                    .unquotePath(parseQualifiedName());
+            com.legend.protocol.Protocol.PPointer storePtr =
+                    new com.legend.protocol.Protocol.PPointer("STORE", store,
+                            spanOf(sStart, pos - 1));
+            expect(TokenType.COLON);
+            expect(TokenType.BRACKET_OPEN);
+            List<com.legend.protocol.Protocol.PIdentifiedConnection> ids =
+                    new ArrayList<>();
+            while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
+                int idStart = pos;
+                String id = parseIdentifier();
+                expect(TokenType.COLON);
+                com.legend.protocol.Protocol.PConnectionValue value;
+                if (peek() == TokenType.ISLAND_OPEN) {
+                    value = parseEmbeddedConnectionProtocol();
+                } else {
+                    int cStart = pos;
+                    String conn = com.legend.protocol.Protocol
+                            .unquotePath(parseQualifiedName());
+                    value = new com.legend.protocol.Protocol
+                            .PConnectionPointer(conn, spanOf(cStart, pos - 1));
+                }
+                ids.add(new com.legend.protocol.Protocol.PIdentifiedConnection(
+                        id, value, spanOf(idStart, pos - 1)));
+                match(TokenType.COMMA);
+            }
+            int groupEnd = pos;
+            expect(TokenType.BRACKET_CLOSE);
+            out.add(new com.legend.protocol.Protocol.PStoreConnections(
+                    storePtr, ids, spanOf(sStart, groupEnd)));
+            match(TokenType.COMMA);
+        }
+        expect(TokenType.BRACKET_CLOSE);
+        match(TokenType.SEMI_COLON);
+    }
+
+    /** Embedded {@code #{ JsonModelConnection {...} }#} island — the engine
+     *  reparses the content through the Connection grammar with walker
+     *  offsets, so spans stay file-absolute. Only JsonModelConnection has a
+     *  probed wire shape; other flavors WALL loudly. */
+    private com.legend.protocol.Protocol.PConnectionValue
+            parseEmbeddedConnectionProtocol() {
+        advance();                                  // ISLAND_OPEN
+        int embStart = pos;
+        while (peek() != TokenType.ISLAND_END && !atEnd()) {
+            advance();
+        }
+        int embEnd = pos;
+        expect(TokenType.ISLAND_END);
+        // island content arrives as COARSE chunks — reconstruct and RE-LEX,
+        // then map spans through walker offsets (line offset every line,
+        // column offset FIRST line only — the engine's own reparse rule)
+        String emb = reconstructText(embStart, embEnd);
+        int baseLine = tokens.startLine(embStart);
+        int baseCol = tokens.startColumn(embStart);
+        ElementParser p = new ElementParser(Lexer.tokenize(emb),
+                baseLine - 1, baseCol - 1);
+        String flavor = p.safeText();
+        if (!"JsonModelConnection".equals(flavor)) {
+            throw error("unsupported embedded connection flavor (only"
+                    + " JsonModelConnection is supported): " + flavor);
+        }
+        int fStart = p.pos;
+        p.advance();
+        p.expect(TokenType.BRACE_OPEN);
+        String cls = null;
+        com.legend.protocol.SourceInfo clsSpan = null;
+        String url = null;
+        while (!p.atEnd() && p.peek() != TokenType.BRACE_CLOSE) {
+            String key = p.parseIdentifier();
+            p.expect(TokenType.COLON);
+            if ("class".equals(key)) {
+                int cS = p.pos;
+                cls = com.legend.protocol.Protocol
+                        .unquotePath(p.parseQualifiedName());
+                clsSpan = p.spanOf(cS, p.pos - 1);
+            } else if ("url".equals(key)) {
+                String quoted = p.text();
+                p.expect(TokenType.STRING);
+                url = TokenStreamCursor.unquoteAndUnescape(quoted, p);
+            } else {
+                throw p.error("unknown JsonModelConnection key: " + key);
+            }
+            p.expect(TokenType.SEMI_COLON);
+        }
+        int bodyEnd = p.pos;
+        p.expect(TokenType.BRACE_CLOSE);
+        if (cls == null || clsSpan == null || url == null) {
+            throw p.error("malformed JsonModelConnection (class and url"
+                    + " are both required)");
+        }
+        return new com.legend.protocol.Protocol.PJsonModelConnection(
+                cls, clsSpan, url, p.spanOf(fStart, bodyEnd));
+    }
+
     private RuntimeDefinition parseRuntime() {
         expect(TokenType.RUNTIME);
         String qualifiedName = parseQualifiedName();

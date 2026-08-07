@@ -41,9 +41,14 @@ class CorpusEquivalenceTest {
      * Pure elements compare like any other (implementation audit §3.1),
      * discovered per Pure section, with non-Pure reference elements named
      * OUT_OF_SCOPE rows and the assertion-island span emulating the engine's
-     * reparse mechanism instead of a curve-fit quirk. */
-    private static final int MIN_ELEMENTS_COMPARED = 22725;
-    private static final int MIN_MATCHES = 22725;
+     * reparse mechanism instead of a curve-fit quirk.
+     * 22,725 -> 22,792: ###Runtime byte parity (Phase D commit 3) — PRuntime
+     * records + emitter, connection IDs and order kept, embedded
+     * JsonModelConnection islands re-lexed under walker offsets; the 18
+     * remaining Runtime rows WALL on embedded RelationalDatabaseConnection,
+     * which is the Connection leg's grammar. */
+    private static final int MIN_ELEMENTS_COMPARED = 22792;
+    private static final int MIN_MATCHES = 22792;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {
