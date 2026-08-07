@@ -1,195 +1,71 @@
 # Legend Lite
 
-A **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org/) Engine in ~35K lines of modern Java 21. Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
+A **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org/) Engine in modern Java 21 — ~120K lines of compiler. Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
+
+**Start here:** [`AGENTS.md`](AGENTS.md) for the invariants, [`core/README.md`](core/README.md) for the per-package spec, [`docs/GATES.md`](docs/GATES.md) for what must be green.
 
 ---
 
 ## Architecture
 
-The pipeline has two phases: **model loading** (once per source file) and **query execution** (once per query). The model phase parses, resolves names, and builds the in-memory model. The query phase normalizes mappings for the selected runtime, type-checks, resolves physical storage, generates SQL, and executes.
+Legend Lite compiles Pure models and queries to SQL and executes them entirely
+inside the database — **zero rows are ever fetched into the JVM**.
+
+The compiler is `core/src/main/java/com/legend/`. One driver — `com.legend.Compiler` —
+owns step ordering across eleven phases. Every phase is the same method its own
+unit tests exercise; there is no orchestrator-only code path.
 
 ```
-═══════════════════════════ MODEL PHASE (once per source) ═══════════════════
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Pure Source Code                                  │
-│  import model::*;                                                          │
-│  Class model::Person { name: String[1]; }                                  │
-│  Database store::DB ( Table T_PERSON (ID INT, NAME VARCHAR) )              │
-│  Mapping model::M ( Person: Relational { ... } )                           │
-│  Runtime model::RT { mappings: [M]; connections: [DB: [env: Conn]]; }      │
-│                                                                             │
-│  Person.all()->filter({p|$p.name == 'Alice'})->project(~[name: p|$p.name]) │
-└─────────────────┬───────────────────────────────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  1. PARSER                                  │
-│     PureParser (model) + ANTLR (queries)    │
-│                                             │
-│  ┌─ Input:  Pure source text               │
-│  └─ Output: Untyped AST (records)          │
-│     • AppliedFunction, AppliedProperty      │
-│     • LambdaFunction, Variable, ColSpec     │
-│     • ClassInstance, literals               │
-│     • Model definitions (classes, mappings) │
-│     • ImportScope (import declarations)     │
-│                                             │
-│  No type checking. No validation.           │
-│  Syntactic structure only.                  │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  2. NAME RESOLVER                           │
-│     NameResolver                            │
-│                                             │
-│  ┌─ Input:  Untyped AST + ImportScope      │
-│  └─ Output: AST with FQN references        │
-│                                             │
-│  Resolves simple names to fully-qualified   │
-│  names using import declarations:           │
-│     Person → model::Person                  │
-│     M      → model::M                       │
-│                                             │
-│  Walks both model definitions (class names, │
-│  superclass refs, property types, mapping   │
-│  class refs) and query AST (class refs in   │
-│  getAll, graphFetch, cast targets).         │
-│  0 matches → keep as-is (primitives).       │
-│  1 match → resolve. >1 → ambiguity error.   │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  3. MODEL BUILDER                           │
-│     PureModelBuilder                        │
-│                                             │
-│  ┌─ Input:  Resolved AST                   │
-│  └─ Output: In-memory model                │
-│     • ClassDefinition (props, associations) │
-│     • MappingDefinition (relational, M2M)   │
-│     • DatabaseDefinition (tables, joins)    │
-│     • RuntimeDefinition (connections)       │
-│     • SymbolTable (intern all names → IDs)  │
-│                                             │
-│  Immutable model. Reused across queries.    │
-└─────────────────┬───────────────────────────┘
-                  │
-═══════════════════════════ QUERY PHASE (once per query) ════════════════════
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  4. MAPPING NORMALIZER                      │
-│     MappingNormalizer → NormalizedMapping    │
-│                                             │
-│  ┌─ Input:  Model + Runtime's mappingNames │
-│  └─ Output: NormalizedMapping (immutable)   │
-│     • Resolved M2M chains (A→B→C→table)    │
-│     • MappingExpression per class           │
-│     • Association extends (traverse nodes)  │
-│     • Pre-converted join conditions (VS)    │
-│                                             │
-│  Desugars M2M mappings into synthetic       │
-│  chains: getAll(src) → filter → extend(~[]) │
-│  Per-query because different Runtimes       │
-│  select different mapping sets.             │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  5. COMPILER                                │
-│     TypeChecker + 36 Checkers               │
-│                                             │
-│  ┌─ Input:  Untyped query AST + Model      │
-│  │          + MappingExpressions            │
-│  └─ Output: TypeInfo sidecar per AST node  │
-│     • ExpressionType (type + multiplicity)  │
-│     • SortSpec, FrameSpec, etc.             │
-│                                             │
-│  Single source of truth for types.          │
-│  Resolves all associations, validates all   │
-│  function signatures, stamps every node.    │
-│  If TypeInfo is missing → compiler bug.     │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  6. MAPPING RESOLVER                        │
-│     MappingResolver                         │
-│                                             │
-│  ┌─ Input:  Typed AST + NormalizedMapping  │
-│  └─ Output: StoreResolution per getAll()   │
-│     • Table name, column mappings           │
-│     • JoinResolution (target table, params, │
-│       join condition, sourceColumns,        │
-│       isToMany, nested targetResolution)    │
-│     • DynaFunction property resolutions     │
-│                                             │
-│  Resolves logical properties to physical    │
-│  storage: which table, which columns,       │
-│  which joins. Stamps TypeInfo on join       │
-│  condition nodes. Recurses into nested      │
-│  associations (targetResolution).           │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  7. PLAN GENERATOR                          │
-│     PlanGenerator → SqlExpr tree            │
-│                                             │
-│  ┌─ Input:  AST (structure) + TypeInfo      │
-│  │          + StoreResolution               │
-│  └─ Output: SqlExpr nodes (semantic SQL)    │
-│     • SqlExpr.Column, FunctionCall, Cast    │
-│     • SqlExpr.JsonObject, JsonArrayAgg      │
-│     • SqlBuilder (SELECT/JOIN/WHERE/etc.)   │
-│                                             │
-│  Reads AST for structure (ColSpec names,    │
-│  lambda bodies, function names).            │
-│  Reads TypeInfo for types and resolutions.  │
-│  Does NO type inference. Emits SqlExpr —    │
-│  never raw SQL strings.                     │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  8. DIALECT                                 │
-│     DuckDBDialect / SQLiteDialect           │
-│                                             │
-│  ┌─ Input:  SqlExpr tree                   │
-│  └─ Output: SQL string                     │
-│     • Type mapping: Integer → BIGINT        │
-│     • Function mapping: plus → +            │
-│     • Dialect decompositions (WEEK diff,    │
-│       timeBucket, lpad safe, etc.)          │
-│                                             │
-│  All SQL-specific decisions live here.      │
-│  PlanGenerator is dialect-agnostic.         │
-└─────────────────┬───────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────┐
-│  9. EXECUTOR                                │
-│     PlanExecutor → DuckDB/SQLite            │
-│                                             │
-│  ┌─ Input:  SQL string + Connection        │
-│  └─ Output: ExecutionResult                │
-│     • TabularResult: columns + typed rows   │
-│     • GraphResult: JSON string              │
-│                                             │
-│  Sends SQL via JDBC. Maps ResultSet to      │
-│  typed Java objects. Streams results for    │
-│  JSON/CSV serialization.                    │
-└─────────────────────────────────────────────┘
+text                                                             [FRONTEND]
+  A  lexer/            Lexer.tokenize                 text → TokenStream
+  B  parser/           ElementParser.parse            tokens → ParsedModel
+  C  parser/           SpecParser.parse               tokens → ValueSpecification
+  D  compiler/         NameResolver.resolve           simple name → FQN
+  E  normalizer/       ModelNormalizer.normalize      ParsedModel → NormalizedModel
+  F  compiler/element/ PureModelContext.from          → TypedElement + ModelContext
+  G  compiler/spec/    SpecCompiler                   spec + model → TypedSpec
+  G½ compiler/spec/    UserCallInliner.inlineBody     β-inline user calls
+                                                                 [MIDEND]
+  H  resolver/         StoreResolver.resolve          logical → physical TypedSpec
+  I  lowering/         Lowerer.lower                  TypedSpec → sql.SqlQuery
+                                                                 [BACKEND]
+  J  sql/dialect/      SqlDialect.render              SqlQuery → SQL string
+                                                                 [RUNTIME]
+  K  exec/             Executor.execute               SQL + JDBC → ExecutionResult
 ```
 
-### Architectural Invariants
+**Phases A–F are model loading** — once per source. **G–K are query
+execution** — once per query. `ModelContext` is the boundary: built once,
+reused across queries.
 
-1. **Compiler does ALL typing** — single source of truth. If TypeInfo is missing, fix the Compiler.
-2. **PlanGenerator does NO type inference** — reads AST for structure, TypeInfo for types.
-3. **Dialect owns ALL SQL rendering** — type names, function names, decompositions.
-4. **No fallbacks, no defaulting** — fail loudly. Every default branch is a hidden bug.
+Two things worth knowing before reading the code:
+
+- **The parser is hand-written recursive descent.** There is no ANTLR in any
+  pom. It is a byte-for-byte drop-in candidate for legend-engine's ANTLR
+  parser — 22,725/22,725 elements currently emit identical protocol JSON
+  (`docs/PARSER_DROP_IN.md`).
+- **Errors carry a phase, not a letter.** `error/LegendCompileException.Phase`
+  is `PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE`.
+
+### Architectural invariants
+
+The full list, with honest per-rule enforcement status, is in
+[`AGENTS.md`](AGENTS.md). The four that matter most:
+
+1. **The frontend does ALL typing** — single source of truth. If a type is
+   missing downstream, fix the frontend.
+2. **The Lowerer does NO type inference** — it reads typed HIR for structure
+   and never infers. No SQL syntax, no SQL function names, no dialect import.
+3. **The dialect owns ALL SQL rendering.** Core has exactly one entry point:
+   `SqlDialect.render(SqlQuery)`. The MIR under `sql/` is sealed, pure data —
+   no `toSql()`, no `String` field encoding a SQL operation.
+4. **No fallbacks, no defaulting** — fail loudly. Every default branch is a
+   hidden bug.
+
+> **`engine/src/main/java/com/gs/legend/` is a frozen legacy implementation.**
+> Its parser, compiler, model, plan and sqlgen packages are superseded by
+> `core`. Only the HTTP server, LSP, diagram service, JSON writer and result
+> serializers are still live. See `AGENTS.md` for when opening it is legitimate.
 
 ---
 
@@ -201,12 +77,12 @@ Legend Lite reimplements this in a fraction of the code, with 100% SQL push-down
 
 | Dimension | Legend Engine (FINOS) | Legend Lite |
 |-----------|----------------------|-------------|
-| **Codebase** | ~2M LOC, 400+ Maven modules | ~35K LOC, 3 modules |
+| **Codebase** | ~2M LOC, 400+ Maven modules | ~171K LOC, 5 modules (compiler: 120K) |
 | **Execution** | Mixed: some SQL, some in-memory | 100% SQL push-down — always |
-| **Build time** | 15–30 minutes | **27 seconds** (clean build + 2208 tests) |
-| **Dependencies** | Hundreds of JARs | DuckDB, ANTLR, JUnit |
+| **Parser** | ANTLR4 (156 `.g4`, 14,568 generated lines) | hand-written recursive descent, **no ANTLR** |
+| **Dependencies** | Hundreds of JARs | DuckDB, H2, JUnit |
 | **Java version** | Java 11 | Java 21 (records, sealed interfaces, pattern matching) |
-| **Databases** | Postgres, Databricks, Snowflake, etc. | DuckDB (primary), SQLite |
+| **Databases** | Postgres, Databricks, Snowflake, etc. | DuckDB (primary), H2, SQLite |
 
 ---
 
@@ -333,22 +209,40 @@ Person.all()
 
 ## Package Structure
 
+The compiler lives in `core/`. See [`core/README.md`](core/README.md) for the
+per-package contracts and [`AGENTS.md`](AGENTS.md) for the invariants.
+
 ```
-engine/src/main/java/com/gs/legend/
-├── ast/          25 files   Value specification AST (sealed interface + records)
-├── antlr/         2 files   ANTLR visitors → AST
-├── parser/        3 files   Recursive-descent model parser + name resolver
-├── model/        45 files   PureModelBuilder, MappingNormalizer, definitions
-├── compiler/     50 files   TypeChecker + 36 checkers (one per function group)
-├── plan/          5 files   PlanGenerator → SqlExpr tree
-├── sql/          10 files   SqlBuilder + SqlExpr (structural SQL AST)
-├── sqlgen/        5 files   DuckDBDialect, SQLiteDialect, SQL rendering
-├── exec/          6 files   PlanExecutor, JDBC execution, result mapping
-├── serial/        5 files   JSON + CSV result serializers
-├── server/        6 files   HTTP server, LSP, endpoints
-└── service/       3 files   QueryService orchestration
-                 165 files   ~35K lines
+core/src/main/java/com/legend/          418 files   120,629 LOC
+├── lexer/          5 files    1,176   text → tokens (JDK-only)
+├── parser/         9 files    9,287   ElementParser, SpecParser (hand-written
+│                                      recursive descent — no ANTLR anywhere)
+├── protocol/      35 files    5,318   upstream-shaped wire records + emitter
+├── model/         40 files    3,649   parsed element definitions
+├── compiler/     154 files   20,312   NameResolver; element/ (phase F);
+│                                      spec/ (phase G — Typer, InferenceKernel,
+│                                      32 per-construct checkers)
+├── normalizer/    18 files   10,781   legacy mapping DSL → synthesized functions
+├── resolver/      26 files   24,953   StoreResolver — logical → physical (phase H)
+├── lowering/      34 files   11,483   Lowerer — TypedSpec → SqlQuery (phase I)
+├── sql/           33 files    7,290   MIR (sealed, pure data) + dialect/ (phase J)
+├── exec/          15 files    4,260   Executor — SQL + JDBC → ExecutionResult
+├── plan/           5 files    1,601   plan representation
+├── builtin/        1 file     1,959   the platform prelude (Pure.java)
+├── lineage/        3 files    3,043   column-level lineage
+├── testdatagen/    1 file     1,656   test-data generation
+├── harness/       14 files    6,832   test-support surfaces
+├── validation/     3 files      675   desugar validation
+├── ide/            4 files      616   demand-driven indexing (dormant)
+├── values/ error/ cache/               leaves
+└── Compiler.java                      the one driver; StatementExecutor is
+                                       package-private behind it
 ```
+
+`engine/src/main/java/com/gs/legend/` (341 files, 47,949 LOC) is the **frozen
+legacy implementation**. Only its HTTP server, LSP, diagram service, JSON
+writer and result serializers are still live — everything else has a `core`
+counterpart that supersedes it. See `AGENTS.md`.
 
 ---
 
@@ -363,9 +257,15 @@ engine/src/main/java/com/gs/legend/
 ### Build & Test
 
 ```bash
-mvn clean install -DskipTests        # ~8 seconds
-mvn clean test -pl engine             # 2208 tests in ~27 seconds
+mvn clean install -DskipTests   # build everything
+mvn -pl core clean test         # the compiler: 1,713 tests + null gate + guardrails
+mvn -pl engine test             # integration + corpus: 2,730 tests (default suite)
 ```
+
+**`clean` on the core suite is load-bearing** — NullAway runs only on a cold
+compile. And after touching core, `mvn -pl core install -DskipTests` before any
+downstream module: `-pl <module>` resolves core from `~/.m2`, not the reactor,
+so it will otherwise silently test the previously installed jar.
 
 ### Run the Server
 
@@ -386,14 +286,19 @@ Both start on **port 8080**. Connect [Studio Lite](https://github.com/neema2/stu
 
 ## HTTP API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/lsp` | LSP JSON-RPC — diagnostics, completions, hover |
-| `POST` | `/engine/execute` | Compile + execute Pure query → tabular or graph result |
-| `POST` | `/engine/sql` | Raw SQL against a Runtime's connection |
-| `POST` | `/engine/diagram` | Extract class diagram from Pure model |
-| `POST` | `/engine/nlq` | Natural language → Pure query (NLQ module) |
-| `GET` | `/health` | Health check |
+| Method | Endpoint | Description | Served by |
+|--------|----------|-------------|-----------|
+| `POST` | `/lsp` | LSP JSON-RPC — diagnostics, completions, hover | legacy |
+| `POST` | `/engine/execute` | Compile + execute Pure query → tabular or graph | **core** (legacy front/back) |
+| `POST` | `/engine/sql` | Raw SQL against a Runtime's connection | legacy |
+| `POST` | `/engine/diagram` | Extract class diagram from Pure model | legacy |
+| `POST` | `/engine/nlq` | Natural language → Pure query (`nlq` module) | legacy + nlq |
+| `GET` | `/health` | Health check | — |
+
+Only `/engine/execute` reaches the live compiler, and only for the compile and
+execute steps — the request is still framed, connection-resolved and serialized
+by `engine/`. Everything else on this table runs entirely on the frozen legacy
+implementation.
 
 ### Execute Endpoint
 
@@ -537,26 +442,42 @@ Annotate models with `Profile nlq { tags: [description, synonyms, ...]; }` for b
 ## Testing
 
 ```bash
-mvn clean test -pl engine                              # 2208 tests, ~27s
-mvn test -pl engine -Dtest="AssociationIntegrationTest" # Single class
-GEMINI_API_KEY=key mvn test -pl nlq -Dtest="NlqFullPipelineEvalTest"
-mvn test -pl pct                                        # PCT compatibility
+mvn -pl core clean test          # the compiler suite + null gate + guardrails
+                                 # (clean is load-bearing: NullAway runs only
+                                 #  on a cold compile)
+mvn -pl core install -DskipTests # ALWAYS do this before a downstream module —
+                                 # `-pl <module>` resolves core from ~/.m2, not
+                                 # the reactor, and will silently test the old jar
+mvn -pl engine test              # integration + the relational corpus scoreboard
+mvn -pl pct -o test              # legend-pure's own PCT suite against legend-lite
+mvn -pl parser-equivalence -am test   # byte-equivalence vs legend-engine's parser
 ```
+
+The corpus and parser-equivalence gates need local checkouts of
+`legend-engine` and `legend-pure` under `~/legend/`. **Without them they skip
+rather than fail** — see `docs/GATES.md`.
 
 ---
 
 ## Project Stats
 
+Derived 2026-08-06. Counts are `find src/main -name '*.java'`; test totals are
+from surefire reports.
+
 | Metric | Value |
 |--------|-------|
-| Engine source files | 165 |
-| Engine test files | 76 |
-| Engine source LOC | ~35,000 |
-| Engine test LOC | ~52,000 |
-| Engine tests | 2,208 |
-| Clean build + test | ~27 seconds |
+| `core` (the compiler) | 418 files / 120,629 LOC main; 91 test files |
+| `engine` (legacy + server) | 341 files / 47,949 LOC main; 104 test files |
+| `nlq` | 14 files / 2,750 LOC |
+| Total main source | ~171,000 LOC across 5 modules |
+| `core` tests | 1,713 |
+| `engine` tests | 2,730 (default suite; `heavy` group excluded) |
+| PCT | 1,109 run, 0 failures, 36 ledgered expected failures, **nothing skipped** |
+| Parser equivalence | **22,725 / 22,725** byte-identical, 0 DIFF |
+| Rejection parity | 43 / 43 pins, 40 line-exact, 28 column-exact |
+| Relational corpus | 2,575 run / 2,298 pass (2,798 / 2,398 incl. excluded stereotypes) |
 | Java version | 21 |
-| Dependencies | DuckDB 1.5, ANTLR 4.13.1, JUnit 5.11 |
+| Dependencies | DuckDB, H2, JUnit 5 — **no ANTLR** |
 
 ---
 
