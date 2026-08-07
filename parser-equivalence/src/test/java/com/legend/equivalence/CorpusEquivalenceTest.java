@@ -141,9 +141,15 @@ class CorpusEquivalenceTest {
      * enum source enum-refs, multi-substitution includes DROP both keys,
      * trailing semicolons on operations, dotted refs under two-seg scope
      * headers (table span stretches header-schema..local-table for 2-part
-     * refs, fully local for 3-part), extends on Pure mappings. */
-    private static final int MIN_ELEMENTS_COMPARED = 24417;
-    private static final int MIN_MATCHES = 24417;
+     * refs, fully local for 3-part), extends on Pure mappings.
+     * 24,417 -> 24,426: testSuites — mappingTestSuite envelope (func =
+     * the PARSED |-lambda emitted verbatim, spec spans carry the MAPPING
+     * path as sourceId), mappingTest with storeTestData (ModelStore
+     * islands re-lexed with position padding) and equalToJson
+     * assertions; testSuites key rides between sourceInformation and
+     * tests. */
+    private static final int MIN_ELEMENTS_COMPARED = 24426;
+    private static final int MIN_MATCHES = 24426;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

@@ -73,7 +73,13 @@ class DropInSurfaceTextRuleTest {
             // has no token form to read from — the raw slice IS the SPI
             // contract (Phase M step 2)
             "parser/ElementParser.java", 6,
-            "parser/SpecParser.java", 1);
+            "parser/SpecParser.java", 1,
+            // ISLAND-CONTENT re-lex: mapping test-suite #{ }# data blocks
+            // arrive as RAW island chunks — the content is re-lexed with
+            // position padding (the engine reparses the same text via its
+            // data sub-parsers); same category as ElementParser's island
+            // reads
+            "parser/MappingProtocolParser.java", 1);
 
     @Test
     void regexFamilyIsConfinedToTheFrozenWhitelist() throws IOException {

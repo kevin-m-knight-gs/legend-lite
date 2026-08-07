@@ -59,12 +59,24 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         List<Protocol.PClassMapping> classMappings = new ArrayList<>();
         List<Protocol.PEnumerationMapping> enums = new ArrayList<>();
         List<Protocol.PMappingInclude> includes = new ArrayList<>();
+        List<Protocol.PMappingTestSuite> suites = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+            if (peek() == TokenType.MAPPING_TESTABLE_SUITES) {
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    suites.add(parseTestSuite(qn));
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                continue;
+            }
             parseMember(assocMappings, classMappings, enums, includes);
         }
         expect(TokenType.PAREN_CLOSE);
         return new Protocol.PMapping(pkg, name, assocMappings, classMappings,
-                enums, includes, spanOf(declStart, pos - 1));
+                enums, includes, suites, spanOf(declStart, pos - 1));
     }
 
     private void parseMember(List<Protocol.PAssociationMapping> assocMappings,
@@ -1030,6 +1042,280 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PClassMappingRelation(target, id, pk, props,
                 desc.toString(), fnSpan, root, spanOf(memberStart, close));
+    }
+
+    /** {@code id: { function: |...; tests: [...] }} — suite span
+     *  id..close; the query lambda reparses with the MAPPING path as its
+     *  span sourceId (probe test-suites). */
+    private Protocol.PMappingTestSuite parseTestSuite(String mappingFqn) {
+        int sS = pos;
+        String suiteId = parseIdentifier();
+        expect(TokenType.COLON);
+        expect(TokenType.BRACE_OPEN);
+        com.legend.protocol.spec.ValueSpecification func = null;
+        List<Protocol.PMappingTest> tests = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            String key = text();
+            if ("function".equals(key)) {
+                advance();
+                expect(TokenType.COLON);
+                int fS = pos;
+                int depth = 0;
+                while (!atEnd()) {
+                    TokenType t = peek();
+                    if (depth == 0 && t == TokenType.SEMI_COLON) {
+                        break;
+                    }
+                    if (t == TokenType.PAREN_OPEN
+                            || t == TokenType.BRACKET_OPEN
+                            || t == TokenType.BRACE_OPEN) {
+                        depth++;
+                    } else if (t == TokenType.PAREN_CLOSE
+                            || t == TokenType.BRACKET_CLOSE
+                            || t == TokenType.BRACE_CLOSE) {
+                        depth--;
+                    }
+                    advance();
+                }
+                List<com.legend.protocol.spec.ValueSpecification> body =
+                        SpecParser.parseCodeBlock(tokens.slice(fS, pos),
+                                mappingFqn);
+                if (body.size() != 1) {
+                    throw error("suite function must be ONE lambda");
+                }
+                func = body.get(0);
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
+            if ("tests".equals(key)) {
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    tests.add(parseMappingTest());
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                match(TokenType.SEMI_COLON);
+                continue;
+            }
+            throw error("mapping test-suite key '" + safeText()
+                    + "' is unbuilt");
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        if (func == null) {
+            throw error("mapping test suite without a function");
+        }
+        return new Protocol.PMappingTestSuite(suiteId, func, tests,
+                spanOf(sS, close));
+    }
+
+    private Protocol.PMappingTest parseMappingTest() {
+        int tS = pos;
+        String testId = parseIdentifier();
+        expect(TokenType.COLON);
+        expect(TokenType.BRACE_OPEN);
+        List<Protocol.PStoreTestData> data = new ArrayList<>();
+        List<Protocol.PTestAssertion> asserts = new ArrayList<>();
+        while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
+            String key = text();
+            if ("data".equals(key)) {
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    data.add(parseStoreTestData());
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
+            if ("asserts".equals(key)) {
+                advance();
+                expect(TokenType.COLON);
+                expect(TokenType.BRACKET_OPEN);
+                while (!atEnd() && peek() != TokenType.BRACKET_CLOSE) {
+                    asserts.add(parseTestAssertion());
+                    match(TokenType.COMMA);
+                }
+                expect(TokenType.BRACKET_CLOSE);
+                expect(TokenType.SEMI_COLON);
+                continue;
+            }
+            throw error("mapping test key '" + safeText() + "' is unbuilt");
+        }
+        int close = pos;
+        expect(TokenType.BRACE_CLOSE);
+        return new Protocol.PMappingTest(testId, data, asserts,
+                spanOf(tS, close));
+    }
+
+    /** {@code Store: ModelStore #{ path: ExternalFormat #{...}# }#}. */
+    private Protocol.PStoreTestData parseStoreTestData() {
+        int sS = pos;
+        String storePath = Protocol.unquotePath(parseQualifiedName());
+        SourceInfo storeSpan = spanOf(sS, pos - 1);
+        expect(TokenType.COLON);
+        if (!(peek() == TokenType.VALID_STRING
+                && "ModelStore".equals(text()))) {
+            throw error("store test data kind '" + safeText()
+                    + "' is unbuilt");
+        }
+        int msTok = pos;
+        advance();                                  // ModelStore
+        IslandBlock island = readIsland();
+        List<Protocol.PModelEmbeddedData> modelData = new ArrayList<>();
+        MappingProtocolParser inner = new MappingProtocolParser(
+                island.tokens(), 0);
+        while (!inner.atEnd()) {
+            int mS = inner.pos;
+            String model = Protocol.unquotePath(inner.parseQualifiedName());
+            inner.expect(TokenType.COLON);
+            if (!(inner.peek() == TokenType.VALID_STRING
+                    && "ExternalFormat".equals(inner.text()))) {
+                throw inner.error("embedded data kind '" + inner.safeText()
+                        + "' is unbuilt");
+            }
+            Protocol.PExternalFormatData ef = inner.parseExternalFormat();
+            modelData.add(new Protocol.PModelEmbeddedData(model, ef,
+                    new SourceInfo("",
+                            island.tokens().startLine(mS),
+                            island.tokens().startColumn(mS),
+                            ef.sourceInformation().endLine(),
+                            ef.sourceInformation().endColumn())));
+            inner.match(TokenType.COMMA);
+        }
+        // modelStore span = the ModelStore token .. the island close
+        SourceInfo msSpan = new SourceInfo("",
+                tokens.startLine(msTok), tokens.startColumn(msTok),
+                island.endLine(), island.endColumn());
+        return new Protocol.PStoreTestData(
+                new Protocol.PPointer("STORE", storePath, storeSpan),
+                modelData, msSpan,
+                new SourceInfo("", storeSpan.startLine(),
+                        storeSpan.startColumn(), island.endLine(),
+                        island.endColumn()));
+    }
+
+    /** {@code id: EqualToJson #{ expected: ExternalFormat #{...}#; }#}. */
+    private Protocol.PTestAssertion parseTestAssertion() {
+        int aS = pos;
+        String assertId = parseIdentifier();
+        expect(TokenType.COLON);
+        if (!(peek() == TokenType.VALID_STRING
+                && "EqualToJson".equals(text()))) {
+            throw error("test assertion kind '" + safeText()
+                    + "' is unbuilt");
+        }
+        int eqTok = pos;
+        advance();                                  // EqualToJson
+        IslandBlock island = readIsland();
+        MappingProtocolParser inner = new MappingProtocolParser(
+                island.tokens(), 0);
+        if (!"expected".equals(inner.text())) {
+            throw inner.error("assertion key '" + inner.safeText()
+                    + "' is unbuilt");
+        }
+        inner.advance();
+        inner.expect(TokenType.COLON);
+        if (!(inner.peek() == TokenType.VALID_STRING
+                && "ExternalFormat".equals(inner.text()))) {
+            throw inner.error("assertion payload '" + inner.safeText()
+                    + "' is unbuilt");
+        }
+        Protocol.PExternalFormatData ef = inner.parseExternalFormat();
+        inner.match(TokenType.SEMI_COLON);
+        return new Protocol.PTestAssertion(assertId, ef,
+                new SourceInfo("", tokens.startLine(eqTok),
+                        tokens.startColumn(eqTok), island.endLine(),
+                        island.endColumn()));
+    }
+
+    /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —
+     *  span ExternalFormat..}#. */
+    private Protocol.PExternalFormatData parseExternalFormat() {
+        int efTok = pos;
+        advance();                                  // ExternalFormat
+        IslandBlock island = readIsland();
+        MappingProtocolParser inner = new MappingProtocolParser(
+                island.tokens(), 0);
+        String contentType = null;
+        String dataStr = null;
+        while (!inner.atEnd()) {
+            String key = inner.text();
+            inner.advance();
+            inner.expect(TokenType.COLON);
+            String v = TokenStreamCursor.unquoteAndUnescape(inner.text(),
+                    inner);
+            inner.advance();
+            inner.expect(TokenType.SEMI_COLON);
+            if ("contentType".equals(key)) {
+                contentType = v;
+            } else if ("data".equals(key)) {
+                dataStr = v;
+            } else {
+                throw inner.error("external-format key '" + key
+                        + "' is unbuilt");
+            }
+        }
+        if (contentType == null || dataStr == null) {
+            throw error("external format needs contentType AND data");
+        }
+        return new Protocol.PExternalFormatData(contentType, dataStr,
+                new SourceInfo("", tokens.startLine(efTok),
+                        tokens.startColumn(efTok), island.endLine(),
+                        island.endColumn()));
+    }
+
+    /** One {@code #{ ... }#} island: RE-LEXES the raw content with
+     *  line/column padding so inner spans stay absolute (island content
+     *  arrives as raw chunks; same emulation as the merge getText
+     *  reparse). Nested islands re-lex recursively through the SAME
+     *  machinery. */
+    private record IslandBlock(TokenStream tokens, int endLine,
+            int endColumn) { }
+
+    private IslandBlock readIsland() {
+        expect(TokenType.ISLAND_OPEN);
+        int contentStart = tokens.start(pos);
+        int depth = 0;
+        while (!atEnd()) {
+            TokenType t = peek();
+            if (t == TokenType.ISLAND_START) {
+                depth++;
+            } else if (t == TokenType.ISLAND_END) {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            }
+            advance();
+        }
+        int endTok = pos;
+        int contentEnd = tokens.start(endTok);
+        expect(TokenType.ISLAND_END);
+        String source = tokens.source();
+        StringBuilder padded = new StringBuilder();
+        int line = 1;
+        int lastNl = -1;
+        for (int i = 0; i < contentStart; i++) {
+            if (source.charAt(i) == '\n') {
+                line++;
+                lastNl = i;
+            }
+        }
+        for (int i = 1; i < line; i++) {
+            padded.append('\n');
+        }
+        for (int i = lastNl + 1; i < contentStart; i++) {
+            padded.append(' ');
+        }
+        padded.append(source, contentStart, contentEnd);
+        return new IslandBlock(
+                com.legend.lexer.Lexer.tokenize(padded.toString()),
+                tokens.endLine(endTok), tokens.endColumn(endTok));
     }
 
     /** One embedded op under the ACTIVE scope context (scope table >

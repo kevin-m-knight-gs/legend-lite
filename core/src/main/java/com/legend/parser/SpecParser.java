@@ -212,7 +212,21 @@ public final class SpecParser implements TokenStreamCursor {
     private int pos;
 
     private SpecParser(TokenStream tokens) {
+        this(tokens, "");
+    }
+
+    private SpecParser(TokenStream tokens, String spanSourceId) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
+        this.spanSourceId = spanSourceId;
+    }
+
+    /** Mapping test-suite query lambdas carry the MAPPING's path as the
+     *  span source id (probe test-suites); everything else "". */
+    private final String spanSourceId;
+
+    @Override
+    public String spanSourceId() {
+        return spanSourceId;
     }
 
     // -------------------------------------------------------------------
@@ -263,7 +277,13 @@ public final class SpecParser implements TokenStreamCursor {
      * statement raise a fail-fast error.
      */
     public static List<ValueSpecification> parseCodeBlock(TokenStream tokens) {
-        SpecParser parser = new SpecParser(tokens);
+        return parseCodeBlock(tokens, "");
+    }
+
+    /** As {@link #parseCodeBlock(TokenStream)} with a span source id. */
+    public static List<ValueSpecification> parseCodeBlock(TokenStream tokens,
+            String spanSourceId) {
+        SpecParser parser = new SpecParser(tokens, spanSourceId);
         List<ValueSpecification> stmts = parser.parseCodeBlockUntil(null);
         if (!parser.atEnd()) {
             throw parser.error("trailing tokens after code block: "
@@ -3040,7 +3060,7 @@ public final class SpecParser implements TokenStreamCursor {
 
     /** Inclusive character range → engine 1-based/inclusive-end {@link com.legend.protocol.SourceInfo}. */
     private com.legend.protocol.SourceInfo charSpan(int from, int to) {
-        return new com.legend.protocol.SourceInfo("",
+        return new com.legend.protocol.SourceInfo(spanSourceId(),
                 tokens.lineOf(from), tokens.columnOf(from),
                 tokens.lineOf(to), tokens.columnOf(to));
     }

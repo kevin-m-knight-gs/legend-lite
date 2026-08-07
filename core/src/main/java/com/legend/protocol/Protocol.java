@@ -143,11 +143,49 @@ public final class Protocol {
                            List<PClassMapping> classMappings,
                            List<PEnumerationMapping> enumerationMappings,
                            List<PMappingInclude> includedMappings,
+                           List<PMappingTestSuite> testSuites,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
         }
+    }
+
+    /** {@code testSuites: [ id: { function: |...; tests: [...] } ]} —
+     *  {@code _type:"mappingTestSuite"}; the query lambda's spec spans
+     *  carry the MAPPING's path as sourceId (probe test-suites). */
+    public record PMappingTestSuite(String id,
+                                    com.legend.protocol.spec.ValueSpecification func,
+                                    List<PMappingTest> tests,
+                                    com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PMappingTest(String id,
+                               List<PStoreTestData> storeTestData,
+                               List<PTestAssertion> assertions,
+                               com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code Store: ModelStore #{ path: ExternalFormat #{...}# }#}. */
+    public record PStoreTestData(PPointer store,
+                                 List<PModelEmbeddedData> modelData,
+                                 com.legend.protocol.SourceInfo modelStoreSourceInformation,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PModelEmbeddedData(String model, PExternalFormatData data,
+                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code ExternalFormat #{ contentType: '...'; data: '...'; }#} —
+     *  span ExternalFormat..}# (probe test-suites). */
+    public record PExternalFormatData(String contentType, String data,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code id: EqualToJson #{ expected: ExternalFormat #{...}#; }#}. */
+    public record PTestAssertion(String id, PExternalFormatData expected,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One enumeration mapping: id + typed enumeration pointer + value rows

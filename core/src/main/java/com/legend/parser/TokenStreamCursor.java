@@ -617,9 +617,16 @@ public interface TokenStreamCursor {
      *  in the engine's 1-based / inclusive-end convention. */
     default com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
         TokenStream ts = tokens();
-        return new com.legend.protocol.SourceInfo("",
+        return new com.legend.protocol.SourceInfo(spanSourceId(),
                 ts.startLine(fromTok), ts.startColumn(fromTok),
                 ts.endLine(toTok), ts.endColumn(toTok));
+    }
+
+    /** The {@code sourceId} stamped on spans — "" everywhere EXCEPT
+     *  mapping test-suite query lambdas, which the engine reparses with
+     *  the MAPPING's own path as the source id (probe test-suites). */
+    default String spanSourceId() {
+        return "";
     }
 
     /**

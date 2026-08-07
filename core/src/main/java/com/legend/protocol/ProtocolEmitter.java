@@ -175,98 +175,7 @@ public final class ProtocolEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            switch (m.associationMappings().get(i)) {
-                case Protocol.PRelAssociationMapping ra -> {
-                    b.append("{\"_type\":\"relational\",\"association\":");
-                    pointer(b, ra.association());
-                    if (ra.id() != null) {
-                        b.append(",\"id\":");
-                        str(b, ra.id());
-                    }
-                    b.append(",\"propertyMappings\":[");
-                    for (int j = 0; j < ra.propertyMappings().size(); j++) {
-                        if (j > 0) {
-                            b.append(',');
-                        }
-                        Protocol.PRelAssocPropertyMapping pm =
-                                ra.propertyMappings().get(j);
-                        b.append("{\"_type\":\"relationalPropertyMapping\","
-                                + "\"property\":{\"property\":");
-                        str(b, pm.property());
-                        b.append(",\"sourceInformation\":");
-                        srcInfo(b, pm.propertySourceInformation());
-                        b.append("},\"relationalOperation\":");
-                        relOp(b, pm.relationalOperation());
-                        if (pm.source() != null) {
-                            b.append(",\"source\":");
-                            str(b, pm.source());
-                        }
-                        b.append(",\"sourceInformation\":");
-                        srcInfo(b, pm.sourceInformation());
-                        if (pm.target() != null) {
-                            b.append(",\"target\":");
-                            str(b, pm.target());
-                        }
-                        b.append('}');
-                    }
-                    b.append("],\"sourceInformation\":");
-                    srcInfo(b, ra.sourceInformation());
-                    b.append(",\"stores\":[");
-                    for (int j = 0; j < ra.stores().size(); j++) {
-                        if (j > 0) {
-                            b.append(',');
-                        }
-                        str(b, ra.stores().get(j));
-                    }
-                    b.append("]}");
-                }
-                case Protocol.PXStoreAssociationMapping xa -> {
-                    b.append("{\"_type\":\"xStore\",\"association\":");
-                    pointer(b, xa.association());
-                    b.append(",\"propertyMappings\":[");
-                    for (int j = 0; j < xa.propertyMappings().size(); j++) {
-                        if (j > 0) {
-                            b.append(',');
-                        }
-                        Protocol.PXStorePropertyMapping pm =
-                                xa.propertyMappings().get(j);
-                        b.append("{\"_type\":\"xStorePropertyMapping\","
-                                + "\"crossExpression\":{\"_type\":\"lambda\","
-                                + "\"body\":[");
-                        for (int k = 0; k < pm.crossExpression().size(); k++) {
-                            if (k > 0) {
-                                b.append(',');
-                            }
-                            valueSpec(b, pm.crossExpression().get(k));
-                        }
-                        b.append("],\"parameters\":[]},\"property\":{\"class\":");
-                        str(b, pm.ownerClass());
-                        b.append(",\"property\":");
-                        str(b, pm.property());
-                        b.append(",\"sourceInformation\":");
-                        srcInfo(b, pm.propertySourceInformation());
-                        b.append("},\"source\":");
-                        str(b, pm.source());
-                        b.append(",\"sourceInformation\":");
-                        srcInfo(b, pm.sourceInformation());
-                        b.append(",\"target\":");
-                        str(b, pm.target());
-                        b.append('}');
-                    }
-                    b.append("],\"sourceInformation\":");
-                    srcInfo(b, xa.sourceInformation());
-                    b.append(",\"stores\":[]}");
-                }
-                case Protocol.PModelJoinAssociationMapping mj -> {
-                    b.append("{\"_type\":\"modelJoin\",\"association\":");
-                    pointer(b, mj.association());
-                    b.append(",\"joinCondition\":");
-                    valueSpec(b, mj.joinCondition());
-                    b.append(",\"sourceInformation\":");
-                    srcInfo(b, mj.sourceInformation());
-                    b.append(",\"stores\":[]}");
-                }
-            }
+            associationMapping(b, m.associationMappings().get(i));
         }
         b.append("],\"classMappings\":[");
         for (int i = 0; i < m.classMappings().size(); i++) {
@@ -413,7 +322,94 @@ public final class ProtocolEmitter {
         str(b, m.pkg());
         b.append(",\"sourceInformation\":");
         srcInfo(b, m.sourceInformation());
+        if (!m.testSuites().isEmpty()) {
+            b.append(",\"testSuites\":[");
+            for (int i = 0; i < m.testSuites().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                testSuite(b, m.testSuites().get(i));
+            }
+            b.append(']');
+        }
         b.append(",\"tests\":[]}");
+    }
+
+    private static void testSuite(StringBuilder b,
+            Protocol.PMappingTestSuite ts) {
+        b.append("{\"_type\":\"mappingTestSuite\",\"func\":");
+        valueSpec(b, ts.func());
+        b.append(",\"id\":");
+        str(b, ts.id());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, ts.sourceInformation());
+        b.append(",\"tests\":[");
+        for (int i = 0; i < ts.tests().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PMappingTest t = ts.tests().get(i);
+            b.append("{\"_type\":\"mappingTest\",\"assertions\":[");
+            for (int j = 0; j < t.assertions().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PTestAssertion a = t.assertions().get(j);
+                b.append("{\"_type\":\"equalToJson\",\"expected\":");
+                externalFormatData(b, a.expected());
+                b.append(",\"id\":");
+                str(b, a.id());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, a.sourceInformation());
+                b.append('}');
+            }
+            b.append("],\"id\":");
+            str(b, t.id());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, t.sourceInformation());
+            b.append(",\"storeTestData\":[");
+            for (int j = 0; j < t.storeTestData().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PStoreTestData sd = t.storeTestData().get(j);
+                b.append("{\"data\":{\"_type\":\"modelStore\","
+                        + "\"modelData\":[");
+                for (int k = 0; k < sd.modelData().size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PModelEmbeddedData md = sd.modelData().get(k);
+                    b.append("{\"_type\":\"modelEmbeddedData\",\"data\":");
+                    externalFormatData(b, md.data());
+                    b.append(",\"model\":");
+                    str(b, md.model());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, md.sourceInformation());
+                    b.append('}');
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, sd.modelStoreSourceInformation());
+                b.append("},\"sourceInformation\":");
+                srcInfo(b, sd.sourceInformation());
+                b.append(",\"store\":");
+                pointer(b, sd.store());
+                b.append('}');
+            }
+            b.append("]}");
+        }
+        b.append("]}");
+    }
+
+    private static void externalFormatData(StringBuilder b,
+            Protocol.PExternalFormatData ef) {
+        b.append("{\"_type\":\"externalFormat\",\"contentType\":");
+        str(b, ef.contentType());
+        b.append(",\"data\":");
+        str(b, ef.data());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, ef.sourceInformation());
+        b.append('}');
     }
 
     private static void pureClassMapping(StringBuilder b,
@@ -513,6 +509,102 @@ public final class ProtocolEmitter {
         }
         b.append('}');
     }
+
+    private static void associationMapping(StringBuilder b,
+            Protocol.PAssociationMapping am) {
+        switch (am) {
+                case Protocol.PRelAssociationMapping ra -> {
+                    b.append("{\"_type\":\"relational\",\"association\":");
+                    pointer(b, ra.association());
+                    if (ra.id() != null) {
+                        b.append(",\"id\":");
+                        str(b, ra.id());
+                    }
+                    b.append(",\"propertyMappings\":[");
+                    for (int j = 0; j < ra.propertyMappings().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PRelAssocPropertyMapping pm =
+                                ra.propertyMappings().get(j);
+                        b.append("{\"_type\":\"relationalPropertyMapping\","
+                                + "\"property\":{\"property\":");
+                        str(b, pm.property());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.propertySourceInformation());
+                        b.append("},\"relationalOperation\":");
+                        relOp(b, pm.relationalOperation());
+                        if (pm.source() != null) {
+                            b.append(",\"source\":");
+                            str(b, pm.source());
+                        }
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.sourceInformation());
+                        if (pm.target() != null) {
+                            b.append(",\"target\":");
+                            str(b, pm.target());
+                        }
+                        b.append('}');
+                    }
+                    b.append("],\"sourceInformation\":");
+                    srcInfo(b, ra.sourceInformation());
+                    b.append(",\"stores\":[");
+                    for (int j = 0; j < ra.stores().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        str(b, ra.stores().get(j));
+                    }
+                    b.append("]}");
+                }
+                case Protocol.PXStoreAssociationMapping xa -> {
+                    b.append("{\"_type\":\"xStore\",\"association\":");
+                    pointer(b, xa.association());
+                    b.append(",\"propertyMappings\":[");
+                    for (int j = 0; j < xa.propertyMappings().size(); j++) {
+                        if (j > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PXStorePropertyMapping pm =
+                                xa.propertyMappings().get(j);
+                        b.append("{\"_type\":\"xStorePropertyMapping\","
+                                + "\"crossExpression\":{\"_type\":\"lambda\","
+                                + "\"body\":[");
+                        for (int k = 0; k < pm.crossExpression().size(); k++) {
+                            if (k > 0) {
+                                b.append(',');
+                            }
+                            valueSpec(b, pm.crossExpression().get(k));
+                        }
+                        b.append("],\"parameters\":[]},\"property\":{\"class\":");
+                        str(b, pm.ownerClass());
+                        b.append(",\"property\":");
+                        str(b, pm.property());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.propertySourceInformation());
+                        b.append("},\"source\":");
+                        str(b, pm.source());
+                        b.append(",\"sourceInformation\":");
+                        srcInfo(b, pm.sourceInformation());
+                        b.append(",\"target\":");
+                        str(b, pm.target());
+                        b.append('}');
+                    }
+                    b.append("],\"sourceInformation\":");
+                    srcInfo(b, xa.sourceInformation());
+                    b.append(",\"stores\":[]}");
+                }
+                case Protocol.PModelJoinAssociationMapping mj -> {
+                    b.append("{\"_type\":\"modelJoin\",\"association\":");
+                    pointer(b, mj.association());
+                    b.append(",\"joinCondition\":");
+                    valueSpec(b, mj.joinCondition());
+                    b.append(",\"sourceInformation\":");
+                    srcInfo(b, mj.sourceInformation());
+                    b.append(",\"stores\":[]}");
+                }
+            }
+            }
 
     private static void mappingInclude(StringBuilder b,
             Protocol.PMappingInclude inc) {
