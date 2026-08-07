@@ -89,6 +89,7 @@ public final class ParserEquivalence {
         List<long[]> runtimeRanges = sectionRanges(src.text(), "Runtime", false);
         List<long[]> connectionRanges = sectionRanges(src.text(), "Connection", false);
         List<long[]> relationalRanges = sectionRanges(src.text(), "Relational", false);
+        List<long[]> mappingRanges = sectionRanges(src.text(), "Mapping", false);
 
         Ref ref;
         try {
@@ -109,9 +110,12 @@ public final class ParserEquivalence {
         sites.addAll(connectionSites(ts, connectionRanges));
         sites.addAll(markerSites(ts, relationalRanges,
                 com.legend.lexer.TokenType.DATABASE, 8));
+        sites.addAll(markerSites(ts, mappingRanges,
+                com.legend.lexer.TokenType.MAPPING, 9));
         boolean runtimeWalled = false;
         boolean connectionWalled = false;
         boolean relationalWalled = false;
+        boolean mappingWalled = false;
         for (int[] site : sites) {
             Protocol.Element el;
             String fqn;
@@ -149,6 +153,11 @@ public final class ParserEquivalence {
                             .DatabaseProtocolParser.parse(ts, site[0]);
                     el = db;
                     fqn = db.qualifiedName();
+                } else if (site[1] == 9) {
+                    Protocol.PMapping mp = com.legend.parser
+                            .MappingProtocolParser.parse(ts, site[0]);
+                    el = mp;
+                    fqn = mp.qualifiedName();
                 } else {
                     Protocol.PFunction fn = ElementParser.at(ts, site[0]).parseFunctionProtocol();
                     el = fn;
@@ -173,6 +182,10 @@ public final class ParserEquivalence {
                     relationalWalled = true;
                     out.add(new Verdict(Kind.WALL, src.id(), "?",
                             "relational: " + root(t)));
+                } else if (site[1] == 9) {
+                    mappingWalled = true;
+                    out.add(new Verdict(Kind.WALL, src.id(), "?",
+                            "mapping: " + root(t)));
                 } else {
                     out.add(new Verdict(Kind.PARSE_FAIL, src.id(), "?", root(t)));
                 }
@@ -187,7 +200,8 @@ public final class ParserEquivalence {
                 String prefix = "{\"_type\":\""
                         + new String[]{"class", "Enumeration", "profile",
                                 "association", "function", "measure",
-                                "runtime", "connection", "relational"}[site[1]]
+                                "runtime", "connection", "relational",
+                                "mapping"}[site[1]]
                         + "\"";
                 int pick = 0;
                 for (int q = 0; q < queue.size(); q++) {
@@ -226,7 +240,7 @@ public final class ParserEquivalence {
                 boolean pureKind = false;
                 for (String t : new String[]{"class", "Enumeration", "profile",
                         "association", "function", "measure", "runtime",
-                        "connection", "relational"}) {
+                        "connection", "relational", "mapping"}) {
                     if (leftover.startsWith("{\"_type\":\"" + t + "\"")) {
                         pureKind = true;
                         break;
@@ -248,6 +262,12 @@ public final class ParserEquivalence {
                         && leftover.startsWith("{\"_type\":\"relational\"")) {
                     out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
                             "relational: unbuilt sub-grammar (walled site)"));
+                    continue;
+                }
+                if (pureKind && mappingWalled
+                        && leftover.startsWith("{\"_type\":\"mapping\"")) {
+                    out.add(new Verdict(Kind.WALL, src.id(), e.getKey(),
+                            "mapping: unbuilt sub-grammar (walled site)"));
                     continue;
                 }
                 String sec = ref.sectionOf().getOrDefault(e.getKey(), "?");

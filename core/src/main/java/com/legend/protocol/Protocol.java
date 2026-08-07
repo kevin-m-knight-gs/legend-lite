@@ -39,7 +39,36 @@ public final class Protocol {
 
     /** A packageable element. Sealed so the emitter's switch is exhaustive. */
     public sealed interface Element permits PClass, PAssociation, PEnumeration, PFunction,
-            PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase {
+            PProfile, PSectionIndex, PMeasure, PRuntime, PConnection, PDatabase,
+            PMapping {
+    }
+
+    /** {@code _type:"mapping"} — a ###Mapping element (ZMappingProbe):
+     *  envelope {associationMappings, classMappings, enumerationMappings,
+     *  includedMappings, name, package, sourceInformation, tests}. Class
+     *  mapping families land probe-by-probe; unbuilt ones WALL. */
+    public record PMapping(String pkg, String name,
+                           List<PEnumerationMapping> enumerationMappings,
+                           com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+    }
+
+    /** One enumeration mapping: id + typed enumeration pointer + value rows
+     *  (probe enum-mapping). */
+    public record PEnumerationMapping(String id, PPointer enumeration,
+                                      List<PEnumValueMapping> enumValueMappings,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    public record PEnumValueMapping(String enumValue,
+                                    List<PEnumSourceValue> sourceValues) {
+    }
+
+    /** {@code _type:"stringSourceValue"|"integerSourceValue"}. */
+    public record PEnumSourceValue(Object value) {
     }
 
     /** {@code _type:"relational"} — a ###Relational Database element

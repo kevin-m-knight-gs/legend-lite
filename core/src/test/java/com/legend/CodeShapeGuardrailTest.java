@@ -64,6 +64,7 @@ class CodeShapeGuardrailTest {
             "ElementParser.pos", "ElementParser.currentMappingScope",
             // DatabaseProtocolParser: the same parser-cursor shape
             "DatabaseProtocolParser.pos",
+            "MappingProtocolParser.pos",
             // parse-surface MODE, set once at construction by the factory that owns
             // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
             "ElementParser.legendStrict",

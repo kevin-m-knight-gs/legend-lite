@@ -82,9 +82,12 @@ class CorpusEquivalenceTest {
      * the NEXT pointer), <> as notEqualAnsi vs != as notEqual, RIGHT-
      * recursive comparison chains, TabularFunction constraints, negative
      * literals. SIX walls remain: the declaration-site nav-span family
-     * (by design, needs two-pass tracking) + one @-in-operation single. */
-    private static final int MIN_ELEMENTS_COMPARED = 23308;
-    private static final int MIN_MATCHES = 23308;
+     * (by design, needs two-pass tracking) + one @-in-operation single.
+     * 23,308 -> 23,375: ###Mapping OPENS (leg 4) — envelope + enumeration
+     * mappings at byte parity; class-mapping families walled by name;
+     * the wall ranking IS the leg's worklist. */
+    private static final int MIN_ELEMENTS_COMPARED = 23375;
+    private static final int MIN_MATCHES = 23375;
 
     @Test
     void legendLiteEmitsByteIdenticalProtocolForEveryClassItClaims() throws Exception {

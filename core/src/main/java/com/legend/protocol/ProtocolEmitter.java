@@ -77,6 +77,7 @@ public final class ProtocolEmitter {
             case Protocol.PRuntime r -> runtime(b, r);
             case Protocol.PConnection c -> connection(b, c);
             case Protocol.PDatabase d -> database(b, d);
+            case Protocol.PMapping m -> mapping(b, m);
         }
     }
 
@@ -165,6 +166,57 @@ public final class ProtocolEmitter {
         b.append(",\"type\":");
         str(b, p.type());
         b.append('}');
+    }
+
+    /** {@code _type:"mapping"} envelope (ZMappingProbe). */
+    private static void mapping(StringBuilder b, Protocol.PMapping m) {
+        b.append("{\"_type\":\"mapping\",\"associationMappings\":[]"
+                + ",\"classMappings\":[],\"enumerationMappings\":[");
+        for (int i = 0; i < m.enumerationMappings().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PEnumerationMapping em = m.enumerationMappings().get(i);
+            b.append("{\"enumValueMappings\":[");
+            for (int j = 0; j < em.enumValueMappings().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PEnumValueMapping vm = em.enumValueMappings().get(j);
+                b.append("{\"enumValue\":");
+                str(b, vm.enumValue());
+                b.append(",\"sourceValues\":[");
+                for (int k = 0; k < vm.sourceValues().size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    Object v = vm.sourceValues().get(k).value();
+                    if (v instanceof String sv) {
+                        b.append("{\"_type\":\"stringSourceValue\",\"value\":");
+                        str(b, sv);
+                    } else {
+                        b.append("{\"_type\":\"integerSourceValue\",\"value\":")
+                                .append(v);
+                    }
+                    b.append('}');
+                }
+                b.append("]}");
+            }
+            b.append("],\"enumeration\":");
+            pointer(b, em.enumeration());
+            b.append(",\"id\":");
+            str(b, em.id());
+            b.append(",\"sourceInformation\":");
+            srcInfo(b, em.sourceInformation());
+            b.append('}');
+        }
+        b.append("],\"includedMappings\":[],\"name\":");
+        str(b, m.name());
+        b.append(",\"package\":");
+        str(b, m.pkg());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, m.sourceInformation());
+        b.append(",\"tests\":[]}");
     }
 
     /** {@code _type:"relational"} — Database element (ZRelationalProbe). */
