@@ -252,6 +252,19 @@ public final class ElementParser implements TokenStreamCursor {
         return p.relationalGrammar.parseDatabase();
     }
 
+    /**
+     * Parse ONE mapping at {@code tokenIndex} through the LEGACY model
+     * parser — the Mapping-side twin of {@link #parseDatabaseAt}, for the
+     * M0 census. Dies with {@code MappingGrammarParser}.
+     */
+    public static PackageableElement parseMappingAt(
+            TokenStream tokens, int tokenIndex) {
+        ElementParser p = new ElementParser(tokens);
+        p.pos = tokenIndex;
+        p.legendStrict = true;
+        return p.mappingGrammar.parseMapping();
+    }
+
     public static ParsedModel parse(String source) {
         return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")));
     }

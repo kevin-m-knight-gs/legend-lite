@@ -266,6 +266,65 @@ is necessary and nowhere near sufficient: 538 of 561 databases were already
 identical while nine families generated wrong SQL. Gates 4/5/6 are the
 switchover proof. Nothing else is.
 
+## §M0 — the Mapping migration, sized (2026-08-08)
+
+`MappingMigrationCensusTest`. Both paths read the same **1,503** corpus
+mapping elements, which is the first good sign: unlike `BOOLEAN`, there is no
+large hidden readability gap. `MigrationSizingTest` owns the readability
+question and puts the cost at **24 legacy-only FILES, 18 of them one cause**
+(`expected identifier, got DOLLAR`). Two harnesses must not both answer the
+same question — that is how 2,298/2,575 and 2,398/2,798 came to look like a
+regression.
+
+**M1 slice order — property mappings by corpus frequency:**
+
+| count | variant | | count | variant |
+|---:|---|---|---:|---|
+| 3,030 | `Column` | | 107 | `JoinTerminalColumn` |
+| 813 | `Join` | | 102 | `EnumeratedColumn` |
+| 256 | `Expression` | | 59 | `InlineEmbedded` |
+| 192 | `Embedded` | | 20 | `OtherwiseEmbedded` |
+| 163 | `LocalProperty` | | 11 | `EnumeratedExpression` |
+
+`Column` + `Join` is **81%** of all property mappings. That is M1.
+
+**Class mappings.** Model: `Relational` 1,813 · `Pure` 710 · `Union` 270 ·
+`RelationFunction` 184 · `Inheritance` 26. Protocol: `PClassMappingRel` 1,806
+· `PClassMappingPure` 722 · `PClassMappingOperation` 310 ·
+`PClassMappingRelation` 109 · `PClassMappingAggregationAware` 33 ·
+`PClassMappingMergeOperation` 11. Note the model has NO `Operation` variant:
+the wire's 310 operation mappings land as `Union` (270) + `Inheritance` (26),
+so the transform re-derives the distinction from the operation function.
+
+**Protocol shapes needing a decision, and what is NOT one.** A first pass
+flagged xstore and model-join as homeless; that was a naive name-match and it
+was wrong — `AssociationMapping` permits `Relational | Cross | ModelJoin`, so
+both have model homes (`PXStoreAssociationMapping` 65 → `Cross`,
+`PModelJoinAssociationMapping` 95 → `ModelJoin`). The real list:
+
+| count | shape | disposition |
+|---:|---|---|
+| 64 | `testSuites` | model keeps only RAW TEXT (`testSuitesSource`) — carried, not modelled |
+| 33 | `AggregationAware` | **flattened by design**: keep `~mainMapping` flagged `aggregationAwareMain`, DROP `Views:` so rewrite asserts fail honestly (`MappingGrammarParser:456-512`). Reproduce the flattening; do not invent a variant. |
+| 11 | `MergeOperation` | genuinely no `ClassMapping` variant — needs one, or a loud refusal |
+| 11 | legacy `tests` | no model field at all |
+
+**The model is mid-migration on a SECOND axis.** `MappingGrammarParser`
+returns one of two shapes per element (`:105-120`): `LegacyMappingDefinition`
+(the legacy DSL surface tree of `ClassMapping` variants, which
+`MappingNormalizer` rewrites to canonical) or `MappingDefinition` (the
+clean-sheet function form). All 1,503 corpus elements are legacy-DSL. So the
+protocol→model transform targets the SURFACE tree, and the surface→function
+rewrite stays where it is. Conflating the two axes would turn M into a
+rewrite instead of a completion.
+
+**What M must not repeat.** R3's only real regression came from an ORDER the
+wire does not carry (flat table lists) and a NULL CONVENTION it does not
+carry (enclosing-db self-references). The mapping analogues to watch are
+property-mapping order, set-id ordering, embedded nesting order, and the
+`~mainTable` / source-table conventions. Structural equality will not catch
+these — gates 4/5/6 will.
+
 ## §7 Order of attack
 
 1. **Phase 0** (§2) — lock the carrier, no new opaque uses. DONE.
