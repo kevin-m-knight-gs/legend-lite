@@ -36,13 +36,19 @@ class MigrationEquivalenceTest {
 
     /** Databases whose two paths still disagree. Ratchets DOWN only; the
      *  legacy parser dies when this is 0 and the switch is thrown. */
-    private static final int MAX_MISMATCHED_DATABASES = 25;
-    // 488 -> 25 as the transform learned what the wire does NOT say: the
+    private static final int MAX_MISMATCHED_DATABASES = 18;
+    // 488 -> 25 -> 18 as the transform learned what the wire does NOT say: the
     // synthetic "default" schema, resolved-vs-as-written database names,
     // schema-qualified table names, milestoning, the {target} marker,
     // right-associative and/or, and quoted identifiers.
     //
-    // THE REMAINING 25 ARE A PRINCIPLED FLOOR, not unfinished work. They are
+    // 25 -> 18: a JoinNavigation rooted in the ENCLOSING database was left
+    // self-qualified, though columnRef fifteen lines above already applied
+    // the as-written rule. That one is a plain transform bug, not a floor —
+    // which is why "principled floor" claims are worth re-deriving, not
+    // inheriting.
+    //
+    // THE REMAINING 18 ARE A PRINCIPLED FLOOR, not unfinished work. They are
     // all AS-WRITTEN vs CANONICAL differences the wire structurally cannot
     // preserve, because the engine's protocol records the resolved form:
     //

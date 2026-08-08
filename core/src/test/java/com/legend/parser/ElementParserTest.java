@@ -1555,11 +1555,14 @@ final class ElementParserTest {
                 )
                 """).elements().get(0);
         TableDefinition t = db.tables().get(0);
+        // INFINITY_DATE reaches the model through the wire, where a date
+        // literal's `value` is the BARE ISO string — the `%` is Pure
+        // grammar, not protocol. TemporalFrame consumes it at one site.
         assertEquals(new TableDefinition.Milestoning(
                 new TableDefinition.Milestoning.Business(
-                        "from_z", "thru_z", true, null, "%9999-12-31T00:00:00.0000"),
+                        "from_z", "thru_z", true, null, "9999-12-31T00:00:00.0000"),
                 new TableDefinition.Milestoning.Processing(
-                        "in_z", "out_z", false, null, "%9999-12-31T00:00:00.0000")),
+                        "in_z", "out_z", false, null, "9999-12-31T00:00:00.0000")),
                 t.milestoning());
         assertEquals("id", t.columns().get(0).name());
     }
@@ -1779,21 +1782,37 @@ final class ElementParserTest {
     }
 
     @Test
-    void viewFilterJoinMediatedLocalTarget() {
-        // ~filter [s::Db] @J1 > @J2 | F → JoinMediated("s::Db", [J1,J2], Local("F"))
+    void viewFilterJoinMediatedRequiresTargetDbQualifier() {
+        // ~filter [s::Db] @J1 > @J2 | F is INVALID, even though F is local:
+        // viewFilterMappingJoin ends in a databasePointer
+        // (RelationalParserGrammar.g4:143), so the target filter is always
+        // [DB]-qualified. All 36 corpus uses spell it that way. We used to
+        // accept the bare form; that leniency died with the legacy parser.
+        ParseException ex = assertThrows(ParseException.class,
+                () -> ElementParser.parse(
+                        "Database s::Db ( Table T ( X INTEGER ) "
+                        + "Join J1(T.X = T.X) Join J2(T.X = T.X) "
+                        + "Filter F(T.X = 1) "
+                        + "View V ( ~filter [s::Db] @J1 > @J2 | F  a: T.X ) )"));
+        assertTrue(String.valueOf(ex.getMessage()).contains("[DB]"),
+                () -> "expected error about the target [DB] qualifier, got: "
+                        + ex.getMessage());
+    }
+
+    @Test
+    void viewFilterJoinMediatedMultiHop() {
+        // the same chain, spelled the way engine's grammar requires
         DatabaseDefinition db = (DatabaseDefinition) ElementParser.parse(
                 "Database s::Db ( Table T ( X INTEGER ) "
                 + "Join J1(T.X = T.X) Join J2(T.X = T.X) "
                 + "Filter F(T.X = 1) "
-                + "View V ( ~filter [s::Db] @J1 > @J2 | F  a: T.X ) )")
+                + "View V ( ~filter [s::Db] @J1 > @J2 | [s::Db] F  a: T.X ) )")
                 .elements().get(0);
         FilterMapping.JoinMediated jm = (FilterMapping.JoinMediated) db.views().get(0).filter();
         assertEquals("s::Db", jm.sourceDb());
         assertEquals(2, jm.joins().size());
         assertEquals("J1", jm.joins().get(0).joinName());
         assertEquals("J2", jm.joins().get(1).joinName());
-        FilterPointer.Local local = (FilterPointer.Local) jm.filter();
-        assertEquals("F", local.name());
     }
 
     @Test

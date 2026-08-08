@@ -91,6 +91,13 @@ public final class RelOpFromProtocol {
                             : JoinType.fromIdentifier(ptr.joinType()),
                     ptr.db(), false));
         }
+        // SAME as-written rule columnRef applies: a nav rooted in the
+        // ENCLOSING database is written bare, so the model's db is null.
+        // The CHAIN elements keep their resolved db either way — that is
+        // what the legacy parser records too.
+        if (db != null && db.equals(enclosingDb)) {
+            db = null;
+        }
         return new RelationalOperation.JoinNavigation(db, chain,
                 j.relationalElement() == null ? null
                         : op(j.relationalElement(), enclosingDb));

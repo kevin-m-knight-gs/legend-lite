@@ -96,6 +96,7 @@ these: the grammar sometimes exists, but the MODEL never does.
 |---|---|---|
 | ~29 | **Measure** | `MeasureDefinition` model element + unit types visible to the resolver + arms in the compiler switches |
 | 77 elems | **Data** | `DataElementDefinition` model element, replacing the opaque crutch |
+| — | **Json column type** | engine's wire has a distinct `Json` (walker:492); our `RelationalDataType` has only `SemiStructured`, and JSON columns land there. Needs a sealed variant plus arms in all five switches (`Ddl:338`, `PlanText:792`, `StoreCompiler:198`, `RelationalKinds:44`, `TestDataGenerator:1299`) — each a semantic decision, none currently test-covered. Found by R3. |
 
 ### 3.2 Connection model is relational-shaped
 
@@ -193,34 +194,77 @@ version skew: jars are 5.88.1, the checkout is 5.92.1-SNAPSHOT.
 
 ---
 
-## §R3 — the switch: attempted, 7 named blockers
+## §R3 — the switch: LANDED (2026-08-08)
 
-Flipping `ElementParser`'s `DATABASE` arm to
-`FromProtocol.toDatabaseDefinition(DatabaseProtocolParser.parse(...))` is a
-ONE-LINE change and it has been done and reverted once (2026-08-08). What it
-found, in order:
+`ElementParser`'s `DATABASE` arm now reads
+`FromProtocol.toDatabaseDefinition(DatabaseProtocolParser.parse(...))`. The
+###Relational model is a transform on protocol. All eight gates green.
 
-* **127 core-test failures, of which ~120 were one cause**: the protocol
-  parser had no `BOOLEAN` column type, though the model has had
-  `RelationalDataType.Bool` since the beginning. Invisible until the model was
-  built FROM protocol. **Fixed and kept** — that gap was real regardless of
-  the migration.
-* **7 remaining**, all pinning legacy behaviour the protocol path does not
-  reproduce. These are the entire cost of R3:
-  - `viewFilterJoinMediatedLocalTarget` and
-    `joinMediatedFilterRequiresSourceDbQualifier` — the `~filter [DB] @J | F`
-    form with a LOCAL filter. The engine grammar requires a db pointer after
-    the pipe, so the protocol parser refuses it; the legacy parser accepts it.
-    This is our leniency, and the test pins the lenient behaviour.
-  - `databaseTableMilestoningCapturesInclusivityAndInfinityDate` — the
-    transform loses inclusivity/infinity-date detail.
-  - `joinNavigationMultiHopWithTerminal` — join-chain shape.
-  - `multiGrainFilterTrackedSeparately` — the `filterType` discriminator split.
-  - `filterRejectsBareIdentifierMatchingEngine`, plus one in
-    `MappingNormalizerTest`.
+The 7 named core failures reproduced exactly as predicted, and closing them
+cost less than the list implied — but the list was **not** the cost of R3.
+That claim came from the core suite alone, and the core suite does not
+generate SQL. Gate 4 regressed **nine families** on the first full run.
 
-The switch stays on legacy until those close. A compiler pointed at a
-half-verified parser is worse than one pointed at an old one.
+**What the 7 actually were** (four transform bugs, two mis-pinned tests, one
+consequence):
+
+* `multiGrainFilterTrackedSeparately` — `FromProtocol` tested for
+  `"multiGrain"`; the wire spells it `"multigrain"`
+  (`RelationalParseTreeWalker.java:662`). Every MultiGrainFilter was silently
+  filed as a plain Filter.
+* `joinNavigationMultiHopWithTerminal` + `MappingNormalizerTest` — the
+  protocol parser read an ATOM after a join-nav's `|`, where engine reads a
+  whole `booleanOperation` (`RelationalParserGrammar.g4:227`), so
+  `@J | T.X = 1` wrapped the nav in a comparison instead of putting the
+  comparison inside it. One bug, two failures.
+* `filterRejectsBareIdentifierMatchingEngine` — both paths refuse a bare
+  identifier; only the wording differed. The protocol parser now says what
+  engine's walker says (`Missing table or alias for column 'X'`, walker:993).
+* `joinMediatedFilterRequiresSourceDbQualifier` — same: a rejection with a
+  message that did not name the requirement.
+* `databaseTableMilestoningCapturesInclusivityAndInfinityDate` — the plan
+  said the transform "loses inclusivity/infinity-date detail". It does not:
+  inclusivity was always correct, and the only difference was the `%` prefix
+  on INFINITY_DATE. `%` is Pure grammar; the wire carries the bare ISO
+  string. The TEST was pinning the legacy parser's verbatim token capture.
+  `TemporalFrame:1540` already tolerated both spellings.
+* `viewFilterJoinMediatedLocalTarget` — a genuine leniency of ours, and the
+  test pinned it. `viewFilterMappingJoin` ends in a databasePointer
+  (`g4:143`), so `~filter [DB] @J | F` with a bare local target is invalid.
+  All 36 corpus uses spell the `[DB]`. Leniency dropped; the test now pins
+  the rejection, with a second test covering the legal spelling.
+
+**What the core suite could not see.** Four more holes of the same kind as
+`BOOLEAN` — reachable from the protocol parser, with no arm in the transform:
+
+* `Numeric` had no `FromProtocol` case at all: a NUMERIC column crashed.
+* `Json` had none either. Engine's wire has a distinct `Json` type
+  (walker:492); our MODEL does not, and the legacy parser collapsed it into
+  `SemiStructured`. Carried over unchanged and recorded — see §3.1.
+* The protocol parser minted an `"Array"` wire kind. Engine has none: the
+  ARRAY keyword walks to `Other` (walker:465). A byte-parity defect that no
+  corpus file exercises, so gate 8 never saw it.
+* A bare `VARCHAR` became `Varchar(0)` instead of the model's unbounded
+  `Varchar(MAX_VALUE)`.
+
+**And one that only gate 4 could find.** The flat `tables()`/`views()` lists
+are the bare-name lookup mirror. The wire orders schemas the way engine's
+walker appends them — named schemas first, the synthetic `default` last —
+and `FromProtocol` flattened in that order, so a `schemaB.personTable` with
+3 columns shadowed the default-schema `personTable` with 7. Bare names mean
+the default schema; the flat lists are now built default-first while
+`schemas` keeps the wire's order. That one line was worth 19 tests in
+`tests/mapping/join` alone.
+
+`MigrationEquivalenceTest` structural mismatches: 25 → 18. The
+`JoinNavigation` half of that was a plain transform bug — the enclosing-db
+as-written rule that `columnRef` applies was never applied to nav roots —
+not the "principled floor" the constant's comment claimed.
+
+**The lesson for the rest of this plan.** Structural equality over the corpus
+is necessary and nowhere near sufficient: 538 of 561 databases were already
+identical while nine families generated wrong SQL. Gates 4/5/6 are the
+switchover proof. Nothing else is.
 
 ## §7 Order of attack
 

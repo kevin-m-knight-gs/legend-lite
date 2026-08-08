@@ -326,8 +326,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             case "TIMESTAMP" -> "Timestamp";
             case "SEMISTRUCTURED" -> "SemiStructured";
             case "JSON" -> "Json";
-            case "OTHER" -> "Other";
-            case "ARRAY" -> "Array";
+            // engine has no Array wire type: the ARRAY keyword walks to
+            // Other (RelationalParseTreeWalker.java:465). We emitted
+            // "Array", which no corpus file exercises — so gate 8 never
+            // saw it. Found by R3, when the model was built FROM protocol.
+            case "OTHER", "ARRAY" -> "Other";
             case "VARCHAR" -> "Varchar";
             case "CHAR" -> "Char";
             case "BINARY" -> "Binary";
@@ -470,6 +473,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 // RelationalParserGrammar.g4:141-143, probe ZViewFilterProbe)
                 String fdb = null;
                 List<Protocol.PJoinPtr> fjoins = new ArrayList<>();
+                if (peek() == TokenType.AT) {
+                    throw error("join-mediated ~filter needs a source [DB]"
+                            + " pointer before the join sequence"
+                            + " (~filter [DB] @Join | [DB] FilterName)");
+                }
                 if (peek() == TokenType.BRACKET_OPEN) {
                     advance();
                     String firstDb = Protocol.unquotePath(parseQualifiedName());
@@ -488,6 +496,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                             }
                         }
                         expect(TokenType.PIPE);
+                        if (peek() != TokenType.BRACKET_OPEN) {
+                            // viewFilterMappingJoin ENDS in a databasePointer:
+                            // the target filter is always [DB]-qualified, even
+                            // when it lives in the enclosing database
+                            throw error("join-mediated ~filter needs a target"
+                                    + " [DB] pointer after the '|'"
+                                    + " (~filter [DB] @Join | [DB] FilterName)");
+                        }
                         expect(TokenType.BRACKET_OPEN);
                         fdb = Protocol.unquotePath(parseQualifiedName());
                         expect(TokenType.BRACKET_CLOSE);
@@ -635,16 +651,28 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** An atom resolved under {@code db} — a bracket-nav element inherits
      *  the bracket's db even when the ambient parse has none. */
     private Protocol.PRelOp atomUnder(String db, String schemaCtx) {
+        return under(db, schemaCtx, false);
+    }
+
+    /** A WHOLE operation resolved under {@code db} — the post-pipe
+     *  terminal of a join navigation (engine: {@code booleanOperation}). */
+    private Protocol.PRelOp operationUnder(String db, String schemaCtx) {
+        return under(db, schemaCtx, true);
+    }
+
+    private Protocol.PRelOp under(String db, String schemaCtx,
+            boolean whole) {
         SourceInfo stretch = "default".equals(schemaCtx) ? null
                 : currentSchemaDeclSpan;
         if (db.equals(dbFqn) && stretch == null) {
-            return parseAtom(schemaCtx);
+            return whole ? parseOperation(schemaCtx) : parseAtom(schemaCtx);
         }
         DatabaseProtocolParser p =
                 new DatabaseProtocolParser(tokens, pos, db, scope);
         p.schemaStretchSpan = stretch;
         p.currentSchemaDeclSpan = currentSchemaDeclSpan;
-        Protocol.PRelOp e = p.parseAtom(schemaCtx);
+        Protocol.PRelOp e = whole ? p.parseOperation(schemaCtx)
+                : p.parseAtom(schemaCtx);
         this.pos = p.pos;
         return e;
     }
@@ -703,10 +731,16 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         Protocol.PRelOp elem = null;
         if (peek() == TokenType.PIPE) {
             advance();
-            // the element resolves under the LAST join's (re-anchored)
+            // joinOperation: ... (PIPE (booleanOperation |
+            // tableAliasColumnOperation))? — the terminal is a WHOLE
+            // boolean operation, so `@J | T.X = 1` puts the comparison
+            // INSIDE the nav rather than wrapping it
+            // (RelationalParserGrammar.g4:227; visitJoinOperation calls
+            // visitBooleanOperation on it).
+            // The element resolves under the LAST join's (re-anchored)
             // db; inside a NAMED schema its table span stretches from the
             // SCHEMA DECLARATION (probe cross-schema-nav)
-            elem = atomUnder(curDb, schemaCtx);
+            elem = operationUnder(curDb, schemaCtx);
         }
         return new Protocol.PElemtWithJoins(joinPtrs, elem,
                 spanOf(s, pos - 1));
@@ -905,7 +939,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         }
         // A.col | S.T.col — schema-qualified when two dots; the TABLE
         // pointer's span runs through the TABLE token (probe: 'S.T1' 11-14)
-
+        if (peek() != TokenType.DOT) {
+            // engine takes the bare identifier at the GRAMMAR level
+            // (tableAliasColumnOperationWithScopeInfo: relationalIdentifier
+            // (DOT scopeInfo)?) and refuses it in the walker
+            // (RelationalParseTreeWalker.java:993). Same rejection, same
+            // words — there is no implicit-table column ref in either AST.
+            throw error("Missing table or alias for column '" + first + "'");
+        }
         expect(TokenType.DOT);
         int tblEnd = pos - 2;                       // the first identifier
         String second = parseIdentifier();

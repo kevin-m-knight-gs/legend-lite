@@ -122,7 +122,28 @@ public final class FromProtocol {
         List<DatabaseDefinition.SchemaDefinition> schemas = new java.util.ArrayList<>();
         List<DatabaseDefinition.TableDefinition> flatTables = new java.util.ArrayList<>();
         List<DatabaseDefinition.ViewDefinition> flatViews = new java.util.ArrayList<>();
+        // The flat lists are the BARE-NAME lookup mirror, and a bare name
+        // means the DEFAULT schema — `schemaB.personTable` and
+        // `personTable` are different tables that share a short name. The
+        // wire orders schemas the way the engine's walker appends them
+        // (named first, synthetic "default" last), which is required for
+        // byte parity and WRONG for lookup: it shadowed the 7-column
+        // default personTable with a 3-column schemaB one and cost the
+        // mapping/join family 19 corpus tests. Default schema first here;
+        // `schemas` below keeps the wire's order.
+        List<com.legend.protocol.Protocol.PDbSchema> lookupOrder =
+                new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PDbSchema s : db.schemas()) {
+            if ("default".equals(s.name())) {
+                lookupOrder.add(s);
+            }
+        }
+        for (com.legend.protocol.Protocol.PDbSchema s : db.schemas()) {
+            if (!"default".equals(s.name())) {
+                lookupOrder.add(s);
+            }
+        }
+        for (com.legend.protocol.Protocol.PDbSchema s : lookupOrder) {
             List<DatabaseDefinition.TableDefinition> st = new java.util.ArrayList<>();
             List<DatabaseDefinition.ViewDefinition> sv = new java.util.ArrayList<>();
             for (com.legend.protocol.Protocol.PDbTable tb : s.tables()) {
@@ -156,7 +177,9 @@ public final class FromProtocol {
             DatabaseDefinition.FilterDefinition d =
                     new DatabaseDefinition.FilterDefinition(f.name(),
                             RelOpFromProtocol.op(f.operation(), db.qualifiedName()));
-            if ("multiGrain".equals(f.filterType())) {
+            // the wire spelling is all-lowercase "multigrain"
+            // (RelationalParseTreeWalker.java:662 sets filter._type)
+            if ("multigrain".equals(f.filterType())) {
                 multiGrain.add(d);
             } else {
                 filters.add(d);
@@ -290,11 +313,31 @@ public final class FromProtocol {
             case "Distinct" -> new RelationalDataType.Distinct();
             case "Other" -> new RelationalDataType.Other();
             case "SemiStructured" -> new RelationalDataType.SemiStructured();
-            case "Varchar" -> new RelationalDataType.Varchar(size);
+            // KNOWN MODEL CONFLATION, carried over unchanged from the legacy
+            // parser (RelationalDataType.java:140): engine's WIRE has a
+            // distinct Json type (RelationalParseTreeWalker.java:492) and our
+            // MODEL does not, so JSON columns land as SemiStructured. The
+            // protocol keeps them apart, so byte parity is unaffected; the
+            // model-side split is a separate leg (PARSER_COMPLETENESS_PLAN
+            // §3.1) and needs arms in all five RelationalDataType switches.
+            case "Json" -> new RelationalDataType.SemiStructured();
+            // a BARE VARCHAR is unbounded, not zero-width — the model's
+            // own convention (RelationalDataType.fromName). Engine requires
+            // the size (walker:296), so this only covers legend-lite's
+            // documented superset; PlanText renders the size verbatim.
+            case "Varchar" -> new RelationalDataType.Varchar(
+                    t.size() == null ? java.lang.Integer.MAX_VALUE : size);
             case "Char" -> new RelationalDataType.Char_(size);
             case "Binary" -> new RelationalDataType.Binary(size);
             case "Varbinary" -> new RelationalDataType.Varbinary(size);
             case "Decimal" -> new RelationalDataType.Decimal(
+                    t.precision() == null ? 0 : t.precision().intValue(),
+                    t.scale() == null ? 0 : t.scale().intValue());
+            // Numeric was reachable from the protocol parser and had no
+            // arm here — a NUMERIC column crashed the transform. Same
+            // class of hole as BOOLEAN, same cause: nothing built the
+            // model from protocol, so nothing ever asked.
+            case "Numeric" -> new RelationalDataType.Numeric(
                     t.precision() == null ? 0 : t.precision().intValue(),
                     t.scale() == null ? 0 : t.scale().intValue());
             default -> throw new UnsupportedOperationException(
