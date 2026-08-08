@@ -690,8 +690,25 @@ public final class Protocol {
     }
 
     /** {@code ~filter F} on a view: {filter:{name}, joins:[], srcInfo}. */
-    public record PViewFilter(String name,
+    /**
+     * A view's {@code ~filter} clause. The engine's FilterMapping is a filter
+     * POINTER (db + name) plus a join chain — grammar rule
+     * {@code viewFilterMapping: FILTER_CMD (viewFilterMappingJoin |
+     * databasePointer)? identifier}, where the join form REQUIRES a database
+     * pointer on both sides of the pipe.
+     *
+     * <p>This record carried only {@code name} until 2026-08-08, and the
+     * emitter hardcoded {@code "joins":[]}. That was right for every element
+     * the corpus compares and wrong for the grammar — a latent parity bug, and
+     * a blocker for the protocol-first migration, since the model the compiler
+     * runs on DOES carry the join chain and would have quietly lost it.
+     */
+    public record PViewFilter(@com.legend.Nullable String db, String name,
+                              List<PJoinPtr> joins,
                               com.legend.protocol.SourceInfo sourceInformation) {
+        public PViewFilter {
+            joins = joins == null ? List.of() : List.copyOf(joins);
+        }
     }
 
     /** {@code _type:"connection"} — a ###Connection element: envelope

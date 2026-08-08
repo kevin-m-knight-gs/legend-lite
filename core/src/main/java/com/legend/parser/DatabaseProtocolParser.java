@@ -443,13 +443,43 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             if (peek() == TokenType.FILTER_CMD) {
                 int tS = pos;
                 advance();
+                // viewFilterMapping: FILTER_CMD (viewFilterMappingJoin |
+                //                                databasePointer)? identifier
+                // viewFilterMappingJoin: databasePointer joinSequence PIPE
+                //                        databasePointer
+                // so a leading [db] is EITHER the filter's own database or the
+                // start of a join chain — the '@' after it decides (grammar
+                // RelationalParserGrammar.g4:141-143, probe ZViewFilterProbe)
+                String fdb = null;
+                List<Protocol.PJoinPtr> fjoins = new ArrayList<>();
                 if (peek() == TokenType.BRACKET_OPEN) {
-                    advance();                      // [db] filter pointer
-                    parseQualifiedName();
+                    advance();
+                    String firstDb = Protocol.unquotePath(parseQualifiedName());
                     expect(TokenType.BRACKET_CLOSE);
+                    if (peek() == TokenType.AT) {
+                        // join-mediated: the joins carry the FIRST db, and the
+                        // filter's own db comes from the pointer after the pipe
+                        while (peek() == TokenType.AT) {
+                            int jS = pos;
+                            advance();
+                            String jn = parseIdentifier();
+                            fjoins.add(new Protocol.PJoinPtr(firstDb, null, jn,
+                                    spanOf(jS, pos - 1)));
+                            if (peek() == TokenType.GREATER_THAN) {
+                                advance();          // chain separator '>'
+                            }
+                        }
+                        expect(TokenType.PIPE);
+                        expect(TokenType.BRACKET_OPEN);
+                        fdb = Protocol.unquotePath(parseQualifiedName());
+                        expect(TokenType.BRACKET_CLOSE);
+                    } else {
+                        fdb = firstDb;
+                    }
                 }
                 String fn = parseIdentifier();
-                filter = new Protocol.PViewFilter(fn, spanOf(tS, pos - 1));
+                filter = new Protocol.PViewFilter(fdb, fn, fjoins,
+                        spanOf(tS, pos - 1));
                 continue;
             }
             if (peek() == TokenType.GROUP_BY_CMD) {

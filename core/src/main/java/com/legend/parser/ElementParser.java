@@ -238,6 +238,20 @@ public final class ElementParser implements TokenStreamCursor {
      * incremental client touches) is provided by the dormant IDE layer in
      * {@code com.legend.ide}; it is not used by the batch compiler.
      */
+    /**
+     * Parse ONE database at {@code tokenIndex} through the LEGACY model
+     * parser. Exists so {@code MigrationEquivalenceTest} can run both paths
+     * over the same tokens and require identical models; it dies with
+     * {@code RelationalGrammarParser} (PARSER_COMPLETENESS_PLAN.md §1).
+     */
+    public static com.legend.model.DatabaseDefinition parseDatabaseAt(
+            TokenStream tokens, int tokenIndex) {
+        ElementParser p = new ElementParser(tokens);
+        p.pos = tokenIndex;
+        p.legendStrict = true;
+        return p.relationalGrammar.parseDatabase();
+    }
+
     public static ParsedModel parse(String source) {
         return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")));
     }

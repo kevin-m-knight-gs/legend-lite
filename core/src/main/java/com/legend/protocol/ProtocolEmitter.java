@@ -504,9 +504,25 @@ public final class ProtocolEmitter {
         }
         b.append("],\"distinct\":").append(v.distinct());
         if (v.filter() != null) {
-            b.append(",\"filter\":{\"filter\":{\"name\":");
+            // FilterMapping = a filter POINTER (db present only when the
+            // filter is cross-database) + the join chain that reaches it
+            // (ZViewFilterProbe). Both were dropped until 2026-08-08.
+            b.append(",\"filter\":{\"filter\":{");
+            if (v.filter().db() != null) {
+                b.append("\"db\":");
+                str(b, v.filter().db());
+                b.append(',');
+            }
+            b.append("\"name\":");
             str(b, v.filter().name());
-            b.append("},\"joins\":[],\"sourceInformation\":");
+            b.append("},\"joins\":[");
+            for (int i = 0; i < v.filter().joins().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                joinPtr(b, v.filter().joins().get(i));
+            }
+            b.append("],\"sourceInformation\":");
             srcInfo(b, v.filter().sourceInformation());
             b.append('}');
         }

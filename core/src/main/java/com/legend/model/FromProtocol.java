@@ -103,6 +103,20 @@ public final class FromProtocol {
         return new EnumDefinition(e.qualifiedName(), names);
     }
 
+    /**
+     * {@code PDatabase} &rarr; {@link DatabaseDefinition} — R1 of the
+     * protocol-first migration (PARSER_COMPLETENESS_PLAN.md §1). Filled in
+     * once R0 has taught the protocol side to carry a view filter's db and
+     * join chain; until then it refuses rather than returning a model that is
+     * quietly missing join-mediated filters.
+     */
+    public static DatabaseDefinition toDatabaseDefinition(
+            com.legend.protocol.Protocol.PDatabase db) {
+        throw new UnsupportedOperationException(
+                "toDatabaseDefinition: pending migration R1 — the protocol view"
+                        + " filter cannot yet carry db + joins (R0)");
+    }
+
     public static ClassDefinition toClassDefinition(PClass c) {
         List<ClassDefinition.PropertyDefinition> props = new ArrayList<>(c.properties().size());
         for (PProperty p : c.properties()) {
