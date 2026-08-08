@@ -131,7 +131,7 @@ public final class FromProtocol {
                 flatTables.add(d);
             }
             for (com.legend.protocol.Protocol.PDbView vw : s.views()) {
-                DatabaseDefinition.ViewDefinition d = view(vw);
+                DatabaseDefinition.ViewDefinition d = view(vw, db.qualifiedName());
                 sv.add(d);
                 flatViews.add(d);
             }
@@ -216,18 +216,19 @@ public final class FromProtocol {
     }
 
     private static DatabaseDefinition.ViewDefinition view(
-            com.legend.protocol.Protocol.PDbView v) {
+            com.legend.protocol.Protocol.PDbView v,
+            @com.legend.Nullable String enclosingDb) {
         List<DatabaseDefinition.ViewDefinition.ViewColumnMapping> cms =
                 new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PViewColumnMapping cm : v.columnMappings()) {
             cms.add(new DatabaseDefinition.ViewDefinition.ViewColumnMapping(
-                    cm.name(), null, RelOpFromProtocol.op(cm.operation()),
+                    cm.name(), null, RelOpFromProtocol.op(cm.operation(), enclosingDb),
                     v.primaryKey().contains(cm.name())));
         }
         List<RelationalOperation> groupBy = new java.util.ArrayList<>();
         if (v.groupBy() != null) {
             for (com.legend.protocol.Protocol.PRelOp g : v.groupBy()) {
-                groupBy.add(RelOpFromProtocol.op(g));
+                groupBy.add(RelOpFromProtocol.op(g, enclosingDb));
             }
         }
         return new DatabaseDefinition.ViewDefinition(v.name(), filterMapping(v.filter()),

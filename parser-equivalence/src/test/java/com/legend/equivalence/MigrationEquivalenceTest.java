@@ -36,11 +36,28 @@ class MigrationEquivalenceTest {
 
     /** Databases whose two paths still disagree. Ratchets DOWN only; the
      *  legacy parser dies when this is 0 and the switch is thrown. */
-    private static final int MAX_MISMATCHED_DATABASES = 41;
-    // 488 -> 41 as the transform learned what the wire does NOT say: the
+    private static final int MAX_MISMATCHED_DATABASES = 25;
+    // 488 -> 25 as the transform learned what the wire does NOT say: the
     // synthetic "default" schema, resolved-vs-as-written database names,
     // schema-qualified table names, milestoning, the {target} marker,
     // right-associative and/or, and quoted identifiers.
+    //
+    // THE REMAINING 25 ARE A PRINCIPLED FLOOR, not unfinished work. They are
+    // all AS-WRITTEN vs CANONICAL differences the wire structurally cannot
+    // preserve, because the engine's protocol records the resolved form:
+    //
+    //   * `[thisDb]t.col` vs bare `t.col` — the legacy model keeps the
+    //     database name the source wrote; the wire always resolves it, so a
+    //     self-reference is indistinguishable from an unqualified one.
+    //   * `isNull(x)` vs the operator spelling — the legacy model builds
+    //     FunctionCall for one and IsNull for the other; both are one
+    //     dynaFunc on the wire. Folding to match one spelling breaks the
+    //     other, measured: 25 -> 27.
+    //
+    // Every one denotes the same thing, so the switchover cannot be proven by
+    // structural equality alone past this point. It is proven by gates 4/5/6 —
+    // the corpus and PCT sweeps — which compare generated SQL, which is the
+    // property that actually matters.
 
     @Test
     void everyDatabaseParsesIdenticallyThroughBothPaths() throws Exception {
